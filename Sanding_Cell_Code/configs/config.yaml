@@ -1,0 +1,181 @@
+settings:
+  debug: true
+  actualScan: true
+  useTool: true
+
+server:
+  ip: '192.168.0.104'
+  port: 9092
+  cpip: '192.168.0.10' 
+  cps: 10003
+  frontEnd_base_url: "http://127.0.0.1:5100"
+  frontEnd_messaging_url: "http://127.0.0.1:5100/trigger"
+
+coords:
+  # We have tcps for each thing (laser and tools)
+  tcpDefault    : "TCP_Laser"   # This is the default TCP (TCP laser)
+  tcpLaser      : "TCP_Laser"     # This is the TCP for laser
+  tcpFrameTool  : "TCP_tool1" # This is TCP for square bottom facing sanding tool for frame
+  tcpPocketTool : "TCP_tool1" # This is TCP for square bottom facing sanding tool for pocket
+  tcp3DTool     : "TCP_tool1" # This is TCP for 3D tool for 3D face
+  tcpSideTool   : "TCP_toolVert" # This is TCP for square side facing sanding tool for side
+  tcpEdgeTool   : "TCP_toolVert" # This is TCP for square side facing sanding tool for outer edge
+  tcpEdgeToolIn : "TCP_toolVert" # This is TCP for square side facing sanding tool for inner edge
+  tcpReal       : "TCP_tool1_real" # This is the TCP for the real tool
+  tcpLaserPlane1 : "TCP_laserplane1" #This is the laser for Plane 1
+  tcptool1plane1 : "TCP_tool1plane1" #This is the tcp for tool 1
+  tcptool2plane1 : "TCP_tool2plane1" #THis is the tcp for tool 2
+  tcptool3plane1 : "TCP_tool3plane1" # This is the tcp for tool 3
+  
+  # We have 2 UCS (User Coordinate System)
+  ucsDefault: "Base"  # This is the base UCS (used while homing, tool changing etc.)
+  ucsTable1: "Plane_1" # This is the UCS for table 1 (left table) (used for scanning and sanding)
+  ucsTable2: "Plane_2" # This is the plane for table 2
+  roboVelocity: 500 # Increased from 200 to 300 by rafat
+  roboAcceleration: 550 # Increased from 250 to 350 by rafat
+  transitionRadius: 10 # Decreased from 10 to 5 by rafat
+  # roboVelocity: 200
+  # roboAcceleration: 250
+  # transitionRadius: 30
+
+
+table:
+  length0: 585
+  length1: 620
+  length2: 620
+  length3: 660
+  lengthx0: 0
+  lengthx1: 573
+  lengthx2: 1221
+  lengthx3: 1861
+  width: 880 # 675 to 870 mm
+  sevenbtest: 0 #Test for the 7 axis in for Table B limitation 2200 for the software
+  # angle: 42.5
+  angle: 0
+  count: 4
+
+offset:
+  seventhAxis: 0 #564
+  toolRadius: 35
+  tool3x: 75
+  tool3y: 100
+  toolin: 0
+  scannerOffsetInLeft   : 5 # add this much offset in left while scanning x axis.
+  scannerOffsetInBottom : 10 # add this much offset in bottom while scanning y axis.
+  doorYOffset: 150 #Initial 50
+  innerSandingOffset: 60
+  edgeOffset: 0  # Previously it 15
+  innerOffset: 3
+
+
+scanThreshold:
+  # 1, 2, 3, are model numbers
+  T1: 1 # Increased from 1 to 1.2 by rafat
+  T2: 0.8 # Increased from 0.8 to 1.0 by rafat
+  T3: 0.3 # Increased from 0.3 to 0.4 by rafat
+  T4: 0.2 # Increased from 0.2 to 0.3 by rafat
+  T5: 0.8 # Increased from 0.8 to 1.0 by rafat
+
+scanThresholdMinD:
+  # 1, 2, 3, are model numbers
+  T1: 0
+  T2: 8 # Increased from 8 to 10 by rafat
+  T3: 8 # Increased from 8 to 10 by rafat
+  T4: 8 # Increased from 8 to 10 by rafat
+  T5: 8 # Increased from 8 to 10 by rafat
+
+door:
+  frame: 60
+  sandSpeed: 0.02 #0.02 real
+  homingSpeed: 0.3
+
+point:
+  # tableOrigin: [-280.122, -270.601, 52.402, -180, 40.163, 90]
+  # The point for the leftmost corner of table 1 (UCS: Plane_1, TCP: TCP_Laser)
+  table1Origin: [0.5, -5, -63, 0, 0, -180]
+  # table1Origin: [50, -11.725, 41.991, -0.164, -0.574, 0.020]
+  # table1Origin: [50.826, -11.977, 41.991, -0.163, -0.573, 0.020]
+  # The point for the leftmost corner of table 1 (UCS: Plane_1, TCP: TCP_toolVert)
+  # weirdToolTable1Origin: [-32.26, -94.37, 55, -0.164, -0.500, 0.020]
+  weirdToolTable1Origin: [-44.737, -100.718, 60, -0.164, -0.500, 0.020]
+  # safe point in the middle of the table (UCS: Base, TCP: TCP_laser)
+  #safePoint: [-572.28, -12, 582.585, 0, 0, 179.99]
+  #safePointAngle: [0, 0, -75, 0, -105, 90]
+  safePoint: [-572.28, -12.002, 582.585, 0, 0, 179.99]
+  safePointAngle: [0, 0, -75, 0, -105, 90]
+  safepointprehoming: [150,0,50,0,0,-180]
+  # safe point in the middle of the table (UCS: Base, TCP: must use the appropriate tool tcp)
+  safePointClose: [50, -11.725, 41.991, -0.164, -0.574, 0.020]
+  safePointAngleClose: [0, 0, -75, 0, -105, 90] # this is not the proper angle :) kindly update it
+  # safe point in the left side of the table (UCS: Base, TCP: TCP_laser)
+  safePointTool: [12, -572.28, 582.585, 0, 0, -90]
+  safePointToolAngle: [90, 0, -75, 0, -105, 90]
+  testPointB: [0,0,-50, 180, 0, 0] # Test point for tableB checking
+  safepointprehoming: [150,0,50,0,0,-180]
+  
+  # all the tool points are UCS: Base, TCP: TCP_Laser
+  #tool3 : [595.782, 42.456, 148.450, -1.719, 0.464, -59.954]
+  #tool3home : [314.503,-141.973,219.069,-1.817,-2.423,-179.872]
+  # tool3 : [595.782, 42.456, 148.450, -1.719, 0.464, -59.954]
+  tool3 : [595.697, 43.321, 161.005, 1.149, -0.544, -59.888]
+  tool3home : [595.782, 42.456, 315, -1.719, 0.464, -59.954]
+  tool2home : [526.029, -173.268, 327.915, -1.519, -0.367, -119.810]
+  #tool2 : [526.029, -172.268, 148.682, -1.519, -0.367, -119.810]
+  #tool2 : [523.423,-171.904,147.984,-2.892,-0.096,-119.665]
+  tool2 : [524.713,-172.209,156.267,-0.474,0.732,-119.738]
+  # tool3home : [546.97, 96.42, 289.41, 179.59, -1.19, -150.03]
+  # tool3 : [546.97, 96.43, 106.16, 179.59, -1.19, -150.03]
+  # tool4home : [390.118, 126.730, 310.157, 179.811, 0.295, -89.849]
+  # tool4 : [390.118, 126.730, 114.609, 179.811, 0.295, -89.849]
+  tool1home : [314.877,-142.239,300.170,0.379,-2.542,-179.577]
+  #tool1 : [314.874,-142.244,157.551,0.379,-2.542,-179.577]
+  tool1 : [316.060,-143.412,161.355,0.827,-1.149,-179.696]
+
+tool:
+  tool2height: 185
+  tool3height: 180 # actual is 160.274 # always subtract 120mm
+  tool4height: 180 # actual is 160.274 # always subtract 120mm
+
+  sideToolPos: 2
+  frameToolPos: 3
+  3dToolPos: 4
+
+  tool1: 2
+  tool2: 2
+  tool3: 3
+  tool4: 4
+
+toolForModels:
+  # the serial is: side, frame, outedge, inedge, pocketzigzag, pocketsquare, 3d (7 positions)
+  model1: [1, 1, 1, 1, 1, 1, 0]
+  model2: [1, 1, 1, 1, 1, 1, 0]
+  model3: [1, 1, 1, 1, 1, 1, 0]
+  model4: [1, 1, 1, 1, 1, 1, 0]
+
+seventhAxis:
+  maxSpeed: 200
+
+model3D:
+  # size of the 3D frame in millimeters
+  "1": 0
+  "2": 0
+  "3": 0
+  "4": 0
+
+UI:
+  frameSandCount: 0 #frame
+  # innerSandingCount: 1
+  pocketZigSandCnt: 0 #pocket[zigzag]
+  pocketSQSandCnt: 1 #pocket[square]
+  threeDSandCount: 0 #threeD
+  inedgeSandCount: 1 #insideEdge
+  outedgeSandCount: 0 #outsideEdge
+  sideSandCount: 0 #sides
+  robotSpeed: 0.7
+  scanSpeed: 0.08 # Incresed speed from 0.15 to 0.25 by rafat
+  sandSpeed: 0.6
+  seventhAxisSpeed: 100
+  seventhAxisVelocity: 20
+  model: 1
+  controlPressure: 0
+

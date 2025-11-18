@@ -1,0 +1,1 @@
+"C:/Users/Technoaccord Inc/AppData/Local/Programs/Python/Python38/python.exe" "c:/Sanding Cell/Sanding_Cell_Technoaccord/app.py"

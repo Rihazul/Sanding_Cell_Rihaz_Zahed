@@ -1,0 +1,93 @@
+settings:
+  debug: true
+  actualScan: false
+  useTool: false
+
+server:
+  ip: '192.168.0.104'
+  port: 9092
+  cpip: '192.168.0.10' 
+  cps: 10003
+
+coords:
+  tcpTool: "TCP_lili"
+  ucsTool: "Base"
+  tcpLaser: "TCP_laser"
+  roboVelocity: 2500
+  roboAcceleration: 2500
+  transitionRadius: 50
+
+
+table:
+  length0: 570
+  length1: 570
+  length2: 565
+  length3: 660
+  lengthx0: 0
+  lengthx1: 585
+  lengthx2: 1165
+  lengthx3: 1745
+  width: 675
+  angle: 42.5
+  count: 4
+
+offset:
+  seventhAxis: 0 #564
+  toolRadius: 35
+  tool3x: 75
+  tool3y: 100
+  scannerOffsetInLeft: -11 # actual is 40
+  scannerOffsetInBottom: 75 # actual is -25
+  doorYOffset: 50
+  innerSandingOffset: 60
+  edgeOffset: 50
+
+door:
+  frame: 60
+
+point:
+  # tableOrigin: [-280.122, -270.601, 52.402, -180, 40.163, 90]
+  tableOrigin: [-280.122, -270.601, 52.402, -180, 40.163, 90]
+  tableOriginAngle: [-7,765, -5.190, -74.824, 0, -110.366, 82.235]
+  safePoint: [-440, 60, 572, -180, 0, 90]
+  safePointTool: [0, -444, 572, 180, 0, -180]
+
+  tool1home : [386.859, -132.509, 268.916, -178.181, -0.038, 89.154]
+  tool1 : [386.859, -132.509, 110.039, -178.181, -0.038, 89.154]
+  tool2home : [546.872, -104.69, 296, -179.81, -0.96, 150.01]
+  tool2 : [546.88, -104.68, 104.55, 179.81, -0.96, 150.01]
+  tool3home : [546.97, 96.42, 289.41, 179.59, -1.19, -150.03]
+  tool3 : [546.97, 96.43, 106.16, 179.59, -1.19, -150.03]
+  tool4home : [390.118, 126.730, 310.157, 179.811, 0.295, -89.849]
+  tool4 : [390.118, 126.730, 114.609, 179.811, 0.295, -89.849]
+tool:
+  tool2height: 185
+  tool3height: 180 # actual is 160.274 # always subtract 120mm
+  tool4height: 180 # actual is 160.274 # always subtract 120mm
+
+toolForModels:
+  # tool 1 is for sanding the frame (top) [0th position]
+  # tool 2 is for sanding the inside (top) [1th position]
+  # tool 2 is for sanding the inside (top) [1th position]
+  # tool 2 is for sanding the inside (top) [1th position]
+  model1: [1, 1, 1, 1, 0]
+  # model1: [1, 1, 1, 1, 0]
+  model2: [1, 1, 1, 0, 1]
+
+seventhAxis:
+  maxSpeed: 4000
+
+UI:
+  frameSandCount: 1
+  # innerSandingCount: 1
+  pocketSandCnt: 1
+  threeDSandCount: 1
+  edgeSandCount: 0
+  sideSandCount: 0
+  robotSpeed: 0.1
+  scanSpeed: 0.08
+  seventhAxisSpeed: 50
+  seventhAxisVelocity: 20
+  model: 1
+  controlPressure: 20
+

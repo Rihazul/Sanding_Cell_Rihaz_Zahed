@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name":"Flask Debug (multiThreaded)",
+            "type": "python",
+            "request": "launch",
+            "module" : "flask",
+            "env" : {
+                "FLASK_APP": "flask_app.py",
+                "FLASK_DEBUG": "0",
+            },
+
+            "args": [
+                "run",
+                "--no-reload",
+                "--host", "127.0.0.1",
+                "--port", "5100",
+                "--with-threads",
+            ],
+            "justMyCode": false,
+            "subProcess": true,
+            "console": "integratedTerminal",
+            "debugOptions": [
+                "redirectOutput"
+            ]
+        },
+        {
+            "name": "Main Script",
+            "type": "python",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "subProcess": true,
+            "debugOptions": [
+                "redirectOutput"
+            ]
+        }
+    ]
+}
