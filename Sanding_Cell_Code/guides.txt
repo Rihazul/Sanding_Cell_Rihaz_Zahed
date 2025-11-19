@@ -1,0 +1,2 @@
+cmd 1) netstat -ano | findstr 5100
+cmd 2)  taskkill /PID 11772 /F   

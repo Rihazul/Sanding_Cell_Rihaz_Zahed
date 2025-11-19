@@ -1,0 +1,20 @@
+version = 1
+revision = 3
+requires-python = ">=3.8"
+
+[[package]]
+name = "sanding-cell-code"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "webview" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "webview" }]
+
+[[package]]
+name = "webview"
+version = "0.1.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0c/5f/6e84700b7825bcddb12cd3eead8ac787d9d624be9f2c01aa4fb9a88572a9/webview-0.1.5.tar.gz", hash = "sha256:fb62502d687074035f888a14c76ca13bcba0dbf1f1d366679954b7586c90f8d6", size = 18639, upload-time = "2018-03-18T09:08:52.078Z" }

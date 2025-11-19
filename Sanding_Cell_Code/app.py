@@ -23,10 +23,10 @@ def close_flask_process(flask_process):
 # Function to create the PyWebView window and control the process
 def create_window():
     # Start Flask in a separate thread and get the process handle
-    # flask_process = start_flask()
+    flask_process = start_flask()
 
     # Create the PyWebView window (Disable resizing)
-    window = webview.create_window('Sanding App', 'http://localhost:5100', resizable=True, width=1680, height=1050)
+    window = webview.create_window('Sanding App', 'http://0.0.0.0:5100', resizable=True, width=1680, height=1050)
 
     # Define the close action callback
     def on_window_closed():

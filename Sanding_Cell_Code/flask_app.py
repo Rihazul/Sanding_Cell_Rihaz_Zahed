@@ -1000,6 +1000,6 @@ def handle_action():
 
 ############################################################################################
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5100, debug=True)
+    app.run(host='0.0.0.0', port=5100, debug=True) # 0.0.0.0 is used to run on all available IPs
     # app.run(host='127.0.0.1', port=5100, debug=False, use_reloader=False)
 
