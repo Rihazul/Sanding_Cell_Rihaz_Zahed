@@ -241,6 +241,7 @@ def start_TableA_process():
     stopper_statusmod(CPS, state="up")
 
     client_process = Process(target=modelMethodMapTableA[tableData['model']], args=())
+    print(client_process.pid)
     client_process.start()
     client_process.join()
     client_process.terminate()

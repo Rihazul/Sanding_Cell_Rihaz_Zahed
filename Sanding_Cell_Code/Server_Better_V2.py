@@ -1675,6 +1675,7 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
         config['logger'].info("[HomingFunc] DONE! Success to reach 0th position")
         msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message="Homing Completed Successfully!")
 
+    
     def homingFunction_old(cps, config):
         def check_return_value(val):
             if (val != 0):
