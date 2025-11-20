@@ -1,5 +1,5 @@
 settings:
-  debug: true
+  debug: true # Console logging enabled
   actualScan: true
   useTool: true
 
