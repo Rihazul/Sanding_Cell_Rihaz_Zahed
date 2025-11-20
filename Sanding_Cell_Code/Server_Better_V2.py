@@ -3220,6 +3220,7 @@ def communicate(cps, config, tcp, ucs, point=None, seventh= -1, doMeasure = 0, s
     #     config['logger'].info("No input available, proceeding without user confirmation.")
 
     return measurements
+
 #New integration by rafat dated on 28_12_2024
 def toolValve1(cps, valveState:str, config): #Tool valve for grabbing or throwing
         """Used to "pick" or "drop" the tool. 
