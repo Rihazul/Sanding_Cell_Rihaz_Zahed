@@ -1,0 +1,123 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'motion/react';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+
+interface RobotStatusCardProps {
+  isHoming: boolean;
+  setIsHoming: (homing: boolean) => void;
+}
+
+interface ActivityMessage {
+  id: number;
+  timestamp: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+}
+
+export function RobotStatusCard({ isHoming, setIsHoming }: RobotStatusCardProps) {
+  const [activities, setActivities] = useState<ActivityMessage[]>([
+    { id: 1, timestamp: new Date().toLocaleTimeString(), message: 'Robot system initialized', type: 'success' },
+    { id: 2, timestamp: new Date().toLocaleTimeString(), message: 'Waiting for commands...', type: 'info' },
+  ]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [activities]);
+
+  const addActivity = (message: string, type: ActivityMessage['type'] = 'info') => {
+    const newActivity: ActivityMessage = {
+      id: Date.now(),
+      timestamp: new Date().toLocaleTimeString(),
+      message,
+      type,
+    };
+    setActivities((prev) => [...prev, newActivity]);
+  };
+
+  const handleHoming = () => {
+    setIsHoming(true);
+    addActivity('Homing sequence initiated...', 'warning');
+    setTimeout(() => {
+      setIsHoming(false);
+      addActivity('Homing completed successfully', 'success');
+    }, 2000);
+  };
+
+  const handleStop = () => {
+    addActivity('Emergency stop activated!', 'error');
+  };
+
+  const getMessageColor = (type: ActivityMessage['type']) => {
+    switch (type) {
+      case 'success': return 'text-green-600';
+      case 'warning': return 'text-yellow-600';
+      case 'error': return 'text-red-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  return (
+    <Card className="shadow-lg border-0">
+      <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50">
+        <CardTitle>Robot Status</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6 space-y-4">
+        {/* Control Buttons */}
+        <div className="grid grid-cols-2 gap-3">
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={handleHoming}
+            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg`}
+          >
+            {isHoming ? 'Homing...' : 'Homing'}
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.95 }} 
+            onClick={handleStop}
+            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg"
+          >
+            Stop
+          </motion.button>
+        </div>
+
+        {/* Activity Display Panel */}
+        <div className="flex flex-col min-h-0">
+          <h3 className="text-sm font-semibold text-gray-600 mb-2 flex-shrink-0">Activity Log</h3>
+          <div 
+            className="activity-log-scroll bg-gray-900 border-2 border-gray-700 rounded-lg p-4 shadow-inner flex-shrink-0"
+            style={{
+              height: '256px',
+              maxHeight: '256px',
+              minHeight: '256px',
+              overflowY: 'scroll',
+              overflowX: 'hidden',
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#4B5563 #1F2937',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.5rem'
+            }}
+          >
+            {activities.map((activity) => (
+              <motion.div
+                key={activity.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className="text-sm font-mono flex-shrink-0"
+              >
+                <span className="text-gray-400">[{activity.timestamp}]</span>{' '}
+                <span className={getMessageColor(activity.type)}>{activity.message}</span>
+              </motion.div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
