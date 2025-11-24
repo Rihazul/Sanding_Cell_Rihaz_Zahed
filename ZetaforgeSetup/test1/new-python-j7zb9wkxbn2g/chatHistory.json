@@ -1,0 +1,35 @@
+{
+  "index": 0,
+  "history": [
+    {
+      "timestamp": 1764007755327,
+      "prompt": "Code Template",
+      "response": "def compute(in1, in2):\n    \"\"\"A textual description of the compute function.\n\n    Inputs:\n        in1 (all): Textual description of in1\n        in2 (all): Textual description of in2\n\n    Outputs:\n        out1 (all): Textual description of out1\n        out2 (all): Textual description of out2\n\n    Requirements:\n    \"\"\"\n    # some code\n    out1 = 2 * in1\n    out2 = \"This is the in2 string:\" + in2\n\n    return {\"out1\": out1, \"out2\": out2}\n\n\ndef test():\n    \"\"\"Test the compute function.\"\"\"\n\n    print(\"Running test\")\n"
+    },
+    {
+      "timestamp": 1764008090445,
+      "prompt": "Manual Edit of computations.py",
+      "response": "def compute(config_path):\n    \"\"\"A textual description of the compute function.\n\n    Inputs:\n        in1 (all): Textual description of in1\n        in2 (all): Textual description of in2\n\n    Outputs:\n        out1 (all): Textual description of out1\n        out2 (all): Textual description of out2\n\n    Requirements:\n    \"\"\"\n    config = None\n    with open('./configs/config.yaml', 'r') as file:\n        config = yaml.safe_load(file)\n    # Load configuration with console logging enabled\n    \n    config['logger'] = setup_logger(config['settings']['debug'])\n    cps = CPSClient()\n\n    return {\"out1\": out1, \"out2\": out2}\n\n\ndef test():\n    \"\"\"Test the compute function.\"\"\"\n\n    print(\"Running test\")\n"
+    },
+    {
+      "timestamp": 1764008103475,
+      "prompt": "Manual Edit of computations.py",
+      "response": "from modules.CPS import CPSClient\n\ndef compute(config_path):\n    \"\"\"A textual description of the compute function.\n\n    Inputs:\n        in1 (all): Textual description of in1\n        in2 (all): Textual description of in2\n\n    Outputs:\n        out1 (all): Textual description of out1\n        out2 (all): Textual description of out2\n\n    Requirements:\n    \"\"\"\n    config = None\n    with open('./configs/config.yaml', 'r') as file:\n        config = yaml.safe_load(file)\n    # Load configuration with console logging enabled\n    \n    config['logger'] = setup_logger(config['settings']['debug'])\n    cps = CPSClient()\n\n    return {\"out1\": out1, \"out2\": out2}\n\n\ndef test():\n    \"\"\"Test the compute function.\"\"\"\n\n    print(\"Running test\")\n"
+    },
+    {
+      "timestamp": 1764008127912,
+      "prompt": "Manual Edit of computations.py",
+      "response": "from modules.CPS import CPSClient\n\ndef compute(config_path):\n    \"\"\"A textual description of the compute function.\n\n    Inputs:\n        in1 (all): Textual description of in1\n        in2 (all): Textual description of in2\n\n    Outputs:\n        out1 (all): Textual description of out1\n        out2 (all): Textual description of out2\n\n    Requirements:\n    \"\"\"\n    config = None\n    with open('./configs/config.yaml', 'r') as file:\n        config = yaml.safe_load(file)\n    # Load configuration with console logging enabled\n    \n    config['logger'] = setup_logger(config['settings']['debug'])\n    cps = CPSClient()\n    \n    print(\"Initializing communications...\")\n        # Connect to robot\n        IP = self.config['server']['cpip']\n        port = self.config['server']['cps']\n        ret = self.cps.HRIF_Connect(0, IP, port)\n\n        if ret != 0:\n            print(f\"Error {ret}, Failed to connect to robot.\")\n        else:\n            print(\"Successfully connected to robot.\")\n    return {\"out1\": out1, \"out2\": out2}\n\n\ndef test():\n    \"\"\"Test the compute function.\"\"\"\n\n    print(\"Running test\")\n"
+    },
+    {
+      "timestamp": 1764008178772,
+      "prompt": "Manual Edit of computations.py",
+      "response": "from modules.CPS import CPSClient\n\ndef compute(config_path):\n    \"\"\"A textual description of the compute function.\n\n    Inputs:\n        in1 (all): Textual description of in1\n        in2 (all): Textual description of in2\n\n    Outputs:\n        out1 (all): Textual description of out1\n        out2 (all): Textual description of out2\n\n    Requirements:\n    \"\"\"\n    config = None\n    with open('./configs/config.yaml', 'r') as file:\n        config = yaml.safe_load(file)\n    # Load configuration with console logging enabled\n    \n    config['logger'] = setup_logger(config['settings']['debug'])\n    cps = CPSClient()\n    \n    print(\"Initializing communications...\")\n        # Connect to robot\n    IP = self.config['server']['cpip']\n    port = self.config['server']['cps']\n    ret = self.cps.HRIF_Connect(0, IP, port)\n\n    if ret != 0:\n        res = f\"Error {ret}, Failed to connect to robot.\"\n    else:\n        res =\"Successfully connected to robot.\"\n    return {\"out1\": res }\n\n\ndef test():\n    \"\"\"Test the compute function.\"\"\"\n\n    print(\"Running test\")\n"
+    },
+    {
+      "timestamp": 1764008209477,
+      "prompt": "Manual Edit of computations.py",
+      "response": "from modules.CPS import CPSClient\n\ndef compute(config_path):\n    \"\"\"A textual description of the compute function.\n\n    Inputs:\n        in1 (all): Textual description of in1\n        in2 (all): Textual description of in2\n\n    Outputs:\n        out1 (all): Textual description of out1\n        out2 (all): Textual description of out2\n\n    Requirements:\n    \"\"\"\n    config = None\n    with open('./configs/config.yaml', 'r') as file:\n        config = yaml.safe_load(file)\n    # Load configuration with console logging enabled\n    \n    config['logger'] = setup_logger(config['settings']['debug'])\n    cps = CPSClient()\n    \n    print(\"Initializing communications...\")\n        # Connect to robot\n    IP = self.config['server']['cpip']\n    port = self.config['server']['cps']\n    ret = self.cps.HRIF_Connect(0, IP, port)\n\n    if ret != 0:\n        res = f\"Error {ret}, Failed to connect to robot.\"\n    else:\n        res =\"Successfully connected to robot.\"\n    return {\"status\": res }\n\n\ndef test():\n    \"\"\"Test the compute function.\"\"\"\n\n    print(\"Running test\")\n"
+    }
+  ]
+}
