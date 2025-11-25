@@ -5,10 +5,9 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 
 interface AnalyticsPageProps {
   onNavigateToDashboard: () => void;
-  onLogout: () => void;
 }
 
-export function AnalyticsPage({ onNavigateToDashboard, onLogout }: AnalyticsPageProps) {
+export function AnalyticsPage({ onNavigateToDashboard }: AnalyticsPageProps) {
   const revenueData = [
     { month: 'Jan', revenue: 4000, users: 2400 },
     { month: 'Feb', revenue: 3000, users: 1398 },
@@ -37,10 +36,6 @@ export function AnalyticsPage({ onNavigateToDashboard, onLogout }: AnalyticsPage
               <Button onClick={onNavigateToDashboard} variant="outline">
                 <LayoutDashboard className="size-4 mr-2" />
                 Dashboard
-              </Button>
-              <Button onClick={onLogout} variant="ghost">
-                <LogOut className="size-4 mr-2" />
-                Logout
               </Button>
             </div>
           </div>
