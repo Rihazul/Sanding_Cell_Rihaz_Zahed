@@ -9,6 +9,7 @@ interface RobotStatusCardProps {
   activities: ActivityMessage[];
   addActivity: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   isOperating: boolean;
+  robotEnabled: boolean;
 }
 
 interface ActivityMessage {
@@ -18,7 +19,7 @@ interface ActivityMessage {
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
-export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity, isOperating }: RobotStatusCardProps) {
+export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity, isOperating, robotEnabled }: RobotStatusCardProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
 
@@ -30,7 +31,11 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
     scrollToBottom();
   }, [activities]);
 
-  const handleHoming = () => {
+  const handleHoming = (robotEnabled: boolean) => {
+    if (!robotEnabled) {
+      addActivity('Cannot perform homing - Robot power is disabled', 'error');
+      return;
+    }
     setIsHoming(true);
     addActivity('Homing sequence initiated...', 'warning');
     setTimeout(() => {
@@ -39,7 +44,11 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
     }, 2000);
   };
 
-  const handleStop = () => {
+  const handleStop = (robotEnabled: boolean) => {
+    if (!robotEnabled) {
+      addActivity('Cannot activate emergency stop - Robot power is disabled', 'error');
+      return;
+    }
     addActivity('Emergency stop activated!', 'error');
   };
 
@@ -62,7 +71,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
         <div className="grid grid-cols-2 gap-3">
           <motion.button
             whileTap={isOperating ? {} : { scale: 0.95 }}
-            onClick={isOperating ? undefined : handleHoming}
+            onClick={isOperating ? undefined : () => handleHoming(robotEnabled)}
             disabled={isOperating}
             className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${isOperating ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
@@ -70,7 +79,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
           </motion.button>
           <motion.button 
             whileTap={{ scale: 0.95 }} 
-            onClick={handleStop}
+            onClick={() => handleStop(robotEnabled)}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg"
           >
             Stop

@@ -7,6 +7,8 @@ interface SettingsPanelProps {
   setRobotSpeed: (speed: number[]) => void;
   inverseOverlapping: number[];
   setInverseOverlapping: (overlap: number[]) => void;
+  sandingSpeed: number[];
+  setSandingSpeed: (speed: number[]) => void;
 }
 
 export function SettingsPanel({
@@ -14,6 +16,8 @@ export function SettingsPanel({
   setRobotSpeed,
   inverseOverlapping,
   setInverseOverlapping,
+  sandingSpeed,
+  setSandingSpeed,
 }: SettingsPanelProps) {
   return (
     <Card className="shadow-lg border-0">
@@ -37,6 +41,15 @@ export function SettingsPanel({
             <span className="text-sm text-gray-600">{inverseOverlapping[0]}%</span>
           </div>
           <Slider value={inverseOverlapping} onValueChange={setInverseOverlapping} min={0} max={100} step={1} className="[&_[role=slider]]:bg-purple-500" />
+        </div>
+
+        {/* Sanding Speed */}
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-sm">Sanding Speed</label>
+            <span className="text-sm text-gray-600">{sandingSpeed[0]}%</span>
+          </div>
+          <Slider value={sandingSpeed} onValueChange={setSandingSpeed} min={0} max={100} step={1} className="[&_[role=slider]]:bg-pink-500" />
         </div>
       </CardContent>
     </Card>

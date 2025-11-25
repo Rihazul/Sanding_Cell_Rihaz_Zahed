@@ -17,6 +17,7 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
   const [robotEnabled, setRobotEnabled] = useState(false);
   const [robotSpeed, setRobotSpeed] = useState([100]);
   const [inverseOverlapping, setInverseOverlapping] = useState([50]);
+  const [sandingSpeed, setSandingSpeed] = useState([75]);
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
   const [isOperating, setIsOperating] = useState(false);
@@ -150,6 +151,8 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
               setRobotSpeed={setRobotSpeed}
               inverseOverlapping={inverseOverlapping}
               setInverseOverlapping={setInverseOverlapping}
+              sandingSpeed={sandingSpeed}
+              setSandingSpeed={setSandingSpeed}
             />
 
             <RobotStatusCard
@@ -158,6 +161,7 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
               activities={activities}
               addActivity={addActivity}
               isOperating={isOperating}
+              robotEnabled={robotEnabled}
             />
           </div>
         </div>
