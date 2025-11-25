@@ -5,16 +5,23 @@ import threading
 import time
 from typing import Optional
 
-from Components.RobotState import RobotState, RobotStateDashboard
+from Components.RobotState import RobotState
+from Components.RobotStateDashboard import RobotStateDashboard
 
 
 def _updater_loop(robot_state: RobotState, interval: float, stop_event: threading.Event):
     """Background loop that keeps robot state fresh."""
     while not stop_event.is_set():
-        # robot_state.fetch_and_update_flags()
+        if not robot_state.fetch_and_update_flags():
+            stop_event.set()
+            break
         if not robot_state.fetch_and_update_pos():
             stop_event.set()
             break
+        if not robot_state.fetch_and_update_tcp():
+            stop_event.set()
+            break
+        
         stop_event.wait(interval)
 
 
