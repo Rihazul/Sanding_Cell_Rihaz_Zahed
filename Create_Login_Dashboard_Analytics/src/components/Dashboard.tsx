@@ -19,6 +19,23 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
   const [inverseOverlapping, setInverseOverlapping] = useState([50]);
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
+  const [isOperating, setIsOperating] = useState(false);
+  const [activities, setActivities] = useState<Array<{id: number, timestamp: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>>([
+    { id: 1, timestamp: new Date().toLocaleTimeString(), message: 'Robot system initialized', type: 'success' },
+    { id: 2, timestamp: new Date().toLocaleTimeString(), message: 'Waiting for commands...', type: 'info' },
+  ]);
+  
+  // Activity log function that will be passed to child components
+  const addActivity = React.useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    console.log('Dashboard addActivity called:', message, type);
+    const newActivity = {
+      id: Date.now(),
+      timestamp: new Date().toLocaleTimeString(),
+      message,
+      type,
+    };
+    setActivities((prev) => [...prev, newActivity]);
+  }, []);
   
   // Toggle states
   const [stopperAUp, setStopperAUp] = useState(false);
@@ -44,20 +61,18 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
     : null;
 
   const defaultRows: RowConfig[] = [
-    { label: 'Frame', selection: '1', force: 4, cycle: 1 },
-    { label: 'Pocket ZigZag', selection: '1', force: 5, cycle: 1 },
-    { label: '3D', selection: '1', force: 5, cycle: 1 },
-    { label: 'Edge Outside', selection: '1', force: 3, cycle: 1 },
-    { label: 'Side', selection: '1', force: 3, cycle: 1 },
+    { label: 'Frame', selection: '', force: 0, cycle: 0 },
+    { label: 'Pocket ZigZag', selection: '', force: 0, cycle: 0 },
+    { label: '3D', selection: '', force: 0, cycle: 0 },
+    { label: 'Edge Outside', selection: '', force: 0, cycle: 0 },
+    { label: 'Side', selection: '', force: 0, cycle: 0 },
   ];
 
   const [tableARows, setTableARows] = useState<RowConfig[]>(defaultRows);
-  const [tableBRows, setTableBRows] = useState<RowConfig[]>(
-    defaultRows.map((r) => ({ ...r, selection: '0', force: 1, cycle: 1 }))
-  );
+  const [tableBRows, setTableBRows] = useState<RowConfig[]>(defaultRows);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 pb-24">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-100 to-indigo-100 pb-24">
       <DashboardHeader 
         onNavigateToAnalytics={onNavigateToAnalytics}
       />
@@ -96,6 +111,8 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
                 setT4Picked={setT4Picked}
                 laserOn={laserOn}
                 setLaserOn={setLaserOn}
+                isOperating={isOperating}
+                addActivity={addActivity}
               />
               
               {/* Table A Configuration */}
@@ -106,6 +123,9 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
                 rows={tableARows}
                 setRows={setTableARows}
                 isActive={activeTable === 'A'}
+                isOperating={isOperating}
+                setIsOperating={setIsOperating}
+                addActivity={addActivity}
               />
               
               {/* Table B Configuration */}
@@ -116,6 +136,9 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
                 rows={tableBRows}
                 setRows={setTableBRows}
                 isActive={activeTable === 'B'}
+                isOperating={isOperating}
+                setIsOperating={setIsOperating}
+                addActivity={addActivity}
               />
             </SlidingPanel>
             
@@ -132,6 +155,9 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
             <RobotStatusCard
               isHoming={isHoming}
               setIsHoming={setIsHoming}
+              activities={activities}
+              addActivity={addActivity}
+              isOperating={isOperating}
             />
           </div>
         </div>

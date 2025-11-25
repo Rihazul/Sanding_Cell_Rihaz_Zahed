@@ -13,8 +13,10 @@ export function RobotStatusPanel({ isHoming, setIsHoming }: RobotStatusPanelProp
   
   // Mock I/O signals - randomly assign green (true) or red (false) for demo
   // In real application, these would come from actual robot state
-  const inputs = Array.from({ length: 14 }, (_, i) => Math.random() > 0.5);
-  const outputs = Array.from({ length: 14 }, (_, i) => Math.random() > 0.5);
+  const controlInputs = Array.from({ length: 8 }, (_, i) => Math.random() > 0.5);
+  const digitalInputs = Array.from({ length: 8 }, (_, i) => Math.random() > 0.5);
+  const controlOutputs = Array.from({ length: 8 }, (_, i) => Math.random() > 0.5);
+  const digitalOutputs = Array.from({ length: 8 }, (_, i) => Math.random() > 0.5);
 
   const handleMouseEnter = () => {
     if (!isPinned) setShowIOStatus(true);
@@ -38,46 +40,102 @@ export function RobotStatusPanel({ isHoming, setIsHoming }: RobotStatusPanelProp
             onMouseLeave={handleMouseLeave}
             className="bg-white border-t-2 border-gray-300 shadow-2xl px-8 py-4 mx-4 rounded-t-lg"
           >
-            <div className="space-y-4">
-              {/* Inputs */}
-              <div>
-                <div className="text-xs font-semibold text-gray-600 mb-2">
-                  INPUTS <span className="text-gray-400 font-normal">(14 Signals)</span>
+            <div className="grid grid-cols-2 gap-4">
+              {/* INPUTS Column */}
+              <div className="space-y-3">
+                {/* Control Inputs */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-2 text-center">
+                    CONTROL INPUTS <span className="text-gray-400 font-normal">(8 Signals)</span>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {controlInputs.map((isActive, idx) => (
+                      <div key={`control-input-${idx}`} className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] font-semibold text-gray-600">CI{idx}</span>
+                        <motion.div
+                          whileHover={{ scale: 1.2, rotate: 5 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`w-10 h-10 ${
+                            isActive ? 'bg-green-500' : 'bg-red-500'
+                          } shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer transition-all`}
+                        >
+                          {idx}
+                        </motion.div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-2 justify-center">
-                  {inputs.map((isActive, idx) => (
-                    <motion.div
-                      key={`input-${idx}`}
-                      whileHover={{ scale: 1.2, rotate: 5 }}
-                      whileTap={{ scale: 0.9 }}
-                      className={`w-10 h-10 ${
-                        isActive ? 'bg-green-500' : 'bg-red-500'
-                      } shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer transition-all`}
-                    >
-                      {idx + 1}
-                    </motion.div>
-                  ))}
+
+                {/* Digital Inputs */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-2 text-center">
+                    DIGITAL INPUTS <span className="text-gray-400 font-normal">(8 Signals)</span>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {digitalInputs.map((isActive, idx) => (
+                      <div key={`digital-input-${idx}`} className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] font-semibold text-gray-600">DI{idx}</span>
+                        <motion.div
+                          whileHover={{ scale: 1.2, rotate: 5 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`w-10 h-10 ${
+                            isActive ? 'bg-green-500' : 'bg-red-500'
+                          } shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer transition-all`}
+                        >
+                          {idx}
+                        </motion.div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Outputs */}
-              <div>
-                <div className="text-xs font-semibold text-gray-600 mb-2">
-                  OUTPUTS <span className="text-gray-400 font-normal">(14 Signals)</span>
+              {/* OUTPUTS Column */}
+              <div className="space-y-3">
+                {/* Control Outputs */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-2 text-center">
+                    CONTROL OUTPUTS <span className="text-gray-400 font-normal">(8 Signals)</span>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {controlOutputs.map((isActive, idx) => (
+                      <div key={`control-output-${idx}`} className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] font-semibold text-gray-600">CO{idx}</span>
+                        <motion.div
+                          whileHover={{ scale: 1.2, rotate: -5 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`w-10 h-10 ${
+                            isActive ? 'bg-green-500' : 'bg-red-500'
+                          } shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer transition-all`}
+                        >
+                          {idx}
+                        </motion.div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-2 justify-center">
-                  {outputs.map((isActive, idx) => (
-                    <motion.div
-                      key={`output-${idx}`}
-                      whileHover={{ scale: 1.2, rotate: -5 }}
-                      whileTap={{ scale: 0.9 }}
-                      className={`w-10 h-10 ${
-                        isActive ? 'bg-green-500' : 'bg-red-500'
-                      } shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer transition-all`}
-                    >
-                      {idx + 1}
-                    </motion.div>
-                  ))}
+
+                {/* Digital Outputs */}
+                <div>
+                  <div className="text-xs font-semibold text-gray-600 mb-2 text-center">
+                    DIGITAL OUTPUTS <span className="text-gray-400 font-normal">(8 Signals)</span>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    {digitalOutputs.map((isActive, idx) => (
+                      <div key={`digital-output-${idx}`} className="flex flex-col items-center gap-1">
+                        <span className="text-[10px] font-semibold text-gray-600">DO{idx}</span>
+                        <motion.div
+                          whileHover={{ scale: 1.2, rotate: -5 }}
+                          whileTap={{ scale: 0.9 }}
+                          className={`w-10 h-10 ${
+                            isActive ? 'bg-green-500' : 'bg-red-500'
+                          } shadow-lg flex items-center justify-center text-white text-xs font-bold cursor-pointer transition-all`}
+                        >
+                          {idx}
+                        </motion.div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -91,11 +149,12 @@ export function RobotStatusPanel({ isHoming, setIsHoming }: RobotStatusPanelProp
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className="px-6 py-3 flex items-center justify-center gap-4">
-          <h3 className="text-white font-semibold text-base">I/O Signal Status</h3>
-          
-          {/* Animated Arrow - Click to Pin */}
-          <motion.div
+        <div className="px-6 py-3 flex items-center justify-center">
+          <div className="flex items-center gap-4">
+            <h3 className="text-white font-semibold text-base">I/O Signal Status</h3>
+            
+            {/* Animated Arrow - Click to Pin */}
+            <motion.div
             onClick={() => setIsPinned(!isPinned)}
             whileHover={{ y: -3 }}
             animate={!isPinned ? { y: [0, -5, 0] } : {}}
@@ -108,6 +167,7 @@ export function RobotStatusPanel({ isHoming, setIsHoming }: RobotStatusPanelProp
           >
             <ChevronUp className="w-5 h-5 text-white" />
           </motion.div>
+          </div>
         </div>
       </div>
     </div>

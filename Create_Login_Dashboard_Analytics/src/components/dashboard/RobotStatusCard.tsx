@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import ActivityLog from './ActivityLog';
 
 interface RobotStatusCardProps {
   isHoming: boolean;
   setIsHoming: (homing: boolean) => void;
+  activities: ActivityMessage[];
+  addActivity: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  isOperating: boolean;
 }
 
 interface ActivityMessage {
@@ -14,12 +18,9 @@ interface ActivityMessage {
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
-export function RobotStatusCard({ isHoming, setIsHoming }: RobotStatusCardProps) {
-  const [activities, setActivities] = useState<ActivityMessage[]>([
-    { id: 1, timestamp: new Date().toLocaleTimeString(), message: 'Robot system initialized', type: 'success' },
-    { id: 2, timestamp: new Date().toLocaleTimeString(), message: 'Waiting for commands...', type: 'info' },
-  ]);
+export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity, isOperating }: RobotStatusCardProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isLogExpanded, setIsLogExpanded] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -28,16 +29,6 @@ export function RobotStatusCard({ isHoming, setIsHoming }: RobotStatusCardProps)
   useEffect(() => {
     scrollToBottom();
   }, [activities]);
-
-  const addActivity = (message: string, type: ActivityMessage['type'] = 'info') => {
-    const newActivity: ActivityMessage = {
-      id: Date.now(),
-      timestamp: new Date().toLocaleTimeString(),
-      message,
-      type,
-    };
-    setActivities((prev) => [...prev, newActivity]);
-  };
 
   const handleHoming = () => {
     setIsHoming(true);
@@ -70,9 +61,10 @@ export function RobotStatusCard({ isHoming, setIsHoming }: RobotStatusCardProps)
         {/* Control Buttons */}
         <div className="grid grid-cols-2 gap-3">
           <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={handleHoming}
-            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg`}
+            whileTap={isOperating ? {} : { scale: 0.95 }}
+            onClick={isOperating ? undefined : handleHoming}
+            disabled={isOperating}
+            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${isOperating ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isHoming ? 'Homing...' : 'Homing'}
           </motion.button>
@@ -87,7 +79,16 @@ export function RobotStatusCard({ isHoming, setIsHoming }: RobotStatusCardProps)
 
         {/* Activity Display Panel */}
         <div className="flex flex-col min-h-0">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2 flex-shrink-0">Activity Log</h3>
+          <div className="flex items-center justify-between mb-2 flex-shrink-0">
+            <h3 className="text-sm font-semibold text-gray-600">Activity Log</h3>
+            <button
+              type="button"
+              onClick={() => setIsLogExpanded(true)}
+              className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full transition-colors"
+            >
+              Expand
+            </button>
+          </div>
           <div 
             className="activity-log-scroll bg-gray-900 border-2 border-gray-700 rounded-lg p-4 shadow-inner flex-shrink-0"
             style={{
@@ -118,6 +119,14 @@ export function RobotStatusCard({ isHoming, setIsHoming }: RobotStatusCardProps)
           </div>
         </div>
       </CardContent>
+
+      {/* Activity Log Modal */}
+      {isLogExpanded && (
+        <ActivityLog
+          entries={activities.map((activity) => `[${activity.timestamp}] ${activity.message}`)}
+          onClose={() => setIsLogExpanded(false)}
+        />
+      )}
     </Card>
   );
 }

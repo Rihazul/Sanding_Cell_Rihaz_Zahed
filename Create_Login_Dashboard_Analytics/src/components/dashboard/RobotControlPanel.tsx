@@ -26,6 +26,8 @@ interface RobotControlPanelProps {
   setT4Picked: (picked: boolean) => void;
   laserOn: boolean;
   setLaserOn: (on: boolean) => void;
+  isOperating: boolean;
+  addActivity: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
 export function RobotControlPanel({
@@ -49,8 +51,10 @@ export function RobotControlPanel({
   setT3Picked,
   t4Picked,
   setT4Picked,
+  isOperating,
   laserOn,
   setLaserOn,
+  addActivity,
 }: RobotControlPanelProps) {
   return (
     <Card className="shadow-lg border-0">
@@ -65,25 +69,25 @@ export function RobotControlPanel({
       <CardContent className="pt-6">
         {/* Primary Controls */}
         <div className="mb-6">
-          <ToggleButton label="Robot Power" isActive={robotEnabled} onToggle={() => setRobotEnabled(!robotEnabled)} activeLabel="ENABLED" inactiveLabel="DISABLED" />
+          <ToggleButton label="Robot Power" isActive={robotEnabled} onToggle={() => { setRobotEnabled(!robotEnabled); addActivity(`Robot Power ${!robotEnabled ? 'ENABLED' : 'DISABLED'}`, !robotEnabled ? 'success' : 'warning'); }} activeLabel="ENABLED" inactiveLabel="DISABLED" disabled={isOperating} />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Stopper Controls */}
           <div className="space-y-3 min-w-0">
             <h3 className="text-sm font-semibold text-gray-600 mb-2">Stoppers</h3>
-            <ToggleButton label="Stopper A" isActive={stopperAUp} onToggle={() => setStopperAUp(!stopperAUp)} activeLabel="UP" inactiveLabel="DOWN" />
-            <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={() => setStopperBUp(!stopperBUp)} activeLabel="UP" inactiveLabel="DOWN" />
+            <ToggleButton label="Stopper A" isActive={stopperAUp} onToggle={() => { setStopperAUp(!stopperAUp); addActivity(`Stopper A moved ${!stopperAUp ? 'UP' : 'DOWN'}`, 'info'); }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating} />
+            <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={() => { setStopperBUp(!stopperBUp); addActivity(`Stopper B moved ${!stopperBUp ? 'UP' : 'DOWN'}`, 'info'); }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating} />
           </div>
 
           {/* Table Controls */}
           <div className="space-y-3 min-w-0">
             <h3 className="text-sm font-semibold text-gray-600 mb-2">Tables</h3>
             <div className="w-full">
-              <ToggleButton label="Table A" isActive={tableAOpen} onToggle={() => setTableAOpen(!tableAOpen)} activeLabel="OPEN" inactiveLabel="CLOSED" />
+              <ToggleButton label="Table A" isActive={tableAOpen} onToggle={() => { setTableAOpen(!tableAOpen); addActivity(`Table A ${!tableAOpen ? 'OPENED' : 'CLOSED'}`, 'info'); }} activeLabel="OPEN" inactiveLabel="CLOSED" disabled={isOperating} />
             </div>
             <div className="w-full">
-              <ToggleButton label="Table B" isActive={tableBOpen} onToggle={() => setTableBOpen(!tableBOpen)} activeLabel="OPEN" inactiveLabel="CLOSED" />
+              <ToggleButton label="Table B" isActive={tableBOpen} onToggle={() => { setTableBOpen(!tableBOpen); addActivity(`Table B ${!tableBOpen ? 'OPENED' : 'CLOSED'}`, 'info'); }} activeLabel="OPEN" inactiveLabel="CLOSED" disabled={isOperating} />
             </div>
           </div>
         </div>
@@ -91,24 +95,24 @@ export function RobotControlPanel({
         {/* Tool Controls */}
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-600 mb-2">Tool</h3>
-          <ToggleButton label="Tool Position" isActive={toolLifted} onToggle={() => setToolLifted(!toolLifted)} activeLabel="LIFTED" inactiveLabel="DROPPED" />
+          <ToggleButton label="Tool Position" isActive={toolLifted} onToggle={() => { setToolLifted(!toolLifted); addActivity(`Tool ${!toolLifted ? 'LIFTED' : 'DROPPED'}`, 'info'); }} activeLabel="LIFTED" inactiveLabel="DROPPED" disabled={isOperating} />
         </div>
 
         {/* Pick & Drop Controls */}
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-600 mb-2">Tool Stations</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <ToggleButton label="T1" isActive={t1Picked} onToggle={() => setT1Picked(!t1Picked)} activeLabel="PICKED" inactiveLabel="DROPPED" />
-            <ToggleButton label="T2" isActive={t2Picked} onToggle={() => setT2Picked(!t2Picked)} activeLabel="PICKED" inactiveLabel="DROPPED" />
-            <ToggleButton label="T3" isActive={t3Picked} onToggle={() => setT3Picked(!t3Picked)} activeLabel="PICKED" inactiveLabel="DROPPED" />
-            <ToggleButton label="T4" isActive={t4Picked} onToggle={() => setT4Picked(!t4Picked)} activeLabel="PICKED" inactiveLabel="DROPPED" />
+            <ToggleButton label="T1" isActive={t1Picked} onToggle={() => { setT1Picked(!t1Picked); addActivity(`Tool 1 ${!t1Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating} />
+            <ToggleButton label="T2" isActive={t2Picked} onToggle={() => { setT2Picked(!t2Picked); addActivity(`Tool 2 ${!t2Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating} />
+            <ToggleButton label="T3" isActive={t3Picked} onToggle={() => { setT3Picked(!t3Picked); addActivity(`Tool 3 ${!t3Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating} />
+            <ToggleButton label="T4" isActive={t4Picked} onToggle={() => { setT4Picked(!t4Picked); addActivity(`Tool 4 ${!t4Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating} />
           </div>
         </div>
 
         {/* Laser Control */}
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-600 mb-2">Laser</h3>
-          <ToggleButton label="Laser" isActive={laserOn} onToggle={() => setLaserOn(!laserOn)} activeLabel="ON" inactiveLabel="OFF" />
+          <ToggleButton label="Laser" isActive={laserOn} onToggle={() => { setLaserOn(!laserOn); addActivity(`Laser turned ${!laserOn ? 'ON' : 'OFF'}`, !laserOn ? 'warning' : 'info'); }} activeLabel="ON" inactiveLabel="OFF" disabled={isOperating} />
         </div>
       </CardContent>
     </Card>

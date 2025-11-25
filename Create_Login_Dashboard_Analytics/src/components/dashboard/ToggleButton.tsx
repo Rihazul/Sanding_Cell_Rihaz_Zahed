@@ -7,6 +7,7 @@ interface ToggleButtonProps {
   onToggle: () => void;
   activeLabel: string;
   inactiveLabel: string;
+  disabled?: boolean;
 }
 
 export function ToggleButton({
@@ -15,13 +16,17 @@ export function ToggleButton({
   onToggle,
   activeLabel,
   inactiveLabel,
+  disabled = false,
 }: ToggleButtonProps) {
   return (
     <motion.button
-      whileTap={{ scale: 0.95 }}
-      onClick={onToggle}
+      whileTap={disabled ? {} : { scale: 0.95 }}
+      onClick={disabled ? undefined : onToggle}
+      disabled={disabled}
       className={`w-full relative px-6 py-4 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg overflow-hidden ${
-        isActive
+        disabled
+          ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-500 cursor-not-allowed opacity-50'
+          : isActive
           ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
           : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700'
       }`}
