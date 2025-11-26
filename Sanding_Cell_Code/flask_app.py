@@ -1,4 +1,5 @@
 from flask import Flask, render_template, jsonify, request
+from flask_cors import CORS
 from threading import Thread
 from Server_Better_V2 import handle_client
 from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
@@ -72,6 +73,7 @@ def allowed_file(filename):
 ############################################################################################
 client_process = None
 app = Flask(__name__)
+CORS(app)
 socketio = SocketIO(app, async_mode='threading')
 
 ######################################################f######################################

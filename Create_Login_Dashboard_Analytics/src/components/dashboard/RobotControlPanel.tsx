@@ -70,7 +70,22 @@ export function RobotControlPanel({
       <CardContent className="pt-6">
         {/* Primary Controls */}
         <div className="mb-6">
-          <ToggleButton label="Robot Power" isActive={robotEnabled} onToggle={() => { setRobotEnabled(!robotEnabled); addActivity(`Robot Power ${!robotEnabled ? 'ENABLED' : 'DISABLED'}`, !robotEnabled ? 'success' : 'warning'); }} activeLabel="ENABLED" inactiveLabel="DISABLED" disabled={isOperating} />
+          <ToggleButton label="Robot Power" isActive={robotEnabled} onToggle={() => { 
+            setRobotEnabled(!robotEnabled); 
+            try {
+              if (!robotEnabled) {
+                performAction('enable');
+              } else {
+                performAction('disable');
+              }
+              addActivity(`Robot Power ${!robotEnabled ? 'ENABLED' : 'DISABLED'}`, !robotEnabled ? 'success' : 'warning'); 
+            } 
+            catch (error) {
+              addActivity(`Robot Power ${!robotEnabled ? 'ENABLED' : 'DISABLED'} action failed \n [ Error Reason | ${error} ]`, !robotEnabled ? 'success' : 'warning'); 
+            }
+            
+          }
+          } activeLabel="ENABLED" inactiveLabel="DISABLED" disabled={isOperating} />
         </div>
 
         {!robotEnabled && (

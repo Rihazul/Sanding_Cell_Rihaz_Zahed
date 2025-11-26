@@ -1,6 +1,6 @@
 // API service for robot control dashboard
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = 'http://localhost:5100';
 
 // Generic API call function
 async function apiCall(endpoint: string, method: 'GET' | 'POST', payload?: any) {
@@ -101,7 +101,7 @@ export async function toolToggle(toolNumber: 1 | 2 | 3, action: 'pick' | 'keep')
 }
 
 // Action operations
-export async function performAction(action: 'stopperUp' | 'stopperDown' | 'homing' | 'enable' | 'scan') {
+export async function performAction(action: 'stopperUp' | 'stopperDown' | 'homing' | 'enable'| 'disable' | 'scan') {
   return apiCall('/action', 'POST', { action });
 }
 
