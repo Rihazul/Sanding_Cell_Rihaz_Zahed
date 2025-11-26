@@ -16,8 +16,12 @@ class RobotInteractions:
 
     def __init__(self, config: dict | None = None, cps_client: CPSClient | None = None):
         self.config = config or load_config()
-        self.logger = setup_logger(self.config["settings"]["debug"])
+        settings = self.config.setdefault("settings", {})
+        enable_console = settings.get("debug", False)
+        enable_file_logging = settings.get("file_logging", True)
+        self.logger = setup_logger(enable_console, enable_file_logging)
         self.config["logger"] = self.logger
+        
         self.cps = cps_client or CPSClient()
         self.initialize_comms()
 

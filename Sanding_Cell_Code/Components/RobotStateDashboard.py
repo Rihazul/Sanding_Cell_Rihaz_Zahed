@@ -259,9 +259,13 @@ class RobotStateDashboard(App):
         table.add_column("TCP Name", width=30)
         table.add_column("TCP Coords")
 
-        tcp_map = getattr(self.robot_state, "coord_to_TCP", {}) or {}
+        tcp_by_name = getattr(self.robot_state, "tcp_by_name", None) or {}
+        if not tcp_by_name:
+            legacy_map = getattr(self.robot_state, "coord_to_TCP", {}) or {}
+            if legacy_map:
+                tcp_by_name = {name: coords for coords, name in legacy_map.items()}
 
-        if not tcp_map:
+        if not tcp_by_name:
             table.add_row(Text("<no TCP data>", style="dim"), "")
             return
 
@@ -271,33 +275,24 @@ class RobotStateDashboard(App):
             active_tcp = tcp_state.get("active")
 
         def _coords_to_text(coords: Sequence[Any]) -> str:
-            numbers: list[float] = []
-            for coord in coords[:6]:
+            converted: list[str] = []
+            for coord in list(coords)[:6]:
                 try:
-                    numbers.append(float(coord))
+                    converted.append(f"{float(coord):.3f}")
                 except Exception:
-                    continue
-            if not numbers:
-                return "- "
-            return ", ".join(f"{value:.3f}" for value in numbers)
+                    converted.append("??")
+            return ", ".join(converted) if converted else "-"
 
-        for key, val in tcp_map.items():
-            if isinstance(key, str):
-                name = key
-                coords = val if isinstance(val, Sequence) else ()
+        for name in sorted(tcp_by_name):
+            coords = tcp_by_name[name]
+            coord_text = _coords_to_text(coords)
+            if name == active_tcp:
+                name_cell = Text(name, style="bold green")
+                coord_cell = Text(coord_text, style="bold green")
             else:
-                name = val
-                coords = key if isinstance(key, Sequence) else ()
-
-            display_name = str(name) if name not in (None, "") else "<unnamed>"
-            if display_name == active_tcp:
-                display_name = f"{display_name} (active)"
-                name_cell = Text(display_name, style="bold green")
-            else:
-                name_cell = Text(display_name, style="white")
-
-            coords_text = _coords_to_text(coords)
-            table.add_row(name_cell, coords_text)
+                name_cell = Text(name, style="white")
+                coord_cell = Text(coord_text)
+            table.add_row(name_cell, coord_cell)
 
 
     # -------------------------------------------------------------------------
@@ -322,7 +317,7 @@ class RobotStateDashboard(App):
 
         table.add_row("Rail", f"{state.get('robot_rail_position', 0.0):7.3f}")
 
-        title = "Cartesian Position"
+        title = "Cartesian Coordinates"
         if active_tcp:
             title += f"  --  Current TCP: {active_tcp}"
 

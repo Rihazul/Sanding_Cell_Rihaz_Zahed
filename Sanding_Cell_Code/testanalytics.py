@@ -7,6 +7,7 @@ from typing import Optional
 
 from Components.RobotState import RobotState
 from Components.RobotStateDashboard import RobotStateDashboard
+from Components.RobotInteractions import load_config
 
 
 def _updater_loop(robot_state: RobotState, interval: float, stop_event: threading.Event):
@@ -91,9 +92,38 @@ def main(argv: Optional[list[str]] = None):
         default="textual",
         help="Choose between the Textual dashboard or the legacy console spinner",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable console logger output (INFO level) in addition to file logs",
+    )
+    parser.add_argument(
+        "--verbose-log-only",
+        action="store_true",
+        help="Enable verbose logging to file only (no console output)",
+    )
+    parser.add_argument(
+        "--no-file-logs",
+        action="store_true",
+        help="Disable writing to app.log (only console if enabled)",
+    )
     args = parser.parse_args(argv)
 
-    robot_state = RobotState()
+    config = load_config()
+    settings = config.setdefault("settings", {})
+    enable_console_logging = False
+    if args.verbose_log_only:
+        enable_console_logging = False
+    elif args.verbose:
+        enable_console_logging = True
+    elif settings.get("debug", False):
+        enable_console_logging = True
+    settings["debug"] = enable_console_logging
+
+    file_logging = not args.no_file_logs if hasattr(args, 'no_file_logs') else True
+    settings["file_logging"] = file_logging
+
+    robot_state = RobotState(config=config)
     if args.ui == "console":
         _run_console_ui(robot_state, args.update_interval, args.ui_interval)
     else:

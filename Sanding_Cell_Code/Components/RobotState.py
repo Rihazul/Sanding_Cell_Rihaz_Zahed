@@ -8,7 +8,7 @@ class RobotState(RobotInteractions):
     """
     Lightweight robot state helper; stores a snapshot in ``self.state``.
 
-    
+
     Has the following functions:
     Fetch Functions:
     - ``fetch_and_update_pos()``: Fetch and update robot positions from the controller.
@@ -61,9 +61,9 @@ class RobotState(RobotInteractions):
             "flags": {},
         }
 
-        # Mapping from coordinate system names to TCP names
-        # [list of 6 coords] -> TCP name
-        self.coord_to_TCP = {}
+        # TCP lookup helpers; map coordinates <-> name
+        self.coord_to_TCP: dict[tuple[float, ...], str] = {}
+        self.tcp_by_name: dict[str, tuple[float, ...]] = {}
 
     @staticmethod
     def _as_bool(value) -> bool:
@@ -112,10 +112,10 @@ class RobotState(RobotInteractions):
 
     def fetch_and_update_pos(self) -> bool:
         """
-        
+
         Fetch and update robot positions from the robot controller.
         Read cartesian, joint, TCP, and UCS positions from the controller.
-        
+
         Returns:
             bool: True if the position update was successful, False otherwise.
         """
@@ -151,7 +151,7 @@ class RobotState(RobotInteractions):
     def __fetch_and_update_tcp(self, TcpName) -> bool:
         """
         Docstring for fetch_and_update_tcp
-        
+
         :param self: Description
         :return: Description
         :rtype: bool
@@ -163,19 +163,29 @@ class RobotState(RobotInteractions):
             self.logger.error(f"[RobotState] HRIF_ReadTCPByName ERROR: {nRet}")
             return False
 
-        self.coord_to_TCP[result] = TcpName
-        self.logger.info(f"[RobotState] HRIF_ReadTCPByName SUCCESS: {TcpName} : {result}")
-    
+        try:
+            coords_tuple = self._normalize_coords(result)
+        except (TypeError, ValueError) as exc:
+            self.logger.error(f"[RobotState] Unable to parse TCP '{TcpName}': {exc}")
+            return False
+
+        self.coord_to_TCP[coords_tuple] = TcpName
+        self.tcp_by_name[TcpName] = coords_tuple
+        self.logger.info(f"[RobotState] HRIF_ReadTCPByName SUCCESS: {TcpName} : {coords_tuple}")
+
         return True
 
     def fetch_and_update_tcp(self) -> bool:
         """
         Docstring for fetch_and_update_tcp
-        
+
         :param self: Description
         :return: Description
         :rtype: bool
         """
+
+        self.coord_to_TCP.clear()
+        self.tcp_by_name = {}
 
         for TCP in self.state["TCP"]["available"]:
             if not self.__fetch_and_update_tcp(TCP):
@@ -188,10 +198,38 @@ class RobotState(RobotInteractions):
             self.logger.error(f"[RobotState] HRIF_ReadCurTCP ERROR: {nRet}")
             return False
 
-        self.state["TCP"]["active"] = self.coord_to_TCP[result]
-        self.logger.info(f"[RobotState] HRIF_ReadCurTCP SUCCESS: Active TCP : {self.coord_to_TCP[result]}")
+        try:
+            active_coords = self._normalize_coords(result)
+        except (TypeError, ValueError) as exc:
+            self.logger.error(f"[RobotState] Failed to parse HRIF_ReadCurTCP payload: {exc}")
+            self.state["TCP"]["active"] = None
+            return False
+
+        active_name = self._find_matching_tcp_name(active_coords)
+        self.state["TCP"]["active"] = active_name
+        if active_name:
+            self.logger.info(f"[RobotState] HRIF_ReadCurTCP SUCCESS: Active TCP : {active_name}")
+        else:
+            self.logger.warning("[RobotState] HRIF_ReadCurTCP returned coords that did not match a known TCP")
 
         return True
+
+    def _normalize_coords(self, coords) -> tuple[float, ...]:
+        """Convert raw CPS coordinate list into a hashable tuple of floats."""
+        return tuple(float(val) for val in list(coords)[:6])
+
+    def _find_matching_tcp_name(self, active_coords: tuple[float, ...]) -> str | None:
+        """Find a TCP name that matches the active coordinates (with a small tolerance)."""
+        direct_match = self.coord_to_TCP.get(active_coords)
+        if direct_match:
+            return direct_match
+
+        for coords, name in self.coord_to_TCP.items():
+            if len(coords) != len(active_coords):
+                continue
+            if all(abs(a - b) < 1e-3 for a, b in zip(coords, active_coords)):
+                return name
+        return None
 
     def format_status_line(self) -> str:
         s = self.state
@@ -214,8 +252,8 @@ class RobotState(RobotInteractions):
 
     def print_status(self):
         """Prints a single status line that gets overwritten every call."""
-        print(self.format_status_line(), end="\r", flush=True)
-    
+        print(self.format_status_line(), end="", flush=True)
+
 
 
 def main():
