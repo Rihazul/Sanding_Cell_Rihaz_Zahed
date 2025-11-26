@@ -63,7 +63,9 @@ class RobotState(RobotInteractions):
 
         # TCP lookup helpers; map coordinates <-> name
         self.coord_to_TCP: dict[tuple[float, ...], str] = {}
+        self.coord_to_UCS: dict[tuple[float, ...], str] = {}
         self.tcp_by_name: dict[str, tuple[float, ...]] = {}
+        self.ucs_by_name: dict[str, tuple[float, ...]] = {}
 
     @staticmethod
     def _as_bool(value) -> bool:
@@ -230,6 +232,74 @@ class RobotState(RobotInteractions):
             if all(abs(a - b) < 1e-3 for a, b in zip(coords, active_coords)):
                 return name
         return None
+
+
+    def __fetch_and_update_ucs(self, ucsName) -> bool:
+        """
+        Docstring for fetch_and_update_tcp
+
+        :param self: Description
+        :return: Description
+        :rtype: bool
+        """
+
+        result: list[str] = []
+
+        nRet = self.cps.HRIF_ReadUCSByName(0,0, ucsName, result)
+        if nRet != 0:
+            self.logger.error(f"[RobotState] HRIF_ReadUCSByNam ERROR: {nRet}")
+            return False
+
+        try:
+            coords_tuple = self._normalize_coords(result)
+        except (TypeError, ValueError) as exc:
+            self.logger.error(f"[RobotState] Unable to parse UCS'{ucsName}': {exc}")
+            return False
+
+        self.coord_to_UCS[coords_tuple] = ucsName 
+        self.ucs_by_name[ucsName] = coords_tuple
+        self.logger.info(f"[RobotState] HRIF_ReadUCSByName SUCCESS: {ucsName} : {coords_tuple}")
+
+        return True
+
+    def fetch_and_update_ucs(self) -> bool:
+        """
+        Docstring for fetch_and_update_tcp
+
+        :param self: Description
+        :return: Description
+        :rtype: bool
+        """
+
+        self.coord_to_UCS.clear()
+        self.tcp_by_name = {}
+
+        for UCS in self.state["UCS"]["available"]:
+            if not self.__fetch_and_update_ucs(UCS):
+                return False
+
+        result: list[str] = []
+        # Read tool coordinates
+        nRet = self.cps.HRIF_ReadCurUCS(0,0,result)
+        if nRet != 0:
+            self.logger.error(f"[RobotState] HRIF_ReadCurUCS ERROR: {nRet}")
+            return False
+
+        try:
+            active_coords = self._normalize_coords(result)
+        except (TypeError, ValueError) as exc:
+            self.logger.error(f"[RobotState] Failed to parse HRIF_ReadCurUCS payload: {exc}")
+            self.state["UCS"]["active"] = None
+            return False
+
+        active_name = self._find_matching_ucs_name(active_coords)
+        self.state["UCS"]["active"] = active_name
+        if active_name:
+            self.logger.info(f"[RobotState] HRIF_ReadCurUCS SUCCESS: Active UCS : {active_name}")
+        else:
+            self.logger.warning("[RobotState] HRIF_ReadCurUCS returned coords that did not match a known UCS")
+
+        return True
 
     def format_status_line(self) -> str:
         s = self.state

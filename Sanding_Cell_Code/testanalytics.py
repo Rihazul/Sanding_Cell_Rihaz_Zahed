@@ -22,6 +22,9 @@ def _updater_loop(robot_state: RobotState, interval: float, stop_event: threadin
         if not robot_state.fetch_and_update_tcp():
             stop_event.set()
             break
+        if not robot_state.fetch_and_update_ucs():
+            stop_event.set()
+            break
         
         stop_event.wait(interval)
 

@@ -39,35 +39,70 @@ def msg_to_frontend(api_url, message):
         print(f"Failed to send message to trigger API: {e}")
         return None
 
-def setup_logger(enable_console_logging=False, enable_file_logging=True):
-    # Create a logger
-    logger = logging.getLogger("DualOutputLogger")
-    logger.setLevel(logging.DEBUG)  # Set the log level for the logger
+def setup_logger(
+    enable_console_logging: bool = False,
+    enable_file_logging: bool = True,
+    log_file_name: str = "app.log",
+    logger_name: str = "DualOutputLogger",
+):
+    """Configure a shared logger with optional console and rotating file outputs.
 
-    # Define the log directory
+    Adds handlers only once per logger to avoid duplicate/locked file handles when
+    multiple modules import this helper. If the primary log file cannot be opened
+    (e.g., already locked by another process), it falls back to a per-process file.
+    """
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    # Avoid attaching duplicate handlers if already configured in this process.
+    if logger.handlers:
+        return logger
+
     log_dir = "logs"
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "app.log")
+    log_file = os.path.join(log_dir, log_file_name)
 
+    file_handler = None
     if enable_file_logging:
-        # File handler for logging to a file with rotation
-        file_handler = TimedRotatingFileHandler(
-            filename=log_file,
-            when="H",       # Rotate logs every hour
-            interval=1,     # Rotate every 1 hour
-            backupCount=120 # Keep the last 5 days of hourly logs
-        )
-        file_handler.setLevel(logging.DEBUG)  # Set file handler log level
-        file_formatter = logging.Formatter(
-            '%(asctime)s - %(levelname)s - [Line: %(lineno)d] - %(message)s'
-        )
-        file_handler.setFormatter(file_formatter)
-        logger.addHandler(file_handler)
+        try:
+            file_handler = TimedRotatingFileHandler(
+                filename=log_file,
+                when="H",
+                interval=1,
+                backupCount=120,
+                encoding="utf-8",
+                delay=True,  # Open file lazily to reduce lock contention
+            )
+        except OSError as exc:
+            base, ext = os.path.splitext(log_file_name)
+            fallback_name = f"{base}_{os.getpid()}{ext or '.log'}"
+            fallback_path = os.path.join(log_dir, fallback_name)
+            try:
+                file_handler = TimedRotatingFileHandler(
+                    filename=fallback_path,
+                    when="H",
+                    interval=1,
+                    backupCount=120,
+                    encoding="utf-8",
+                    delay=True,
+                )
+                print(f"[setup_logger] {log_file} unavailable ({exc}); using {fallback_path} instead.")
+            except OSError as exc2:
+                print(f"[setup_logger] Failed to open fallback log file {fallback_path}: {exc2}. File logging disabled.")
+                file_handler = None
 
-    # Console handler (optional, based on the flag)
+        if file_handler:
+            file_handler.setLevel(logging.DEBUG)
+            file_formatter = logging.Formatter(
+                '%(asctime)s - %(levelname)s - [Line: %(lineno)d] - %(message)s'
+            )
+            file_handler.setFormatter(file_formatter)
+            logger.addHandler(file_handler)
+
     if enable_console_logging:
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)  # Set console log level (e.g., INFO)
+        console_handler.setLevel(logging.INFO)
         console_formatter = logging.Formatter(
             '%(asctime)s - %(levelname)s - [Line: %(lineno)d] - %(message)s'
         )

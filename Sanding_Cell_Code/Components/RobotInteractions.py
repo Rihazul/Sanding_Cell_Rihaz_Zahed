@@ -19,7 +19,9 @@ class RobotInteractions:
         settings = self.config.setdefault("settings", {})
         enable_console = settings.get("debug", False)
         enable_file_logging = settings.get("file_logging", True)
-        self.logger = setup_logger(enable_console, enable_file_logging)
+        log_file_name = settings.get("log_file_name", "app.log")
+        logger_name = settings.get("logger_name", "DualOutputLogger")
+        self.logger = setup_logger(enable_console, enable_file_logging, log_file_name, logger_name)
         self.config["logger"] = self.logger
         
         self.cps = cps_client or CPSClient()
