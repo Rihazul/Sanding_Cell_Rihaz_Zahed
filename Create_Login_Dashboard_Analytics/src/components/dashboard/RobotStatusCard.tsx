@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import ActivityLog from './ActivityLog';
+import { performAction } from '../../services/api';
 
 interface RobotStatusCardProps {
   isHoming: boolean;
@@ -31,17 +32,22 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
     scrollToBottom();
   }, [activities]);
 
-  const handleHoming = (robotEnabled: boolean) => {
+  const handleHoming = async (robotEnabled: boolean) => {
     if (!robotEnabled) {
       addActivity('Cannot perform homing - Robot power is disabled', 'error');
       return;
     }
     setIsHoming(true);
     addActivity('Homing sequence initiated...', 'warning');
-    setTimeout(() => {
-      setIsHoming(false);
+    
+    try {
+      await performAction('homing');
       addActivity('Homing completed successfully', 'success');
-    }, 2000);
+    } catch (error) {
+      addActivity(`Homing failed - ${error}`, 'error');
+    } finally {
+      setIsHoming(false);
+    }
   };
 
   const handleStop = (robotEnabled: boolean) => {

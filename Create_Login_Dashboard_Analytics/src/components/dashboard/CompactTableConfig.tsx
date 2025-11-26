@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { startTableAProcess, startTableBProcess, performAction } from '../../services/api';
 
 export type RowConfig = {
   label: string;
@@ -20,6 +21,9 @@ interface CompactTableConfigProps {
   isOperating: boolean;
   setIsOperating: (operating: boolean) => void;
   addActivity: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  robotSpeed: number[];
+  sandingSpeed: number[];
+  inverseOverlapping: number[];
 }
 
 export function CompactTableConfig({
@@ -32,6 +36,9 @@ export function CompactTableConfig({
   isOperating,
   setIsOperating,
   addActivity,
+  robotSpeed,
+  sandingSpeed,
+  inverseOverlapping,
 }: CompactTableConfigProps) {
   console.log('CompactTableConfig rendering:', tableName, 'rows:', rows.length, 'addActivity:', !!addActivity);
   
@@ -39,20 +46,22 @@ export function CompactTableConfig({
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
   }, [addActivity, tableName]);
   
-  const handleStartScan = () => {
+  const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
     setIsOperating(true);
     addActivity(`Table ${tableName}: Starting scan operation...`, 'info');
     
-    // Simulate scan operation
-    setTimeout(() => {
-      console.log('Scan completed for Table', tableName);
+    try {
+      await performAction('scan');
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
+    } catch (error) {
+      addActivity(`Table ${tableName}: Scan failed - ${error}`, 'error');
+    } finally {
       setIsOperating(false);
-    }, 5000); // 5 second operation
+    }
   };
   
-  const handleStartTask = () => {
+  const handleStartTask = async () => {
     console.log('Start Task clicked for Table', tableName);
     
     // Check if model is selected
@@ -69,12 +78,35 @@ export function CompactTableConfig({
                      model === 'modelE' ? 'Model E' : model;
     addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');
     
-    // Simulate task operation
-    setTimeout(() => {
-      console.log('Task completed for Table', tableName);
+    try {
+      // Build payload from rows
+      const taskData: any = {
+        model,
+        frame: { cycle: rows[0].cycle, force: rows[0].force },
+        pocketzigzag: { cycle: rows[1].cycle, force: rows[1].force },
+        '3D': { cycle: rows[2].cycle, force: rows[2].force },
+        edgeOutside: { cycle: rows[3].cycle, force: rows[3].force },
+        side: { cycle: rows[4].cycle, force: rows[4].force },
+      };
+
+      if (tableName === 'A') {
+        await startTableAProcess(taskData as any);
+      } else {
+        const tableBData = {
+          ...taskData,
+          robotSpeed: (robotSpeed[0] / 100).toFixed(2),
+          sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
+          inverseOverlapping: inverseOverlapping[0],
+        };
+        await startTableBProcess(tableBData as any);
+      }
+      
       addActivity(`Table ${tableName}: Task completed successfully with ${modelName}`, 'success');
+    } catch (error) {
+      addActivity(`Table ${tableName}: Task failed - ${error}`, 'error');
+    } finally {
       setIsOperating(false);
-    }, 8000); // 8 second operation
+    }
   };
   
   const handleUpload3DFile = () => {

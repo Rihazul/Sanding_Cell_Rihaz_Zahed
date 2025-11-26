@@ -127,6 +127,9 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
                 isOperating={isOperating}
                 setIsOperating={setIsOperating}
                 addActivity={addActivity}
+                robotSpeed={robotSpeed}
+                sandingSpeed={sandingSpeed}
+                inverseOverlapping={inverseOverlapping}
               />
               
               {/* Table B Configuration */}
@@ -140,6 +143,9 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
                 isOperating={isOperating}
                 setIsOperating={setIsOperating}
                 addActivity={addActivity}
+                robotSpeed={robotSpeed}
+                sandingSpeed={sandingSpeed}
+                inverseOverlapping={inverseOverlapping}
               />
             </SlidingPanel>
             

@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ToggleButton } from './ToggleButton';
+import { toolToggle, performAction } from '../../services/api';
 
 interface RobotControlPanelProps {
   robotEnabled: boolean;
