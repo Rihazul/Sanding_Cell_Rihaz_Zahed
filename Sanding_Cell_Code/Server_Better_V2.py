@@ -39,7 +39,7 @@ def msg_to_frontend(api_url, message):
         print(f"Failed to send message to trigger API: {e}")
         return None
 
-def setup_logger(enable_console_logging=False):
+def setup_logger(enable_console_logging=False, enable_file_logging=True):
     # Create a logger
     logger = logging.getLogger("DualOutputLogger")
     logger.setLevel(logging.DEBUG)  # Set the log level for the logger
@@ -49,19 +49,20 @@ def setup_logger(enable_console_logging=False):
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, "app.log")
 
-    # File handler for logging to a file with rotation
-    file_handler = TimedRotatingFileHandler(
-        filename=log_file,
-        when="H",       # Rotate logs every hour
-        interval=1,     # Rotate every 1 hour
-        backupCount=120 # Keep the last 5 days of hourly logs
-    )
-    file_handler.setLevel(logging.DEBUG)  # Set file handler log level
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(levelname)s - [Line: %(lineno)d] - %(message)s'
-    )
-    file_handler.setFormatter(file_formatter)
-    logger.addHandler(file_handler)
+    if enable_file_logging:
+        # File handler for logging to a file with rotation
+        file_handler = TimedRotatingFileHandler(
+            filename=log_file,
+            when="H",       # Rotate logs every hour
+            interval=1,     # Rotate every 1 hour
+            backupCount=120 # Keep the last 5 days of hourly logs
+        )
+        file_handler.setLevel(logging.DEBUG)  # Set file handler log level
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - [Line: %(lineno)d] - %(message)s'
+        )
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
 
     # Console handler (optional, based on the flag)
     if enable_console_logging:
