@@ -22,10 +22,13 @@ interface ActivityMessage {
 
 export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity, isOperating, robotEnabled }: RobotStatusCardProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -76,16 +79,18 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
         {/* Control Buttons */}
         <div className="grid grid-cols-2 gap-3">
           <motion.button
+            type="button"
             whileTap={isOperating ? {} : { scale: 0.95 }}
-            onClick={isOperating ? undefined : () => handleHoming(robotEnabled)}
+            onClick={isOperating ? undefined : (e) => { e.preventDefault(); handleHoming(robotEnabled); }}
             disabled={isOperating}
             className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${isOperating ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {isHoming ? 'Homing...' : 'Homing'}
           </motion.button>
           <motion.button 
+            type="button"
             whileTap={{ scale: 0.95 }} 
-            onClick={() => handleStop(robotEnabled)}
+            onClick={(e) => { e.preventDefault(); handleStop(robotEnabled); }}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg"
           >
             Stop
@@ -105,6 +110,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
             </button>
           </div>
           <div 
+            ref={scrollContainerRef}
             className="activity-log-scroll bg-gray-900 border-2 border-gray-700 rounded-lg p-4 shadow-inner flex-shrink-0"
             style={{
               height: '256px',

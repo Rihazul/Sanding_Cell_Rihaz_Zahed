@@ -18,10 +18,18 @@ export function ToggleButton({
   inactiveLabel,
   disabled = false,
 }: ToggleButtonProps) {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (!disabled) {
+      onToggle();
+    }
+  };
+
   return (
     <motion.button
+      type="button"
       whileTap={disabled ? {} : { scale: 0.95 }}
-      onClick={disabled ? undefined : onToggle}
+      onClick={handleClick}
       disabled={disabled}
       className={`w-full relative px-6 py-4 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg overflow-hidden ${
         disabled
