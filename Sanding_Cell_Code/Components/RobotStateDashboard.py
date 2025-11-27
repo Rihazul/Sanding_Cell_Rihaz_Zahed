@@ -92,7 +92,8 @@ class RobotStateDashboard(App):
                 with Grid(id="frames-grid"):
                     with Static(id="tcp-panel", classes="state-panel"):
                         yield DataTable(id="tcp-table")
-                    yield Static("", id="ucs-panel", classes="state-panel")
+                    with Static(id="ucs-panel", classes="state-panel"):
+                        yield DataTable(id="ucs-table")
 
             # IO tab (Digital IO + Flags)
             with TabPane("IO", id="io"):
@@ -142,8 +143,9 @@ class RobotStateDashboard(App):
             self._update_dio_table(state.get("DigitalIOs", {}))
             self._update_flags_table(state.get("flags", {}))
 
-        # TCP list (always ok to refresh; it doesn't affect IO keyboard control)
+        # Frame tables (always ok to refresh; it doesn't affect IO keyboard control)
         self._update_tcp_table()
+        self._update_ucs_table()
 
     async def _refresh_robot_state(self) -> None:
         loop = asyncio.get_running_loop()
@@ -152,7 +154,12 @@ class RobotStateDashboard(App):
     def _call_update_methods(self) -> None:
         # Only read position + flags here; TCP definitions can be fetched
         # separately in your RobotState if you like.
-        for method_name in ("fetch_and_update_pos", "fetch_and_update_flags", "fetch_and_update_tcp"):
+        for method_name in (
+            "fetch_and_update_pos",
+            "fetch_and_update_flags",
+            "fetch_and_update_tcp",
+            "fetch_and_update_ucs",
+        ):
             method = getattr(self.robot_state, method_name, None)
             if callable(method):
                 try:
@@ -248,7 +255,7 @@ class RobotStateDashboard(App):
             )
 
     # -------------------------------------------------------------------------
-    # TCP table (Option C behaviour)
+    # TCP/UCS tables
     # -------------------------------------------------------------------------
     def _update_tcp_table(self) -> None:
         """Show TCP names alongside their corresponding coordinates."""
@@ -274,18 +281,9 @@ class RobotStateDashboard(App):
         if isinstance(tcp_state, dict):
             active_tcp = tcp_state.get("active")
 
-        def _coords_to_text(coords: Sequence[Any]) -> str:
-            converted: list[str] = []
-            for coord in list(coords)[:6]:
-                try:
-                    converted.append(f"{float(coord):.3f}")
-                except Exception:
-                    converted.append("??")
-            return ", ".join(converted) if converted else "-"
-
         for name in sorted(tcp_by_name):
             coords = tcp_by_name[name]
-            coord_text = _coords_to_text(coords)
+            coord_text = self._coords_to_text(coords)
             if name == active_tcp:
                 name_cell = Text(name, style="bold green")
                 coord_cell = Text(coord_text, style="bold green")
@@ -294,6 +292,40 @@ class RobotStateDashboard(App):
                 coord_cell = Text(coord_text)
             table.add_row(name_cell, coord_cell)
 
+    def _update_ucs_table(self) -> None:
+        """Show UCS names alongside their corresponding coordinates."""
+
+        table = self.query_one("#ucs-table", DataTable)
+        table.clear(columns=True)
+
+        table.add_column("UCS Name", width=30)
+        table.add_column("UCS Coords")
+
+        ucs_by_name = getattr(self.robot_state, "ucs_by_name", None) or {}
+        if not ucs_by_name:
+            legacy_map = getattr(self.robot_state, "coord_to_UCS", {}) or {}
+            if legacy_map:
+                ucs_by_name = {name: coords for coords, name in legacy_map.items()}
+
+        if not ucs_by_name:
+            table.add_row(Text("<no UCS data>", style="dim"), "")
+            return
+
+        active_ucs = None
+        ucs_state = self.robot_state.state.get("UCS")
+        if isinstance(ucs_state, dict):
+            active_ucs = ucs_state.get("active")
+
+        for name in sorted(ucs_by_name):
+            coords = ucs_by_name[name]
+            coord_text = self._coords_to_text(coords)
+            if name == active_ucs:
+                name_cell = Text(name, style="bold green")
+                coord_cell = Text(coord_text, style="bold green")
+            else:
+                name_cell = Text(name, style="white")
+                coord_cell = Text(coord_text)
+            table.add_row(name_cell, coord_cell)
 
     # -------------------------------------------------------------------------
     # Panels (Rich)
@@ -306,6 +338,10 @@ class RobotStateDashboard(App):
         tcp_state = state.get("TCP")
         if isinstance(tcp_state, dict):
             active_tcp = tcp_state.get("active")
+        active_ucs = None
+        ucs_state = state.get("UCS")
+        if isinstance(ucs_state, dict):
+            active_ucs = ucs_state.get("active")
 
         table = Table.grid(expand=True)
         table.add_column()
@@ -317,9 +353,9 @@ class RobotStateDashboard(App):
 
         table.add_row("Rail", f"{state.get('robot_rail_position', 0.0):7.3f}")
 
-        title = "Cartesian Coordinates"
-        if active_tcp:
-            title += f"  --  Current TCP: {active_tcp}"
+        tcp_display = active_tcp if active_tcp not in (None, "", []) else "-"
+        ucs_display = active_ucs if active_ucs not in (None, "", []) else "-"
+        title = f"Cartesian Coordinates  --  TCP: {tcp_display}  |  UCS: {ucs_display}"
 
         return Panel(table, title=title, border_style="cyan")
 
@@ -348,7 +384,7 @@ class RobotStateDashboard(App):
         if isinstance(payload, dict):
             active = payload.get("active")
             available = payload.get("available") or []
-            active_display = str(active) if active not in (None, "", []) else "—"
+            active_display = str(active) if active not in (None, "", []) else "-"
             table.add_row("Active", active_display)
             table.add_row(
                 "Available",
@@ -379,3 +415,13 @@ class RobotStateDashboard(App):
         status = bool(value)
         style = "bold green" if status else "dim"
         return Text("ON" if status else "OFF", style=style)
+
+    def _coords_to_text(self, coords: Sequence[Any]) -> str:
+        """Format coordinate list/tuple into a short comma-separated string."""
+        converted: list[str] = []
+        for coord in list(coords)[:6]:
+            try:
+                converted.append(f"{float(coord):.3f}")
+            except Exception:
+                converted.append("??")
+        return ", ".join(converted) if converted else "-"

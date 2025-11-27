@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+from typing import Sequence
+
 import yaml
 from Server_Better_V2 import setup_logger
 from modules.CPS import CPSClient
@@ -12,7 +15,7 @@ def load_config(config_path: str = "./configs/config.yaml") -> dict:
 
 
 class RobotInteractions:
-    """Minimal wrapper around CPS client setup and connection."""
+    """Minimal wrapper around CPS client setup and connection, plus helpers."""
 
     def __init__(self, config: dict | None = None, cps_client: CPSClient | None = None):
         self.config = config or load_config()
@@ -23,7 +26,7 @@ class RobotInteractions:
         logger_name = settings.get("logger_name", "DualOutputLogger")
         self.logger = setup_logger(enable_console, enable_file_logging, log_file_name, logger_name)
         self.config["logger"] = self.logger
-        
+
         self.cps = cps_client or CPSClient()
         self.initialize_comms()
 
@@ -40,3 +43,187 @@ class RobotInteractions:
 
         self.logger.info("Successfully connected to robot.")
         return True
+
+    # ------------------------------------------------------------------
+    # Motion primitives
+    # ------------------------------------------------------------------
+    def move_l(
+        self,
+        *,
+        point: Sequence[float],
+        raw_acs: Sequence[float] | None = None,
+        tcp: str | None = None,
+        ucs: str | None = None,
+        speed: float | None = None,
+        acc: float | None = None,
+        radius: float | None = None,
+        seek: bool = False,
+        seek_bit: int = 0,
+        seek_state: int = 0,
+        cmd_id: str = "0",
+        wait: bool = True,
+        wait_timeout: float | None = 60.0,
+        box_id: int = 0,
+        robot_id: int = 0,
+    ) -> bool:
+        """Execute a linear move with optional seeking and wait-for-completion."""
+
+        coords = self.config.get("coords", {})
+        tcp_name = tcp or coords.get("tcpDefault")
+        ucs_name = ucs or coords.get("ucsDefault")
+        speed_val = speed if speed is not None else coords.get("roboVelocity", 200.0)
+        acc_val = acc if acc is not None else coords.get("roboAcceleration", 200.0)
+        radius_val = radius if radius is not None else coords.get("transitionRadius", 0.0)
+        raw_acs_val = list(raw_acs) if raw_acs is not None else [0.0] * 6
+        point_val = list(point)
+
+        if tcp_name is None:
+            self.logger.error("TCP name is required (provide --tcp or set coords.tcpDefault in config).")
+            return False
+        if ucs_name is None:
+            self.logger.error("UCS name is required (provide --ucs or set coords.ucsDefault in config).")
+            return False
+        if len(raw_acs_val) != 6:
+            self.logger.error("Raw joint pose must contain 6 values.")
+            return False
+        if len(point_val) != 6:
+            self.logger.error("Target cartesian pose must contain 6 values.")
+            return False
+
+        self.logger.info("Setting frames before MoveL...")
+        if not self._configure_frames(box_id, robot_id, ucs_name, tcp_name):
+            return False
+
+        ret = self.cps.HRIF_MoveL(
+            box_id,
+            robot_id,
+            point_val,
+            raw_acs_val,
+            tcp_name,
+            ucs_name,
+            speed_val,
+            acc_val,
+            radius_val,
+            1 if seek else 0,
+            seek_bit,
+            seek_state,
+            cmd_id,
+        )
+        if ret != 0:
+            self.logger.error(f"HRIF_MoveL failed with code {ret}.")
+            self._describe_error(box_id, ret)
+            self._log_robot_state(box_id)
+            return False
+
+        if wait:
+            timeout_val = wait_timeout if wait_timeout is not None and wait_timeout > 0 else None
+            if not self._wait_for_motion_done(box_id, robot_id, timeout_val):
+                return False
+
+        self.logger.info("MoveL completed successfully.")
+        return True
+    
+    def grprst(self) -> bool:
+        """
+        Docstring for grprst
+        
+        :return: Description
+        :rtype: bool
+        """
+        nRet = self.cps.HRIF_GrpReset(0,0)
+        if nRet != 0:
+            self.logger.error(f"HRIF_GrpReset failed with code {nRet}.")
+            self._describe_error(0, nRet)
+            self._log_robot_state(0)
+            return False
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    def _configure_frames(self, box_id: int, robot_id: int, ucs_name: str, tcp_name: str) -> bool:
+        current_ucs: list[str] = []
+        target_ucs: list[str] = []
+        ret = self.cps.HRIF_ReadCurUCS(box_id, robot_id, current_ucs)
+        if ret != 0:
+            self.logger.error(f"Failed to read current UCS (code {ret}).")
+            return False
+        ret = self.cps.HRIF_ReadUCSByName(box_id, robot_id, ucs_name, target_ucs)
+        if ret != 0:
+            self.logger.error(f"Failed to read UCS '{ucs_name}' (code {ret}).")
+            return False
+        if current_ucs != target_ucs:
+            ret = self.cps.HRIF_SetUCSByName(box_id, robot_id, ucs_name)
+            if ret != 0:
+                self.logger.error(f"Could not set UCS to '{ucs_name}' (code {ret}).")
+                return False
+            time.sleep(0.1)
+
+        current_tcp: list[str] = []
+        target_tcp: list[str] = []
+        ret = self.cps.HRIF_ReadCurTCP(box_id, robot_id, current_tcp)
+        if ret != 0:
+            self.logger.error(f"Failed to read current TCP (code {ret}).")
+            return False
+        ret = self.cps.HRIF_ReadTCPByName(box_id, robot_id, tcp_name, target_tcp)
+        if ret != 0:
+            self.logger.error(f"Failed to read TCP '{tcp_name}' (code {ret}).")
+            return False
+        if current_tcp != target_tcp:
+            ret = self.cps.HRIF_SetTCPByName(box_id, robot_id, tcp_name)
+            if ret != 0:
+                self.logger.error(f"Could not set TCP to '{tcp_name}' (code {ret}).")
+                return False
+            time.sleep(0.1)
+
+        return True
+
+    def _wait_for_motion_done(self, box_id: int, robot_id: int, timeout: float | None) -> bool:
+        start = time.monotonic()
+        while True:
+            state: list[str] = []
+            ret = self.cps.HRIF_ReadRobotState(box_id, robot_id, state)
+            if ret != 0:
+                self.logger.error(f"Failed to read robot state (code {ret}).")
+                return False
+            if len(state) > 11 and state[11] == "1":
+                return True
+            if timeout is not None and timeout > 0 and (time.monotonic() - start) > timeout:
+                self.logger.error("Timed out waiting for motion completion.")
+                return False
+            time.sleep(0.1)
+
+    def _describe_error(self, box_id: int, code: int) -> None:
+        """Fetch and log a human-readable error string when possible."""
+        result: list[str] = []
+        ret = self.cps.HRIF_GetErrorCodeStr(box_id, code, result)
+        if ret == 0 and result:
+            self.logger.error(f"Controller description for error {code}: {result[0]}")
+        else:
+            self.logger.error(f"Unable to fetch error description for {code} (ret={ret}, raw={result})")
+
+    def _log_robot_state(self, box_id: int) -> None:
+        """Log current robot state flags for quick diagnosis."""
+        result: list[str] = []
+        ret = self.cps.HRIF_ReadRobotState(box_id, 0, result)
+        if ret != 0:
+            self.logger.error(f"Failed to read robot state (code {ret}).")
+            return
+        if len(result) < 13:
+            self.logger.error(f"Unexpected robot state payload: {result}")
+            return
+        flags = {
+            "in_motion": result[0] == "1",
+            "enabled": result[1] == "1",
+            "has_error": result[2] == "1",
+            "error_code": result[3],
+            "error_axis": result[4],
+            "lock_state": result[5] == "1",
+            "paused": result[6] == "1",
+            "emergency_stop": result[7] == "1",
+            "light_screen": result[8] == "1",
+            "powered_on": result[9] == "1",
+            "ebox_connected": result[10] == "1",
+            "point_motion_done": result[11] == "1",
+            "in_position": result[12] == "1",
+        }
+        self.logger.error(f"Robot state flags: {flags}")

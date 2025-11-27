@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import time
 from typing import Sequence
 
 from Components.RobotInteractions import RobotInteractions, load_config
@@ -104,152 +103,25 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def configure_frames(cps, box_id: int, robot_id: int, ucs_name: str, tcp_name: str, logger) -> bool:
-    current_ucs: list[str] = []
-    target_ucs: list[str] = []
-    ret = cps.HRIF_ReadCurUCS(box_id, robot_id, current_ucs)
-    if ret != 0:
-        logger.error(f"Failed to read current UCS (code {ret}).")
-        return False
-    ret = cps.HRIF_ReadUCSByName(box_id, robot_id, ucs_name, target_ucs)
-    if ret != 0:
-        logger.error(f"Failed to read UCS '{ucs_name}' (code {ret}).")
-        return False
-    if current_ucs != target_ucs:
-        ret = cps.HRIF_SetUCSByName(box_id, robot_id, ucs_name)
-        if ret != 0:
-            logger.error(f"Could not set UCS to '{ucs_name}' (code {ret}).")
-            return False
-        time.sleep(0.1)
-
-    current_tcp: list[str] = []
-    target_tcp: list[str] = []
-    ret = cps.HRIF_ReadCurTCP(box_id, robot_id, current_tcp)
-    if ret != 0:
-        logger.error(f"Failed to read current TCP (code {ret}).")
-        return False
-    ret = cps.HRIF_ReadTCPByName(box_id, robot_id, tcp_name, target_tcp)
-    if ret != 0:
-        logger.error(f"Failed to read TCP '{tcp_name}' (code {ret}).")
-        return False
-    if current_tcp != target_tcp:
-        ret = cps.HRIF_SetTCPByName(box_id, robot_id, tcp_name)
-        if ret != 0:
-            logger.error(f"Could not set TCP to '{tcp_name}' (code {ret}).")
-            return False
-        time.sleep(0.1)
-
-    return True
-
-
-def wait_for_motion_done(cps, box_id: int, robot_id: int, logger, timeout: float | None) -> bool:
-    start = time.monotonic()
-    while True:
-        state: list[str] = []
-        ret = cps.HRIF_ReadRobotState(box_id, robot_id, state)
-        if ret != 0:
-            logger.error(f"Failed to read robot state (code {ret}).")
-            return False
-        if len(state) > 11 and state[11] == "1":
-            return True
-        if timeout is not None and timeout > 0 and (time.monotonic() - start) > timeout:
-            logger.error("Timed out waiting for motion completion.")
-            return False
-        time.sleep(0.1)
-
-def describe_error(cps, box_id: int, code: int, logger) -> None:
-    """Fetch and log a human-readable error string when possible."""
-    result: list[str] = []
-    ret = cps.HRIF_GetErrorCodeStr(box_id, code, result)
-    if ret == 0 and result:
-        logger.error(f"Controller description for error {code}: {result[0]}")
-    else:
-        logger.error(f"Unable to fetch error description for {code} (ret={ret}, raw={result})")
-
-
-def log_robot_state(cps, box_id: int, logger) -> None:
-    """Log current robot state flags for quick diagnosis."""
-    result: list[str] = []
-    ret = cps.HRIF_ReadRobotState(box_id, 0, result)
-    if ret != 0:
-        logger.error(f"Failed to read robot state (code {ret}).")
-        return
-    if len(result) < 13:
-        logger.error(f"Unexpected robot state payload: {result}")
-        return
-    flags = {
-        "in_motion": result[0] == "1",
-        "enabled": result[1] == "1",
-        "has_error": result[2] == "1",
-        "error_code": result[3],
-        "error_axis": result[4],
-        "lock_state": result[5] == "1",
-        "paused": result[6] == "1",
-        "emergency_stop": result[7] == "1",
-        "light_screen": result[8] == "1",
-        "powered_on": result[9] == "1",
-        "ebox_connected": result[10] == "1",
-        "point_motion_done": result[11] == "1",
-        "in_position": result[12] == "1",
-    }
-    logger.error(f"Robot state flags: {flags}")
-
 def run_move_l(robot: RobotInteractions, args) -> int:
-    config = robot.config
-    coords = config.get("coords", {})
-    cps = robot.cps
-    logger = robot.logger
-
-    tcp = args.tcp or coords.get("tcpDefault")
-    ucs = args.ucs or coords.get("ucsDefault")
-    speed = args.speed if args.speed is not None else coords.get("roboVelocity", 200.0)
-    acc = args.acc if args.acc is not None else coords.get("roboAcceleration", 200.0)
-    radius = args.radius if args.radius is not None else coords.get("transitionRadius", 0.0)
-    raw_acs = args.raw_acs if args.raw_acs is not None else [0.0] * 6
-    point = list(args.point)
-
-    if tcp is None:
-        logger.error("TCP name is required (provide --tcp or set coords.tcpDefault in config).")
-        return 1
-    if ucs is None:
-        logger.error("UCS name is required (provide --ucs or set coords.ucsDefault in config).")
-        return 1
-    if len(raw_acs) != 6:
-        logger.error("Raw joint pose must contain 6 values.")
-        return 1
-
-    logger.info("Setting frames before MoveL...")
-    if not configure_frames(cps, args.box_id, args.robot_id, ucs, tcp, logger):
-        return 1
-
-    ret = cps.HRIF_MoveL(
-        args.box_id,
-        args.robot_id,
-        point,
-        raw_acs,
-        tcp,
-        ucs,
-        speed,
-        acc,
-        radius,
-        1 if args.seek else 0,
-        args.seek_bit,
-        args.seek_state,
-        args.cmd_id,
+    success = robot.move_l(
+        box_id=args.box_id,
+        robot_id=args.robot_id,
+        point=args.point,
+        raw_acs=args.raw_acs,
+        tcp=args.tcp,
+        ucs=args.ucs,
+        speed=args.speed,
+        acc=args.acc,
+        radius=args.radius,
+        seek=args.seek,
+        seek_bit=args.seek_bit,
+        seek_state=args.seek_state,
+        cmd_id=args.cmd_id,
+        wait=args.wait,
+        wait_timeout=args.wait_timeout,
     )
-    if ret != 0:
-        logger.error(f"HRIF_MoveL failed with code {ret}.")
-        describe_error(cps, args.box_id, ret, logger)
-        log_robot_state(cps, args.box_id, logger)
-        return 1
-
-    if args.wait:
-        timeout = args.wait_timeout if args.wait_timeout > 0 else None
-        if not wait_for_motion_done(cps, args.box_id, args.robot_id, logger, timeout):
-            return 1
-
-    logger.info("MoveL completed successfully.")
-    return 0
+    return 0 if success else 1
 
 
 def main(argv: Sequence[str] | None = None) -> int:
