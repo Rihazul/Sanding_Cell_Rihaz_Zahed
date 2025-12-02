@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { startTableAProcess, startTableBProcess, performAction } from '../../services/api';
+import { startTableAProcess, startTableBProcess, performAction, upload3DFile } from '../../services/api';
 
 export type RowConfig = {
   label: string;
@@ -65,9 +65,7 @@ export function CompactTableConfig({
     addActivity(`Table ${tableName}: Starting scan operation...`, 'info');
     
     try {
-      // Simulate scan operation for testing (3 seconds)
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      // await performAction('scan');
+      await performAction('scan');
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
       setScanCompleted(true);
     } catch (error) {
@@ -82,7 +80,7 @@ export function CompactTableConfig({
     
     setIsOperating(true);
     
-    // For Table A, process all doors (configured or not)
+    // For Table A, process all doors with their configurations
     if (tableName === 'A' && doorConfigs) {
       const configuredDoors = doorConfigs.filter(d => d.model && d.model !== '');
       const totalDoors = doorConfigs.length;
@@ -90,39 +88,23 @@ export function CompactTableConfig({
       addActivity(`Table ${tableName}: Starting task for all doors (${configuredDoors.length} configured, ${totalDoors - configuredDoors.length} unconfigured)...`, 'info');
       
       try {
-        // Process all doors
-        for (const doorConfig of doorConfigs) {
-          if (doorConfig.model && doorConfig.model !== '') {
-            const modelName = doorConfig.model === 'modelA' ? 'Model A' : 
-                             doorConfig.model === 'modelB' ? 'Model B' : 
-                             doorConfig.model === 'modelC' ? 'Model C' : 
-                             doorConfig.model === 'modelD' ? 'Model D' : 
-                             doorConfig.model === 'modelE' ? 'Model E' : doorConfig.model;
-            
-            addActivity(`Table ${tableName}: Processing Door ${doorConfig.doorNumber} with ${modelName}...`, 'info');
-            
-            // Simulate task operation for testing (3 seconds per configured door)
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            // // Build payload from door's rows
-            // const taskData: any = {
-            //   door: doorConfig.doorNumber,
-            //   model: doorConfig.model,
-            //   frame: { cycle: doorConfig.rows[0].cycle, force: doorConfig.rows[0].force },
-            //   pocketzigzag: { cycle: doorConfig.rows[1].cycle, force: doorConfig.rows[1].force },
-            //   '3D': { cycle: doorConfig.rows[2].cycle, force: doorConfig.rows[2].force },
-            //   edgeOutside: { cycle: doorConfig.rows[3].cycle, force: doorConfig.rows[3].force },
-            //   side: { cycle: doorConfig.rows[4].cycle, force: doorConfig.rows[4].force },
-            // };
-            // await startTableAProcess(taskData as any);
-            
-            addActivity(`Table ${tableName}: Door ${doorConfig.doorNumber} completed with ${modelName}`, 'success');
-          } else {
-            addActivity(`Table ${tableName}: Skipping Door ${doorConfig.doorNumber} (not configured)`, 'info');
-          }
+        // Build payload with all door configurations
+        const taskData = {
+          doorConfigs: doorConfigs,
+          robotSpeed: (robotSpeed[0] / 100).toFixed(2),
+          sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
+          inverseOverlapping: inverseOverlapping[0],
+        };
+        
+        // Send all door configurations to the backend
+        const result = await startTableAProcess(taskData);
+        
+        if (result.success) {
+          addActivity(`Table ${tableName}: Task completed successfully`, 'success');
+        } else {
+          addActivity(`Table ${tableName}: Task completed with status: ${result.status || 'unknown'}`, 'warning');
         }
         
-        addActivity(`Table ${tableName}: Task completed successfully`, 'success');
         // Reset scan so it can be done again
         setScanCompleted(false);
       } catch (error) {
@@ -141,27 +123,27 @@ export function CompactTableConfig({
       addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');
       
       try {
-        // Simulate task operation for testing (5 seconds)
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Build payload from rows
+        const taskData = {
+          model,
+          frame: { cycle: rows[0].cycle, force: rows[0].force },
+          pocketzigzag: { cycle: rows[1].cycle, force: rows[1].force },
+          '3D': { cycle: rows[2].cycle, force: rows[2].force },
+          edgeOutside: { cycle: rows[3].cycle, force: rows[3].force },
+          side: { cycle: rows[4].cycle, force: rows[4].force },
+          robotSpeed: (robotSpeed[0] / 100).toFixed(2),
+          sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
+          inverseOverlapping: inverseOverlapping[0],
+        };
         
-        // // Build payload from rows
-        // const taskData: any = {
-        //   model,
-        //   frame: { cycle: rows[0].cycle, force: rows[0].force },
-        //   pocketzigzag: { cycle: rows[1].cycle, force: rows[1].force },
-        //   '3D': { cycle: rows[2].cycle, force: rows[2].force },
-        //   edgeOutside: { cycle: rows[3].cycle, force: rows[3].force },
-        //   side: { cycle: rows[4].cycle, force: rows[4].force },
-        // };
-        // const tableBData = {
-        //   ...taskData,
-        //   robotSpeed: (robotSpeed[0] / 100).toFixed(2),
-        //   sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
-        //   inverseOverlapping: inverseOverlapping[0],
-        // };
-        // await startTableBProcess(tableBData as any);
+        const result = await startTableBProcess(taskData);
         
-        addActivity(`Table ${tableName}: Task completed successfully with ${modelName}`, 'success');
+        if (result.success) {
+          addActivity(`Table ${tableName}: Task completed successfully with ${modelName}`, 'success');
+        } else {
+          addActivity(`Table ${tableName}: Task completed with status: ${result.status || 'unknown'}`, 'warning');
+        }
+        
         // Reset scan so it can be done again
         setScanCompleted(false);
       } catch (error) {
@@ -172,17 +154,36 @@ export function CompactTableConfig({
     }
   };
   
-  const handleUpload3DFile = () => {
+  const handleUpload3DFile = async () => {
     console.log('Upload 3D File clicked for Table', tableName);
-    setIsOperating(true);
-    addActivity(`Table ${tableName}: Uploading 3D file...`, 'info');
     
-    // Simulate upload operation
-    setTimeout(() => {
-      console.log('Upload completed for Table', tableName);
-      addActivity(`Table ${tableName}: 3D file uploaded successfully`, 'success');
-      setIsOperating(false);
-    }, 6000); // 6 second operation
+    // Create file input element
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.stp,.step';
+    
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      setIsOperating(true);
+      addActivity(`Table ${tableName}: Uploading 3D file "${file.name}"...`, 'info');
+      
+      try {
+        const result = await upload3DFile(file);
+        if (result.success) {
+          addActivity(`Table ${tableName}: 3D file uploaded successfully`, 'success');
+        } else {
+          addActivity(`Table ${tableName}: Upload failed - ${result.message || 'Unknown error'}`, 'error');
+        }
+      } catch (error) {
+        addActivity(`Table ${tableName}: Upload failed - ${error}`, 'error');
+      } finally {
+        setIsOperating(false);
+      }
+    };
+    
+    input.click();
   };
   
   // Get current door configuration

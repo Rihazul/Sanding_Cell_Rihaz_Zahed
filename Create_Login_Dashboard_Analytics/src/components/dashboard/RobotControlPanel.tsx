@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { ToggleButton } from './ToggleButton';
-import { toolToggle, performAction } from '../../services/api';
+import { toolToggle, performAction, toggleTableState } from '../../services/api';
 
 interface RobotControlPanelProps {
   robotEnabled: boolean;
@@ -11,8 +11,6 @@ interface RobotControlPanelProps {
   setStopperAUp: (up: boolean) => void;
   stopperBUp: boolean;
   setStopperBUp: (up: boolean) => void;
-  toolLifted: boolean;
-  setToolLifted: (lifted: boolean) => void;
   tableAOpen: boolean;
   setTableAOpen: (open: boolean) => void;
   tableBOpen: boolean;
@@ -38,8 +36,6 @@ export function RobotControlPanel({
   setStopperAUp,
   stopperBUp,
   setStopperBUp,
-  toolLifted,
-  setToolLifted,
   tableAOpen,
   setTableAOpen,
   tableBOpen,
@@ -100,43 +96,109 @@ export function RobotControlPanel({
           {/* Stopper Controls */}
           <div className="space-y-3 min-w-0">
             <h3 className="text-sm font-semibold text-gray-600 mb-2">Stoppers</h3>
-            <ToggleButton label="Stopper A" isActive={stopperAUp} onToggle={() => { setStopperAUp(!stopperAUp); addActivity(`Stopper A moved ${!stopperAUp ? 'UP' : 'DOWN'}`, 'info'); }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={() => { setStopperBUp(!stopperBUp); addActivity(`Stopper B moved ${!stopperBUp ? 'UP' : 'DOWN'}`, 'info'); }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="Stopper A" isActive={stopperAUp} onToggle={async () => { 
+              try {
+                await performAction(!stopperAUp ? 'stopperUp' : 'stopperDown');
+                setStopperAUp(!stopperAUp); 
+                addActivity(`Stopper A moved ${!stopperAUp ? 'UP' : 'DOWN'}`, 'success'); 
+              } catch (error) {
+                addActivity(`Stopper A action failed: ${error}`, 'error');
+              }
+            }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={async () => { 
+              try {
+                await performAction(!stopperBUp ? 'stopperUpB' : 'stopperDownB');
+                setStopperBUp(!stopperBUp); 
+                addActivity(`Stopper B moved ${!stopperBUp ? 'UP' : 'DOWN'}`, 'success'); 
+              } catch (error) {
+                addActivity(`Stopper B action failed: ${error}`, 'error');
+              }
+            }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
           </div>
 
           {/* Table Controls */}
           <div className="space-y-3 min-w-0">
             <h3 className="text-sm font-semibold text-gray-600 mb-2">Tables</h3>
             <div className="w-full">
-              <ToggleButton label="Table A" isActive={tableAOpen} onToggle={() => { setTableAOpen(!tableAOpen); addActivity(`Table A ${!tableAOpen ? 'OPENED' : 'CLOSED'}`, 'info'); }} activeLabel="OPEN" inactiveLabel="CLOSED" disabled={isOperating || !robotEnabled} />
+              <ToggleButton label="Table A" isActive={tableAOpen} onToggle={async () => { 
+                try {
+                  await toggleTableState('tableAOpenClose');
+                  setTableAOpen(!tableAOpen); 
+                  addActivity(`Table A ${!tableAOpen ? 'OPENED' : 'CLOSED'}`, 'success'); 
+                } catch (error) {
+                  addActivity(`Table A action failed: ${error}`, 'error');
+                }
+              }} activeLabel="OPEN" inactiveLabel="CLOSED" disabled={isOperating || !robotEnabled} />
             </div>
             <div className="w-full">
-              <ToggleButton label="Table B" isActive={tableBOpen} onToggle={() => { setTableBOpen(!tableBOpen); addActivity(`Table B ${!tableBOpen ? 'OPENED' : 'CLOSED'}`, 'info'); }} activeLabel="OPEN" inactiveLabel="CLOSED" disabled={isOperating || !robotEnabled} />
+              <ToggleButton label="Table B" isActive={tableBOpen} onToggle={async () => { 
+                try {
+                  await toggleTableState('tableBOpenClose');
+                  setTableBOpen(!tableBOpen); 
+                  addActivity(`Table B ${!tableBOpen ? 'OPENED' : 'CLOSED'}`, 'success'); 
+                } catch (error) {
+                  addActivity(`Table B action failed: ${error}`, 'error');
+                }
+              }} activeLabel="OPEN" inactiveLabel="CLOSED" disabled={isOperating || !robotEnabled} />
             </div>
           </div>
-        </div>
-
-        {/* Tool Controls */}
-        <div className="mt-6">
-          <h3 className="text-sm font-semibold text-gray-600 mb-2">Tool</h3>
-          <ToggleButton label="Tool Position" isActive={toolLifted} onToggle={() => { setToolLifted(!toolLifted); addActivity(`Tool ${!toolLifted ? 'LIFTED' : 'DROPPED'}`, 'info'); }} activeLabel="LIFTED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
         </div>
 
         {/* Pick & Drop Controls */}
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-600 mb-2">Tool Stations</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <ToggleButton label="T1" isActive={t1Picked} onToggle={() => { setT1Picked(!t1Picked); addActivity(`Tool 1 ${!t1Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T2" isActive={t2Picked} onToggle={() => { setT2Picked(!t2Picked); addActivity(`Tool 2 ${!t2Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T3" isActive={t3Picked} onToggle={() => { setT3Picked(!t3Picked); addActivity(`Tool 3 ${!t3Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T4" isActive={t4Picked} onToggle={() => { setT4Picked(!t4Picked); addActivity(`Tool 4 ${!t4Picked ? 'picked up' : 'dropped'}`, 'info'); }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T1" isActive={t1Picked} onToggle={async () => { 
+              try {
+                await toolToggle(1, !t1Picked ? 'pick' : 'keep');
+                setT1Picked(!t1Picked); 
+                addActivity(`Tool 1 ${!t1Picked ? 'picked up' : 'dropped'}`, 'success'); 
+              } catch (error) {
+                addActivity(`Tool 1 action failed: ${error}`, 'error');
+              }
+            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T2" isActive={t2Picked} onToggle={async () => { 
+              try {
+                await toolToggle(2, !t2Picked ? 'pick' : 'keep');
+                setT2Picked(!t2Picked); 
+                addActivity(`Tool 2 ${!t2Picked ? 'picked up' : 'dropped'}`, 'success'); 
+              } catch (error) {
+                addActivity(`Tool 2 action failed: ${error}`, 'error');
+              }
+            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T3" isActive={t3Picked} onToggle={async () => { 
+              try {
+                await toolToggle(3, !t3Picked ? 'pick' : 'keep');
+                setT3Picked(!t3Picked); 
+                addActivity(`Tool 3 ${!t3Picked ? 'picked up' : 'dropped'}`, 'success'); 
+              } catch (error) {
+                addActivity(`Tool 3 action failed: ${error}`, 'error');
+              }
+            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T4" isActive={t4Picked} onToggle={async () => { 
+              try {
+                await toolToggle(4, !t4Picked ? 'pick' : 'keep');
+                setT4Picked(!t4Picked); 
+                addActivity(`Tool 4 ${!t4Picked ? 'picked up' : 'dropped'}`, 'success'); 
+              } catch (error) {
+                addActivity(`Tool 4 action failed: ${error}`, 'error');
+              }
+            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
           </div>
         </div>
 
         {/* Laser Control */}
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-600 mb-2">Laser</h3>
-          <ToggleButton label="Laser" isActive={laserOn} onToggle={() => { setLaserOn(!laserOn); addActivity(`Laser turned ${!laserOn ? 'ON' : 'OFF'}`, !laserOn ? 'warning' : 'info'); }} activeLabel="ON" inactiveLabel="OFF" disabled={isOperating || !robotEnabled} />
+          <ToggleButton label="Laser" isActive={laserOn} onToggle={async () => { 
+            try {
+              // Note: Add laser API endpoint when available
+              setLaserOn(!laserOn); 
+              addActivity(`Laser turned ${!laserOn ? 'ON' : 'OFF'}`, !laserOn ? 'warning' : 'info'); 
+            } catch (error) {
+              addActivity(`Laser action failed: ${error}`, 'error');
+            }
+          }} activeLabel="ON" inactiveLabel="OFF" disabled={isOperating || !robotEnabled} />
         </div>
       </CardContent>
     </Card>

@@ -27,7 +27,6 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   // Toggle states
   const [stopperAUp, setStopperAUp] = useState(false);
   const [stopperBUp, setStopperBUp] = useState(false);
-  const [toolLifted, setToolLifted] = useState(false);
   const [tableAOpen, setTableAOpen] = useState(false);
   const [tableBOpen, setTableBOpen] = useState(false);
   const [t1Picked, setT1Picked] = useState(false);
@@ -90,8 +89,6 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 setStopperAUp={setStopperAUp}
                 stopperBUp={stopperBUp}
                 setStopperBUp={setStopperBUp}
-                toolLifted={toolLifted}
-                setToolLifted={setToolLifted}
                 tableAOpen={tableAOpen}
                 setTableAOpen={setTableAOpen}
                 tableBOpen={tableBOpen}
