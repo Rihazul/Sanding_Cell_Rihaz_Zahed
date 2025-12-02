@@ -11,9 +11,11 @@ import { Settings } from 'lucide-react';
 
 interface DashboardProps {
   onNavigateToAnalytics: () => void;
+  activities: Array<{id: number, timestamp: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>;
+  addActivity: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
-export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
+export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: DashboardProps) {
   const [robotEnabled, setRobotEnabled] = useState(false);
   const [robotSpeed, setRobotSpeed] = useState([100]);
   const [inverseOverlapping, setInverseOverlapping] = useState([50]);
@@ -21,22 +23,6 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
   const [isOperating, setIsOperating] = useState(false);
-  const [activities, setActivities] = useState<Array<{id: number, timestamp: string, message: string, type: 'info' | 'success' | 'warning' | 'error'}>>([
-    { id: 1, timestamp: new Date().toLocaleTimeString(), message: 'Robot system initialized', type: 'success' },
-    { id: 2, timestamp: new Date().toLocaleTimeString(), message: 'Waiting for commands...', type: 'info' },
-  ]);
-  
-  // Activity log function that will be passed to child components
-  const addActivity = React.useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    console.log('Dashboard addActivity called:', message, type);
-    const newActivity = {
-      id: Date.now(),
-      timestamp: new Date().toLocaleTimeString(),
-      message,
-      type,
-    };
-    setActivities((prev) => [...prev, newActivity]);
-  }, []);
   
   // Toggle states
   const [stopperAUp, setStopperAUp] = useState(false);

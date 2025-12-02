@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 
 interface ActivityLogProps {
   entries: string[];
@@ -6,6 +6,14 @@ interface ActivityLogProps {
 }
 
 const ActivityLog: React.FC<ActivityLogProps> = ({ entries, onClose }) => {
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, []);
+
   return <ActivityLogModal entries={entries} onClose={onClose} />;
 };
 
