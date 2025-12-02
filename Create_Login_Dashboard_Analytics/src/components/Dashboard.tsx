@@ -5,7 +5,7 @@ import { RobotControlPanel } from './dashboard/RobotControlPanel';
 import { RobotStatusCard } from './dashboard/RobotStatusCard';
 import { SettingsPanel } from './dashboard/SettingsPanel';
 import { SlidingPanel } from './dashboard/SlidingPanel';
-import { CompactTableConfig, type RowConfig } from './dashboard/CompactTableConfig';
+import { CompactTableConfig, type RowConfig, type DoorConfig } from './dashboard/CompactTableConfig';
 import { Button } from './ui/button';
 import { Settings } from 'lucide-react';
 
@@ -72,6 +72,14 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
   const [tableARows, setTableARows] = useState<RowConfig[]>(defaultRows);
   const [tableBRows, setTableBRows] = useState<RowConfig[]>(defaultRows);
 
+  // Door configurations for Table A (each door can have a different model)
+  const [doorConfigs, setDoorConfigs] = useState<Array<{doorNumber: number, model: string, rows: RowConfig[]}>>([
+    { doorNumber: 1, model: '', rows: [...defaultRows] },
+    { doorNumber: 2, model: '', rows: [...defaultRows] },
+    { doorNumber: 3, model: '', rows: [...defaultRows] },
+    { doorNumber: 4, model: '', rows: [...defaultRows] },
+  ]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-100 to-indigo-100 pb-24">
       <DashboardHeader 
@@ -130,6 +138,8 @@ export function Dashboard({ onNavigateToAnalytics }: DashboardProps) {
                 robotSpeed={robotSpeed}
                 sandingSpeed={sandingSpeed}
                 inverseOverlapping={inverseOverlapping}
+                doorConfigs={doorConfigs}
+                setDoorConfigs={setDoorConfigs}
               />
               
               {/* Table B Configuration */}
