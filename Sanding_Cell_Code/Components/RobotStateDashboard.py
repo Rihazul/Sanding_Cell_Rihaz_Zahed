@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+from datetime import datetime
 from typing import Any, Sequence
 
 from rich.panel import Panel
@@ -50,6 +52,7 @@ class RobotStateDashboard(App):
 
     BINDINGS = [
         ("r", "refresh", "Refresh state"),
+        ("c", "capture_point", "Capture point"),
         ("q", "quit", "Quit dashboard"),
         ("left", "previous_tab", "Previous tab"),
         ("right", "next_tab", "Next tab"),
@@ -68,6 +71,10 @@ class RobotStateDashboard(App):
         super().__init__(**kwargs)
         self.robot_state = robot_state or RobotState()
         self.refresh_interval = refresh_interval
+        self.capture_dir = "./logs"
+        self.capture_file = os.path.join(self.capture_dir, "captured_points.log")
+        self.captured_points: list[dict[str, Any]] = []
+        os.makedirs(self.capture_dir, exist_ok=True)
 
         # For IO tables keyboard focus logic
         self._table_names = ("dio", "flags")
@@ -114,6 +121,11 @@ class RobotStateDashboard(App):
     async def action_refresh(self) -> None:  # pragma: no cover - UI helper
         """Manual binding that forces a synchronous refresh."""
         await self._refresh_panels(force_io_refresh=True)
+
+    async def action_capture_point(self) -> None:  # pragma: no cover - UI helper
+        """Capture the current cartesian point along with active TCP and UCS."""
+        await self._refresh_robot_state()
+        self._capture_current_point()
 
     async def _refresh_panels(self, *, force_io_refresh: bool = False) -> None:
         await self._refresh_robot_state()
@@ -212,9 +224,6 @@ class RobotStateDashboard(App):
         table.cursor_type = "row"
         table.focus()
 
-    # -------------------------------------------------------------------------
-    # IO tables
-    # -------------------------------------------------------------------------
     def _update_dio_table(self, io_map: dict[str, bool]) -> None:
         table = self.query_one("#dio-table", DataTable)
         table.clear(columns=True)
@@ -406,6 +415,46 @@ class RobotStateDashboard(App):
     # -------------------------------------------------------------------------
     # Helpers
     # -------------------------------------------------------------------------
+    def _capture_current_point(self) -> None:
+        """Persist the latest point along with active TCP/UCS selections."""
+        state = self.robot_state.state or {}
+
+        coords = list(state.get("cartesian_position") or [])
+        coords += [0.0] * max(0, 6 - len(coords))
+
+        tcp_state = state.get("TCP") if isinstance(state, dict) else {}
+        ucs_state = state.get("UCS") if isinstance(state, dict) else {}
+        tcp_name = tcp_state.get("active") if isinstance(tcp_state, dict) else None
+        ucs_name = ucs_state.get("active") if isinstance(ucs_state, dict) else None
+
+        tcp_display = tcp_name or "-"
+        ucs_display = ucs_name or "-"
+
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        capture_line = (
+            f"{timestamp} | TCP={tcp_display} | UCS={ucs_display} | "
+            f"X={coords[0]:.3f}, Y={coords[1]:.3f}, Z={coords[2]:.3f}, "
+            f"Rx={coords[3]:.3f}, Ry={coords[4]:.3f}, Rz={coords[5]:.3f}"
+        )
+
+        self.captured_points.append(
+            {
+                "timestamp": timestamp,
+                "tcp": tcp_display,
+                "ucs": ucs_display,
+                "point": coords[:6],
+            }
+        )
+
+        try:
+            with open(self.capture_file, "a", encoding="utf-8") as handle:
+                handle.write(capture_line + "\n")
+        except Exception as exc:
+            self.log(f"Capture failed: {exc}")
+            return
+
+        self.log(f"Captured point -> {capture_line}")
+
     def _format_flag_value(self, value: Any) -> Text:
         if isinstance(value, bool):
             return self._bool_text(value)

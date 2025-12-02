@@ -70,9 +70,15 @@ def _run_console_ui(robot_state: RobotState, update_interval: float, ui_interval
     renderer.join(timeout=1.0)
 
 
-def _run_textual_ui(robot_state: RobotState, refresh_interval: float) -> None:
+def _run_textual_ui(
+    robot_state: RobotState,
+    refresh_interval: float,
+) -> None:
     """Launch the textual dashboard when a fancy UI is requested."""
-    RobotStateDashboard(robot_state=robot_state, refresh_interval=refresh_interval).run()
+    RobotStateDashboard(
+        robot_state=robot_state,
+        refresh_interval=refresh_interval,
+    ).run()
 
 
 def main(argv: Optional[list[str]] = None):
@@ -89,6 +95,7 @@ def main(argv: Optional[list[str]] = None):
         default=0.2,
         help="Seconds between UI refreshes (console mode)",
     )
+
     parser.add_argument(
         "--ui",
         choices=("textual", "console"),
@@ -130,7 +137,10 @@ def main(argv: Optional[list[str]] = None):
     if args.ui == "console":
         _run_console_ui(robot_state, args.update_interval, args.ui_interval)
     else:
-        _run_textual_ui(robot_state, min(args.update_interval, args.ui_interval))
+        _run_textual_ui(
+            robot_state,
+            min(args.update_interval, args.ui_interval),
+        )
 
 
 if __name__ == "__main__":

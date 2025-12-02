@@ -200,6 +200,7 @@ def smalldoor1pocket(force,z,cps):
                 
                 # Release Force Control
                 releaseForce(cps=cps, config=config)
+
             def run_single_movement(robot_point, seventh_axis_point, cps, config):
                 """
                 Moves the robot and seventh axis using one robot point and one seventh-axis point.
@@ -243,6 +244,7 @@ def smalldoor1pocket(force,z,cps):
                 # Wait for both movements to finish before returning
                 robot_thread.join()
                 axis_thread.join()
+
             communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.7,wait=True)
             communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
             perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)

@@ -7,6 +7,7 @@
         {
             "name":"Flask Debug (multiThreaded)",
             "type": "python",
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "request": "launch",
             "module" : "flask",
             "env" : {
@@ -31,6 +32,7 @@
         {
             "name": "Main Script",
             "type": "python",
+            "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "program": "${file}",

@@ -88,6 +88,7 @@ door:
   frame: 60
   sandSpeed: 0.02 #0.02 real
   homingSpeed: 0.3
+  # homingSpeed: 1.0
 
 point:
   # tableOrigin: [-280.122, -270.601, 52.402, -180, 40.163, 90]

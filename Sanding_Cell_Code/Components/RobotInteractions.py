@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import threading
 import time
-from typing import Sequence
+from queue import Empty, Queue
+from typing import Any, Callable, Optional, Sequence
 
 import yaml
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+
 from Server_Better_V2 import setup_logger
 from modules.CPS import CPSClient
+
+ProgressCallback = Callable[[float, Optional[str]], None]
 
 
 def load_config(config_path: str = "./configs/config.yaml") -> dict:
@@ -65,6 +71,9 @@ class RobotInteractions:
         wait_timeout: float | None = 60.0,
         box_id: int = 0,
         robot_id: int = 0,
+        progress_callback: ProgressCallback | None = None,
+        show_progress: bool = False,
+        progress_label: str | None = "MoveL",
     ) -> bool:
         """Execute a linear move with optional seeking and wait-for-completion."""
 
@@ -91,6 +100,8 @@ class RobotInteractions:
             return False
 
         self.logger.info("Setting frames before MoveL...")
+        if progress_callback:
+            self._update_progress(progress_callback, 0.0, "Configuring frames")
         if not self._configure_frames(box_id, robot_id, ucs_name, tcp_name):
             return False
 
@@ -117,29 +128,73 @@ class RobotInteractions:
 
         if wait:
             timeout_val = wait_timeout if wait_timeout is not None and wait_timeout > 0 else None
-            if not self._wait_for_motion_done(box_id, robot_id, timeout_val):
+            if not self._wait_for_motion_done(
+                box_id,
+                robot_id,
+                timeout_val,
+                progress_callback=progress_callback,
+                show_progress=show_progress,
+                progress_label=progress_label or "Move",
+            ):
                 return False
 
+        self._update_progress(progress_callback, 100.0, "MoveL completed")
         self.logger.info("MoveL completed successfully.")
         return True
-    
+
+    def grp_reset(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Reset the robot group."""
+        return self._run_group_command("HRIF_GrpReset", box_id, robot_id)
+
+    def grp_enable(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Enable the robot group."""
+        return self._run_group_command("HRIF_GrpEnable", box_id, robot_id)
+
+    def grp_disable(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Disable the robot group."""
+        return self._run_group_command("HRIF_GrpDisable", box_id, robot_id)
+
+    def grp_stop(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Stop robot motion immediately."""
+        return self._run_group_command("HRIF_GrpStop", box_id, robot_id)
+
+    def grp_interrupt(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Pause robot motion."""
+        return self._run_group_command("HRIF_GrpInterrupt", box_id, robot_id)
+
+    def grp_continue(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Resume robot motion after an interrupt."""
+        return self._run_group_command("HRIF_GrpContinue", box_id, robot_id)
+
+    def grp_close_free_drive(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Close/disable free drive mode."""
+        return self._run_group_command("HRIF_GrpCloseFreeDriver", box_id, robot_id)
+
+    def grp_open_free_drive(self, box_id: int = 0, robot_id: int = 0) -> bool:
+        """Open/enable free drive mode."""
+        return self._run_group_command("HRIF_GrpOpenFreeDriver", box_id, robot_id)
+
     def grprst(self) -> bool:
-        """
-        Docstring for grprst
-        
-        :return: Description
-        :rtype: bool
-        """
-        nRet = self.cps.HRIF_GrpReset(0,0)
-        if nRet != 0:
-            self.logger.error(f"HRIF_GrpReset failed with code {nRet}.")
-            self._describe_error(0, nRet)
-            self._log_robot_state(0)
-            return False
+        """Backward-compatible alias for group reset."""
+        return self.grp_reset(0, 0)
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _run_group_command(self, method_name: str, box_id: int, robot_id: int) -> bool:
+        fn = getattr(self.cps, method_name, None)
+        if not callable(fn):
+            self.logger.error(f"CPS client missing method {method_name}")
+            return False
+        ret = fn(box_id, robot_id)
+        if ret != 0:
+            self.logger.error(f"{method_name} failed with code {ret}.")
+            self._describe_error(box_id, ret)
+            self._log_robot_state(box_id)
+            return False
+        self.logger.info(f"{method_name} succeeded for box {box_id}, robot {robot_id}.")
+        return True
+
     def _configure_frames(self, box_id: int, robot_id: int, ucs_name: str, tcp_name: str) -> bool:
         current_ucs: list[str] = []
         target_ucs: list[str] = []
@@ -177,20 +232,78 @@ class RobotInteractions:
 
         return True
 
-    def _wait_for_motion_done(self, box_id: int, robot_id: int, timeout: float | None) -> bool:
+    def _update_progress(
+        self,
+        progress_callback: ProgressCallback | None,
+        value: float,
+        message: str | None,
+        progress: Progress | None = None,
+        task_id: int | None = None,
+        label: str | None = None,
+    ) -> None:
+        if progress_callback:
+            try:
+                progress_callback(value, message)
+            except Exception:
+                self.logger.debug("Progress callback raised an exception", exc_info=True)
+        if progress is not None and task_id is not None:
+            progress.update(task_id, completed=value, description=message or label or "")
+
+    def _wait_for_motion_done(
+        self,
+        box_id: int,
+        robot_id: int,
+        timeout: float | None,
+        *,
+        progress_callback: ProgressCallback | None = None,
+        show_progress: bool = False,
+        progress_label: str | None = "Motion",
+    ) -> bool:
         start = time.monotonic()
-        while True:
-            state: list[str] = []
-            ret = self.cps.HRIF_ReadRobotState(box_id, robot_id, state)
-            if ret != 0:
-                self.logger.error(f"Failed to read robot state (code {ret}).")
-                return False
-            if len(state) > 11 and state[11] == "1":
-                return True
-            if timeout is not None and timeout > 0 and (time.monotonic() - start) > timeout:
-                self.logger.error("Timed out waiting for motion completion.")
-                return False
-            time.sleep(0.1)
+        last_progress = 0.0
+
+        progress: Progress | None = None
+        task_id: int | None = None
+        if show_progress:
+            progress = Progress(
+                SpinnerColumn(),
+                BarColumn(),
+                TextColumn("{task.completed:>5.1f}%"),
+                TimeElapsedColumn(),
+                TimeRemainingColumn(),
+                TextColumn(progress_label or "Motion"),
+                transient=True,
+            )
+            progress.__enter__()
+            task_id = progress.add_task(progress_label or "Motion", total=100.0)
+
+        try:
+            while True:
+                state: list[str] = []
+                ret = self.cps.HRIF_ReadRobotState(box_id, robot_id, state)
+                if ret != 0:
+                    self.logger.error(f"Failed to read robot state (code {ret}).")
+                    self._update_progress(progress_callback, last_progress, "State read failed", progress, task_id, progress_label)
+                    return False
+                if len(state) > 11 and state[11] == "1":
+                    self._update_progress(progress_callback, 100.0, "Motion complete", progress, task_id, progress_label)
+                    return True
+                elapsed = time.monotonic() - start
+                if timeout is not None and timeout > 0 and elapsed > timeout:
+                    self.logger.error("Timed out waiting for motion completion.")
+                    self._update_progress(progress_callback, last_progress, "Timed out", progress, task_id, progress_label)
+                    return False
+                if timeout is not None and timeout > 0:
+                    guess = min(95.0, (elapsed / timeout) * 100.0)
+                else:
+                    guess = min(95.0, last_progress + 1.0)
+                if guess > last_progress:
+                    last_progress = guess
+                    self._update_progress(progress_callback, guess, "In progress", progress, task_id, progress_label)
+                time.sleep(0.1)
+        finally:
+            if progress is not None:
+                progress.__exit__(None, None, None)
 
     def _describe_error(self, box_id: int, code: int) -> None:
         """Fetch and log a human-readable error string when possible."""
@@ -227,3 +340,57 @@ class RobotInteractions:
             "in_position": result[12] == "1",
         }
         self.logger.error(f"Robot state flags: {flags}")
+
+
+class RobotInteractionsAsync:
+    """Async runner that executes robot commands on a worker thread."""
+
+    def __init__(self, robot: RobotInteractions) -> None:
+        self.robot = robot
+        self._queue: Queue[tuple[str, Callable[..., bool]]] = Queue()
+        self._stop_event = threading.Event()
+        self._worker = threading.Thread(
+            target=self._worker_loop,
+            name="robot-async-worker",
+            daemon=False,
+        )
+        self._worker.start()
+
+    def submit_move_l(self, **kwargs: Any) -> None:
+        def runner() -> bool:
+            return self.robot.move_l(progress_callback=None, show_progress=False, **kwargs)
+
+        self._queue.put(("MoveL", runner))
+
+    def submit_callable(self, name: str, func: Callable[[], bool]) -> None:
+        self._queue.put((name, func))
+
+    def wait_for_all(self, timeout: float | None = None) -> None:
+        self._queue.join()
+        if timeout:
+            self._worker.join(timeout=timeout)
+
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def shutdown(self) -> None:
+        self._stop_event.set()
+        if self._worker.is_alive():
+            self._worker.join(timeout=1.0)
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+    def _worker_loop(self) -> None:
+        while not self._stop_event.is_set():
+            try:
+                name, func = self._queue.get(timeout=0.1)
+            except Empty:
+                continue
+
+            try:
+                func()
+            except Exception as exc:  # pragma: no cover - defensive logging
+                self.robot.logger.exception(f"Async task {name} failed: {exc}")
+            finally:
+                self._queue.task_done()
