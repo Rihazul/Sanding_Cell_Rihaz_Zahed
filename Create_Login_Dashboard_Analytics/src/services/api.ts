@@ -29,6 +29,19 @@ async function apiCall(endpoint: string, method: 'GET' | 'POST', payload?: any) 
   }
 }
 
+export type ActionName =
+  | 'stopperUp'
+  | 'stopperDown'
+  | 'stopperUpB'
+  | 'stopperDownB'
+  | 'toolLift'
+  | 'toolDrop'
+  | 'stop'
+  | 'homing'
+  | 'enable'
+  | 'disable'
+  | 'scan';
+
 // Trigger robot sanding process
 export async function triggerRobotProcess(message: string) {
   return apiCall('/trigger', 'POST', { message });
@@ -44,8 +57,8 @@ export async function saveModalData(tableAData: {
 }) {
   return apiCall('/save_modal_data', 'POST', {
     tableA: {
-      UI: tableAData
-    }
+      UI: tableAData,
+    },
   });
 }
 
@@ -77,7 +90,7 @@ export async function startTableBProcess(data: {
   sandingSpeed: string;
   inverseOverlapping: number;
 }) {
-  return apiCall('/start_TableB_process', 'POST', { 
+  return apiCall('/start_TableB_process', 'POST', {
     TableB: {
       model: data.model,
       frame: data.frame,
@@ -86,28 +99,36 @@ export async function startTableBProcess(data: {
       '3D': data['3D'],
       edgeInside: data.edgeInside,
       edgeOutside: data.edgeOutside,
-      side: data.side
+      side: data.side,
     },
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,
-    inverseOverlapping: data.inverseOverlapping
+    inverseOverlapping: data.inverseOverlapping,
   });
 }
 
 // Tool toggle operations
 export async function toolToggle(toolNumber: 1 | 2 | 3, action: 'pick' | 'keep') {
-  const endpoint = `/tool_toggle${toolNumber}`;
+  const endpointMap: Record<1 | 2 | 3, string> = {
+    1: '/tool_toggle1',
+    2: '/tool_toggle2',
+    3: '/tool_toggle',
+  };
+  const endpoint = endpointMap[toolNumber];
+  if (!endpoint) {
+    throw new Error(`Unsupported tool number: ${toolNumber}`);
+  }
   return apiCall(endpoint, 'POST', { toolNumber, action });
 }
 
 // Action operations
-export async function performAction(action: 'stopperUp' | 'stopperDown' | 'homing' | 'enable'| 'disable' | 'scan') {
+export async function performAction(action: ActionName) {
   return apiCall('/action', 'POST', { action });
 }
 
-// Toggle state for Table A open/close
-export async function getTableAOpenCloseState() {
-  return apiCall('/toggle_state/tableAOpenClose', 'GET');
+// Toggle state for Table A/B
+export async function toggleTableState(tableId: 'tableAOpenClose' | 'tableBOpenClose') {
+  return apiCall(`/toggle_state/${tableId}`, 'GET');
 }
 
 // Export all API functions
@@ -118,5 +139,5 @@ export const api = {
   startTableBProcess,
   toolToggle,
   performAction,
-  getTableAOpenCloseState,
+  toggleTableState,
 };
