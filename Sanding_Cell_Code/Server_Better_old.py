@@ -416,37 +416,37 @@ def handle_client(config, homingState=False, startSanding=True):
             # if config['settings']['debug']: print("table is now opened.")
         time.sleep(2)
             
-    def control_valve(cps, valveState):
-        if valveState == "close":
-            # close Valve Code
-            print("Opening the valve...")
+    # def control_valve(cps, valveState):
+    #     if valveState == "close":
+    #         # close Valve Code
+    #         print("Opening the valve...")
             
-            status = 0  # close=0 and open=1
-            digOutput = 5  # DOnumber=0,1,2,3,4
-            nRet = cps.HRIF_SetBoxDO(0, digOutput, status) 
+    #         status = 0  # close=0 and open=1
+    #         digOutput = 5  # DOnumber=0,1,2,3,4
+    #         nRet = cps.HRIF_SetBoxDO(0, digOutput, status) 
 
-            print("Valve is now close.")
-        elif valveState == "open":
-            # Open Valve Code
-            print("Opening the valve...")
+    #         print("Valve is now close.")
+    #     elif valveState == "open":
+    #         # Open Valve Code
+    #         print("Opening the valve...")
 
-            status = 1  # close=0 and open=1
-            digOutput = 5  # DOnumber=0,1,2,3,4
-            nRet = cps.HRIF_SetBoxDO(0, digOutput, status)
+    #         status = 1  # close=0 and open=1
+    #         digOutput = 5  # DOnumber=0,1,2,3,4
+    #         nRet = cps.HRIF_SetBoxDO(0, digOutput, status)
 
-            print("Valve is now opened.")
+    #         print("Valve is now opened.")
 
-    def formattedInstruction(point, seventhAxis=-1, debug=False):
-        do7th = 0
-        if seventhAxis != -1:
-            do7th = 1
-        all = point + [do7th, seventhAxis]
-        # input(f"points: {all}, {type(all)}")
-        # input(f"th: {seventhAxis}")
-        point_str = ",".join(str(x) for x in all)
-        if debug:
-            print(f"Points_str: {point_str}")
-        return point_str
+    # def formattedInstruction(point, seventhAxis=-1, debug=False):
+    #     do7th = 0
+    #     if seventhAxis != -1:
+    #         do7th = 1
+    #     all = point + [do7th, seventhAxis]
+    #     # input(f"points: {all}, {type(all)}")
+    #     # input(f"th: {seventhAxis}")
+    #     point_str = ",".join(str(x) for x in all)
+    #     if debug:
+    #         print(f"Points_str: {point_str}")
+    #     return point_str
     
     # def addDistanceInMeasurements(measurements, tot_dist):
     #     print("Measurement: ", len(measurements))

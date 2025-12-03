@@ -232,21 +232,21 @@ def setSpeed(cps, speed, config):
     if current == speed:
         return
 
-    # Otherwise, wait for blending and set the new override
-    waitForBlending(cps=cps, config=config)
+    # # Otherwise, wait for blending and set the new override
+    # waitForBlending(cps=cps, config=config)
 
-    nRet = cps.HRIF_SetOverride(0, 0, speed)
-    if nRet == 0:
-        config['logger'].info(f"[setSpeed] Could set speed to {speed * 100:.1f}%")
-    else:
-        config['logger'].error(
-            f"[setSpeed] Couldn't set speed to {speed * 100:.1f}% (ret={nRet})"
-        )
-        msg_to_frontend(
-            api_url = config['server']['frontEnd_messaging_url'],
-            message = "Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process..."
-        )
-        exit(-1)
+    # nRet = cps.HRIF_SetOverride(0, 0, speed)
+    # if nRet == 0:
+    #     config['logger'].info(f"[setSpeed] Could set speed to {speed * 100:.1f}%")
+    # else:
+    #     config['logger'].error(
+    #         f"[setSpeed] Couldn't set speed to {speed * 100:.1f}% (ret={nRet})"
+    #     )
+    #     msg_to_frontend(
+    #         api_url = config['server']['frontEnd_messaging_url'],
+    #         message = "Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process..."
+    #     )
+    #     exit(-1)
 
     return
 
@@ -1876,6 +1876,13 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
         if valveState == "drop":
             status = 1  
             digOutput = 5  # DOnumber=0,1,2,3,4
+
+            # while True:
+            #     confirmation = input("Are you sure you want to DROP the tool? (yes/no): ").strip().lower()
+            #     if confirmation == 'yes':   
+            #         break
+
+            #     time.sleep(0.1)
             nRet = cps.HRIF_SetBoxDO(0, digOutput, status) 
             if config['settings']['debug']: config['logger'].info(f"[toolValve] Tool is dropped! Success: {nRet} (0 means successful)")
 
@@ -2445,7 +2452,10 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
                 saveAsCSV(f'./static/prev_ym{xcnt}.csv', ymeasurements)
                 ymeasurements = adjust_heights(ymeasurements)
                 saveAsCSV(f'./static/ym{xcnt}.csv', ymeasurements)
+
                 communicate(cps=cps, point=yStart, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsTable1'], seventh=-1, config=config, speed=config['UI']['robotSpeed'], wait=False)
+                # wait so that blending is done
+                time.sleep(10)
                 msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Vertical Scanning of Door {len(allXMeasurements) - xcnt} Completed!")
             else:
                 ymeasurements = csv_to_dict_list(f'./static/ym{xcnt}.csv')
@@ -3272,6 +3282,14 @@ def toolValve1(cps, valveState:str, config): #Tool valve for grabbing or throwin
         if valveState == "drop":
             status = 1  
             digOutput = 5  # DOnumber=0,1,2,3,4
+
+            # while True:
+            #     confirmation = input("Are you sure you want to DROP the tool? (yes/no): ").strip().lower()
+            #     if confirmation == 'yes':   
+            #         break
+
+            #     time.sleep(0.1)
+
             nRet = cps.HRIF_SetBoxDO(0, digOutput, status) 
             if config['settings']['debug']: config['logger'].info(f"[toolValve] Tool is dropped! Success: {nRet} (0 means successful)")
 
@@ -3388,30 +3406,32 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Tool {toolNumber} Collection Successful!")
         communicate(cps=cps, point=config['point']['safePointTool'],tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
 
-def turn_vibration_on(cps):
+def turn_vibration_on(cps, debug=True):
     """
     Turns the vibration on by setting nBit=4 to nVal=0.
     """
     boxID = 0  # Default box ID
     nBit = 4   # Bit controlling vibration
     nVal = 1   # 0 = On (as per your request)
-    
-    nRet = cps.HRIF_SetBoxDO(boxID, nBit, nVal)
+    nRet = -1 
+    if not debug: 
+        nRet = cps.HRIF_SetBoxDO(boxID, nBit, nVal)
     
     if nRet == 0:
         print("Vibration turned ON successfully.")
     else:
         print(f"Error turning ON vibration. Error code: {nRet}")
 
-def turn_vibration_off(cps):
+def turn_vibration_off(cps, debug=True):
     """
     Turns the vibration off by setting nBit=4 to nVal=1.
     """
     boxID = 0  # Default box ID
     nBit = 4   # Bit controlling vibration
     nVal = 0   # 1 = Off (as per your request)
-    
-    nRet = cps.HRIF_SetBoxDO(boxID, nBit, nVal)
+    nRet = -1 
+    if not debug: 
+        nRet = cps.HRIF_SetBoxDO(boxID, nBit, nVal)
     
     if nRet == 0:
         print("Vibration turned OFF successfully.")

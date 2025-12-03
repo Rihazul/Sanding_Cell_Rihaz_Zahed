@@ -211,6 +211,7 @@ def smalldoor1zizag(force,z,cps):
                 config=config
             )
             turn_vibration_on(cps)
+            print("Turned Vibration On")
             
             # Communicate to each point in points1
             for point in points1:
@@ -226,7 +227,7 @@ def smalldoor1zizag(force,z,cps):
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)

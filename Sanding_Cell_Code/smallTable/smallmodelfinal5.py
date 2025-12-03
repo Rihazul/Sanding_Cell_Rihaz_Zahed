@@ -25,6 +25,7 @@ def load_config():
         config = yaml.safe_load(file)
     return config
 
+
 def load_json_config():
     """Loads configuration from config.json."""
     with open('./configs/cycleData.json', 'r') as file:

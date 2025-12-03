@@ -204,7 +204,7 @@ def smalldoor1side(force,cps):
         print("toppoint4:", toppoint4)
         toppoint4top=[-(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint4top:", toppoint4top)
-        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2 + 95.6,10,b2[3],b2[4],0]
         print("toppoint4pre:", toppoint4pre)
 
         #COnveyer
