@@ -2431,7 +2431,9 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
             ymeasurements = []
             
             if config['settings']['actualScan']:
+
                 msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Moving to Door {len(allXMeasurements) - xcnt} to Scan Vertically...")
+                # It gets stuck here and returns code 20018
                 communicate(cps=cps, seventh=xpos, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsDefault'], config=config, speed=config['UI']['robotSpeed'])
                 config['logger'].info(f"[scan-y] success to move 7th to go to position for table: {tblCnt + 1}, position: {xpos}")
                 ###########################
@@ -2448,14 +2450,15 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
                 ymeasurements = communicate(cps=cps, point=yEnd, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsTable1'], config=config, doMeasure=1, speed=config['UI']['scanSpeed'], stopWhenNan=True)
                 config['logger'].info(f"[scan-y] end point reached: {yEnd}")
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
+                # It gets stuck here, so wait before processing is done.
+                time.sleep(10)
 
                 saveAsCSV(f'./static/prev_ym{xcnt}.csv', ymeasurements)
                 ymeasurements = adjust_heights(ymeasurements)
                 saveAsCSV(f'./static/ym{xcnt}.csv', ymeasurements)
 
                 communicate(cps=cps, point=yStart, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsTable1'], seventh=-1, config=config, speed=config['UI']['robotSpeed'], wait=False)
-                # wait so that blending is done
-                time.sleep(10)
+
                 msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Vertical Scanning of Door {len(allXMeasurements) - xcnt} Completed!")
             else:
                 ymeasurements = csv_to_dict_list(f'./static/ym{xcnt}.csv')
@@ -3124,6 +3127,7 @@ def communicate(cps, config, tcp, ucs, point=None, seventh= -1, doMeasure = 0, s
 
         nRet = cps.HRIF_MoveL(0,0, point, RawACSpoints, tcp, ucs, config['coords']['roboVelocity'], config['coords']['roboAcceleration'], config['coords']['transitionRadius'], nIsSeek, nIOBit, nIOState, stdCmdID)
         # time.sleep(0.2)
+        print(nRet)
         # config['logger'].info(f"[moveL] nret for moving: {nRet}")
         if nRet == 0:
             robotRes = []
