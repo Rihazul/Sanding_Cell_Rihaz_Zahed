@@ -345,7 +345,7 @@ def smalldoor1zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edgeOffset=20):
             prepoint = None
             zigzag_coords = []
             
@@ -375,20 +375,20 @@ def smalldoor1zizag(force,z,cps):
 
                 # For Pocket4, corners (P13, P14, P15, P16):
                 modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
+                    (x_coords[1])/2 + tool3x + innerOffsetX + edgeOffset,
+                    y_coords[1] - tool3y - innerOffset + edgeOffset,
                 ]
                 modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
+                    x_coords[2] - tool3x - innerOffset - edgeOffset,
+                    y_coords[2] - tool3y - innerOffset + edgeOffset,
                 ]
                 modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
+                    (x_coords[0])/2 + tool3x + innerOffsetX + edgeOffset,
+                    y_coords[0] + tool3y + innerOffset - edgeOffset,
                 ]
                 modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
+                    x_coords[3] - tool3x - innerOffset - edgeOffset,
+                    y_coords[3] + tool3y + innerOffset - edgeOffset,
                 ]
 
                 # Calculate available horizontal dimension
@@ -407,8 +407,8 @@ def smalldoor1zizag(force,z,cps):
                     # Build zigzag path from left to right
                     while offset <= xinner + 1e-9:  # small floating-point tolerance
                         row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                            [modified_Point1[0] + offset, modified_Point1[1] - edgeOffset, z_zigzag, 0, 0, 0],
+                            [modified_Point2[0] + offset, modified_Point2[1] + edgeOffset, z_zigzag, 0, 0, 0],
                         ]
                         # Reverse every other row to create a zigzag
                         if toggle:
@@ -435,10 +435,19 @@ def smalldoor1zizag(force,z,cps):
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
-        def perform_process_top(cps, config, points1,force):
+        def perform_process_top(cps, config, points1,force, enable_spiral=False, spiral_params=None):
             # Vibration on
             
-            
+           # Default spiral parameters
+            if spiral_params is None:
+                spiral_params = {
+                    "dSpiralIncrement": 1.0,
+                    "dSpiralDiameter": 5.0,
+                    "dVelocity": 60.0,
+                    "dAcc": 320.0,
+                    "dRadius": 80.0,
+                 }       
+                
             # Force Control Activated
             putForceZminus(
                 cps=cps,
@@ -459,8 +468,22 @@ def smalldoor1zizag(force,z,cps):
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
                     speed=0.6,
-                    wait=False
+                    wait=enable_spiral #wait if spiral is enabled
                 )
+                 # Perform spiral at this point if enabled
+                if enable_spiral:
+                    cps.HRIF_MoveS(
+                        0, 0,  # boxID, rbtID
+                        spiral_params["dSpiralIncrement"],
+                        spiral_params["dSpiralDiameter"],
+                        spiral_params["dVelocity"],
+                        spiral_params["dAcc"],
+                        spiral_params["dRadius"],
+                        config['coords']['tcptool1plane1'],
+                        config['coords']['ucsTable1'],
+                        "spiral-cmd"
+                    )
+                    waitForBlending(cps=cps, config=config)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -502,7 +525,7 @@ def smalldoor1zizag(force,z,cps):
                 speed=0.7, wait=True
             )
             # # turn_vibration_on(cps)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+            perform_process_top(cps, config, points1=current_zigzag,force=force, enable_spiral=True)  # Dynamic zigzag path
             # # turn_vibration_off(cps)
             communicate(
                 cps=cps, config=config, 
