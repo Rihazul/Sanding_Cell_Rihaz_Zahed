@@ -2433,28 +2433,43 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
             # load from the saved value
             allXMeasurements = csv_to_dict_list('./static/xmeasures.csv')
             # config['logger'].info("Line 902 AllXMeasurements: ", allXMeasurements)
+            
+
         ###############################
         ####### group calcul x    #####
         ###############################
+
         allXMeasurements = find_x_groups(allXMeasurements, 4)
+
         # reversing to start from the last to first (to save time)
         beginning_non_nan = next(item for item in allXMeasurements[0] if not np.isnan(item['height']))
         msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Horizontal Scan Completed! Doors found: {len(allXMeasurements)}...")
         allXMeasurements.reverse()
+
         # Define thresholds for each chunk
         for xcnt, xmeasurements in enumerate(allXMeasurements):
+
             ###############################
             ####### point calcu x     #####
             ###############################
+
             first_non_nan = next(item for item in xmeasurements if not np.isnan(item['height']))
             config['logger'].info("First non nan: ", first_non_nan)
+
             # xpos = mm_to_inches(first_non_nan['dist'] - config['offset']['scannerOffsetInLeft'] / 2) # this is position of 7th axis
             xpos = first_non_nan['dist'] - beginning_non_nan['dist'] # this is position of 7th axis
+
             # xlen, xframe_1, xframe_2 = find_constant_height_periods(xmeasurements, threshold=2)
             # results = calculate_for_each_chunk([xmeasurements], thresholds=[xthresholds[xcnt]])
             # results = identify_gradient_change_points_dynamic(xmeasurements, thresholds=[0.15, 0.1])
-            results = identify_gradient_change_points_dynamic(xmeasurements, threshold=config['scanThreshold'][f"T{config['UI']['model']}"], min_stable_distance=config['scanThresholdMinD'][f"T{config['UI']['model']}"], model=config['UI']['model'], config=config)
+            results = identify_gradient_change_points_dynamic(xmeasurements,
+                                                              threshold=config['scanThreshold'][f"T{config['UI']['model']}"],
+                                                              min_stable_distance=config['scanThresholdMinD'][f"T{config['UI']['model']}"], 
+                                                              model=config['UI']['model'], 
+                                                              config=config)
+
             config['logger'].info("[scan] calculated x values for door: ", results)
+
             # appropriate x values that we shall use
             xframe_1, x_td1,  x_pocket, x_td2, xframe_2 = results['frame_1'], results['threeD_1'], results['pocket'], results['threeD_2'], results['frame_2']
             xlen = xframe_1 + x_pocket + xframe_2
@@ -2472,9 +2487,11 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
                 # Adjust timer in IsBlendingDone at the top
                 communicate(cps=cps, seventh=xpos, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsDefault'], config=config, speed=config['UI']['robotSpeed'])
                 config['logger'].info(f"[scan-y] success to move 7th to go to position for table: {tblCnt + 1}, position: {xpos}")
+
                 ###########################
                 ####### y axis moving #####
                 ###########################
+
                 yStart =addYVal(addXVal(config['point']['table1Origin'], xlen / 4), -config['offset']['scannerOffsetInBottom'])
                 yEnd = addYVal(addYVal(addXVal(config['point']['table1Origin'], xlen / 3), config['table']['width']), -config['offset']['scannerOffsetInBottom'])
                 config['logger'].info(f'[scan-y] points to move: <start>: {yStart} >>> <end>:{yEnd}')
@@ -2483,6 +2500,7 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
                 config['logger'].info(f"[scan-y] start point reached: {yStart}")
 
                 waitForBlending(cps=cps, config=config)
+
                 ymeasurements = communicate(cps=cps, point=yEnd, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsTable1'], config=config, doMeasure=1, speed=config['UI']['scanSpeed'], stopWhenNan=True)
                 config['logger'].info(f"[scan-y] end point reached: {yEnd}")
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
