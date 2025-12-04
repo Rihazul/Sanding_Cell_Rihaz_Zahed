@@ -16,10 +16,44 @@ import json
 
 def waitForBlending(cps, config):
     result = [False]
-    
-    while result[0] == False:
+    start_time = time.time()
+        
+    while True:
         nret = cps.HRIF_IsBlendingDone(0,0, result)
         print(f"Blending results : {result}", end='\r')
+        if result[0]:
+            break
+        if time.time() - start_time >= 7:
+            # Avoid blocking forever if the controller never reports done.
+            if isinstance(config, dict) and config.get('logger'):
+                config['logger'].warning("[waitForBlending] Timed out after 7s; continuing.")
+            break
+    print("\n")
+    time.sleep(0.3)
+    return
+    # result = [False]
+    # start_time = time.time()
+    #
+    # while True:
+    #     nret = cps.HRIF_IsBlendingDone(0,0, result)
+    #     print(f"Blending results : {result}", end='\r')
+    #     if result[0]:
+    #         break
+    #     if time.time() - start_time >= 7:
+    #         # Avoid blocking forever if the controller never reports done.
+    #         if isinstance(config, dict) and config.get('logger'):
+    #             config['logger'].warning("[waitForBlending] Timed out after 7s; continuing.")
+    #         break
+    # print("\n")
+    # time.sleep(0.3)
+    # return
+
+def waitForMotion(cps, config):
+    result = [False]
+    
+    while result[0] == False:
+        nRet = cps.HRIF_IsMotionDone(0,0,result)
+        print(f"Is motion done: {result}", end='\r')
     print("\n")
     time.sleep(0.3)
     return
@@ -233,20 +267,21 @@ def setSpeed(cps, speed, config):
         return
 
     # # Otherwise, wait for blending and set the new override
-    # waitForBlending(cps=cps, config=config)
-
-    # nRet = cps.HRIF_SetOverride(0, 0, speed)
-    # if nRet == 0:
-    #     config['logger'].info(f"[setSpeed] Could set speed to {speed * 100:.1f}%")
-    # else:
-    #     config['logger'].error(
-    #         f"[setSpeed] Couldn't set speed to {speed * 100:.1f}% (ret={nRet})"
-    #     )
-    #     msg_to_frontend(
-    #         api_url = config['server']['frontEnd_messaging_url'],
-    #         message = "Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process..."
-    #     )
-    #     exit(-1)
+    waitForBlending(cps=cps, config=config)
+    # waitForMotion(cps=cps, config=config)
+    
+    nRet = cps.HRIF_SetOverride(0, 0, speed)
+    if nRet == 0:
+        config['logger'].info(f"[setSpeed] Could set speed to {speed * 100:.1f}%")
+    else:
+        config['logger'].error(
+            f"[setSpeed] Couldn't set speed to {speed * 100:.1f}% (ret={nRet})"
+        )
+        msg_to_frontend(
+            api_url = config['server']['frontEnd_messaging_url'],
+            message = "Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process..."
+        )
+        # exit(-1)
 
     return
 
@@ -2434,6 +2469,7 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
 
                 msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Moving to Door {len(allXMeasurements) - xcnt} to Scan Vertically...")
                 # It gets stuck here and returns code 20018
+                # Adjust timer in IsBlendingDone at the top
                 communicate(cps=cps, seventh=xpos, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsDefault'], config=config, speed=config['UI']['robotSpeed'])
                 config['logger'].info(f"[scan-y] success to move 7th to go to position for table: {tblCnt + 1}, position: {xpos}")
                 ###########################
@@ -2450,8 +2486,6 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
                 ymeasurements = communicate(cps=cps, point=yEnd, tcp=config['coords']['tcpLaserPlane1'], ucs=config['coords']['ucsTable1'], config=config, doMeasure=1, speed=config['UI']['scanSpeed'], stopWhenNan=True)
                 config['logger'].info(f"[scan-y] end point reached: {yEnd}")
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
-                # It gets stuck here, so wait before processing is done.
-                time.sleep(10)
 
                 saveAsCSV(f'./static/prev_ym{xcnt}.csv', ymeasurements)
                 ymeasurements = adjust_heights(ymeasurements)
