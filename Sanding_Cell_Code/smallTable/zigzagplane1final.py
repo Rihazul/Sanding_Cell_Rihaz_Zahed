@@ -345,7 +345,7 @@ def smalldoor1zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edgeOffset=20):
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edgeOffset=-20):
             prepoint = None
             zigzag_coords = []
             
@@ -486,7 +486,7 @@ def smalldoor1zizag(force,z,cps):
                         config['coords']['ucsTable1'],
                         "spiral-cmd"
                     )
-                    waitForBlending(cps=cps, config=config)
+#                    waitForBlending(cps=cps, config=config)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
