@@ -374,6 +374,12 @@ def smalldoor1zizag(force,z,cps):
                 z_zigzag = boundary_coords[0][2]
 
                 # For Pocket4, corners (P13, P14, P15, P16):
+                
+                modified_Point1 = [
+                    (x_coords[0])/2 + tool3x + innerOffsetX + edgeOffset,
+                    y_coords[0] + tool3y + innerOffset - edgeOffset,
+                ]
+                
                 modified_Point2 = [
                     (x_coords[1])/2 + tool3x + innerOffsetX + edgeOffset,
                     y_coords[1] - tool3y - innerOffset + edgeOffset,
@@ -382,10 +388,7 @@ def smalldoor1zizag(force,z,cps):
                     x_coords[2] - tool3x - innerOffset - edgeOffset,
                     y_coords[2] - tool3y - innerOffset + edgeOffset,
                 ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX + edgeOffset,
-                    y_coords[0] + tool3y + innerOffset - edgeOffset,
-                ]
+                
                 modified_Point4 = [
                     x_coords[3] - tool3x - innerOffset - edgeOffset,
                     y_coords[3] + tool3y + innerOffset - edgeOffset,
@@ -407,8 +410,8 @@ def smalldoor1zizag(force,z,cps):
                     # Build zigzag path from left to right
                     while offset <= xinner + 1e-9:  # small floating-point tolerance
                         row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1] - edgeOffset, z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1] + edgeOffset, z_zigzag, 0, 0, 0],
+                            [modified_Point1[0] + offset, modified_Point1[1] , z_zigzag, 0, 0, 0],
+                            [modified_Point2[0] + offset, modified_Point2[1] , z_zigzag, 0, 0, 0],
                         ]
                         # Reverse every other row to create a zigzag
                         if toggle:
