@@ -207,7 +207,6 @@ def run_case(cps: CPSClient, box_id: int, robot_id: int, case: Dict[str, Any], w
     if wait:
         wait_for_blending(cps, box_id, robot_id, wait_timeout)
 
-
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Exercise HRIF_MoveLinearWeave with sample parameter sets.")
     parser.add_argument("--config", default="configs/config.yaml", help="YAML config with cpip/cps.")
