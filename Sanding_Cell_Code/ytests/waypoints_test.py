@@ -127,7 +127,7 @@ def build_cases(config: dict, tcp: str | None, ucs: str | None) -> list[dict[str
         {
             "name": "waypoint_arc_transition",
             "fn": "HRIF_WayPoint2",
-            "args": [arc_end, arc_aux, joint_seed, tcp_name, ucs_name, 140.0, 100.0, 10.0, 2, 0, 0, 0, 0, "wp-arc"],
+            "args": [arc_end, arc_aux, joint_seed, tcp_name, ucs_name, 140.0, 100.0, 10.0, 2, 0, 0, 0, "wp-arc"],
             "summary": "Waypoint2 arc segment via auxiliary point.",
         },
         {
