@@ -207,17 +207,16 @@ def run_case(cps: CPSClient, box_id: int, robot_id: int, case: Dict[str, Any], w
     if wait:
         wait_for_blending(cps, box_id, robot_id, wait_timeout)
 
-
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Exercise HRIF_MoveLinearWeave with sample parameter sets.")
     parser.add_argument("--config", default="configs/config.yaml", help="YAML config with cpip/cps.")
     parser.add_argument("--box-id", type=int, default=0, help="Control box ID.")
     parser.add_argument("--robot-id", type=int, default=0, help="Robot ID.")
-    parser.add_argument("--tcp", help="Override TCP name (defaults to coords.tcpDefault or 'TCP').")
-    parser.add_argument("--ucs", help="Override UCS name (defaults to coords.ucsDefault or 'Base').")
+    parser.add_argument("--tcp", default = "tool3plane1",help="Override TCP name (defaults to coords.tcpDefault or 'TCP').")
+    parser.add_argument("--ucs", default="Base", help="Override UCS name (defaults to coords.ucsDefault or 'Base').")
     parser.add_argument("--case", action="append", help="Run only named case(s); defaults to all.")
     parser.add_argument("--wait", action="store_true", help="Wait for idle before/after each command.")
-    parser.add_argument("--wait-timeout", type=float, default=45.0, help="Seconds to wait for idle/blending.")
+    parser.add_argument("--wait-timeout", type=float, default=10.0, help="Seconds to wait for idle/blending.")
     parser.add_argument("--run", action="store_true", help="Actually send commands (dry-run otherwise).")
     parser.add_argument("--times", type=int, default=1, help="Number of times to run each case.")
     args = parser.parse_args(argv)

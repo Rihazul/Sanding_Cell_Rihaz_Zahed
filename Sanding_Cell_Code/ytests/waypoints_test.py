@@ -93,7 +93,7 @@ def build_cases(config: dict, tcp: str | None, ucs: str | None) -> list[dict[str
     tcp_name = tcp or coords.get("tcpDefault", "TCP")
     ucs_name = ucs or coords.get("ucsDefault", "Base")
 
-    base_cart = _pad(points_cfg.get("safePointClose") or points_cfg.get("safePoint") or [0, 0, 0, 0, 0, 0])
+    base_cart = _pad(points_cfg.get("safePoint") or [0, 0, 0, 0, 0, 0])
     joint_seed = _pad(points_cfg.get("safePointAngle") or [0, 0, 0, 0, 0, 0])
 
     linear_target = offset_point(base_cart, dx=30.0)
