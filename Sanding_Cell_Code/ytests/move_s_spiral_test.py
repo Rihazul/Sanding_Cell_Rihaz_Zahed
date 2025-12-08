@@ -12,7 +12,6 @@ import argparse
 import sys
 import time
 from typing import Any, Dict, List
-
 import yaml
 
 # Ensure we can import modules/ when running from ytests/
