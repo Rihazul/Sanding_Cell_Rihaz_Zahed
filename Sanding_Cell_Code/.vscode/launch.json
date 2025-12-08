@@ -6,10 +6,12 @@
             "type": "debugpy",
             "request": "launch",
             "module": "flask",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
+            "cwd": "${workspaceFolder}",
             "env": {
                 "FLASK_APP": "flask_app.py",
-                "FLASK_DEBUG": "0",
-                "UV_PROJECT_ENVIRONMENT": "${workspaceFolder}/.venv"
+                "FLASK_DEBUG": "1",
+                "PYTHONPATH": "${workspaceFolder}"
             },
             "args": [
                 "run",
@@ -23,26 +25,28 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Flask App Direct (uv)",
+            "name": "Flask App Direct",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/flask_app.py",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
             "cwd": "${workspaceFolder}",
             "env": {
-                "UV_PROJECT_ENVIRONMENT": "${workspaceFolder}/.venv"
+                "PYTHONPATH": "${workspaceFolder}"
             },
             "justMyCode": false,
             "subProcess": true,
             "console": "integratedTerminal"
         },
         {
-            "name": "Current File (uv)",
+            "name": "Current File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe",
             "cwd": "${workspaceFolder}",
             "env": {
-                "UV_PROJECT_ENVIRONMENT": "${workspaceFolder}/.venv"
+                "PYTHONPATH": "${workspaceFolder}"
             },
             "justMyCode": false,
             "subProcess": true,

@@ -8,9 +8,10 @@ import json
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from flask import config
 import yaml
 import threading
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus, setUCS_TCP
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -345,7 +346,7 @@ def smalldoor1zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edgeOffset=-20):
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
             prepoint = None
             zigzag_coords = []
             
@@ -376,22 +377,22 @@ def smalldoor1zizag(force,z,cps):
                 # For Pocket4, corners (P13, P14, P15, P16):
                 
                 modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX + edgeOffset,
-                    y_coords[0] + tool3y + innerOffset - edgeOffset,
+                    (x_coords[0])/2 + tool3x + innerOffsetX ,
+                    y_coords[0] + tool3y + innerOffset ,
                 ]
                 
                 modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX + edgeOffset,
-                    y_coords[1] - tool3y - innerOffset + edgeOffset,
+                    (x_coords[1])/2 + tool3x + innerOffsetX ,
+                    y_coords[1] - tool3y - innerOffset ,
                 ]
                 modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset - edgeOffset,
-                    y_coords[2] - tool3y - innerOffset + edgeOffset,
+                    x_coords[2] - tool3x - innerOffset ,
+                    y_coords[2] - tool3y - innerOffset ,
                 ]
                 
                 modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset - edgeOffset,
-                    y_coords[3] + tool3y + innerOffset - edgeOffset,
+                    x_coords[3] - tool3x - innerOffset ,
+                    y_coords[3] + tool3y + innerOffset ,
                 ]
 
                 # Calculate available horizontal dimension
@@ -430,26 +431,27 @@ def smalldoor1zizag(force,z,cps):
             return zigzag_coords,prepoint
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=-10)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=4)
+        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=4)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force, enable_spiral=False, spiral_params=None):
             # Vibration on
             
-           # Default spiral parameters
+            # Default spiral parameters
             if spiral_params is None:
                 spiral_params = {
-                    "dSpiralIncrement": 1.0,
-                    "dSpiralDiameter": 5.0,
-                    "dVelocity": 60.0,
-                    "dAcc": 320.0,
-                    "dRadius": 80.0,
-                 }       
+                    "dSpiralIncrement": 1.0,     # Rad80ius increment per revolution (mm)
+                    "dSpiralDiameter": 5.0,     # Final spiral diameter (mm)
+                    "dVelocity": 120.0,          # Speed (deg/s) - FAST
+                    "dAcc": 200.0,               # Acceleration - FAST
+                    "dRadius": 5.0,              # Transition radius (mm)
+                    "spacing": 10.0,             # Distance between spiral points (mm)
+                }     
                 
             # Force Control Activated
             putForceZminus(
@@ -459,38 +461,73 @@ def smalldoor1zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=enable_spiral #wait if spiral is enabled
-                )
-                 # Perform spiral at this point if enabled
-                if enable_spiral:
-                    cps.HRIF_MoveS(
-                        0, 0,  # boxID, rbtID
-                        spiral_params["dSpiralIncrement"],
-                        spiral_params["dSpiralDiameter"],
-                        spiral_params["dVelocity"],
-                        spiral_params["dAcc"],
-                        spiral_params["dRadius"],
-                        config['coords']['tcptool1plane1'],
-                        config['coords']['ucsTable1'],
-                        "spiral-cmd"
+          #  turn_vibration_on(cps)
+           
+           # Set TCP/UCS before weave motion
+            setUCS_TCP(cps=cps, tcp=config['coords']['tcptool1plane1'], 
+                ucs=config['coords']['ucsTable1'], config=config)
+                   
+            if enable_spiral and len(points1) >= 2:
+                spiral_count = 0
+                tcp_name = config['coords']['tcptool1plane1']
+                ucs_name = config['coords']['ucsTable1']
+                
+                # Simple move helper - no customMoveL overhead
+                def simple_move(point):
+                    RawACSpoints = [0, 0, 0, 0, 0, 0]
+                    cps.HRIF_MoveL(0, 0, point, RawACSpoints, tcp_name, ucs_name,
+                                   config['coords']['roboVelocity'],
+                                   config['coords']['roboAcceleration'],
+                                   config['coords']['transitionRadius'],
+                                   0, 0, 0, f"move{spiral_count}")
+                    
+                # For each segment between zigzag waypoints
+                for seg_idx in range(len(points1) - 1):
+                    # Generate evenly spaced points along this segment
+                    segment_points = generate_points_along_segment(
+                        points1[seg_idx], 
+                        points1[seg_idx + 1],
+                        spacing=spiral_params["spacing"]
                     )
-#                    waitForBlending(cps=cps, config=config)
+                    
+                    # At each point: move there + do HRIF_MoveS spiral continuously
+                    for pt in segment_points:
+                        simple_move(pt)
+                        waitForBlending(cps=cps, config=config)
+
+                        # Do HRIF_MoveS spiral at this point
+                        cps.HRIF_MoveS(
+                            0, 0,
+                            spiral_params["dSpiralIncrement"],
+                            spiral_params["dSpiralDiameter"],
+                            spiral_params["dVelocity"],
+                            spiral_params["dAcc"],
+                            spiral_params["dRadius"],
+                            tcp_name,
+                            ucs_name,
+                            f"spiral{spiral_count}"
+                        )
+                        waitForBlending(cps=cps, config=config)
+                        spiral_count += 1   
+                    
+            else:
+                # Normal linear motion (original behavior)
+                for point in points1:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    waitForBlending(cps=cps, config=config)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+           # turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
         
@@ -2023,6 +2060,30 @@ def smalldoor4zizag(force,z,cps):
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
+
+
+def generate_points_along_segment(start_point, end_point, spacing=15.0):
+    """Generate evenly spaced points along a line segment."""
+    import math
+    dx = end_point[0] - start_point[0]
+    dy = end_point[1] - start_point[1]
+    dz = end_point[2] - start_point[2]
+    length = math.sqrt(dx*dx + dy*dy + dz*dz)
+            
+    if length < spacing:
+        return [start_point, end_point]
+            
+    num_points = max(int(length / spacing), 2)
+    points = []
+    for i in range(num_points + 1):
+        t = i / num_points
+        points.append([
+            start_point[0] + t * dx,
+            start_point[1] + t * dy,
+            start_point[2] + t * dz,
+            start_point[3], start_point[4], start_point[5],
+        ])
+    return points
 
 
 if __name__ == "__main__":
