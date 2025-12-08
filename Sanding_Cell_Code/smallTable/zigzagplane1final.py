@@ -493,7 +493,7 @@ def smalldoor1zizag(force,z,cps):
                     # At each point: move there + do HRIF_MoveS spiral continuously
                     for pt in segment_points:
                         simple_move(pt)
-                        waitForBlending(cps=cps, config=config)
+                        # waitForBlending(cps=cps, config=config)
 
                         # Do HRIF_MoveS spiral at this point
                         cps.HRIF_MoveS(
