@@ -282,8 +282,8 @@ def run_case(cps: CPSClient, box_id: int, robot_id: int, case: Dict[str, Any], w
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Exercise HRIF_MoveS with sample parameter sets.")
     parser.add_argument("--config", default="configs/config.yaml")
-    parser.add_argument("--box-id", type=int, default=0)
-    parser.add_argument("--robot-id", type=int, default=0)
+    parser.add_argument("--box_id", type=int, default=0)
+    parser.add_argument("--robot_id", type=int, default=0)
     parser.add_argument("--tcp", default="TCP_tool3plane1")
     parser.add_argument("--ucs", default="Base")
     parser.add_argument("--case", action="append")
@@ -312,7 +312,7 @@ def main(argv: list[str]) -> int:
     cps = CPSClient()
     ip = cfg["server"]["cpip"]
     port = cfg["server"]["cps"]
-    ret = cps.HRIF_Connect(args.box-id, ip, port)
+    ret = cps.HRIF_Connect(args.box_id, ip, port)
     if ret != 0:
         print(f"Failed to connect to controller (ret={ret})")
         return 1
