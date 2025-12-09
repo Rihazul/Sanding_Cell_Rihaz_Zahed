@@ -42,6 +42,20 @@
             "debugOptions": [
                 "redirectOutput"
             ]
-        }
+        },
+        {
+  "name": "move_s_spiral_test (--run)",
+  "type": "python",
+  "request": "launch",
+  "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe",
+  "program": "${workspaceFolder}\\ytests\\move_s_spiral_test.py",
+  "args": ["--run"],
+  "cwd": "${workspaceFolder}",
+  "justMyCode": false,
+  "subProcess": true,
+  "console": "integratedTerminal",
+  "debugOptions": ["redirectOutput"]
+}
+
     ]
 }
