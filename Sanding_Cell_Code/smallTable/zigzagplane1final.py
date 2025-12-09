@@ -5,6 +5,7 @@ import math
 import os
 import time
 import json
+import uuid
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -22,6 +23,163 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values
 )
+
+def generate_unique_track_name(prefix: str = "spiral_path") -> str:
+    """Generate a unique path name each call."""
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
+
+def generate_spiral_between_points(
+    start_pose,
+    end_pose,
+    turns: int = 30,
+    radius: float = 12.0,
+    angle_step_deg: float = 10.0,
+):
+    """
+    Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
+    Keeps orientation from start_pose, interpolates center XY between poses,
+    and adds radial offsets for each step.
+    """
+    x0, y0, z0, rx, ry, rz = start_pose[:6]
+    x1, y1, _, _, _, _ = end_pose[:6]
+
+    total_steps = int(turns * (360.0 / angle_step_deg))
+    points = list(start_pose[:6])  # start point
+
+    for step in range(1, total_steps + 1):
+        t = step / total_steps
+        cx = x0 + (x1 - x0) * t
+        cy = y0 + (y1 - y0) * t
+        theta_deg = step * angle_step_deg
+        theta = math.radians(theta_deg)
+
+        px = cx + radius * math.cos(theta)
+        py = cy + radius * math.sin(theta)
+        pz = z0  # hold Z while spiraling along Y
+
+        points.extend([px, py, pz, rx, ry, rz])
+
+    return points
+
+
+def run_spiral_between_points(
+    cps: CPSClient,
+    config: dict,
+    start_pose,
+    end_pose,
+    *,
+    turns: int = 30,
+    radius: float = 12.0,
+    angle_step_deg: float = 10.0,
+    tcp: str = None,
+    ucs: str = None,
+    track_name: str = None,
+    velocity: float = 300.0,
+    accel: float = 500.0,
+    jerk: float = 10000.0,
+    box_id: int = 0,
+    robot_id: int = 0,
+):
+    """Push and execute a spiral MovePathL between two poses."""
+    base_name = track_name or "spiral_path"
+    track_name = generate_unique_track_name(base_name)
+    print(f"[Spiral] Using track name: {track_name}")
+    tcp_name = tcp or config["coords"].get("tcptool1plane1")
+    ucs_name = ucs or config["coords"].get("ucsTable1")
+
+    all_points = generate_spiral_between_points(
+        start_pose=start_pose,
+        end_pose=end_pose,
+        turns=turns,
+        radius=radius,
+        angle_step_deg=angle_step_deg,
+    )
+
+    if len(all_points) % 6 != 0:
+        print("[Spiral] Point list misaligned (not divisible by 6).")
+        return False
+
+    count = len(all_points) // 6
+    print(f"[Spiral] Total points = {count}")
+
+    ret = cps.HRIF_InitMovePathL(
+        box_id, robot_id,
+        track_name,
+        velocity,
+        accel,
+        jerk,
+        ucs_name,
+        tcp_name
+    )
+    print("[Spiral][Init] ret =", ret)
+    if ret != 0:
+        return False
+
+    ret = cps.HRIF_PushMovePaths(
+        box_id, robot_id,
+        track_name,
+        1,
+        count,
+        all_points
+    )
+    print("[Spiral][Push] ret =", ret)
+    if ret != 0:
+        return False
+
+    ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
+    print("[Spiral][EndPush] ret =", ret)
+    if ret != 0:
+        return False
+
+    # Wait for PATH_READY
+    start = time.time()
+    state = []
+    while True:
+        st = []
+        ret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
+        if ret == 0 and len(st) > 3 and st[2] == "3" and st[3] == "0":
+            break
+        if time.time() - start > 10.0:
+            print("[Spiral] Timeout waiting for PATH_READY:", st)
+            return False
+        time.sleep(0.1)
+
+    print("[Spiral][Move] Starting MovePathL...")
+    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+    print("[Spiral][Move] ret =", ret)
+    if ret != 0:
+        return False
+
+    # Wait for completion (track path state + robot flags)
+    start = time.time()
+    while True:
+        pstate = []
+        pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
+        if pret != 0:
+            print("HRIF_ReadPathState failed:", pret)
+            return False
+        if len(pstate) > 3 and pstate[3] != "0":
+            print(f"[Spiral] Path reported error: {pstate}")
+            return False
+
+        rstate = []
+        ret = cps.HRIF_ReadRobotState(box_id, robot_id, rstate)
+        if ret != 0:
+            print("HRIF_ReadRobotState failed:", ret)
+            return False
+
+        motion_done = len(rstate) > 11 and rstate[11] == "1"
+        in_motion = len(rstate) > 0 and rstate[0] == "1"
+
+        if motion_done and not in_motion:
+            break
+        if time.time() - start > 60.0:
+            print("Timeout waiting for idle. Path state:", pstate, "Robot state:", rstate)
+            return False
+        time.sleep(0.1)
+        print(f"Waiting for spiral move to complete... path={pstate}, robot={rstate}\r", end="")
+
+    return True
 
 
 def load_config():
@@ -450,17 +608,52 @@ def smalldoor1zizag(force,z,cps):
             turn_vibration_on(cps)
             
             # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            # for point in points1:
+            #     communicate(
+            #         cps=cps,
+            #         config=config,
+            #         point=point,
+            #         tcp=config['coords']['tcptool1plane1'],
+            #         ucs=config['coords']['ucsTable1'],
+            #         seventh=-1,
+            #         speed=0.6,
+            #         wait=False
+            #     )
+            
+            for index, point in enumerate(points1):
+                point_A = point
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                # communicate(
+                #     cps=cps,    
+                #     config=config,
+                #     point=point_A,
+                #     tcp=config['coords']['tcptool1plane1'],
+                #     ucs=config['coords']['ucsTable1'],
+                #     seventh=-1,
+                #     speed=0.6,
+                #     wait=True
+                # )
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=30,
+                    radius=12.0,
+                    angle_step_deg=10.0,
+                    track_name="spiral_path_test",
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
                 )
+                # waitForBlending(cps=cps, config=config)
+
+
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
