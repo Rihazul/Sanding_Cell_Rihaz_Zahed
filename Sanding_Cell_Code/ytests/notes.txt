@@ -1,0 +1,87 @@
+import math
+from modules.CPS import CPSClient
+import time
+
+def generate_spiral_points(center_x, center_y, z_height, max_radius, step, inward=False):
+    """
+    Generates a list of spiral points.
+    inward=True: Outside-In (max_radius -> 0mm)
+    inward=False: Inside-Out (0mm -> max_radius)
+    """
+    points = []
+    # Simplified step calculation
+    num_steps = int(max_radius / step * 360) 
+    
+    # Angle generator (one point every 10 degrees)
+    angles = range(0, num_steps * 10, 10) 
+    
+    point_list = []
+    for theta in angles:
+        radians = math.radians(theta)
+        # Calculate current radius based on angle
+        current_r = (step / 360.0) * theta
+        
+        if current_r > max_radius:
+            break
+            
+        # If inward, invert the radius
+        if inward:
+            target_r = max_radius - current_r
+        else:
+            target_r = current_r
+            
+        # Polar to Cartesian conversion
+        x = center_x + target_r * math.cos(radians)
+        y = center_y + target_r * math.sin(radians)
+        
+        # Orientation (Rx, Ry, Rz) depends on your tool setup
+        # Assuming flange points down: Rx=180, Ry=0, Rz=0
+        point_list.extend([x, y, z_height, 180, 0, 0])
+        
+    return point_list
+
+def run_continuous_sanding(cps: CPSClient, box_id: int, robot_id: int):
+    track_name = "SandingPath"
+    
+    # 1. Initialize Linear Path (See doc 3.11.9 HRIF_InitMovePathL)
+    # Set a higher dJerk (10000.0) to ensure smoothness
+    cps.HRIF_InitMovePathL(box_id, robot_id, track_name, 100.0, 500.0, 10000.0, "Base", "TCP")
+    
+    # 2. Generate multiple spiral paths (e.g., Left-to-Right sweep)
+    # Spot 1 (x=300), Spot 2 (x=350)
+    
+    # Spiral 1: Inward (starts wide, ends at center)
+    spiral1 = generate_spiral_points(300, 0, 200, 50, 1.0, inward=True) 
+    
+    # Spiral 2: Outward (starts at center, goes wide)
+    # Note: You might want to spiral Inward again depending on sanding requirements
+    spiral2 = generate_spiral_points(350, 0, 200, 50, 1.0, inward=False) 
+    
+    # Transition points (Optional: lift tool or move smoothly to next center)
+    transition_points = [
+        300, 0, 220, 180, 0, 0,  # Lift up at Spot 1
+        350, 0, 220, 180, 0, 0   # Move above Spot 2
+    ]
+
+    # 3. Batch push points (See doc 3.11.11 HRIF_PushMovePaths)
+    # Note: Send all points at once or in chunks. DO NOT WAIT between chunks.
+    all_points = spiral1 + transition_points + spiral2
+    
+    # nPointsSize is the number of points (list length / 6)
+    total_points_count = len(all_points) // 6
+    
+    # Assuming sending all at once (chunk if list is huge)
+    # nMoveType=1 means Spatial Points (Cartesian)
+    cps.HRIF_PushMovePaths(box_id, robot_id, track_name, 1, total_points_count, all_points)
+    
+    # 4. End Push (See doc 3.11.18 HRIF_EndPushPathPoints)
+    # This triggers the controller to start calculating the trajectory
+    cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
+    
+    # Wait for calculation to finish (Check State Machine, see doc 3.11.23 HRIF_ReadPathState)
+    # ... Omitted state check code (wait until state becomes 3: Calculation Complete) ...
+    time.sleep(2) 
+
+    # 5. Execute Path (See doc 3.11.12 HRIF_MovePathL)
+    print("Starting continuous sanding...")
+    cps.HRIF_MovePathL(box_id, robot_id, track_name)

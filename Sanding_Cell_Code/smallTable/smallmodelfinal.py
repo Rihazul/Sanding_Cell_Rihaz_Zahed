@@ -373,13 +373,23 @@ def sandingModelATableA():
 
     """Main control function"""
     try:
-        if (is_door_available(side_cycles_doors) or is_door_available(zig_zag_cycle_doors) or is_door_available(pocket_cycle_doors)) and any(cycle > 0 for cycle in [side_cycles,zig_zag_cycle,pocket_cycle]):
+        if (    is_door_available(side_cycles_doors)  
+                or is_door_available(zig_zag_cycle_doors) 
+                or is_door_available(pocket_cycle_doors)) and any(cycle > 0 for cycle in [side_cycles,zig_zag_cycle,pocket_cycle]):
+
             check_tool(cps=cps,config=config,tool_num=3,ci0=ci0,ci1=ci1,ci2=ci2)
+
             #Intitial Position
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
+
             #Pick Tool 3
             getTool11(cps, toolNumber=3, config=config)
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
+            communicate(
+                    cps=cps, 
+                    point=config['point']['safePoint'], 
+                    tcp=config['coords']['tcpDefault'], 
+                    ucs=config['coords']['ucsDefault'], 
+                    seventh=-1, config=config, speed=speeed, wait=True)
             
             for door_number in side_cycles_doors:
                 run_side_cycles(side_cycles, side_cycles_force, int(door_number), cps)
@@ -404,8 +414,23 @@ def sandingModelATableA():
                 run_pocket_cycles(pocket_cycle, pocket_cycle_force, int(door_number), z1, cps)
 
             #Keep Tool 3
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-            communicate(cps=cps, config=config, seventh=0, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], speed=0.3, wait=True)
+            communicate(
+                    cps=cps, 
+                    point=config['point']['safePoint'], 
+                    tcp=config['coords']['tcpDefault'], 
+                    ucs=config['coords']['ucsDefault'], 
+                    seventh=-1, 
+                    config=config, 
+                    speed=speeed, 
+                    wait=True)
+            communicate(
+                    cps=cps, 
+                    config=config, 
+                    seventh=0, 
+                    tcp=config['coords']['tcptool1plane1'], 
+                    ucs=config['coords']['ucsTable1'], 
+                    speed=0.3, 
+                    wait=True)
             # keepTool11(cps, toolNumber=3, config=config)
 
             cycles = [tool2sideedge_cycle, tool2side_cycle,tl3sideedge_cycle]
@@ -413,7 +438,14 @@ def sandingModelATableA():
                 keepToolupdated(cps, toolNumber=3, config=config)
             else:
                 keepTool11(cps, toolNumber=3, config=config)
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
+                communicate(
+                        cps=cps, 
+                        point=config['point']['safePoint'], 
+                        tcp=config['coords']['tcpDefault'], 
+                        ucs=config['coords']['ucsDefault'], 
+                        seventh=-1, 
+                        config=config, 
+                        speed=speeed, wait=True)
             
             print("\nAll operations completed for Tool1 successfully!")
         
