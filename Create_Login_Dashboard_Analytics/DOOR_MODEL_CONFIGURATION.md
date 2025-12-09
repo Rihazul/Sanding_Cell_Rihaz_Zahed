@@ -1,32 +1,26 @@
 # Door-Based Model Configuration Layout
 
 ## Overview
-The Table A configuration now supports **independent model selection for each door (1-4)**, allowing different models (A-E) to be assigned to each door without assuming consistency.
+Table A now uses **one model selection for all four doors**. You pick the model once, and each door keeps its own force/cycle values for every function (Frame, Pocket ZigZag, 3D, Edge Outside, Side).
 
 ## Key Features
 
-### 1. **Door Tabs Interface**
-- Four tabs representing Door 1, Door 2, Door 3, and Door 4
-- Visual indicator (green dot) shows which doors have models configured
-- Active tab is highlighted with blue underline
-- Easy switching between door configurations
+### 1. **Global Model + Door Tabs**
+- One model dropdown applies to all doors (Model A-E)
+- Tabs for Door 1-4 to tweak per-door settings
+- Green dot shows a door is configured with the chosen model
+- Active tab is highlighted for clarity
 
-### 2. **Per-Door Model Selection**
-Each door can have:
-- **Independent Model Selection**: Choose from Model A, B, C, D, or E
-- **Separate Configuration**: Each door maintains its own:
-  - Frame settings (Force & Cycle)
-  - Pocket ZigZag settings (Force & Cycle)
-  - 3D settings (Force & Cycle)
-  - Edge Outside settings (Force & Cycle)
-  - Side settings (Force & Cycle)
+### 2. **Per-Door Function Settings**
+- Each door keeps independent Force/Cycle for every function
+- Switching tabs changes the function values shown, not the model
 
 ### 3. **Configuration Structure**
 
 ```
 Table A Configuration
+├── Model (single select A/B/C/D/E for all doors)
 ├── Door 1 (Tab)
-│   ├── Model: [Select A/B/C/D/E]
 │   ├── Frame: Force [0-25], Cycle [0-25]
 │   ├── Pocket ZigZag: Force [0-25], Cycle [0-25]
 │   ├── 3D: Force [0-25], Cycle [0-25]
@@ -34,16 +28,13 @@ Table A Configuration
 │   └── Side: Force [0-25], Cycle [0-25]
 │
 ├── Door 2 (Tab)
-│   ├── Model: [Select A/B/C/D/E]
 │   └── ... (same structure)
 │
 ├── Door 3 (Tab)
-│   ├── Model: [Select A/B/C/D/E]
 │   └── ... (same structure)
 │
 └── Door 4 (Tab)
-    ├── Model: [Select A/B/C/D/E]
-    └── ... (same structure)
+  └── ... (same structure)
 ```
 
 ### 4. **Table B Configuration**
@@ -54,12 +45,11 @@ Table B maintains the original single-model configuration:
 ## User Workflow
 
 ### Configuring Table A:
-1. **Navigate** to Table A Configuration panel
+1. **Choose** a model (A-E) once at the top (applies to all doors)
 2. **Select** a door tab (1, 2, 3, or 4)
-3. **Choose** the appropriate model (A-E) for that door
-4. **Configure** Force and Cycle values for each function
-5. **Repeat** for other doors as needed
-6. **Start Scan** or **Start Task** when ready
+3. **Configure** Force and Cycle values for each function
+4. **Repeat** for other doors as needed
+5. **Start Scan** or **Start Task** when ready
 
 ### Visual Indicators:
 - **Blue underline**: Currently selected door
@@ -68,11 +58,11 @@ Table B maintains the original single-model configuration:
 
 ## Benefits
 
-✅ **Flexibility**: Each door can use a different model  
-✅ **No Assumptions**: System doesn't assume consistency across doors  
+✅ **Simplicity**: Choose one model once for all doors  
+✅ **Per-Door Precision**: Each door keeps its own force/cycle values  
 ✅ **Clear Organization**: Tab-based interface keeps configurations organized  
 ✅ **Visual Feedback**: Easy to see which doors are configured  
-✅ **Independent Settings**: Each door's parameters are isolated  
+✅ **Consistent Runs**: All doors operate with the same model choice  
 
 ## Technical Implementation
 
@@ -80,39 +70,34 @@ Table B maintains the original single-model configuration:
 ```typescript
 type DoorConfig = {
   doorNumber: number;
-  model: string;
+  model: string; // auto-populated from the global model choice
   rows: RowConfig[];
 };
 
-// Each door maintains:
+// One model applied to all doors, with door-specific force/cycle rows
+const tableAModel = 'modelB';
 doorConfigs = [
-  { doorNumber: 1, model: 'modelA', rows: [...] },
-  { doorNumber: 2, model: 'modelC', rows: [...] },
-  { doorNumber: 3, model: 'modelB', rows: [...] },
-  { doorNumber: 4, model: 'modelE', rows: [...] },
+  { doorNumber: 1, model: tableAModel, rows: [...] },
+  { doorNumber: 2, model: tableAModel, rows: [...] },
+  { doorNumber: 3, model: tableAModel, rows: [...] },
+  { doorNumber: 4, model: tableAModel, rows: [...] },
 ]
 ```
 
 ### State Management:
+- `tableAModel`: Single model selection that applies to all doors
 - `doorConfigs`: Array of configurations for all 4 doors
 - `selectedDoor`: Currently active door tab (1-4)
 - Each door's data is independently managed and persisted
 
 ## Example Scenarios
 
-### Scenario 1: Different Models per Door
-- Door 1: Model A - for large frames
-- Door 2: Model C - for pocket designs
-- Door 3: Model B - for 3D operations
-- Door 4: Model E - for edge finishing
-
-### Scenario 2: Partial Configuration
-- Door 1: Model A (configured) ✅
-- Door 2: Not configured yet
-- Door 3: Model D (configured) ✅
-- Door 4: Not configured yet
-
-The system allows flexible partial configurations without requiring all doors to be set up.
+### Scenario: One model, varied force/cycle
+- Model: B (applies to all doors)
+- Door 1: Frame 10/5, Pocket 8/4, 3D 6/2, Edge 7/3, Side 5/2
+- Door 2: Frame 12/6, Pocket 9/5, 3D 7/3, Edge 8/4, Side 6/3
+- Door 3: Frame 9/4, Pocket 7/3, 3D 5/2, Edge 6/2, Side 4/1
+- Door 4: Frame 11/5, Pocket 10/5, 3D 8/4, Edge 9/4, Side 7/3
 
 ---
 

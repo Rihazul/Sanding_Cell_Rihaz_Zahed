@@ -54,15 +54,17 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     { label: 'Side', selection: '', force: 0, cycle: 0 },
   ];
 
-  const [tableARows, setTableARows] = useState<RowConfig[]>(defaultRows);
-  const [tableBRows, setTableBRows] = useState<RowConfig[]>(defaultRows);
+  const makeRowSet = () => defaultRows.map(r => ({ ...r }));
+
+  const [tableARows, setTableARows] = useState<RowConfig[]>(makeRowSet());
+  const [tableBRows, setTableBRows] = useState<RowConfig[]>(makeRowSet());
 
   // Door configurations for Table A (each door can have a different model)
   const [doorConfigs, setDoorConfigs] = useState<Array<{doorNumber: number, model: string, rows: RowConfig[]}>>([
-    { doorNumber: 1, model: '', rows: [...defaultRows] },
-    { doorNumber: 2, model: '', rows: [...defaultRows] },
-    { doorNumber: 3, model: '', rows: [...defaultRows] },
-    { doorNumber: 4, model: '', rows: [...defaultRows] },
+    { doorNumber: 1, model: '', rows: makeRowSet() },
+    { doorNumber: 2, model: '', rows: makeRowSet() },
+    { doorNumber: 3, model: '', rows: makeRowSet() },
+    { doorNumber: 4, model: '', rows: makeRowSet() },
   ]);
 
   return (

@@ -25,10 +25,10 @@ export function SettingsPanel({
         <CardTitle>Settings</CardTitle>
       </CardHeader>
       <CardContent className="pt-6 space-y-6">
-        {/* Robot Speed */}
+        {/* Spiral Speed */}
         <div>
           <div className="flex justify-between mb-2">
-            <label className="text-sm">Robot Speed</label>
+            <label className="text-sm">Spiral Speed</label>
             <span className="text-sm text-gray-600">{robotSpeed[0]}%</span>
           </div>
           <Slider value={robotSpeed} onValueChange={setRobotSpeed} min={0} max={100} step={1} className="[&_[role=slider]]:bg-blue-500" />

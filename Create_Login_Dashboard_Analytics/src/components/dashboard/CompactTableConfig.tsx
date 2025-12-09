@@ -54,6 +54,22 @@ export function CompactTableConfig({
   
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
+  const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
+    Frame: [],
+    'Pocket ZigZag': [],
+    '3D': [],
+    'Edge Outside': [],
+    Side: [],
+  });
+
+  const formatModelName = (value: string) => {
+    if (value === 'modelA') return 'Model A';
+    if (value === 'modelB') return 'Model B';
+    if (value === 'modelC') return 'Model C';
+    if (value === 'modelD') return 'Model D';
+    if (value === 'modelE') return 'Model E';
+    return value || 'No model selected';
+  };
   
   React.useEffect(() => {
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
@@ -84,13 +100,21 @@ export function CompactTableConfig({
     if (tableName === 'A' && doorConfigs) {
       const configuredDoors = doorConfigs.filter(d => d.model && d.model !== '');
       const totalDoors = doorConfigs.length;
+      const modelName = formatModelName(model);
       
-      addActivity(`Table ${tableName}: Starting task for all doors (${configuredDoors.length} configured, ${totalDoors - configuredDoors.length} unconfigured)...`, 'info');
+      addActivity(`Table ${tableName}: Starting task for all doors with ${modelName} (${configuredDoors.length} configured, ${totalDoors - configuredDoors.length} unconfigured)...`, 'info');
       
       try {
         // Build payload with all door configurations
         const taskData = {
-          doorConfigs: doorConfigs,
+          doorConfigs: doorConfigs.map(dc => ({
+            ...dc,
+            rows: dc.rows.map(r => {
+              const allowed = rowDoorSelections[r.label] || [];
+              if (allowed.includes(dc.doorNumber)) return r;
+              return { ...r, force: 0, cycle: 0 };
+            })
+          })),
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: inverseOverlapping[0],
@@ -114,11 +138,7 @@ export function CompactTableConfig({
       }
     } else {
       // Table B logic (single model)
-      const modelName = model === 'modelA' ? 'Model A' : 
-                       model === 'modelB' ? 'Model B' : 
-                       model === 'modelC' ? 'Model C' : 
-                       model === 'modelD' ? 'Model D' : 
-                       model === 'modelE' ? 'Model E' : model;
+      const modelName = formatModelName(model);
       
       addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');
       
@@ -188,36 +208,30 @@ export function CompactTableConfig({
   
   // Get current door configuration
   const currentDoorConfig = doorConfigs?.find(d => d.doorNumber === selectedDoor);
-  const currentModel = tableName === 'A' && doorConfigs ? (currentDoorConfig?.model || '') : model;
   const currentRows = tableName === 'A' && doorConfigs ? (currentDoorConfig?.rows || rows) : rows;
 
   const handleModelChange = (newModel: string) => {
+    setModel(newModel);
+
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
-      setDoorConfigs(prev => {
-        const updated = [...prev];
-        const doorIndex = updated.findIndex(d => d.doorNumber === selectedDoor);
-        if (doorIndex >= 0) {
-          updated[doorIndex] = { ...updated[doorIndex], model: newModel };
-        }
-        return updated;
-      });
-    } else {
-      setModel(newModel);
+      setDoorConfigs(prev => prev.map(cfg => ({ ...cfg, model: newModel })));
     }
   };
 
   const handleRowChange = (idx: number, field: 'selection' | 'force' | 'cycle', value: any) => {
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
-      setDoorConfigs(prev => {
-        const updated = [...prev];
-        const doorIndex = updated.findIndex(d => d.doorNumber === selectedDoor);
-        if (doorIndex >= 0) {
-          const newRows = [...updated[doorIndex].rows];
+      const rowLabel = rows[idx]?.label;
+      const allowed = rowDoorSelections[rowLabel] || [];
+      if (!allowed.length) return;
+
+      setDoorConfigs(prev =>
+        prev.map(dc => {
+          if (!allowed.includes(dc.doorNumber)) return dc;
+          const newRows = [...dc.rows];
           newRows[idx] = { ...newRows[idx], [field]: value };
-          updated[doorIndex] = { ...updated[doorIndex], rows: newRows };
-        }
-        return updated;
-      });
+          return { ...dc, rows: newRows };
+        })
+      );
     } else {
       setRows((prev: RowConfig[]) => {
         const next = [...prev];
@@ -225,6 +239,16 @@ export function CompactTableConfig({
         return next;
       });
     }
+  };
+
+  const toggleRowDoor = (label: string, doorNumber: number) => {
+    setRowDoorSelections(prev => {
+      const current = prev[label] || [];
+      const exists = current.includes(doorNumber);
+      const next = exists ? current.filter(d => d !== doorNumber) : [...current, doorNumber].sort();
+      return { ...prev, [label]: next };
+    });
+    setSelectedDoor(doorNumber);
   };
 
   return (
@@ -242,43 +266,13 @@ export function CompactTableConfig({
           {tableName === 'A' && doorConfigs ? (
             <>
               {/* Door Selection Tabs */}
-              <div className="mb-4">
-                <div className="flex gap-3 border-b-2 border-gray-300">
-                  {[1, 2, 3, 4].map((doorNum) => {
-                    const doorConfig = doorConfigs.find(d => d.doorNumber === doorNum);
-                    const hasModel = doorConfig?.model && doorConfig.model !== '';
-                    return (
-                      <button
-                        key={doorNum}
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSelectedDoor(doorNum);
-                        }}
-                        disabled={isOperating}
-                        className={`px-6 py-3 text-base font-semibold transition-colors relative disabled:opacity-50 disabled:cursor-not-allowed rounded-t-lg ${
-                          selectedDoor === doorNum
-                            ? 'text-blue-600 bg-blue-50 border-b-3 border-blue-600'
-                            : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                        }`}
-                      >
-                        Door {doorNum}
-                        {hasModel && (
-                          <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-white"></span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                <label className="text-sm text-gray-500 mb-2 flex items-center gap-1">
-                  Model for Door {selectedDoor}
+              <div className="bg-white rounded-md p-4 border border-gray-200 mb-4">
+                <label className="text-sm text-gray-600 mb-2 flex items-center gap-1">
+                  Model for all doors
                   <span className="text-gray-400 text-xs">ⓘ</span>
                 </label>
                 <select
-                  value={currentModel}
+                  value={model}
                   onChange={(e) => handleModelChange(e.target.value)}
                   disabled={isOperating}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -290,53 +284,93 @@ export function CompactTableConfig({
                   <option value="modelD">Model D</option>
                   <option value="modelE">Model E</option>
                 </select>
+              </div>
 
-                <div className="mt-6 space-y-3">
+              <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                <div className="mt-2 space-y-3">
                   {currentRows.map((row: RowConfig, idx: number) => (
                     <div key={row.label} className="bg-white rounded-md p-3 border border-gray-200">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-3 justify-between">
+                        <div className="text-sm font-medium text-gray-700 flex items-center gap-1 whitespace-nowrap">
                           {row.label}
                           <span className="text-gray-400 text-xs">ⓘ</span>
                         </div>
 
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Force:</label>
-                            <select
-                              value={row.force}
-                              disabled={isOperating}
-                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                handleRowChange(idx, 'force', Number(e.target.value));
-                              }}
-                              className="px-2 py-1 border border-gray-300 rounded-md text-sm w-16 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            >
-                              <option value={0}>-</option>
-                              {Array.from({ length: 25 }, (_, i) => i + 1).map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {[1, 2, 3, 4].map((doorNum) => {
+                              const doorConfig = doorConfigs.find(d => d.doorNumber === doorNum);
+                              const hasModel = doorConfig?.model && doorConfig.model !== '';
+                              const isSelected = (rowDoorSelections[row.label] || []).includes(doorNum);
+                              return (
+                                <button
+                                  key={doorNum}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    toggleRowDoor(row.label, doorNum);
+                                  }}
+                                  disabled={isOperating}
+                                  className={`min-w-[78px] px-3 py-1 text-xs font-semibold text-center transition-colors relative disabled:cursor-not-allowed disabled:opacity-100 rounded-md border ${
+                                    isSelected
+                                      ? 'text-white bg-blue-600 border-blue-600 hover:bg-blue-700'
+                                      : 'text-gray-900 bg-white border-gray-500 hover:bg-gray-50'
+                                  }`}
+                                  style={{
+                                    opacity: 1,
+                                    color: isSelected ? '#ffffff' : '#111827',
+                                    backgroundColor: isSelected ? '#2563eb' : '#ffffff',
+                                    borderColor: isSelected ? '#2563eb' : '#6b7280',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  Door {doorNum}
+                                  {hasModel && (
+                                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-white"></span>
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
 
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Cycle:</label>
-                            <select
-                              value={row.cycle}
-                              disabled={isOperating}
-                              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                                handleRowChange(idx, 'cycle', Number(e.target.value));
-                              }}
-                              className="px-2 py-1 border border-gray-300 rounded-md text-sm w-16 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                            >
-                              <option value={0}>-</option>
-                              {Array.from({ length: 25 }, (_, i) => i + 1).map((n) => (
-                                <option key={n} value={n}>
-                                  {n}
-                                </option>
-                              ))}
-                            </select>
+                          <div className="flex items-center gap-3 flex-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Force:</label>
+                              <select
+                                value={row.force}
+                                disabled={isOperating}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                  handleRowChange(idx, 'force', Number(e.target.value));
+                                }}
+                                className="px-2 py-1 border border-gray-300 rounded-md text-sm w-16 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              >
+                                <option value={0}>-</option>
+                                {Array.from({ length: 25 }, (_, i) => i + 1).map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <label className="text-xs text-gray-500 font-medium whitespace-nowrap">Cycle:</label>
+                              <select
+                                value={row.cycle}
+                                disabled={isOperating}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                                  handleRowChange(idx, 'cycle', Number(e.target.value));
+                                }}
+                                className="px-2 py-1 border border-gray-300 rounded-md text-sm w-16 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                              >
+                                <option value={0}>-</option>
+                                {Array.from({ length: 25 }, (_, i) => i + 1).map((n) => (
+                                  <option key={n} value={n}>
+                                    {n}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
                       </div>
