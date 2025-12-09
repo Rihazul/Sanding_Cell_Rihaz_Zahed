@@ -173,7 +173,8 @@ def run_continuous_sanding(cps: CPSClient, box_id: int, robot_id: int):
     time.sleep(2)  # Optional: replace with HRIF_ReadPathState loop
 
     print("Starting continuous sanding...")
-    cps.HRIF_MovePathL(box_id, robot_id, track_name)
+    nRet = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+    print(nRet)
 
 
 
