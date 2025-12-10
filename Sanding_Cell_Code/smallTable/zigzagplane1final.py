@@ -70,9 +70,9 @@ def run_spiral_between_points(
     start_pose,
     end_pose,
     *,
-    turns: int = 30,
+    turns: int = 17,
     radius: float = 12.0,
-    angle_step_deg: float = 10.0,
+    angle_step_deg: float = 45.0,
     tcp: str = None,
     ucs: str = None,
     track_name: str = None,
@@ -388,18 +388,41 @@ def smalldoor1zizag(force,z,cps):
             turn_vibration_on(cps)
             print("Turned Vibration On")
             
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            path_initialized = False
+            push_failed = False
+            finalize_in_loop = False
+
+            for index, _ in enumerate(points1):
+                point_A = points1[index]
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                success = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=float(json_config['sandingSpeed']),
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=17,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                    finalize=finalize_in_loop,
                 )
+                if not success:
+                    push_failed = True
+                    break
+
+                path_initialized = True
+
+            if path_initialized and not push_failed and not finalize_in_loop:
+                finalize_spiral_path(cps, spiral_track_name)
             
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -665,9 +688,9 @@ def smalldoor1zizag(force,z,cps):
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=30,
+                    turns=17,
                     radius=12.0,
-                    angle_step_deg=10.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -926,18 +949,41 @@ def smalldoor2zizag(force,z,cps):
             )
             turn_vibration_on(cps)
             
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            path_initialized = False
+            push_failed = False
+            finalize_in_loop = False
+
+            for index, _ in enumerate(points1):
+                point_A = points1[index]
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                success = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=17,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                    finalize=finalize_in_loop,
                 )
+                if not success:
+                    push_failed = True
+                    break
+
+                path_initialized = True
+
+            if path_initialized and not push_failed and not finalize_in_loop:
+                finalize_spiral_path(cps, spiral_track_name)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -1162,18 +1208,41 @@ def smalldoor2zizag(force,z,cps):
             )
             turn_vibration_on(cps)
             
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            path_initialized = False
+            push_failed = False
+            finalize_in_loop = False
+
+            for index, _ in enumerate(points1):
+                point_A = points1[index]
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                success = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=17,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                    finalize=finalize_in_loop,
                 )
+                if not success:
+                    push_failed = True
+                    break
+
+                path_initialized = True
+
+            if path_initialized and not push_failed and not finalize_in_loop:
+                finalize_spiral_path(cps, spiral_track_name)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -1416,18 +1485,41 @@ def smalldoor3zizag(force,z,cps):
             )
             turn_vibration_on(cps)
             
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            path_initialized = False
+            push_failed = False
+            finalize_in_loop = False
+
+            for index, _ in enumerate(points1):
+                point_A = points1[index]
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                success = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=17,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                    finalize=finalize_in_loop,
                 )
+                if not success:
+                    push_failed = True
+                    break
+
+                path_initialized = True
+
+            if path_initialized and not push_failed and not finalize_in_loop:
+                finalize_spiral_path(cps, spiral_track_name)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -1652,18 +1744,41 @@ def smalldoor3zizag(force,z,cps):
             )
             turn_vibration_on(cps)
             
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            path_initialized = False
+            push_failed = False
+            finalize_in_loop = False
+
+            for index, _ in enumerate(points1):
+                point_A = points1[index]
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                success = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=17,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                    finalize=finalize_in_loop,
                 )
+                if not success:
+                    push_failed = True
+                    break
+
+                path_initialized = True
+
+            if path_initialized and not push_failed and not finalize_in_loop:
+                finalize_spiral_path(cps, spiral_track_name)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -1905,18 +2020,41 @@ def smalldoor4zizag(force,z,cps):
             )
             turn_vibration_on(cps)
             
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
+            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            path_initialized = False
+            push_failed = False
+            finalize_in_loop = False
+
+            for index, _ in enumerate(points1):
+                point_A = points1[index]
+                if index + 1 >= len(points1):
+                    break
+                point_B = points1[index + 1]
+
+                print("Spiral move from A to B:", point_A, "->", point_B)
+                success = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=point_A,
+                    end_pose=point_B,
+                    turns=17,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                    finalize=finalize_in_loop,
                 )
+                if not success:
+                    push_failed = True
+                    break
+
+                path_initialized = True
+
+            if path_initialized and not push_failed and not finalize_in_loop:
+                finalize_spiral_path(cps, spiral_track_name)
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
