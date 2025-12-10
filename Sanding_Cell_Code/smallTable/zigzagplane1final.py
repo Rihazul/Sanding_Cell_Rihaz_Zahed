@@ -33,7 +33,7 @@ def generate_spiral_between_points(
     end_pose,
     turns: int = 22,
     radius: float = 12.0,
-    angle_step_deg: float = 20.0,
+    angle_step_deg: float = 45.0,
 ):
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
