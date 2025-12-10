@@ -82,13 +82,13 @@ def run_spiral_between_points(
     box_id: int = 0,
     robot_id: int = 0,
     init_path: bool = True,
-    finalize: bool = True,
+    finalize: bool = False,
 ):
     """Push a spiral MovePathL between two poses.
 
-    When `finalize` is False, the path is only pushed (optionally initialized with
-    `init_path`) and execution must be triggered separately via
-    `finalize_spiral_path`.
+    By default (`finalize=False`), the path is only pushed (optionally initialized
+    with `init_path`) and execution must be triggered separately via
+    `finalize_spiral_path`. Set `finalize=True` to push and execute immediately.
     """
     base_name = track_name or "spiral_path"
     track_name = track_name or generate_unique_track_name(base_name)
@@ -136,10 +136,10 @@ def run_spiral_between_points(
     if ret != 0:
         return False
 
-    if not finalize:
-        return True
+    if finalize:
+        return finalize_spiral_path(cps, track_name, box_id=box_id, robot_id=robot_id)
 
-    return finalize_spiral_path(cps, track_name, box_id=box_id, robot_id=robot_id)
+    return True
 
 
 def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, robot_id: int = 0) -> bool:
@@ -182,22 +182,19 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             print(f"[Spiral] Path reported error: {pstate}")
             return False
 
-        rstate = []
-        ret = cps.HRIF_ReadRobotState(box_id, robot_id, rstate)
-        if ret != 0:
-            print("HRIF_ReadRobotState failed:", ret)
+        motion_result = [False]
+        mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
+        if mret != 0:
+            print("HRIF_IsMotionDone failed:", mret)
             return False
 
-        motion_done = len(rstate) > 11 and rstate[11] == "1"
-        in_motion = len(rstate) > 0 and rstate[0] == "1"
-
-        if motion_done and not in_motion:
+        if motion_result[0]:
             break
-        if time.time() - start > 90.0:
-            print("Timeout waiting for idle. Path state:", pstate, "Robot state:", rstate)
+        if time.time() - start > 70.0:
+            print("Timeout waiting for idle. Path state:", pstate, "Motion done:", motion_result)
             return False
         time.sleep(0.1)
-        print(f"Waiting for spiral move to complete... path={pstate}, robot={rstate}\r", end="")
+        print(f"Waiting for spiral move to complete... path={pstate}, motion_done={motion_result[0]}\r", end="")
 
     return True
 
@@ -643,6 +640,7 @@ def smalldoor1zizag(force,z,cps):
             spiral_track_name = generate_unique_track_name("spiral_path_test")
             path_initialized = False
             push_failed = False
+            finalize_in_loop = False
 
             for index,_ in enumerate(points1):
                 point_A = points1[index]
@@ -675,7 +673,7 @@ def smalldoor1zizag(force,z,cps):
                     accel=500.0,
                     jerk=10000.0,
                     init_path=not path_initialized,
-                    finalize=False,
+                    finalize=finalize_in_loop,
                 )
                 if not success:
                     push_failed = True
@@ -685,11 +683,11 @@ def smalldoor1zizag(force,z,cps):
                 # waitForBlending(cps=cps, config=config)
 
 
-            if path_initialized and not push_failed:
+            if path_initialized and not push_failed and not finalize_in_loop:
                 finalize_spiral_path(cps, spiral_track_name)
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
