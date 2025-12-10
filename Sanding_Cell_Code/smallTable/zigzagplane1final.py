@@ -193,7 +193,7 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
 
         if motion_done and not in_motion:
             break
-        if time.time() - start > 60.0:
+        if time.time() - start > 90.0:
             print("Timeout waiting for idle. Path state:", pstate, "Robot state:", rstate)
             return False
         time.sleep(0.1)
