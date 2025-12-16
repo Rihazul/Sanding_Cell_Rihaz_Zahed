@@ -605,16 +605,16 @@ def smalldoor1zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset, innerOffsetX):
             prepoint = None
             zigzag_coords = []
             
             # Parameters (adjust as needed)
             tool3y = 50.8   # Tool offset in Y
             tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
+            innerSandingOffset = 50  # Step size in Y (instead of X)
+            yframe_1 = 0
+            yframe_2 = 0
 
             # 1) Collect boundary coordinates as [x, y, z]
             boundary_coords = []
@@ -633,44 +633,55 @@ def smalldoor1zizag(force,z,cps):
                 # We'll assume the pocket's Z-level is the same as the first boundary point
                 z_zigzag = boundary_coords[0][2]
 
-                # For Pocket4, corners (P13, P14, P15, P16):
+                # Calculate modified corner points with offsets
+                modified_Point1 = [
+                    (x_coords[0])/1 + tool3x + innerOffsetX,
+                    y_coords[0] + tool3y + innerOffset,
+                ]
                 modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
+                    (x_coords[1])/1 + tool3x + innerOffsetX,
+                    y_coords[1] - tool3y - (innerOffset*0.5),
                 ]
                 modified_Point3 = [
                     x_coords[2] - tool3x - innerOffset,
                     y_coords[2] - tool3y - innerOffset,
                 ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
                 modified_Point4 = [
                     x_coords[3] - tool3x - innerOffset,
                     y_coords[3] + tool3y + innerOffset,
                 ]
+                print("modified_Point1:", modified_Point1)
+                print("modified_Point2:", modified_Point2)
+                print("modified_Point3:", modified_Point3)
+                print("modified_Point4:", modified_Point4)
 
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
+                # Calculate available vertical dimension (Y direction)
+                ylen1 = abs(modified_Point1[1] - modified_Point2[1])
+                yinner = ylen1 - yframe_1 - yframe_2
+                print("yinner=", yinner)
 
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
+                # X boundaries for horizontal movement
+                x_left = modified_Point1[0]
+                x_right = modified_Point4[0]
+
+                if yinner > 0:
+                    # Determine how many "rows" in the zigzag (stepping in Y)
+                    num_steps = math.ceil(yinner / innerSandingOffset)
+                    adjusted_step = yinner / num_steps
 
                     offset = 0.0
                     toggle = 0
 
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
+                    # Build zigzag path from top to bottom (stepping in Y)
+                    while offset <= yinner + 1e-9:  # small floating-point tolerance
+                        current_y = modified_Point1[1] - offset  # Start from top, move down
+                        
+                        # Horizontal row points (left to right or right to left)
                         row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                            [x_left, current_y, z_zigzag, 0, 0, 0],   # Left point
+                            [x_right, current_y, z_zigzag, 0, 0, 0],  # Right point
                         ]
-                        # Reverse every other row to create a zigzag
+                        # Reverse every other row to create a zigzag (left-right, right-left)
                         if toggle:
                             row_points.reverse()
 
@@ -678,20 +689,32 @@ def smalldoor1zizag(force,z,cps):
                         offset += adjusted_step
                         toggle = 1 - toggle
 
-                # Update only the y coordinate to its absolute value
+                # Update coordinates to absolute values
                 for point in zigzag_coords:
                     point[1] = abs(point[1])
                     point[0] = abs(point[0])
             
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
+                prepoint = [abs(x_left), abs(modified_Point1[1]), z_zigzag, 0, 0, 0]  
+            return zigzag_coords, prepoint
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
-        print("zigzag_pathp=",zigzag_pathp1)
+
+        zigzag_pathp1, prepointp1 = generate_zigzag_path(
+                x_coords=x_coords1,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=1)
+
+        print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
+        zigzag_pathp2, prepointp2 = generate_zigzag_path(
+                x_coords=x_coords1,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=14)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
