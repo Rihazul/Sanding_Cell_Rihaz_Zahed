@@ -52,12 +52,6 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
     instrument = getInstrument(
-        port=args.port,
-        slave=args.slave,
-        timeout=args.timeout,
-        baudrate=args.baudrate,
-        parity=args.parity,
-        stopbits=args.stopbits,
     )
 
     try:

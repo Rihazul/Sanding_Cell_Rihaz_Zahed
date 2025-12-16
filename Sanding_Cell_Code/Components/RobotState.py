@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from Components.RobotInteractions import RobotInteractions
 from modules.CPS import CPSClient
 
@@ -149,6 +151,40 @@ class RobotState(RobotInteractions):
         self.state["ucs_frame"] = ucs_frame
 
         return True
+
+    def wait_until_still(self, still_seconds: float = 0.5, poll_seconds: float = 0.05) -> bool:
+        """
+        Block until cartesian position stays unchanged for ``still_seconds``.
+
+        Returns True once no motion is detected for the duration; False on repeated read failures.
+        """
+        if not self.fetch_and_update_pos():
+            return False
+
+        last_cart = list(self.state.get("cartesian_position", []))
+        last_change = time.time()
+        consecutive_failures = 0
+
+        while True:
+            if not self.fetch_and_update_pos():
+                consecutive_failures += 1
+                if consecutive_failures >= 5:
+                    return False
+                time.sleep(poll_seconds)
+                continue
+
+            consecutive_failures = 0
+            curr_cart = list(self.state.get("cartesian_position", []))
+
+            if len(curr_cart) >= 6 and len(last_cart) >= 6:
+                if any(abs(a - b) > 1e-3 for a, b in zip(curr_cart[:6], last_cart[:6])):
+                    last_cart = curr_cart
+                    last_change = time.time()
+
+            if time.time() - last_change >= still_seconds:
+                return True
+
+            time.sleep(poll_seconds)
 
     def __fetch_and_update_tcp(self, TcpName) -> bool:
         """

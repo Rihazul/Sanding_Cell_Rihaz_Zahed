@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 import threading
+from Components.RobotState import RobotState
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
@@ -39,19 +40,17 @@ def compute_timeout(
     if total_points is None:
         return cap
 
-    vmax = 300.0
-    time_factor_max = float(total_points / vmax)
-    time_factor= float(total_points / (velocity)) 
+    distance_per_point = 4.64 
+    # vmax = 300.0
+    # time_factor_max = float(total_points / vmax)
+    time_factor= float(total_points * distance_per_point / (velocity)) 
 
-    timeout = float(cap*float((1.0-(abs(time_factor_max-time_factor)*7.0)))) 
-    print(f"[Timeout] total_points={total_points}, time factor max: {time_factor_max} est={time_factor:.1f}s timeout={timeout:.1f}s")
+    timeout = float(time_factor)
+    print(f"[Timeout] total_points={total_points}, est={time_factor:.1f}s timeout={timeout:.1f}s")
     return timeout
 
 
 
-def generate_unique_track_name(prefix: str = "spiral_path") -> str:
-    """Generate a unique path name each call."""
-    return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 def generate_spiral_between_points(
     start_pose,
@@ -115,7 +114,7 @@ def run_spiral_between_points(
     `finalize_spiral_path`. Set `finalize=True` to push and execute immediately.
     """
     base_name = track_name or "spiral_path"
-    track_name = track_name or generate_unique_track_name(base_name)
+    track_name = track_name 
     print(f"[Spiral] Using track name: {track_name}")
     tcp_name = tcp or config["coords"].get("tcptool1plane1")
     ucs_name = ucs or config["coords"].get("ucsTable1")
@@ -170,6 +169,9 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
     if ret != 0:
         return False
 
+    # Create a lightweight state helper for motion monitoring.
+    robot_state = RobotState(config=load_config(), cps_client=cps)
+
     # Wait for PATH_READY
     start = time.time()
     state = []
@@ -203,6 +205,11 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             print(f"[Spiral] Path reported error: {pstate}")
             return False
 
+        # Break early if the robot stays still for 0.5s.
+        if robot_state.wait_until_still(still_seconds=0.2, poll_seconds=0.05):
+            print("[Spiral] No motion detected for 0.5s; exiting wait loop.")
+            break
+
         # motion_result = []
         # mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
         # print(f"[Spiral] Path state: {pstate}, Motion done: {motion_result}")
@@ -213,11 +220,11 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
         # if motion_result[0]:
         #     break
 
-        if time.time() - start > completion_timeout:
-            print("Timeout waiting for idle. Path state:", pstate)
-            return False
-        time.sleep(0.1)
-        print(f"Waiting for spiral move to complete... path={pstate}\r", end="")
+        # if time.time() - start > completion_timeout:
+        #     print("Timeout waiting for idle. Path state:", pstate)
+        #     return False
+        # time.sleep(0.1)
+        # print(f"Waiting for spiral move to complete... path={pstate}\r", end="")
 
     return True
 
@@ -312,7 +319,7 @@ def smalldoor1zizag(force,z,cps):
             # Parameters (adjust as needed)
             tool3y = 50.8   # Tool offset in Y
             tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 20  # Step size in X (instead of Y)
+            innerSandingOffset = 50  # Step size in X (instead of Y)
             xframe_1 = 0
             xframe_2 = 0
 
@@ -424,7 +431,7 @@ def smalldoor1zizag(force,z,cps):
             #         wait=False
             #     )
             
-            spiral_track_name = "small_door_tab2"
+            spiral_track_name = "small"
             path_initialized = False
             push_failed = False
             total_count = 0
@@ -471,7 +478,7 @@ def smalldoor1zizag(force,z,cps):
 
 
             if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0)
+                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
                 finalize_spiral_path(
                     cps,
                     spiral_track_name,
@@ -715,7 +722,7 @@ def smalldoor1zizag(force,z,cps):
             #         wait=False
             #     )
             
-            spiral_track_name = generate_unique_track_name("spiral_bigt1")
+            spiral_track_name = "door1big"
             path_initialized = False
             push_failed = False
 
@@ -1069,7 +1076,7 @@ def smalldoor2zizag(force,z,cps):
 
 
             if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0)
+                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
                 finalize_spiral_path(
                     cps,
                     spiral_track_name,
@@ -1079,7 +1086,7 @@ def smalldoor2zizag(force,z,cps):
                 )
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
@@ -1279,11 +1286,11 @@ def smalldoor2zizag(force,z,cps):
             return zigzag_coords,prepoint
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=-10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=4)
+        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
@@ -1314,7 +1321,7 @@ def smalldoor2zizag(force,z,cps):
             #         wait=False
             #     )
             
-            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            spiral_track_name = "door2_big"
             path_initialized = False
             push_failed = False
             total_count = 0
@@ -1671,7 +1678,7 @@ def smalldoor3zizag(force,z,cps):
 
 
             if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0)
+                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
                 finalize_spiral_path(
                     cps,
                     spiral_track_name,
@@ -1881,11 +1888,11 @@ def smalldoor3zizag(force,z,cps):
             return zigzag_coords,prepoint
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=-10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=4)
+        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
@@ -1916,7 +1923,7 @@ def smalldoor3zizag(force,z,cps):
             #         wait=False
             #     )
             
-            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            spiral_track_name = "door3_big"
             path_initialized = False
             push_failed = False
             total_count = 0
@@ -2271,7 +2278,7 @@ def smalldoor4zizag(force,z,cps):
 
 
             if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0)
+                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
                 finalize_spiral_path(
                     cps,
                     spiral_track_name,
@@ -2481,11 +2488,11 @@ def smalldoor4zizag(force,z,cps):
             return zigzag_coords,prepoint
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=-10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=4)
+        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
@@ -2516,7 +2523,7 @@ def smalldoor4zizag(force,z,cps):
             #         wait=False
             #     )
             
-            spiral_track_name = generate_unique_track_name("spiral_path_test")
+            spiral_track_name = "door4_big"
             path_initialized = False
             push_failed = False
             total_count = 0
