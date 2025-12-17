@@ -58,6 +58,7 @@ def generate_spiral_between_points(
     turns: int = 22,
     radius: float = 12.0,
     angle_step_deg: float = 45.0,
+    vert = True,
 ):
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
@@ -66,7 +67,9 @@ def generate_spiral_between_points(
     """
     x0, y0, z0, rx, ry, rz = start_pose[:6]
     x1, y1, _, _, _, _ = end_pose[:6]
-    if y0 == y1:
+    if vert and y0 == y1:
+        turns = 3
+    elif x0 == x1:
         turns = 3
 
     total_steps = int(turns * (360.0 / angle_step_deg))
@@ -106,6 +109,7 @@ def run_spiral_between_points(
     box_id: int = 0,
     robot_id: int = 0,
     init_path: bool = True,
+    vert = True,
 ):
     """Push a spiral MovePathL between two poses.
 
@@ -125,6 +129,7 @@ def run_spiral_between_points(
         turns=turns,
         radius=radius,
         angle_step_deg=angle_step_deg,
+        vert=vert,
     )
 
     if len(all_points) % 6 != 0:
@@ -656,7 +661,9 @@ def smalldoor1zizag(force,z,cps):
                 print("modified_Point4:", modified_Point4)
 
                 # Calculate available vertical dimension (Y direction)
-                ylen1 = abs(modified_Point1[1] - modified_Point2[1])
+                y_top = max(modified_Point1[1], modified_Point2[1])
+                y_bottom = min(modified_Point1[1], modified_Point2[1])
+                ylen1 = y_top - y_bottom
                 yinner = ylen1 - yframe_1 - yframe_2
                 print("yinner=", yinner)
 
@@ -672,9 +679,9 @@ def smalldoor1zizag(force,z,cps):
                     offset = 0.0
                     toggle = 0
 
-                    # Build zigzag path from top to bottom (stepping in Y)
+                    # Build zigzag path from bottom to top (stepping in Y)
                     while offset <= yinner + 1e-9:  # small floating-point tolerance
-                        current_y = modified_Point1[1] - offset  # Start from top, move down
+                        current_y = y_bottom + offset  # Start from bottom, move up
                         
                         # Horizontal row points (left to right or right to left)
                         row_points = [
@@ -694,7 +701,7 @@ def smalldoor1zizag(force,z,cps):
                     point[1] = abs(point[1])
                     point[0] = abs(point[0])
             
-                prepoint = [abs(x_left), abs(modified_Point1[1]), z_zigzag, 0, 0, 0]  
+                prepoint = [abs(x_left), abs(y_bottom), z_zigzag, 0, 0, 0]  
             return zigzag_coords, prepoint
 
         #Second Pocket 1st Cycle
@@ -1536,16 +1543,16 @@ def smalldoor3zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset, innerOffsetX):
             prepoint = None
             zigzag_coords = []
             
             # Parameters (adjust as needed)
             tool3y = 50.8   # Tool offset in Y
             tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
+            innerSandingOffset = 50  # Step size in Y (instead of X)
+            yframe_1 = 0
+            yframe_2 = 0
 
             # 1) Collect boundary coordinates as [x, y, z]
             boundary_coords = []
@@ -1564,7 +1571,11 @@ def smalldoor3zizag(force,z,cps):
                 # We'll assume the pocket's Z-level is the same as the first boundary point
                 z_zigzag = boundary_coords[0][2]
 
-                # For Pocket4, corners (P13, P14, P15, P16):
+                # Calculate modified corner points with offsets
+                modified_Point1 = [
+                    (x_coords[0])/1 + tool3x + innerOffsetX,
+                    y_coords[0] + tool3y + innerOffset,
+                ]
                 modified_Point2 = [
                     (x_coords[1])/1 + tool3x + innerOffsetX,
                     y_coords[1] - tool3y - (innerOffset*0.5),
@@ -1572,10 +1583,6 @@ def smalldoor3zizag(force,z,cps):
                 modified_Point3 = [
                     x_coords[2] - tool3x - innerOffset,
                     y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
                 ]
                 modified_Point4 = [
                     x_coords[3] - tool3x - innerOffset,
@@ -1586,26 +1593,35 @@ def smalldoor3zizag(force,z,cps):
                 print("modified_Point3:", modified_Point3)
                 print("modified_Point4:", modified_Point4)
 
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
+                # Calculate available vertical dimension (Y direction)
+                y_top = max(modified_Point1[1], modified_Point2[1])
+                y_bottom = min(modified_Point1[1], modified_Point2[1])
+                ylen1 = y_top - y_bottom
+                yinner = ylen1 - yframe_1 - yframe_2
+                print("yinner=", yinner)
 
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
+                # X boundaries for horizontal movement
+                x_left = modified_Point1[0]
+                x_right = modified_Point4[0]
+
+                if yinner > 0:
+                    # Determine how many "rows" in the zigzag (stepping in Y)
+                    num_steps = math.ceil(yinner / innerSandingOffset)
+                    adjusted_step = yinner / num_steps
 
                     offset = 0.0
                     toggle = 0
 
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
+                    # Build zigzag path from bottom to top (stepping in Y)
+                    while offset <= yinner + 1e-9:  # small floating-point tolerance
+                        current_y = y_bottom + offset  # Start from bottom, move up
+                        
+                        # Horizontal row points (left to right or right to left)
                         row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                            [x_left, current_y, z_zigzag, 0, 0, 0],   # Left point
+                            [x_right, current_y, z_zigzag, 0, 0, 0],  # Right point
                         ]
-                        # Reverse every other row to create a zigzag
+                        # Reverse every other row to create a zigzag (left-right, right-left)
                         if toggle:
                             row_points.reverse()
 
@@ -1613,13 +1629,13 @@ def smalldoor3zizag(force,z,cps):
                         offset += adjusted_step
                         toggle = 1 - toggle
 
-                # Update only the y coordinate to its absolute value
+                # Update coordinates to absolute values
                 for point in zigzag_coords:
                     point[1] = abs(point[1])
                     point[0] = abs(point[0])
             
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
+                prepoint = [abs(x_left), abs(y_bottom), z_zigzag, 0, 0, 0]  
+            return zigzag_coords, prepoint
 
 
         #Second Pocket 1st Cycle
