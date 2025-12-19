@@ -20,6 +20,9 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [robotSpeed, setRobotSpeed] = useState([100]);
   const [inverseOverlapping, setInverseOverlapping] = useState([50]);
   const [sandingSpeed, setSandingSpeed] = useState([75]);
+  const [spiralSpeed, setSpiralSpeed] = useState([50]);
+  const [spiralRadius, setSpiralRadius] = useState([10]);
+  const [spiralLinearSpeed, setSpiralLinearSpeed] = useState([25]);
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
   const [isOperating, setIsOperating] = useState(false);
@@ -48,7 +51,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
 
   const defaultRows: RowConfig[] = [
     { label: 'Frame', selection: '', force: 0, cycle: 0 },
-    { label: 'Pocket ZigZag', selection: '', force: 0, cycle: 0 },
+    { label: 'Pocket ZigZag', selection: '', force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false },
     { label: '3D', selection: '', force: 0, cycle: 0 },
     { label: 'Edge Outside', selection: '', force: 0, cycle: 0 },
     { label: 'Side', selection: '', force: 0, cycle: 0 },
@@ -66,6 +69,25 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     { doorNumber: 3, model: '', rows: makeRowSet() },
     { doorNumber: 4, model: '', rows: makeRowSet() },
   ]);
+
+  // Check if Frame or Pocket ZigZag are configured (force AND cycle > 0) to enable Spiral Settings
+  const isSpiralSettingsEnabled = () => {
+    // Check Table A rows
+    const tableAActive = tableARows.some(row => 
+      (row.label === 'Frame' || row.label === 'Pocket ZigZag') && row.force > 0 && row.cycle > 0
+    );
+    // Check Table B rows
+    const tableBActive = tableBRows.some(row => 
+      (row.label === 'Frame' || row.label === 'Pocket ZigZag') && row.force > 0 && row.cycle > 0
+    );
+    // Check door configs
+    const doorActive = doorConfigs.some(door => 
+      door.rows.some(row => 
+        (row.label === 'Frame' || row.label === 'Pocket ZigZag') && row.force > 0 && row.cycle > 0
+      )
+    );
+    return tableAActive || tableBActive || doorActive;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-blue-100 to-indigo-100 pb-24">
@@ -154,6 +176,13 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
               setInverseOverlapping={setInverseOverlapping}
               sandingSpeed={sandingSpeed}
               setSandingSpeed={setSandingSpeed}
+              spiralSpeed={spiralSpeed}
+              setSpiralSpeed={setSpiralSpeed}
+              spiralRadius={spiralRadius}
+              setSpiralRadius={setSpiralRadius}
+              spiralLinearSpeed={spiralLinearSpeed}
+              setSpiralLinearSpeed={setSpiralLinearSpeed}
+              spiralSettingsEnabled={isSpiralSettingsEnabled()}
             />
 
             <RobotStatusCard

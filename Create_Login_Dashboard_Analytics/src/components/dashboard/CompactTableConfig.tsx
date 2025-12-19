@@ -9,6 +9,10 @@ export type RowConfig = {
   selection: string;
   force: number;
   cycle: number;
+  // Pocket ZigZag specific options
+  verticalSpiral?: boolean;
+  horizontalSpiral?: boolean;
+  edgeCoverage?: boolean;
 };
 
 export type DoorConfig = {
@@ -251,6 +255,29 @@ export function CompactTableConfig({
     setSelectedDoor(doorNumber);
   };
 
+  const handlePocketZigZagOptionChange = (idx: number, option: 'verticalSpiral' | 'horizontalSpiral' | 'edgeCoverage', checked: boolean) => {
+    if (tableName === 'A' && doorConfigs && setDoorConfigs) {
+      const rowLabel = rows[idx]?.label;
+      const allowed = rowDoorSelections[rowLabel] || [];
+      if (!allowed.length) return;
+
+      setDoorConfigs(prev =>
+        prev.map(dc => {
+          if (!allowed.includes(dc.doorNumber)) return dc;
+          const newRows = [...dc.rows];
+          newRows[idx] = { ...newRows[idx], [option]: checked };
+          return { ...dc, rows: newRows };
+        })
+      );
+    } else {
+      setRows((prev: RowConfig[]) => {
+        const next = [...prev];
+        next[idx] = { ...next[idx], [option]: checked };
+        return next;
+      });
+    }
+  };
+
   return (
     <Card className="shadow-lg border-0">
       <CardHeader className="bg-gradient-to-r from-indigo-50 to-cyan-50">
@@ -289,9 +316,13 @@ export function CompactTableConfig({
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <div className="mt-2 space-y-3">
                   {currentRows.map((row: RowConfig, idx: number) => (
-                    <div key={row.label} className="bg-white rounded-md p-3 border border-gray-200">
+                    <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                      {/* Main row: Label + Door buttons + Force + Cycle */}
                       <div className="flex flex-wrap items-center gap-3 justify-between">
                         <div className="text-sm font-medium text-gray-700 flex items-center gap-1 whitespace-nowrap">
+                          {row.label === 'Pocket ZigZag' && (
+                            <span className="text-indigo-500 mr-1">⬡</span>
+                          )}
                           {row.label}
                           <span className="text-gray-400 text-xs">ⓘ</span>
                         </div>
@@ -374,6 +405,57 @@ export function CompactTableConfig({
                           </div>
                         </div>
                       </div>
+
+                      {/* Pocket ZigZag Options - Second line below */}
+                      {row.label === 'Pocket ZigZag' && (
+                        <div className="mt-4 pt-6 border-t border-indigo-100 flex items-center justify-center gap-3">
+                          <span className="text-sm text-gray-500 font-medium">Pattern:</span>
+                          <div className="flex items-center gap-3">
+                            <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                              row.verticalSpiral 
+                                ? 'bg-blue-500 border-blue-500 text-white' 
+                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={row.verticalSpiral || false}
+                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
+                                disabled={isOperating}
+                                className="sr-only"
+                              />
+                              <span className="text-sm font-medium">↕ Vertical</span>
+                            </label>
+                            <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                              row.horizontalSpiral 
+                                ? 'bg-blue-500 border-blue-500 text-white' 
+                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={row.horizontalSpiral || false}
+                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
+                                disabled={isOperating}
+                                className="sr-only"
+                              />
+                              <span className="text-sm font-medium">↔ Horizontal</span>
+                            </label>
+                            <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                              row.edgeCoverage 
+                                ? 'bg-blue-500 border-blue-500 text-white' 
+                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={row.edgeCoverage || false}
+                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'edgeCoverage', e.target.checked)}
+                                disabled={isOperating}
+                                className="sr-only"
+                              />
+                              <span className="text-sm font-medium">◇ Edge</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -401,9 +483,13 @@ export function CompactTableConfig({
 
               <div className="mt-6 space-y-3">
                 {rows.map((row: RowConfig, idx: number) => (
-                  <div key={row.label} className="bg-white rounded-md p-3 border border-gray-200">
+                  <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                    {/* Main row: Label + Force + Cycle */}
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                        {row.label === 'Pocket ZigZag' && (
+                          <span className="text-indigo-500 mr-1">⬡</span>
+                        )}
                         {row.label}
                         <span className="text-gray-400 text-xs">ⓘ</span>
                       </div>
@@ -458,6 +544,78 @@ export function CompactTableConfig({
                         </div>
                       </div>
                     </div>
+
+                    {/* Pocket ZigZag Options - Second line below */}
+                    {row.label === 'Pocket ZigZag' && (
+                      <div className="mt-4 pt-6 border-t border-indigo-100 flex items-center justify-center gap-3">
+                        <span className="text-sm text-gray-500 font-medium">Pattern:</span>
+                        <div className="flex items-center gap-3">
+                          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                            row.verticalSpiral 
+                              ? 'bg-blue-500 border-blue-500 text-white' 
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={row.verticalSpiral || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setRows((prev: RowConfig[]) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], verticalSpiral: checked };
+                                  return next;
+                                });
+                              }}
+                              disabled={isOperating}
+                              className="sr-only"
+                            />
+                            <span className="text-sm font-medium">↕ Vertical</span>
+                          </label>
+                          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                            row.horizontalSpiral 
+                              ? 'bg-blue-500 border-blue-500 text-white' 
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={row.horizontalSpiral || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setRows((prev: RowConfig[]) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], horizontalSpiral: checked };
+                                  return next;
+                                });
+                              }}
+                              disabled={isOperating}
+                              className="sr-only"
+                            />
+                            <span className="text-sm font-medium">↔ Horizontal</span>
+                          </label>
+                          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
+                            row.edgeCoverage 
+                              ? 'bg-blue-500 border-blue-500 text-white' 
+                              : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={row.edgeCoverage || false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setRows((prev: RowConfig[]) => {
+                                  const next = [...prev];
+                                  next[idx] = { ...next[idx], edgeCoverage: checked };
+                                  return next;
+                                });
+                              }}
+                              disabled={isOperating}
+                              className="sr-only"
+                            />
+                            <span className="text-sm font-medium">◇ Edge</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

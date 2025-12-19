@@ -73,7 +73,10 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
   return (
     <Card className="shadow-lg border-0">
       <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50">
-        <CardTitle>Robot Status</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <span className="text-lg">🤖</span>
+          Robot Status
+        </CardTitle>
       </CardHeader>
       <CardContent className="pt-6 space-y-4">
         {/* Control Buttons */}
