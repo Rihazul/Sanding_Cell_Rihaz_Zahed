@@ -58,6 +58,7 @@ def generate_spiral_between_points(
     turns: int = 22,
     radius: float = 12.0,
     angle_step_deg: float = 45.0,
+    orientation: str = "horizontal",
 ):
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
@@ -66,8 +67,12 @@ def generate_spiral_between_points(
     """
     x0, y0, z0, rx, ry, rz = start_pose[:6]
     x1, y1, _, _, _, _ = end_pose[:6]
-    if y0 == y1:
-        turns = 3
+    if orientation == "horizontal":
+        if x0 == x1:
+            turns = 2
+    else:
+        if y0 == y1:
+            turns = 2
 
     total_steps = int(turns * (360.0 / angle_step_deg))
     points = list(start_pose[:6])  # start point
@@ -97,6 +102,7 @@ def run_spiral_between_points(
     turns: int = 30,
     radius: float = 12.0,
     angle_step_deg: float = 10.0,
+    orientation: str = "horizontal",
     tcp: str = None,
     ucs: str = None,
     track_name: str = None,
@@ -125,6 +131,7 @@ def run_spiral_between_points(
         turns=turns,
         radius=radius,
         angle_step_deg=angle_step_deg,
+        orientation=orientation,
     )
 
     if len(all_points) % 6 != 0:
@@ -162,12 +169,219 @@ def run_spiral_between_points(
     return True, count
 
 
+def run_spiral_horizontal(*args, **kwargs):
+    """
+    Convenience wrapper for run_spiral_between_points with horizontal orientation.
+    """
+    kwargs.setdefault("orientation", "horizontal")
+    return run_spiral_between_points(*args, **kwargs)
+
+
+def run_spiral_vertical(*args, **kwargs):
+    """
+    Convenience wrapper for run_spiral_between_points with vertical orientation.
+    """
+    kwargs.setdefault("orientation", "vertical")
+    return run_spiral_between_points(*args, **kwargs)
+
+
+def generate_rectangle_path(x_coords, y_coords, z_coords, inner_offset=5.0):
+    """Create a simple rectangle path around the boundary with a fixed inner offset."""
+    if not (x_coords and y_coords and z_coords):
+        return []
+    xs = [abs(x) for x in x_coords]
+    ys = [abs(y) for y in y_coords]
+    z_level = z_coords[0]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    min_x += inner_offset
+    max_x -= inner_offset
+    min_y += inner_offset
+    max_y -= inner_offset
+    rect = [
+        [min_x, min_y, z_level, 0, 0, 0],
+        [max_x, min_y, z_level, 0, 0, 0],
+        [max_x, max_y, z_level, 0, 0, 0],
+        [min_x, max_y, z_level, 0, 0, 0],
+        [min_x, min_y, z_level, 0, 0, 0],
+    ]
+    return rect
+
+
+def move_rectangle(cps, config, rect_points):
+    """Drive a rectangle path using communicate."""
+    if not rect_points:
+        return
+    rect_offset = 50.0
+    shifted = [
+        [pt[0] + rect_offset, pt[1] + rect_offset, pt[2], pt[3], pt[4], pt[5]]
+        for pt in rect_points
+    ]
+    lift = 30.0
+    first = shifted[0]
+    # Move up, translate to start at safe height, then come down to workplane.
+    lifted_start = [first[0], first[1], first[2] + lift, first[3], first[4], first[5]]
+    communicate(
+        cps=cps,
+        config=config,
+        point=lifted_start,
+        tcp=config['coords']['tcptool1plane1'],
+        ucs=config['coords']['ucsTable1'],
+        seventh=-1,
+        speed=0.5,
+        wait=True,
+    )
+    start_down = first[:]
+    communicate(
+        cps=cps,
+        config=config,
+        point=start_down,
+        tcp=config['coords']['tcptool1plane1'],
+        ucs=config['coords']['ucsTable1'],
+        seventh=-1,
+        speed=0.5,
+        wait=True,
+    )
+    for pt in shifted:
+        communicate(
+            cps=cps,
+            config=config,
+            point=pt,
+            tcp=config['coords']['tcptool1plane1'],
+            ucs=config['coords']['ucsTable1'],
+            seventh=-1,
+            speed=0.5,
+            wait=True,
+        )
+
+
+def generate_zigzag_with_orientation(
+    x_coords,
+    y_coords,
+    z_coords,
+    *,
+    tool3x,
+    tool3y,
+    innerSandingOffset,
+    innerOffset,
+    innerOffsetX,
+    xframe_1=0,
+    xframe_2=0,
+    orientation="horizontal",
+    max_points: int = 200,
+):
+    """
+    Build zigzag coords and prepoint with support for horizontal/vertical orientation.
+
+    Horizontal sweeps start on the right edge and snake downward row by row.
+    Vertical sweeps preserve the previous behaviour (columns stepped across X).
+    """
+    orientation = (orientation or "horizontal").lower()
+
+    boundary_coords = []
+    for i in range(len(x_coords)):
+        boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
+
+    zigzag_coords = []
+    prepoint = None
+
+    if x_coords and y_coords and z_coords:
+        z_zigzag = boundary_coords[0][2]
+
+        modified_Point2 = [
+            (x_coords[1]) / 1 + tool3x + innerOffsetX,
+            y_coords[1] - tool3y - (innerOffset * 0.5),
+        ]
+        modified_Point3 = [
+            x_coords[2] - tool3x - innerOffset,
+            y_coords[2] - tool3y - innerOffset,
+        ]
+        modified_Point1 = [
+            (x_coords[0]) / 1 + tool3x + innerOffsetX,
+            y_coords[0] + tool3y + innerOffset,
+        ]
+        modified_Point4 = [
+            x_coords[3] - tool3x - innerOffset,
+            y_coords[3] + tool3y + innerOffset,
+        ]
+
+        xlen1 = abs(modified_Point3[0] - modified_Point1[0])
+        xinner = xlen1 - xframe_1 - xframe_2
+
+        xs = [abs(p[0]) for p in (modified_Point1, modified_Point2, modified_Point3, modified_Point4)]
+        ys = [abs(p[1]) for p in (modified_Point1, modified_Point2, modified_Point3, modified_Point4)]
+        x_min, x_max = min(xs), max(xs)
+        y_min, y_max = min(ys), max(ys)
+
+        if orientation == "horizontal":
+            y_span = y_max - y_min
+            if y_span > 0:
+                num_steps = math.ceil(y_span / innerSandingOffset)
+                step = y_span / num_steps
+                for row_idx in range(num_steps + 1):
+                    current_y = y_max - row_idx * step
+                    if current_y < y_min:
+                        current_y = y_min
+                    if row_idx % 2 == 0:
+                        row_points = [
+                            [x_max, current_y, z_zigzag, 0, 0, 0],
+                            [x_min, current_y, z_zigzag, 0, 0, 0],
+                        ]
+                    else:
+                        row_points = [
+                            [x_min, current_y, z_zigzag, 0, 0, 0],
+                            [x_max, current_y, z_zigzag, 0, 0, 0],
+                        ]
+                    zigzag_coords.extend(row_points)
+
+            prepoint = [x_max + 0.5, y_max, z_zigzag, 0, 0, 0]
+        else:
+            if xinner > 0:
+                num_steps = math.ceil(xinner / innerSandingOffset)
+                adjusted_step = xinner / num_steps
+
+                offset = 0.0
+                toggle = 0
+
+                while offset <= xinner + 1e-9:
+                    row_points = [
+                        [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
+                        [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                    ]
+                    if toggle:
+                        row_points.reverse()
+
+                    zigzag_coords.extend(row_points)
+                    offset += adjusted_step
+                    toggle = 1 - toggle
+
+            prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
+
+    if boundary_coords:
+        boundary_coords.append(boundary_coords[0][:])
+
+    if max_points and len(zigzag_coords) > max_points:
+        original_last = zigzag_coords[-1]
+        stride = math.ceil(len(zigzag_coords) / max_points)
+        zigzag_coords = zigzag_coords[::stride]
+        if zigzag_coords[-1] != original_last:
+            zigzag_coords.append(original_last)
+
+    for point in zigzag_coords:
+        point[0] = abs(point[0])
+        point[1] = abs(point[1])
+
+    return zigzag_coords, prepoint
+
+
 def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, robot_id: int = 0, completion_timeout = 76.0) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
     print("[Spiral][EndPush] ret =", ret)
     if ret != 0:
         return False
+    # Start vibration only after the path push is closed
+
 
     # Create a lightweight state helper for motion monitoring.
     robot_state = RobotState(config=load_config(), cps_client=cps)
@@ -192,7 +406,7 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
     print("[Spiral][Move] ret =", ret)
     if ret != 0:
         return False
-
+    turn_vibration_on(cps)
     # Wait for completion (track path state + robot flags)
     start = time.time()
     while True:
@@ -206,7 +420,8 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             return False
 
         # Break early if the robot stays still for 0.5s.
-        if robot_state.wait_until_still(still_seconds=0.2, poll_seconds=0.05):
+        time.sleep(0.1)
+        if robot_state.wait_until_still(still_seconds=2, poll_seconds=0.05):
             print("[Spiral] No motion detected for 0.5s; exiting wait loop.")
             break
 
@@ -241,9 +456,9 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def smalldoor1zizag(force,z,cps):
-    
-    def smalldoor1zizagsmall(force,z,cps):
+def smalldoor1zizag(force,z,cps, orientation: str = "horizontal"):
+
+    def smalldoor1zizagsmall(force,z,cps, orientation: str = orientation):
         
         # Load configuration from YAML
         config = load_config()
@@ -312,98 +527,36 @@ def smalldoor1zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=80,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=10,
+            orientation=orientation
+        )
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
+        rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
 
-        def perform_process_top(cps, config, points1,force):
+        def perform_process_top(cps, config, points1,force, orientation: str = "horizontal"):
             # Vibration on
             
             
@@ -415,8 +568,6 @@ def smalldoor1zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
-            print("Turned Vibration On")
             
             # Communicate to each point in points1
             # for point in points1:
@@ -435,6 +586,7 @@ def smalldoor1zizag(force,z,cps):
             path_initialized = False
             push_failed = False
             total_count = 0
+            rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
 
             for index,_ in enumerate(points1):
                 point_A = points1[index]
@@ -459,9 +611,9 @@ def smalldoor1zizag(force,z,cps):
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=10,
+                    turns=6,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=60.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -478,7 +630,7 @@ def smalldoor1zizag(force,z,cps):
 
 
             if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
+                timeout = compute_timeout(total_points=total_count, velocity=300.0*6.0/60.0)
                 finalize_spiral_path(
                     cps,
                     spiral_track_name,
@@ -486,6 +638,7 @@ def smalldoor1zizag(force,z,cps):
                     robot_id=0,
                     completion_timeout=timeout,
                 )
+            move_rectangle(cps, config, rect_path)
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
@@ -530,7 +683,7 @@ def smalldoor1zizag(force,z,cps):
             speed=0.2, wait=True
         )
     
-    def smalldoor1zizagbig(force,z,cps):
+    def smalldoor1zizagbig(force,z,cps, orientation: str = orientation):
 
 
         # Load configuration
@@ -562,8 +715,6 @@ def smalldoor1zizag(force,z,cps):
         #7th axis position
         tcx0=p8[0]+get_door_position(1)
         print("tcx0:", tcx0)
-        tcx1=tcx0+((p6[0]-p7[0])/2)
-        print("tcx1:", tcx1)
 
         #prehoming
         prehoming=[0,200,50,0,0,0]
@@ -605,95 +756,33 @@ def smalldoor1zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=200,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
-
-        #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
+        #Single Pocket Cycle
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=1,
+            orientation=orientation
+        )
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
-        #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
-        print("zigzag_pathp2=",zigzag_pathp2)
-        print("prepointp2:", prepointp2)
+        rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
         
         def perform_process_top(cps, config, points1,force):
             # Vibration on
@@ -707,7 +796,6 @@ def smalldoor1zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -776,56 +864,42 @@ def smalldoor1zizag(force,z,cps):
                 timeout = compute_timeout(total_points=total_count, velocity=300.0)
                 finalize_spiral_path(cps, spiral_track_name, box_id=0, robot_id=0, completion_timeout=timeout)
 
+            move_rectangle(cps, config, rect_path)
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
         
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
-        # Get the current tcx (0-indexed)
-            current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
-            
-            # Get the current prepoint and zigzag path (1-indexed)
-            current_prepoint = eval(f"prepointp{i}")
-            current_zigzag = eval(f"zigzag_pathp{i}")
+        # Single vertical pass on one 7th-axis position
+        current_tcx = tcx0
+        current_prepoint = prepointp1
+        current_zigzag = zigzag_pathp1
 
-            # Original sequence with dynamic variables
-            communicate(
-                cps=cps, config=config, 
-                seventh=current_tcx, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                speed=0.7, wait=True
-            )
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=current_prepoint,  # Dynamic prepoint
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
-            # # turn_vibration_off(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
+        communicate(
+            cps=cps, config=config, 
+            seventh=current_tcx, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            speed=0.7, wait=True
+        )
+        communicate(
+            cps=cps, config=config, 
+            point=current_prepoint,  # Dynamic prepoint
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
+        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        communicate(
+            cps=cps, config=config, 
+            point=prehoming, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
     
     ylen_data = get_y_values(1, default_on_error=True)
     ylen = ylen_data['ylen']
@@ -837,15 +911,15 @@ def smalldoor1zizag(force,z,cps):
         print("No door data available - skipping operations")
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
-            smalldoor1zizagbig(force,z,cps)
+            smalldoor1zizagbig(force,z,cps, orientation=orientation)
         else:
-            smalldoor1zizagsmall(force,z,cps)
+            smalldoor1zizagsmall(force,z,cps, orientation=orientation)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor2zizag(force,z,cps):
+def smalldoor2zizag(force,z,cps, orientation: str = "horizontal"):
     
-    def smalldoor2zizagsmall(force,z,cps):
+    def smalldoor2zizagsmall(force,z,cps, orientation: str = "horizontal"):
         
         # Load configuration from YAML
         config = load_config()
@@ -911,98 +985,42 @@ def smalldoor2zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
-
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=70,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=22,      # add 5 mm margin from edges
+            innerOffsetX=15,      # add 5 mm margin in X offset
+            orientation=orientation
+        )
+        rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
+        max_points = 120
+        if len(zigzag_pathp1) > max_points:
+            original_last = zigzag_pathp1[-1]
+            stride = math.ceil(len(zigzag_pathp1) / max_points)
+            zigzag_pathp1 = zigzag_pathp1[::stride]
+            if zigzag_pathp1[-1] != original_last:
+                zigzag_pathp1.append(original_last)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, points1,force):
+        def perform_process_top(cps, config, points1,force, orientation: str = "horizontal"):
             # Vibration on
             
             
@@ -1014,7 +1032,6 @@ def smalldoor2zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -1033,6 +1050,7 @@ def smalldoor2zizag(force,z,cps):
             path_initialized = False
             push_failed = False
             total_count = 0
+            rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
 
             for index,_ in enumerate(points1):
                 point_A = points1[index]
@@ -1052,39 +1070,41 @@ def smalldoor2zizag(force,z,cps):
                 # )
 
                 print("Spiral move from A to B:", point_A, "->", point_B)
-                success, count = run_spiral_between_points(
-                    cps=cps,
-                    config=config,
-                    start_pose=point_A,
-                    end_pose=point_B,
-                    turns=10,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
-                    init_path=not path_initialized,
-                )
-                if not success:
-                    push_failed = True
-                    break
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=point_A,
+            #         end_pose=point_B,
+            #         turns=9,  # significantly higher turns on Y moves
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         orientation=orientation,
+            #         track_name=spiral_track_name,
+            #         velocity=300.0,
+            #         accel=500.0,
+            #         jerk=10000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
 
-                path_initialized = True
-                # waitForBlending(cps=cps, config=config)
-                total_count += count
+            #     path_initialized = True
+            #     # waitForBlending(cps=cps, config=config)
+            #     total_count += count
 
 
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                )
+            # if path_initialized and not push_failed:
+            #     timeout = compute_timeout(total_points=total_count, velocity=300.0*16.0/45.0)
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #     )
 
+            move_rectangle(cps, config, rect_path)
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
@@ -1092,7 +1112,7 @@ def smalldoor2zizag(force,z,cps):
             releaseForce(cps=cps, config=config)
 
 
-        # Original sequence with dynamic variables
+        # Original sequence with dynamic variables (horizontal default)
         communicate(
             cps=cps, config=config, 
             seventh=x1, 
@@ -1108,7 +1128,6 @@ def smalldoor2zizag(force,z,cps):
             seventh=-1, 
             speed=0.2, wait=True
         )
-        # # turn_vibration_on(cps)
         communicate(
             cps=cps, config=config, 
             point=prepointp1,  # Dynamic prepoint
@@ -1117,9 +1136,7 @@ def smalldoor2zizag(force,z,cps):
             seventh=-1, 
             speed=0.2, wait=True
         )
-        # # turn_vibration_on(cps)
-        perform_process_top(cps, config, points1=zigzag_pathp1,force=force)  # Dynamic zigzag path
-        # # turn_vibration_off(cps)
+        perform_process_top(cps, config, points1=zigzag_pathp1,force=force, orientation=orientation)  # Dynamic zigzag path
         communicate(
             cps=cps, config=config, 
             point=prehoming, 
@@ -1129,7 +1146,7 @@ def smalldoor2zizag(force,z,cps):
             speed=0.2, wait=True
         )
     
-    def smalldoor2zizagbig(force,z,cps):
+    def smalldoor2zizagbig(force,z,cps, orientation: str = orientation):
 
 
         # Load configuration
@@ -1161,8 +1178,6 @@ def smalldoor2zizag(force,z,cps):
         #7th axis position
         tcx0=p8[0]+get_door_position(2)
         print("tcx0:", tcx0)
-        tcx1=tcx0+((p6[0]-p7[0])/2)
-        print("tcx1:", tcx1)
 
         #prehoming
         prehoming=[0,200,50,0,0,0]
@@ -1204,95 +1219,33 @@ def smalldoor2zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 80  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=120,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
-
-        #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
+        #Single Pocket Cycle
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=1,
+            orientation=orientation
+        )
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
-        #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
-        print("zigzag_pathp2=",zigzag_pathp2)
-        print("prepointp2:", prepointp2)
+        rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
         
         def perform_process_top(cps, config, points1,force):
             # Vibration on
@@ -1306,7 +1259,6 @@ def smalldoor2zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -1377,56 +1329,43 @@ def smalldoor2zizag(force,z,cps):
                     completion_timeout=timeout,
                 )
 
+            move_rectangle(cps, config, generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0))
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
+            move_rectangle(cps, config, rect_path)
         
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
-        # Get the current tcx (0-indexed)
-            current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
-            
-            # Get the current prepoint and zigzag path (1-indexed)
-            current_prepoint = eval(f"prepointp{i}")
-            current_zigzag = eval(f"zigzag_pathp{i}")
+        # Single vertical pass on one 7th-axis position
+        current_tcx = tcx0
+        current_prepoint = prepointp1
+        current_zigzag = zigzag_pathp1
 
-            # Original sequence with dynamic variables
-            communicate(
-                cps=cps, config=config, 
-                seventh=current_tcx, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                speed=0.7, wait=True
-            )
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=current_prepoint,  # Dynamic prepoint
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
-            # # turn_vibration_off(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
+        communicate(
+            cps=cps, config=config, 
+            seventh=current_tcx, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            speed=0.7, wait=True
+        )
+        communicate(
+            cps=cps, config=config, 
+            point=current_prepoint,  # Dynamic prepoint
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
+        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        communicate(
+            cps=cps, config=config, 
+            point=prehoming, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
     
     ylen_data = get_y_values(2, default_on_error=True)
     ylen = ylen_data['ylen']
@@ -1437,17 +1376,17 @@ def smalldoor2zizag(force,z,cps):
     if ylen == "null":
         print("No door data available - skipping operations")
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            smalldoor2zizagbig(force,z,cps)
-        else:
-            smalldoor2zizagsmall(force,z,cps)
+        # if ylen > 600:
+        #     smalldoor2zizagbig(force,z,cps, orientation=orientation)
+        # else:
+        smalldoor2zizagsmall(force,z,cps, orientation=orientation)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
     
-def smalldoor3zizag(force,z,cps):
-    
-    def smalldoor3zizagsmall(force,z,cps):
+def smalldoor3zizag(force,z,cps, orientation: str = "horizontal"):
+
+    def smalldoor3zizagsmall(force,z,cps, orientation: str = orientation):
         
         # Load configuration from YAML
         config = load_config()
@@ -1513,96 +1452,42 @@ def smalldoor3zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=50,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=10,
+            orientation=orientation
+        )
+        # Down-sample if too many points to avoid controller push limit
+        max_points = 240
+        if len(zigzag_pathp1) > max_points:
+            stride = math.ceil(len(zigzag_pathp1) / max_points)
+            zigzag_pathp1 = zigzag_pathp1[::stride]
+            # Ensure last point closes path
+            if zigzag_pathp1 and zigzag_pathp1[-1] != zigzag_pathp1[-1:]:
+                zigzag_pathp1.append(zigzag_pathp1[-1])
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
+        rect_path = generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0)
 
         def perform_process_top(cps, config, points1,force):
             # Vibration on
@@ -1616,7 +1501,6 @@ def smalldoor3zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -1687,6 +1571,7 @@ def smalldoor3zizag(force,z,cps):
                     completion_timeout=timeout,
                 )
 
+            move_rectangle(cps, config, generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0))
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
@@ -1731,7 +1616,7 @@ def smalldoor3zizag(force,z,cps):
             speed=0.2, wait=True
         )
     
-    def smalldoor3zizagbig(force,z,cps):
+    def smalldoor3zizagbig(force,z,cps, orientation: str = orientation):
 
 
         # Load configuration
@@ -1763,8 +1648,6 @@ def smalldoor3zizag(force,z,cps):
         #7th axis position
         tcx0=p8[0]+get_door_position(3)
         print("tcx0:", tcx0)
-        tcx1=tcx0+((p6[0]-p7[0])/2)
-        print("tcx1:", tcx1)
 
         #prehoming
         prehoming=[0,200,50,0,0,0]
@@ -1806,95 +1689,32 @@ def smalldoor3zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 80  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=80,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
-
-        #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
+        #Single Pocket Cycle
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=1,
+            orientation=orientation
+        )
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
-        #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
-        print("zigzag_pathp2=",zigzag_pathp2)
-        print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force):
             # Vibration on
@@ -1908,7 +1728,6 @@ def smalldoor3zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -1978,56 +1797,42 @@ def smalldoor3zizag(force,z,cps):
                     robot_id=0,
                     completion_timeout=timeout,
                 )
+            move_rectangle(cps, config, generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0))
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
         
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
-        # Get the current tcx (0-indexed)
-            current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
-            
-            # Get the current prepoint and zigzag path (1-indexed)
-            current_prepoint = eval(f"prepointp{i}")
-            current_zigzag = eval(f"zigzag_pathp{i}")
+        # Single vertical pass on one 7th-axis position
+        current_tcx = tcx0
+        current_prepoint = prepointp1
+        current_zigzag = zigzag_pathp1
 
-            # Original sequence with dynamic variables
-            communicate(
-                cps=cps, config=config, 
-                seventh=current_tcx, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                speed=0.7, wait=True
-            )
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=current_prepoint,  # Dynamic prepoint
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
-            # # turn_vibration_off(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
+        communicate(
+            cps=cps, config=config, 
+            seventh=current_tcx, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            speed=0.7, wait=True
+        )
+        communicate(
+            cps=cps, config=config, 
+            point=current_prepoint,  # Dynamic prepoint
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
+        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        communicate(
+            cps=cps, config=config, 
+            point=prehoming, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
     
     ylen_data = get_y_values(3, default_on_error=True)
     ylen = ylen_data['ylen']
@@ -2039,15 +1844,15 @@ def smalldoor3zizag(force,z,cps):
         print("No door data available - skipping operations")
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
-            smalldoor3zizagbig(force,z,cps)
+            smalldoor3zizagbig(force,z,cps, orientation=orientation)
         else:
-            smalldoor3zizagsmall(force,z,cps)
+            smalldoor3zizagsmall(force,z,cps, orientation=orientation)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor4zizag(force,z,cps):
-    
-    def smalldoor4zizagsmall(force,z,cps):
+def smalldoor4zizag(force,z,cps, orientation: str = "horizontal"):
+
+    def smalldoor4zizagsmall(force,z,cps, orientation: str = orientation):
         
         # Load configuration from YAML
         config = load_config()
@@ -2113,94 +1918,31 @@ def smalldoor4zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 30  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=30,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=10)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=10,
+            orientation=orientation
+        )
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -2216,7 +1958,6 @@ def smalldoor4zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -2287,6 +2028,7 @@ def smalldoor4zizag(force,z,cps):
                     completion_timeout=timeout,
                 )
 
+            move_rectangle(cps, config, generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0))
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
@@ -2331,7 +2073,7 @@ def smalldoor4zizag(force,z,cps):
             speed=0.2, wait=True
         )
     
-    def smalldoor4zizagbig(force,z,cps):
+    def smalldoor4zizagbig(force,z,cps, orientation: str = orientation):
 
 
         # Load configuration
@@ -2363,8 +2105,6 @@ def smalldoor4zizag(force,z,cps):
         #7th axis position
         tcx0=p8[0]+get_door_position(4)
         print("tcx0:", tcx0)
-        tcx1=tcx0+((p6[0]-p7[0])/2)
-        print("tcx1:", tcx1)
 
         #prehoming
         prehoming=[0,200,50,0,0,0]
@@ -2406,95 +2146,32 @@ def smalldoor4zizag(force,z,cps):
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 80  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation=orientation):
+            return generate_zigzag_with_orientation(
+                x_coords,
+                y_coords,
+                z_coords,
+                tool3x=38.1,
+                tool3y=50.8,
+                innerSandingOffset=80,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                xframe_1=0,
+                xframe_2=0,
+                orientation=orientation,
+            )
 
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                if xinner > 0:
-                    # Determine how many "columns" in the zigzag
-                    num_steps = math.ceil(xinner / innerSandingOffset)
-                    adjusted_step = xinner / num_steps
-
-                    offset = 0.0
-                    toggle = 0
-
-                    # Build zigzag path from left to right
-                    while offset <= xinner + 1e-9:  # small floating-point tolerance
-                        row_points = [
-                            [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                            [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                        # Reverse every other row to create a zigzag
-                        if toggle:
-                            row_points.reverse()
-
-                        zigzag_coords.extend(row_points)
-                        offset += adjusted_step
-                        toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
-
-        #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=1)
+        #Single Pocket Cycle
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=1,
+            orientation=orientation
+        )
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
-        #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=14)
-        print("zigzag_pathp2=",zigzag_pathp2)
-        print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force):
             # Vibration on
@@ -2508,7 +2185,6 @@ def smalldoor4zizag(force,z,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             # for point in points1:
@@ -2578,56 +2254,42 @@ def smalldoor4zizag(force,z,cps):
                     robot_id=0,
                     completion_timeout=timeout,
                 )
+            move_rectangle(cps, config, generate_rectangle_path(x_coords1, y_coords1, z_coords1, inner_offset=5.0))
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
         
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
-        # Get the current tcx (0-indexed)
-            current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
-            
-            # Get the current prepoint and zigzag path (1-indexed)
-            current_prepoint = eval(f"prepointp{i}")
-            current_zigzag = eval(f"zigzag_pathp{i}")
+        # Single vertical pass on one 7th-axis position
+        current_tcx = tcx0
+        current_prepoint = prepointp1
+        current_zigzag = zigzag_pathp1
 
-            # Original sequence with dynamic variables
-            communicate(
-                cps=cps, config=config, 
-                seventh=current_tcx, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                speed=0.7, wait=True
-            )
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=current_prepoint,  # Dynamic prepoint
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
-            # # turn_vibration_on(cps)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
-            # # turn_vibration_off(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=prehoming, 
-                tcp=config['coords']['tcptool1plane1'], 
-                ucs=config['coords']['ucsTable1'], 
-                seventh=-1, 
-                speed=0.7, wait=True
-            )
+        communicate(
+            cps=cps, config=config, 
+            seventh=current_tcx, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            speed=0.7, wait=True
+        )
+        communicate(
+            cps=cps, config=config, 
+            point=current_prepoint,  # Dynamic prepoint
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
+        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        communicate(
+            cps=cps, config=config, 
+            point=prehoming, 
+            tcp=config['coords']['tcptool1plane1'], 
+            ucs=config['coords']['ucsTable1'], 
+            seventh=-1, 
+            speed=0.7, wait=True
+        )
     
     ylen_data = get_y_values(4, default_on_error=True)
     ylen = ylen_data['ylen']
@@ -2639,9 +2301,9 @@ def smalldoor4zizag(force,z,cps):
         print("No door data available - skipping operations")
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
-            smalldoor4zizagbig(force,z,cps)
+            smalldoor4zizagbig(force,z,cps, orientation=orientation)
         else:
-            smalldoor4zizagsmall(force,z,cps)
+            smalldoor4zizagsmall(force,z,cps, orientation=orientation)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
