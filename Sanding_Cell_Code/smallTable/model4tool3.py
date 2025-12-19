@@ -1555,7 +1555,7 @@ def smalldoor4tool3(z,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config) 
 
-        def perform_process_top(cps, config, points1,force):
+        def perform_process_top(cps, config, points1):
             # Vibration on
             # turn_vibration_on(cps)
             

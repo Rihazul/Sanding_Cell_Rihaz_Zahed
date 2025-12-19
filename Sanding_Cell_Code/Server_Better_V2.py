@@ -3462,7 +3462,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Tool {toolNumber} Collection Successful!")
         communicate(cps=cps, point=config['point']['safePointTool'],tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
 
-def turn_vibration_on(cps, debug=True):
+def turn_vibration_on(cps, debug=False):
     """
     Turns the vibration on by setting nBit=4 to nVal=0.
     """
@@ -3478,7 +3478,7 @@ def turn_vibration_on(cps, debug=True):
     else:
         print(f"Error turning ON vibration. Error code: {nRet}")
 
-def turn_vibration_off(cps, debug=True):
+def turn_vibration_off(cps, debug=False):
     """
     Turns the vibration off by setting nBit=4 to nVal=1.
     """
