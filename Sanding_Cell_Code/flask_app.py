@@ -232,8 +232,20 @@ def start_TableA_process():
     
     tableData = data['TableA']
 
-    if 'model' not in tableData or tableData['model'] == 'None':
-        return jsonify({"error": "Invalid request, no JSON data found"}), 400
+    # Support both payload formats:
+    # 1) Legacy: TableA.model + task objects
+    # 2) Door-based: TableA.doors[] where each door can include model + task objects
+    selected_model = tableData.get('model')
+    if not selected_model or selected_model == 'None':
+        doors = tableData.get('doors')
+        if isinstance(doors, list) and doors:
+            # Infer the model from the first door that has one.
+            selected_model = next((d.get('model') for d in doors if isinstance(d, dict) and d.get('model')), None)
+            # If the frontend sends model keys like modelA/modelB..., use that.
+        if not selected_model or selected_model == 'None':
+            return jsonify({"error": "Invalid request, no model found for TableA"}), 400
+        # Make it available to any downstream code that still expects TableA.model
+        tableData['model'] = selected_model
     
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
@@ -644,6 +656,8 @@ def check_tool1_attachment_condition(cps):
         socketio.emit('blink_circle_button', {'shouldBlink': True})
     else:
         socketio.emit('blink_circle_button', {'shouldBlink': False})
+
+    return all_met
 ############################################################################################
 @app.route('/check_tool1_status', methods=['GET'])
 def check_tool1_status():
@@ -653,8 +667,8 @@ def check_tool1_status():
     By calling this route, we ensure the server checks the condition 
     and emits the blink_circle_button event if needed.
     """
-    check_tool1_attachment_condition(CPS)  # This will emit to the front end.
-    return jsonify({"status": "OK", "message": "Tool 1 attachment condition checked."})
+    should_blink = check_tool1_attachment_condition(CPS)  # Emits if any WS clients exist.
+    return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 
 ############################################################################################
 # For Tool 2 Status function
@@ -688,6 +702,8 @@ def check_tool2_attachment_condition(cps):
         socketio.emit('blink_circle_button2', {'shouldBlink': True})
     else:
         socketio.emit('blink_circle_button2', {'shouldBlink': False})
+
+    return all_met
 ############################################################################################
 @app.route('/check_tool2_status', methods=['GET'])
 def check_tool2_status():
@@ -696,8 +712,8 @@ def check_tool2_status():
     By calling this route, we check the lines for tool2 
     and emit a 'blink_circle_button2' event with True or False.
     """
-    check_tool2_attachment_condition(CPS)
-    return jsonify({"status": "OK", "message": "Tool 2 attachment condition checked."})
+    should_blink = check_tool2_attachment_condition(CPS)
+    return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 
 ############################################################################################
 def check_tool3_attachment_condition(cps):
@@ -730,6 +746,8 @@ def check_tool3_attachment_condition(cps):
         socketio.emit('blink_circle_button3', {'shouldBlink': True})
     else:
         socketio.emit('blink_circle_button3', {'shouldBlink': False})
+
+    return all_met
 ############################################################################################
 @app.route('/check_tool3_status', methods=['GET'])
 def check_tool3_status():
@@ -738,8 +756,8 @@ def check_tool3_status():
     By calling this route, we check the lines for tool3 
     and emit a 'blink_circle_button3' event with True or False.
     """
-    check_tool3_attachment_condition(CPS)
-    return jsonify({"status": "OK", "message": "Tool 3 attachment condition checked."})
+    should_blink = check_tool3_attachment_condition(CPS)
+    return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 ############################################################################################
 # Toggle the Table A/B Open/Close button text depending upon table current state.Improved by rafat and working
 @app.route('/toggle_state/<table_id>', methods=['GET'])

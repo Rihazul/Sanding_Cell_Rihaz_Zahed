@@ -19,6 +19,8 @@ from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepT
 from modules.CPS import CPSClient
 import time
 
+from cycle_data_utils import any_cycles, doors_with_cycles, get_spiral_settings, get_tableA_task_by_door
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -220,33 +222,27 @@ def sandingModelBTableA():
     
     json_config = load_json_config()
     json_config_TableA = json_config['TableA']
-    
-    side_cycles_doors = json_config_TableA['frame']['doors']
-    side_cycles = int(json_config_TableA['frame']['cycle'])
-    side_cycles_force = int(json_config_TableA['frame']['force'])
 
-    zig_zag_cycle_doors = json_config_TableA['pocketzigzag']['doors']
-    zig_zag_cycle = int(json_config_TableA['pocketzigzag']['cycle'])
-    zig_zag_cycle_force = int(json_config_TableA['pocketzigzag']['force'])
+    spiral_settings = get_spiral_settings(json_config)
 
-    pocket_cycle_doors = json_config_TableA['pocketsquare']['doors']
-    pocket_cycle = int(json_config_TableA['pocketsquare']['cycle'])
-    pocket_cycle_force = int(json_config_TableA['pocketsquare']['force'])
+    frame_by_door = get_tableA_task_by_door(json_config_TableA, 'frame')
+    zigzag_by_door = get_tableA_task_by_door(json_config_TableA, 'pocketzigzag')
+    pocket_by_door = get_tableA_task_by_door(json_config_TableA, 'pocketsquare')
+    tool2side_by_door = get_tableA_task_by_door(json_config_TableA, 'side')
+    tool2edge_by_door = get_tableA_task_by_door(json_config_TableA, 'edgeOutside')
+    tool3_by_door = get_tableA_task_by_door(json_config_TableA, '3D')
+
+    side_cycles_doors = doors_with_cycles(frame_by_door)
+    zig_zag_cycle_doors = doors_with_cycles(zigzag_by_door)
+    pocket_cycle_doors = doors_with_cycles(pocket_by_door)
 
     # zig_zag_cycle_doors = json_config_TableA['pocketzigzag']['doors']
     # zig_zag_cycle = int(json_config_TableA['pocketzigzag']['cycle'])
     # zig_zag_cycle_force = int(json_config_TableA['pocketzigzag']['force'])
 
-    tool2side_cycle_doors = json_config_TableA['side']['doors']
-    tool2side_cycle = int(json_config_TableA['side']['cycle'])
-    tool2side_cycle_force = int(json_config_TableA['side']['force'])
-
-    tool2sideedge_cycle_doors = json_config_TableA['edgeOutside']['doors']
-    tool2sideedge_cycle = int(json_config_TableA['edgeOutside']['cycle'])
-    tool2sideedge_cycle_force = int(json_config_TableA['edgeOutside']['force'])
-
-    tool3sideedge_door = json_config_TableA['3D']['doors']
-    tool3sideedge_cycle = int(json_config_TableA['3D']['cycle'])
+    tool2side_cycle_doors = doors_with_cycles(tool2side_by_door)
+    tool2sideedge_cycle_doors = doors_with_cycles(tool2edge_by_door)
+    tool3sideedge_door = doors_with_cycles(tool3_by_door)
 
     z, z1, z2 = 0, 0, -6
     #Speed
@@ -374,7 +370,7 @@ def sandingModelBTableA():
 
     """Main control function"""
     try:
-        if (is_door_available(side_cycles_doors) or is_door_available(zig_zag_cycle_doors) or is_door_available(pocket_cycle_doors)) and any(cycle > 0 for cycle in [side_cycles,zig_zag_cycle,pocket_cycle]):
+        if (is_door_available(side_cycles_doors) or is_door_available(zig_zag_cycle_doors) or is_door_available(pocket_cycle_doors)) and (any_cycles(frame_by_door) or any_cycles(zigzag_by_door) or any_cycles(pocket_by_door)):
             check_tool(cps=cps,config=config,tool_num=3,ci0=ci0,ci1=ci1,ci2=ci2)
 
             #Intitial Position
@@ -386,7 +382,8 @@ def sandingModelBTableA():
             
             for door_number in side_cycles_doors:
                 print("door_number received is :", door_number)
-                run_side_cycles(side_cycles,side_cycles_force,int(door_number),cps)
+                cfg = frame_by_door.get(int(door_number), {})
+                run_side_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
             
             # Run side cycles
             # run_side_cycles(side_cycles1,force_side_cycles1,door_number1)
@@ -395,7 +392,8 @@ def sandingModelBTableA():
             # run_side_cycles(side_cycles4,force_side_cycles4,door_number4)
             
             for door_number in zig_zag_cycle_doors:
-                run_zigzag_cycles(zig_zag_cycle, zig_zag_cycle_force, int(door_number), z,cps)
+                cfg = zigzag_by_door.get(int(door_number), {})
+                run_zigzag_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), z, cps)
 
             # Run Zigzag cycles
             # run_zigzag_cycles(zig_cycle1, force_zigzag1, zig_door1, z)
@@ -405,7 +403,8 @@ def sandingModelBTableA():
 
             #Run Pocket cycles
             for door_number in pocket_cycle_doors:
-                run_pocket_cycles(pocket_cycle, pocket_cycle_force, int(door_number), z1,cps)
+                cfg = pocket_by_door.get(int(door_number), {})
+                run_pocket_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), z1, cps)
 
             #Keep Tool 3
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
@@ -414,8 +413,7 @@ def sandingModelBTableA():
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             communicate(cps=cps ,config=config, seventh=0, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], speed=0.3, wait=True)
             #keepTool11(cps, toolNumber=3, config=config)
-            cycles = [tool2sideedge_cycle, tool2side_cycle, tool3sideedge_cycle]
-            if any(cycle > 0 for cycle in cycles):
+            if any_cycles(tool2edge_by_door) or any_cycles(tool2side_by_door) or any_cycles(tool3_by_door):
                 keepToolupdated(cps, toolNumber=3, config=config)
             else:
                 keepTool11(cps, toolNumber=3, config=config)
@@ -423,14 +421,12 @@ def sandingModelBTableA():
             
             print("\nAll operations completed for Tool1 successfully!")
         
-        if (is_door_available(tool2side_cycle_doors) or is_door_available(tool2sideedge_cycle_doors)) and any(cycle > 0 for cycle in [tool2sideedge_cycle, tool2side_cycle]):
+        if (is_door_available(tool2side_cycle_doors) or is_door_available(tool2sideedge_cycle_doors)) and (any_cycles(tool2edge_by_door) or any_cycles(tool2side_by_door)):
             check_tool(cps=cps,config=config,tool_num=2,ci0=ci0,ci1=ci1,ci2=ci2)
             #Pick Tool 2
             # getTool11(cps, toolNumber=2, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            cycles = [side_cycles,zig_zag_cycle,pocket_cycle]
-            
-            if any(cycle > 0 for cycle in cycles):
+            if any_cycles(frame_by_door) or any_cycles(zigzag_by_door) or any_cycles(pocket_by_door):
                 print("At least one cycle > 0 → running getToolUpdated()")
                 getToolUpdated(cps, toolNumber=2, config=config)
             else:
@@ -439,7 +435,8 @@ def sandingModelBTableA():
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             
             for door_number in tool2side_cycle_doors:
-                run_tool2side_cycles(tool2side_cycle,tool2side_cycle_force, int(door_number),cps)
+                cfg = tool2side_by_door.get(int(door_number), {})
+                run_tool2side_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
 
             #run_tool2side_cycles(tl2side_cycle1, tl2side_force1, tl2side_door1)
             #run_tool2side_cycles(tl2side_cycle2, tl2side_force2, tl2side_door2)
@@ -448,7 +445,8 @@ def sandingModelBTableA():
 
             #Tool2 Outside cycle
             for door_number in tool2sideedge_cycle_doors:
-                run_tool2side_edgecycles(tool2sideedge_cycle, tool2sideedge_cycle_force, int(door_number),cps)
+                cfg = tool2edge_by_door.get(int(door_number), {})
+                run_tool2side_edgecycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
 
             #Tool2 Outside Edge Cycle
             #run_tool2side_edgecycles(tl2sideedge_cycle1, tl2sideedge_force1, tl2sideedge_door1)
@@ -462,22 +460,19 @@ def sandingModelBTableA():
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)
-            cycles = [tool3sideedge_cycle]
-            if any(cycle > 0 for cycle in cycles):
+            if any_cycles(tool3_by_door):
                 keepToolupdated(cps, toolNumber=2, config=config)
             else:
                 keepTool11(cps, toolNumber=2, config=config)
                 communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
 
-        if is_door_available(tool3sideedge_door) and any(cycle > 0 for cycle in [tool3sideedge_cycle]):
+        if is_door_available(tool3sideedge_door) and any_cycles(tool3_by_door):
             check_tool(cps=cps,config=config,tool_num=1,ci0=ci0,ci1=ci1,ci2=ci2)
             #Pick Tool 3
             print("taking tool 1")
             # getTool11(cps, toolNumber=1, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            cycles = [tool2sideedge_cycle, tool2side_cycle, side_cycles, zig_zag_cycle, pocket_cycle]
-
-            if any(cycle > 0 for cycle in cycles):
+            if any_cycles(tool2edge_by_door) or any_cycles(tool2side_by_door) or any_cycles(frame_by_door) or any_cycles(zigzag_by_door) or any_cycles(pocket_by_door):
                 print("At least one cycle > 0 → running getToolUpdated()")
                 getToolUpdated(cps, toolNumber=1, config=config)
             else:
@@ -488,7 +483,8 @@ def sandingModelBTableA():
             # #Tool 3 3D Cycle
             # run_tool3_cycles(tool3_3dcycle,force_tool3_3d)  # <-- Fixed indentation
             for door_number in tool3sideedge_door:
-                run_tool3_cycles(tool3sideedge_cycle, int(door_number), z2,cps)
+                cfg = tool3_by_door.get(int(door_number), {})
+                run_tool3_cycles(int(cfg.get('cycle', 0)), int(door_number), z2, cps)
 
             #Drop Tool 2
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)

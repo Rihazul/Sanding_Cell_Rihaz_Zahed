@@ -34,6 +34,12 @@ interface CompactTableConfigProps {
   robotSpeed: number[];
   sandingSpeed: number[];
   inverseOverlapping: number[];
+  spiralSettings?: {
+    enabled: boolean;
+    speedPercent: number;
+    radiusMm: number;
+    linearSpeedMmS: number;
+  };
   doorConfigs?: DoorConfig[];
   setDoorConfigs?: React.Dispatch<React.SetStateAction<DoorConfig[]>>;
 }
@@ -51,6 +57,7 @@ export function CompactTableConfig({
   robotSpeed,
   sandingSpeed,
   inverseOverlapping,
+  spiralSettings,
   doorConfigs,
   setDoorConfigs,
 }: CompactTableConfigProps) {
@@ -122,6 +129,7 @@ export function CompactTableConfig({
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: inverseOverlapping[0],
+          spiralSettings,
         };
         
         // Send all door configurations to the backend
@@ -151,13 +159,20 @@ export function CompactTableConfig({
         const taskData = {
           model,
           frame: { cycle: rows[0].cycle, force: rows[0].force },
-          pocketzigzag: { cycle: rows[1].cycle, force: rows[1].force },
+          pocketzigzag: {
+            cycle: rows[1].cycle,
+            force: rows[1].force,
+            verticalSpiral: !!rows[1].verticalSpiral,
+            horizontalSpiral: !!rows[1].horizontalSpiral,
+            edgeCoverage: !!rows[1].edgeCoverage,
+          },
           '3D': { cycle: rows[2].cycle, force: rows[2].force },
           edgeOutside: { cycle: rows[3].cycle, force: rows[3].force },
           side: { cycle: rows[4].cycle, force: rows[4].force },
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: inverseOverlapping[0],
+          spiralSettings,
         };
         
         const result = await startTableBProcess(taskData);

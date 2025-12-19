@@ -1,4 +1,4 @@
- import React, { useState } from 'react';
+ import React, { useEffect, useState } from 'react';
 import { DashboardHeader } from './dashboard/DashboardHeader';
 import { StatusBanner } from './dashboard/StatusBanner';
 import { RobotControlPanel } from './dashboard/RobotControlPanel';
@@ -8,6 +8,7 @@ import { SlidingPanel } from './dashboard/SlidingPanel';
 import { CompactTableConfig, type RowConfig, type DoorConfig } from './dashboard/CompactTableConfig';
 import { Button } from './ui/button';
 import { Settings } from 'lucide-react';
+import { getModalData } from '../services/api';
 
 interface DashboardProps {
   onNavigateToAnalytics: () => void;
@@ -36,6 +37,28 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [t2Picked, setT2Picked] = useState(false);
   const [t3Picked, setT3Picked] = useState(false);
   const [t4Picked, setT4Picked] = useState(false);
+
+  // Initialize basic settings from backend (if available)
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await getModalData();
+        const backendRobotSpeed = data?.tableA?.UI?.robotSpeed;
+        if (!cancelled && typeof backendRobotSpeed === 'number' && Number.isFinite(backendRobotSpeed)) {
+          // backend stores 0.90, UI uses percentage slider
+          setRobotSpeed([Math.round(backendRobotSpeed * 100)]);
+        }
+      } catch {
+        // Non-blocking: dashboard should still work without modal data
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Sliding panel view state
   const [currentPanelView, setCurrentPanelView] = useState<'robot-control' | 'table-a' | 'table-b'>('robot-control');
@@ -145,6 +168,12 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 robotSpeed={robotSpeed}
                 sandingSpeed={sandingSpeed}
                 inverseOverlapping={inverseOverlapping}
+                spiralSettings={{
+                  enabled: isSpiralSettingsEnabled(),
+                  speedPercent: spiralSpeed[0],
+                  radiusMm: spiralRadius[0],
+                  linearSpeedMmS: spiralLinearSpeed[0],
+                }}
                 doorConfigs={doorConfigs}
                 setDoorConfigs={setDoorConfigs}
               />
@@ -163,6 +192,12 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 robotSpeed={robotSpeed}
                 sandingSpeed={sandingSpeed}
                 inverseOverlapping={inverseOverlapping}
+                spiralSettings={{
+                  enabled: isSpiralSettingsEnabled(),
+                  speedPercent: spiralSpeed[0],
+                  radiusMm: spiralRadius[0],
+                  linearSpeedMmS: spiralLinearSpeed[0],
+                }}
               />
             </SlidingPanel>
             

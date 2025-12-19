@@ -34,6 +34,11 @@ export async function triggerRobotProcess(message: string) {
   return apiCall('/trigger', 'POST', { message });
 }
 
+// Get saved modal/config data (used by backend to combine settings)
+export async function getModalData() {
+  return apiCall('/get_modal_data', 'GET');
+}
+
 // Save modal data for Table A
 export async function saveModalData(tableAData: {
   frameSandCount: number;
@@ -58,8 +63,19 @@ export interface DoorConfig {
     selection: string;
     force: number;
     cycle: number;
+    // Pocket ZigZag specific options
+    verticalSpiral?: boolean;
+    horizontalSpiral?: boolean;
+    edgeCoverage?: boolean;
   }[];
 }
+
+export type SpiralSettingsPayload = {
+  enabled?: boolean;
+  speedPercent: number;
+  radiusMm: number;
+  linearSpeedMmS: number;
+};
 
 // Start Table A process with door configurations
 export async function startTableAProcess(data: {
@@ -67,15 +83,27 @@ export async function startTableAProcess(data: {
   robotSpeed: string;
   sandingSpeed: string;
   inverseOverlapping: number;
+  spiralSettings?: SpiralSettingsPayload;
 }) {
+  const inferredModel =
+    data.doorConfigs.find(d => d.model && d.model !== '')?.model || '';
+
   // Build the payload matching the Flask backend format
   const payload = {
     TableA: {
+      // Keep legacy compatibility: backend expects TableA.model
+      model: inferredModel,
       doors: data.doorConfigs.map(door => ({
         doorNumber: door.doorNumber,
         model: door.model,
         frame: { cycle: door.rows[0]?.cycle || 0, force: door.rows[0]?.force || 0 },
-        pocketzigzag: { cycle: door.rows[1]?.cycle || 0, force: door.rows[1]?.force || 0 },
+        pocketzigzag: {
+          cycle: door.rows[1]?.cycle || 0,
+          force: door.rows[1]?.force || 0,
+          verticalSpiral: !!door.rows[1]?.verticalSpiral,
+          horizontalSpiral: !!door.rows[1]?.horizontalSpiral,
+          edgeCoverage: !!door.rows[1]?.edgeCoverage,
+        },
         '3D': { cycle: door.rows[2]?.cycle || 0, force: door.rows[2]?.force || 0 },
         edgeOutside: { cycle: door.rows[3]?.cycle || 0, force: door.rows[3]?.force || 0 },
         side: { cycle: door.rows[4]?.cycle || 0, force: door.rows[4]?.force || 0 },
@@ -83,7 +111,8 @@ export async function startTableAProcess(data: {
     },
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,
-    inverseOverlapping: data.inverseOverlapping
+    inverseOverlapping: data.inverseOverlapping,
+    spiralSettings: data.spiralSettings,
   };
   
   return apiCall('/start_TableA_process', 'POST', payload);
@@ -93,7 +122,14 @@ export async function startTableAProcess(data: {
 export async function startTableAProcessLegacy(data: {
   model: string;
   frame: { cycle: number; force: number; doors?: number[] };
-  pocketzigzag: { cycle: number; force: number; doors?: number[] };
+  pocketzigzag: {
+    cycle: number;
+    force: number;
+    doors?: number[];
+    verticalSpiral?: boolean;
+    horizontalSpiral?: boolean;
+    edgeCoverage?: boolean;
+  };
   pocketsquare?: { cycle: number; force: number; doors?: number[] };
   '3D': { cycle: number; force: number; doors?: number[] };
   edgeInside?: { cycle: number; force: number; doors?: number[] };
@@ -102,6 +138,7 @@ export async function startTableAProcessLegacy(data: {
   robotSpeed?: string;
   sandingSpeed?: string;
   inverseOverlapping?: number;
+  spiralSettings?: SpiralSettingsPayload;
 }) {
   const payload = {
     TableA: {
@@ -116,7 +153,8 @@ export async function startTableAProcessLegacy(data: {
     },
     robotSpeed: data.robotSpeed || '1.00',
     sandingSpeed: data.sandingSpeed || '0.50',
-    inverseOverlapping: data.inverseOverlapping || 50
+    inverseOverlapping: data.inverseOverlapping || 50,
+    spiralSettings: data.spiralSettings,
   };
   
   return apiCall('/start_TableA_process', 'POST', payload);
@@ -126,7 +164,13 @@ export async function startTableAProcessLegacy(data: {
 export async function startTableBProcess(data: {
   model: string;
   frame: { cycle: number; force: number };
-  pocketzigzag: { cycle: number; force: number };
+  pocketzigzag: {
+    cycle: number;
+    force: number;
+    verticalSpiral?: boolean;
+    horizontalSpiral?: boolean;
+    edgeCoverage?: boolean;
+  };
   pocketsquare?: { cycle: number; force: number };
   '3D': { cycle: number; force: number };
   edgeInside?: { cycle: number; force: number };
@@ -135,6 +179,7 @@ export async function startTableBProcess(data: {
   robotSpeed: string;
   sandingSpeed: string;
   inverseOverlapping: number;
+  spiralSettings?: SpiralSettingsPayload;
 }) {
   return apiCall('/start_TableB_process', 'POST', { 
     TableB: {
@@ -149,7 +194,8 @@ export async function startTableBProcess(data: {
     },
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,
-    inverseOverlapping: data.inverseOverlapping
+    inverseOverlapping: data.inverseOverlapping,
+    spiralSettings: data.spiralSettings,
   });
 }
 
@@ -199,10 +245,20 @@ export async function getTableState(tableId: 'tableAOpenClose' | 'tableBOpenClos
   return apiCall(`/get_state/${tableId}`, 'GET');
 }
 
+// Tool attachment status checks (returns shouldBlink boolean)
+export async function checkToolStatus(toolNumber: 1 | 2 | 3) {
+  const endpoint =
+    toolNumber === 1 ? '/check_tool1_status' :
+    toolNumber === 2 ? '/check_tool2_status' :
+    '/check_tool3_status';
+  return apiCall(endpoint, 'GET');
+}
+
 // Export all API functions
 export const api = {
   triggerRobotProcess,
   saveModalData,
+  getModalData,
   startTableAProcess,
   startTableAProcessLegacy,
   startTableBProcess,
@@ -211,4 +267,5 @@ export const api = {
   performAction,
   toggleTableState,
   getTableState,
+  checkToolStatus,
 };
