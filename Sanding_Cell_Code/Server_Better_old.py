@@ -247,7 +247,7 @@ def handle_client(config, homingState=False, startSanding=True):
         app_name = 'MT_Kinco'
 
         if(config['settings']['debug']): print("go back to safe posture")
-        #### check if it is behind the 0 line or not, if yes, then only do safePointTool
+        #### check if it is behind the 0 line or not, if yes, then only do safePointTool 
         result = [ ] # Read the current actual location information 
         nRet = cps.HRIF_ReadActPos(0,0, result) # Read the joint position variable 
         dX = float(result[6])

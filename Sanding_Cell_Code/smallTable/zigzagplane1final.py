@@ -213,10 +213,24 @@ def move_rectangle(cps, config, rect_points):
     if not rect_points:
         return
     rect_offset = 50.0
-    shifted = [
-        [pt[0] + rect_offset, pt[1] + rect_offset, pt[2], pt[3], pt[4], pt[5]]
-        for pt in rect_points
-    ]
+    xs = [pt[0] for pt in rect_points]
+    ys = [pt[1] for pt in rect_points]
+    cx = sum(xs) / len(xs)
+    cy = sum(ys) / len(ys)
+
+    shifted = []
+    for pt in rect_points:
+        sx = 1 if pt[0] >= cx else -1
+        sy = 1 if pt[1] >= cy else -1
+        shifted.append([
+            pt[0] + sx * rect_offset,
+            pt[1] + sy * rect_offset,
+            pt[2],
+            pt[3],
+            pt[4],
+            pt[5],
+        ])
+
     lift = 30.0
     first = shifted[0]
     # Move up, translate to start at safe height, then come down to workplane.

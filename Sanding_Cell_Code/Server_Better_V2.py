@@ -2516,7 +2516,7 @@ def handle_client(config, homingState=False, startSanding=True, scan = False):
                 ymeasurements = csv_to_dict_list(f'./static/ym{xcnt}.csv')
 
             ###############################
-            ####### point calcu y     #####
+            ####### point calcu y    #
             ###############################
             msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Calculating the Points for All Doors...⚙️")
 
