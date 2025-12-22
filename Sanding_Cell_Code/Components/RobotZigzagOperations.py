@@ -119,14 +119,14 @@ class RobotZigzagUserSettingManager(IRobotOperation):
         super().__init__("UserSettingManager")
 
         self.regular_setting = {
-            overlap: 0.2,
-            speed: 200,
+            "overlap": 0.2,
+            "speed": 200,
         }
 
         self.spiral_setting = {
-            radius: 5,
-            max_points: 5000,
-            turns: 10,
+            "radius": 5,
+            "max_points": 5000,
+            "turns": 10,
         }
 
         # Straight Movement or Spiral
