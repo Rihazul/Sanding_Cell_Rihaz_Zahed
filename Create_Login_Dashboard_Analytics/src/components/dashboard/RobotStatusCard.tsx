@@ -53,12 +53,14 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
     }
   };
 
-  const handleStop = (robotEnabled: boolean) => {
-    if (!robotEnabled) {
-      addActivity('Cannot activate emergency stop - Robot power is disabled', 'error');
-      return;
+  const handleStop = async () => {
+    addActivity('Sending stop to robot...', 'warning');
+    try {
+      await performAction('stop');
+      addActivity('Emergency stop activated!', 'error');
+    } catch (error) {
+      addActivity(`Failed to send stop: ${error}`, 'error');
     }
-    addActivity('Emergency stop activated!', 'error');
   };
 
   const getMessageColor = (type: ActivityMessage['type']) => {
@@ -93,7 +95,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
           <motion.button 
             type="button"
             whileTap={{ scale: 0.95 }} 
-            onClick={(e) => { e.preventDefault(); handleStop(robotEnabled); }}
+            onClick={(e) => { e.preventDefault(); handleStop(); }}
             className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg"
           >
             Stop

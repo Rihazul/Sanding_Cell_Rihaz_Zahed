@@ -21,9 +21,9 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [robotSpeed, setRobotSpeed] = useState([100]);
   const [inverseOverlapping, setInverseOverlapping] = useState([50]);
   const [sandingSpeed, setSandingSpeed] = useState([75]);
-  const [spiralSpeed, setSpiralSpeed] = useState([50]);
-  const [spiralRadius, setSpiralRadius] = useState([10]);
-  const [spiralLinearSpeed, setSpiralLinearSpeed] = useState([25]);
+  const [spiralSpeed, setSpiralSpeed] = useState([150]); // mm/s
+  const [spiralRadius, setSpiralRadius] = useState([12]); // mm
+  const [spiralLinearSpeed, setSpiralLinearSpeed] = useState([150]); // mm/s
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
   const [isOperating, setIsOperating] = useState(false);

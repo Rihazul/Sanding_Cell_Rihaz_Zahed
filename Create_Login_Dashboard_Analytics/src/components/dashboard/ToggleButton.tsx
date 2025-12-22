@@ -8,6 +8,7 @@ interface ToggleButtonProps {
   activeLabel: string;
   inactiveLabel: string;
   disabled?: boolean;
+  showCheckmarkPosition?: 'left' | 'right';
 }
 
 export function ToggleButton({
@@ -17,6 +18,7 @@ export function ToggleButton({
   activeLabel,
   inactiveLabel,
   disabled = false,
+  showCheckmarkPosition = 'left',
 }: ToggleButtonProps) {
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -41,11 +43,20 @@ export function ToggleButton({
     >
       <div className="flex items-center justify-between">
         <span className="font-medium">{label}</span>
-        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${isActive ? 'bg-white/20' : 'bg-gray-300'}`}>
-          <motion.div animate={{ rotate: isActive ? 180 : 0 }} transition={{ duration: 0.3 }}>
-            {isActive ? '✓' : '○'}
-          </motion.div>
-          <span className="text-xs min-w-[80px] inline-block text-center">{isActive ? activeLabel : inactiveLabel}</span>
+        <div
+          className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+            isActive ? 'bg-white/20' : 'bg-gray-300'
+          }`}
+        >
+          {showCheckmarkPosition === 'left' && (
+            <span className="font-bold text-lg leading-none">{isActive ? '✓' : '✗'}</span>
+          )}
+          <span className="text-xs min-w-[80px] inline-block text-center">
+            {isActive ? activeLabel : inactiveLabel}
+          </span>
+          {showCheckmarkPosition === 'right' && (
+            <span className="font-bold text-lg leading-none">{isActive ? '✓' : '✗'}</span>
+          )}
         </div>
       </div>
     </motion.button>

@@ -64,7 +64,8 @@ export function CompactTableConfig({
   console.log('CompactTableConfig rendering:', tableName, 'rows:', rows.length, 'addActivity:', !!addActivity);
   
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
-  const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
+  // Temporarily bypass scan requirement so tasks can run without it
+  const [scanCompleted, setScanCompleted] = React.useState<boolean>(true);
   const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
     Frame: [],
     'Pocket ZigZag': [],
@@ -89,17 +90,9 @@ export function CompactTableConfig({
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
     setIsOperating(true);
-    addActivity(`Table ${tableName}: Starting scan operation...`, 'info');
-    
-    try {
-      await performAction('scan');
-      addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
-      setScanCompleted(true);
-    } catch (error) {
-      addActivity(`Table ${tableName}: Scan failed - ${error}`, 'error');
-    } finally {
-      setIsOperating(false);
-    }
+    addActivity(`Table ${tableName}: Scan bypassed (temporary)`, 'info');
+    setScanCompleted(true);
+    setIsOperating(false);
   };
   
   const handleStartTask = async () => {
@@ -642,14 +635,14 @@ export function CompactTableConfig({
               <>
                 <Button 
                   onClick={handleStartScan} 
-                  disabled={isOperating || scanCompleted}
-                  className="bg-pink-500 hover:bg-pink-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={true}
+                  className="bg-gray-300 text-gray-600 cursor-not-allowed"
                 >
-                  {scanCompleted ? 'Scan Completed' : isOperating ? 'Operating...' : 'Start Scan'}
+                  {'Scan Temporarily Disabled'}
                 </Button>
                 <Button 
                   onClick={handleStartTask} 
-                  disabled={isOperating || !scanCompleted}
+                  disabled={isOperating}
                   className="bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isOperating ? 'Operating...' : 'Start Task'}

@@ -33,6 +33,14 @@ export function SettingsPanel({
   setSpiralLinearSpeed,
   spiralSettingsEnabled,
 }: SettingsPanelProps) {
+  const mapSpeedToTurns = (speed: number) => {
+    const clamped = Math.min(300, Math.max(100, speed));
+    const turns = 20 - (clamped - 100) * (10 / 200);
+    return Math.round(Math.min(20, Math.max(10, turns)));
+  };
+
+  const derivedTurns = mapSpeedToTurns(spiralLinearSpeed[0]);
+
   return (
     <Card className="shadow-lg border-0">
       <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50">
@@ -84,9 +92,9 @@ export function SettingsPanel({
           <div className="mb-4">
             <div className="flex justify-between mb-2">
               <label className="text-sm">Spiral Speed</label>
-              <span className="text-sm text-gray-600">{spiralSpeed[0]}%</span>
+              <span className="text-sm text-gray-600">{spiralSpeed[0]} mm/s</span>
             </div>
-            <Slider value={spiralSpeed} onValueChange={setSpiralSpeed} min={0} max={100} step={1} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-violet-500" />
+            <Slider value={spiralSpeed} onValueChange={setSpiralSpeed} min={100} max={300} step={5} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-violet-500" />
           </div>
 
           {/* Radius Size */}
@@ -95,16 +103,16 @@ export function SettingsPanel({
               <label className="text-sm">Radius Size</label>
               <span className="text-sm text-gray-600">{spiralRadius[0]} mm</span>
             </div>
-            <Slider value={spiralRadius} onValueChange={setSpiralRadius} min={1} max={50} step={1} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-indigo-500" />
+            <Slider value={spiralRadius} onValueChange={setSpiralRadius} min={10} max={15} step={1} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-indigo-500" />
           </div>
 
           {/* Linear Speed */}
           <div>
             <div className="flex justify-between mb-2">
               <label className="text-sm">Linear Speed</label>
-              <span className="text-sm text-gray-600">{spiralLinearSpeed[0]} mm/s</span>
+              <span className="text-sm text-gray-600">{spiralLinearSpeed[0]} mm/s (turns: {derivedTurns})</span>
             </div>
-            <Slider value={spiralLinearSpeed} onValueChange={setSpiralLinearSpeed} min={1} max={100} step={1} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-cyan-500" />
+            <Slider value={spiralLinearSpeed} onValueChange={setSpiralLinearSpeed} min={100} max={300} step={5} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-cyan-500" />
           </div>
         </div>
       </CardContent>
