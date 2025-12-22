@@ -82,7 +82,8 @@ class RobotInteractions:
         self.config["logger"] = self.logger
 
         self.cps = cps_client or CPSClient()
-        self.initialize_comms()
+        if cps_client is None:
+            self.initialize_comms()
 
     def initialize_comms(self) -> bool:
         """Establish connection to the robot controller."""

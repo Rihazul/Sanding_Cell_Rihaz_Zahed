@@ -4618,6 +4618,20 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
         homingFunction(cps=cps, config=config)
     if scan:
         scan_results = scan_table(cps=cps, config=config)
+        try:
+            from Components.RobotZigzagOperations import RobotZigzagPathPlanning
+
+            path_planner = RobotZigzagPathPlanning(
+                config=config, cps_client=cps
+            )
+            path_planner.invoke()
+        except Exception as exc:
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].warning(
+                    f"[PathPlanning] Failed to preempt zigzag paths: {exc}"
+                )
+            else:
+                print(f"[PathPlanning] Failed to preempt zigzag paths: {exc}")
     if startSanding:
         (
             own7thpos,
