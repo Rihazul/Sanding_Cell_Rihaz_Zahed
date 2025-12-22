@@ -40,15 +40,46 @@ class SpiralSettings:
     speed_percent: int
     radius_mm: float
     linear_speed_mm_s: float
+    turns: int
+    orientation: str
+    movement: str
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, value))
+
+
+def _map_linear_speed_to_turns(linear_speed_mm_s: float) -> int:
+    """
+    Map linear speed (100–300 mm/s) to turns (20 down to 10).
+    Higher speed => fewer turns.
+    """
+    speed = _clamp(linear_speed_mm_s, 100.0, 300.0)
+    # 100 -> 20, 300 -> 10 (linear interpolation)
+    turns = 20 - (speed - 100.0) * (10.0 / 200.0)
+    return int(round(_clamp(turns, 10.0, 20.0)))
 
 
 def get_spiral_settings(cycle_data: Mapping[str, Any]) -> SpiralSettings:
     cfg = cycle_data.get("spiralSettings") or {}
+    radius_mm = _clamp(_to_float(cfg.get("radiusMm"), 12.0), 10.0, 15.0)
+    linear_speed_mm_s = _clamp(_to_float(cfg.get("linearSpeedMmS"), 150.0), 100.0, 300.0)
+    turns = _to_int(cfg.get("turns"), _map_linear_speed_to_turns(linear_speed_mm_s))
+    turns = _clamp(float(turns), 10.0, 20.0)
+    orientation = str(cfg.get("orientation") or "vertical").lower()
+    movement = str(cfg.get("movement") or "zigzag").lower()
+    if movement not in {"zigzag", "rect"}:
+        movement = "zigzag"
+    if orientation not in {"vertical", "horizontal"}:
+        orientation = "vertical"
     return SpiralSettings(
         enabled=_to_bool(cfg.get("enabled"), False),
         speed_percent=max(0, min(100, _to_int(cfg.get("speedPercent"), 100))),
-        radius_mm=_to_float(cfg.get("radiusMm"), 0.0),
-        linear_speed_mm_s=_to_float(cfg.get("linearSpeedMmS"), 0.0),
+        radius_mm=radius_mm,
+        linear_speed_mm_s=linear_speed_mm_s,
+        turns=int(turns),
+        orientation=orientation,
+        movement=movement,
     )
 
 
@@ -86,8 +117,9 @@ def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dic
             if door_num <= 0:
                 continue
             tasks = door_entry.get("tasks")
+            # Some payloads embed tasks directly on the door entry (no "tasks" wrapper)
             if not isinstance(tasks, Mapping):
-                continue
+                tasks = door_entry if isinstance(door_entry, Mapping) else {}
             task_cfg = tasks.get(task_key)
             if not isinstance(task_cfg, Mapping):
                 continue

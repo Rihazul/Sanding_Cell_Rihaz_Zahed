@@ -5219,7 +5219,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
     )
 
 
-def turn_vibration_on(cps, debug=True):
+def turn_vibration_on(cps, debug=False):
     """
     Turns the vibration on by setting nBit=4 to nVal=0.
     """
@@ -5236,7 +5236,7 @@ def turn_vibration_on(cps, debug=True):
         print(f"Error turning ON vibration. Error code: {nRet}")
 
 
-def turn_vibration_off(cps, debug=True):
+def turn_vibration_off(cps, debug=False):
     """
     Turns the vibration off by setting nBit=4 to nVal=1.
     """

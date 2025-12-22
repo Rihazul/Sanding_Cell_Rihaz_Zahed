@@ -1,10 +1,16 @@
 """Simple pipeline runner that sequences robot stages using a shared CPS client."""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Protocol
-from Interfaces import IOperation
-from RobotInteractions import RobotInteractions
+from typing import Protocol
+
+from Components.Interfaces import IRobotOperation
+from Components.RobotInteractions import RobotInteractions
 from modules.CPS import CPSClient
+
+
+class Stage(Protocol):
+    def run(self) -> None:
+        ...
 
 
 class RobotPipeline(IRobotOperation):

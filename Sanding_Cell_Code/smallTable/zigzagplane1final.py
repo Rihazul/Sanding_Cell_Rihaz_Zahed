@@ -52,12 +52,41 @@ def compute_timeout(
 
 
 
+DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
+DEFAULT_SPIRAL_RADIUS = 12.0
+
+
+def _clamp(value: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, value))
+
+
+def _linear_speed_to_turns(speed_mm_s: float) -> int:
+    """Map 100–300 mm/s to 20–10 turns (faster speed -> fewer turns)."""
+    speed = _clamp(speed_mm_s, 100.0, 300.0)
+    turns = 20.0 - (speed - 100.0) * (10.0 / 200.0)
+    return int(round(_clamp(turns, 10.0, 20.0)))
+
+
+def apply_spiral_settings(settings: Optional[dict]) -> None:
+    """Apply incoming spiral settings to defaults used during spiral generation."""
+    global DEFAULT_SPIRAL_LINEAR_SPEED, DEFAULT_SPIRAL_RADIUS
+    if not settings:
+        return
+    # Handle dataclass or plain dict
+    radius_val = getattr(settings, "radius_mm", None) if not isinstance(settings, dict) else settings.get("radius_mm")
+    linear_val = getattr(settings, "linear_speed_mm_s", None) if not isinstance(settings, dict) else settings.get("linear_speed_mm_s")
+    DEFAULT_SPIRAL_LINEAR_SPEED = _clamp(float(linear_val if linear_val is not None else DEFAULT_SPIRAL_LINEAR_SPEED), 100.0, 300.0)
+    DEFAULT_SPIRAL_RADIUS = _clamp(float(radius_val if radius_val is not None else DEFAULT_SPIRAL_RADIUS), 10.0, 15.0)
+
+
 def generate_spiral_between_points(
     start_pose,
     end_pose,
-    turns: int = 22,
-    radius: float = 12.0,
-    angle_step_deg: float = 45.0,
+    turns: Optional[int] = None,
+    radius: Optional[float] = None,
+    angle_step_deg: float = 120.0,
+    max_points: Optional[int] = 80,
+    orientation: str = "horizontal",
 ):
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
@@ -66,10 +95,21 @@ def generate_spiral_between_points(
     """
     x0, y0, z0, rx, ry, rz = start_pose[:6]
     x1, y1, _, _, _, _ = end_pose[:6]
-    if y0 == y1:
+    if radius is None:
+        radius = DEFAULT_SPIRAL_RADIUS
+    if y0 == y1 and orientation == "vertical":
+        turns = 3
+    if x0 == x1 and orientation == "horizontal":
         turns = 3
 
+    # Always map speed -> turns so higher speed yields fewer turns
+    turns = _linear_speed_to_turns(DEFAULT_SPIRAL_LINEAR_SPEED)
+
     total_steps = int(turns * (360.0 / angle_step_deg))
+    if max_points is not None:
+        total_steps = max(1, min(total_steps, int(max_points)))
+    else:
+        total_steps = max(1, total_steps)
     points = list(start_pose[:6])  # start point
 
     for step in range(1, total_steps + 1):
@@ -94,9 +134,10 @@ def run_spiral_between_points(
     start_pose,
     end_pose,
     *,
-    turns: int = 30,
-    radius: float = 12.0,
-    angle_step_deg: float = 10.0,
+    turns: Optional[int] = None,
+    radius: Optional[float] = None,
+    angle_step_deg: float = 120.0,
+    max_points: Optional[int] = 80,
     tcp: str = None,
     ucs: str = None,
     track_name: str = None,
@@ -106,6 +147,7 @@ def run_spiral_between_points(
     box_id: int = 0,
     robot_id: int = 0,
     init_path: bool = True,
+    orientation: str = "horizontal",
 ):
     """Push a spiral MovePathL between two poses.
 
@@ -123,8 +165,10 @@ def run_spiral_between_points(
         start_pose=start_pose,
         end_pose=end_pose,
         turns=turns,
-        radius=radius,
+        radius=DEFAULT_SPIRAL_RADIUS if radius is None else radius,
         angle_step_deg=angle_step_deg,
+        max_points=max_points,
+        orientation=orientation,
     )
 
     if len(all_points) % 6 != 0:
@@ -241,7 +285,8 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag"):
+def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", spiral_settings=None):
+    apply_spiral_settings(spiral_settings)
     
     def smalldoor1zizagsmall(force,z,cps):
         
@@ -503,14 +548,15 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag"):
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=10,
+                    turns=6,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=90.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
                     jerk=10000.0,
                     init_path=not path_initialized,
+                    orientation=orientation,
                 )
                 if not success:
                     push_failed = True
@@ -588,7 +634,8 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag"):
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag"):
+def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", spiral_settings=None):
+    apply_spiral_settings(spiral_settings)
     
     def smalldoor2zizagsmall(force,z,cps):
         
@@ -846,14 +893,15 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag"):
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=10,
+                    turns=6,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=90.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
                     jerk=10000.0,
                     init_path=not path_initialized,
+                    orientation=orientation,
                 )
                 if not success:
                     push_failed = True
@@ -933,7 +981,8 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag"):
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
     
-def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag"):
+def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spiral_settings=None):
+    apply_spiral_settings(spiral_settings)
     
     def smalldoor3zizagsmall(force,z,cps):
         
@@ -1191,14 +1240,15 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag"):
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=10,
+                    turns=6,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=90.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
                     jerk=10000.0,
                     init_path=not path_initialized,
+                    orientation=orientation,
                 )
                 if not success:
                     push_failed = True
@@ -1277,7 +1327,8 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag"):
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag"):
+def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spiral_settings=None):
+    apply_spiral_settings(spiral_settings)
     
     def smalldoor4zizagsmall(force,z,cps):
         
@@ -1535,14 +1586,15 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag"):
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=10,
+                    turns=6,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=90.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
                     jerk=10000.0,
                     init_path=not path_initialized,
+                    orientation=orientation,
                 )
                 if not success:
                     push_failed = True

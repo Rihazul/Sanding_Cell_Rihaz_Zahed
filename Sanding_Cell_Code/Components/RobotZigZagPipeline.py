@@ -1,4 +1,8 @@
-from RobotPipeline import RobotPipeline
+from __future__ import annotations
+
+from typing import Optional
+
+from Components.RobotPipeline import RobotPipeline
 
 
 class RobotZigZagPipeline(RobotPipeline):
@@ -6,8 +10,8 @@ class RobotZigZagPipeline(RobotPipeline):
         self,
         name: str,
         *,
-        config: dict | None = None,
-        cps_client: "CPSClient" | None = None,
+        config: Optional[dict] = None,
+        cps_client: "CPSClient" = None,
     ):
         """
         Initialize the ZigZag pipeline with a name, optional config, and CPS client.

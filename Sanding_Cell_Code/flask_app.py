@@ -120,6 +120,17 @@ velocity = 0.1
 modal_data_store = {}
 process_state = {'status': 'completed'}  # Can be 'in_progress' or 'completed'
 
+
+def _track_process(proc: Process) -> None:
+    """Background watcher to clear state when a spawned process finishes."""
+    try:
+        proc.join()
+    finally:
+        global client_process
+        process_state['status'] = 'completed'
+        client_process = None
+        socketio.emit('flash_message', {"message": "Process finished"})
+
 ############################################################################################
 # Home route to render the frontend interface. Add more routes if necessary!
 @app.route('/')
@@ -202,15 +213,15 @@ def start_TableB_process():
     print("stopper Test")
 
     client_process = Process(target=modelMethodmap[tableData['model']], args=())
+    process_state['status'] = 'in_progress'
     client_process.start()
-    client_process.join()
-    # client_process.terminate()
+    Thread(target=_track_process, args=(client_process,), daemon=True).start()
     
     # startingRobotToSand()
     return jsonify({
         'success': True,
         'process' : "started",
-        "status": "Process is successful"
+        "status": "Process started"
     })
 
 ############################################################################################
@@ -255,16 +266,14 @@ def start_TableA_process():
     stopper_statusmod(CPS, state="up")
 
     client_process = Process(target=modelMethodMapTableA[tableData['model']], args=())
-    print(client_process.pid)
+    process_state['status'] = 'in_progress'
     client_process.start()
-    client_process.join()
-    client_process.terminate()
+    Thread(target=_track_process, args=(client_process,), daemon=True).start()
     
-    # startingRobotToSand()
     return jsonify({
         'success': True,
         'process' : "started",
-        "status": "Process is completed"
+        "status": "Process started"
     })
     
 
@@ -346,11 +355,14 @@ def fetch_and_combine_data():
 ############################################################################################
 # Stops the handle_client process threads if stop button is pressed!
 
+@app.route("/stop", methods=["POST"])
 def stop_process():
     if client_process and client_process.is_alive():
         client_process.terminate()  # Immediately terminate the process
         # client_process.join()  # Wait for the process to finish
         print("Client process terminated.")
+        process_state['status'] = 'completed'
+        globals()['client_process'] = None
         socketio.emit('flash_message', {"message": f"Stopped All Running Process!"})
         return jsonify({'status': 'success', 'message': 'Process terminated successfully'})
     else:
@@ -1023,4 +1035,3 @@ def handle_action():
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5100, debug=True) # 0.0.0.0 is used to run on all available IPs
     # app.run(host='127.0.0.1', port=5100, debug=False, use_reloader=False)
-
