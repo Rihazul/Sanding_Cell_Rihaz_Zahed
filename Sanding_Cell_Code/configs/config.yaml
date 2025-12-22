@@ -44,6 +44,7 @@ table:
   length1: 620
   length2: 620
   length3: 660
+  # These are the 7th Axis Values used when scanning the table
   lengthx0: 0
   lengthx1: 573
   lengthx2: 1221

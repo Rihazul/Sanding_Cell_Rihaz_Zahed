@@ -1,3 +1,17 @@
+"""
+Robot interaction utilities that load config/logging, wrap CPSClient motion
+commands (MoveL, group controls), provide progress/error helpers, and expose a
+threaded async runner for queued moves.
+
+Quick contents:
+- load_config: Parse YAML controller settings into a dict.
+- RobotInteractions: Core wrapper that sets up CPS connection, runs MoveL,
+  manages UCS/TCP frames, group enable/disable/reset/stop/interrupt/continue,
+  and logs/diagnoses errors and progress.
+- RobotInteractionsAsync: Background worker thread that queues MoveL or custom
+  callables so motion can run without blocking the caller.
+"""
+
 from __future__ import annotations
 
 import threading
@@ -6,7 +20,14 @@ from queue import Empty, Queue
 from typing import Any, Callable, Optional, Sequence
 
 import yaml
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from Server_Better_V2 import setup_logger
 from modules.CPS import CPSClient
@@ -21,7 +42,32 @@ def load_config(config_path: str = "./configs/config.yaml") -> dict:
 
 
 class RobotInteractions:
-    """Minimal wrapper around CPS client setup and connection, plus helpers."""
+    """
+    Minimal wrapper around CPS client setup and connection, plus helpers.
+    The following methods are provided:
+
+    - move_l: Execute a linear move with optional seeking and wait-for-completion.
+
+    - grp_reset: Reset the robot group.
+    - grp_enable: Enable the robot group.
+    - grp_disable: Disable the robot group.
+    - grp_stop: Stop robot motion immediately.
+    - grp_interrupt: Pause robot motion.
+    - grp_continue: Resume robot motion after an interrupt.
+
+    - grp_open_free_drive: Open/enable free drive mode.
+    - grp_close_free_drive: Close/disable free drive mode.
+
+    - grprst: Backward-compatible alias for group reset.
+
+    -- PRIVATE HELPERS --
+    - _run_group_command: Internal helper to run group commands with error handling.
+    - _configure_frames: Align UCS and TCP frames before motion.
+    - _update_progress: Emit progress updates via callback or rich progress bar.
+    - _wait_for_motion_done: Poll for motion completion with timeout and progress.
+    - _describe_error: Fetch and log human-readable error strings from controller.
+    - _log_robot_state: Log current robot state flags for diagnosis.
+    """
 
     def __init__(self, config: dict | None = None, cps_client: CPSClient | None = None):
         self.config = config or load_config()
@@ -30,7 +76,9 @@ class RobotInteractions:
         enable_file_logging = settings.get("file_logging", True)
         log_file_name = settings.get("log_file_name", "app.log")
         logger_name = settings.get("logger_name", "DualOutputLogger")
-        self.logger = setup_logger(enable_console, enable_file_logging, log_file_name, logger_name)
+        self.logger = setup_logger(
+            enable_console, enable_file_logging, log_file_name, logger_name
+        )
         self.config["logger"] = self.logger
 
         self.cps = cps_client or CPSClient()
@@ -77,20 +125,28 @@ class RobotInteractions:
     ) -> bool:
         """Execute a linear move with optional seeking and wait-for-completion."""
 
+        # Pull defaults from config if caller did not override values.
         coords = self.config.get("coords", {})
         tcp_name = tcp or coords.get("tcpDefault")
         ucs_name = ucs or coords.get("ucsDefault")
         speed_val = speed if speed is not None else coords.get("roboVelocity", 200.0)
         acc_val = acc if acc is not None else coords.get("roboAcceleration", 200.0)
-        radius_val = radius if radius is not None else coords.get("transitionRadius", 0.0)
+        radius_val = (
+            radius if radius is not None else coords.get("transitionRadius", 0.0)
+        )
         raw_acs_val = list(raw_acs) if raw_acs is not None else [0.0] * 6
         point_val = list(point)
 
+        # Validate input early so we fail fast instead of sending a bad command.
         if tcp_name is None:
-            self.logger.error("TCP name is required (provide --tcp or set coords.tcpDefault in config).")
+            self.logger.error(
+                "TCP name is required (provide --tcp or set coords.tcpDefault in config)."
+            )
             return False
         if ucs_name is None:
-            self.logger.error("UCS name is required (provide --ucs or set coords.ucsDefault in config).")
+            self.logger.error(
+                "UCS name is required (provide --ucs or set coords.ucsDefault in config)."
+            )
             return False
         if len(raw_acs_val) != 6:
             self.logger.error("Raw joint pose must contain 6 values.")
@@ -127,7 +183,10 @@ class RobotInteractions:
             return False
 
         if wait:
-            timeout_val = wait_timeout if wait_timeout is not None and wait_timeout > 0 else None
+            # Wait for completion while emitting progress callbacks or a rich bar.
+            timeout_val = (
+                wait_timeout if wait_timeout is not None and wait_timeout > 0 else None
+            )
             if not self._wait_for_motion_done(
                 box_id,
                 robot_id,
@@ -174,18 +233,23 @@ class RobotInteractions:
         """Open/enable free drive mode."""
         return self._run_group_command("HRIF_GrpOpenFreeDriver", box_id, robot_id)
 
-    def grprst(self) -> bool:
-        """Backward-compatible alias for group reset."""
-        return self.grp_reset(0, 0)
-
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
     def _run_group_command(self, method_name: str, box_id: int, robot_id: int) -> bool:
+        """
+        Internal helper to run group commands with error handling.
+
+        Only for Group commands that take (box_id, robot_id) arguments.
+        """
+
+        # Check the CPS client has the requested method.
         fn = getattr(self.cps, method_name, None)
         if not callable(fn):
             self.logger.error(f"CPS client missing method {method_name}")
             return False
+
+        # Call the method and handle errors uniformly.
         ret = fn(box_id, robot_id)
         if ret != 0:
             self.logger.error(f"{method_name} failed with code {ret}.")
@@ -195,17 +259,33 @@ class RobotInteractions:
         self.logger.info(f"{method_name} succeeded for box {box_id}, robot {robot_id}.")
         return True
 
-    def _configure_frames(self, box_id: int, robot_id: int, ucs_name: str, tcp_name: str) -> bool:
+    def _configure_frames(
+        self, box_id: int, robot_id: int, ucs_name: str, tcp_name: str
+    ) -> bool:
+        """
+        Align UCS and TCP frames before motion.
+
+        :param box_id: Controller box ID.
+        :param robot_id: Robot ID within the box.
+        :param ucs_name: Name of the UCS frame to set.
+        :param tcp_name: Name of the TCP frame to set.
+        :return: True on success, False on failure.
+        """
+
         current_ucs: list[str] = []
         target_ucs: list[str] = []
+
+        # Align UCS to the requested frame to avoid motion in the wrong coordinate system.
         ret = self.cps.HRIF_ReadCurUCS(box_id, robot_id, current_ucs)
         if ret != 0:
             self.logger.error(f"Failed to read current UCS (code {ret}).")
             return False
+
         ret = self.cps.HRIF_ReadUCSByName(box_id, robot_id, ucs_name, target_ucs)
         if ret != 0:
             self.logger.error(f"Failed to read UCS '{ucs_name}' (code {ret}).")
             return False
+
         if current_ucs != target_ucs:
             ret = self.cps.HRIF_SetUCSByName(box_id, robot_id, ucs_name)
             if ret != 0:
@@ -215,6 +295,7 @@ class RobotInteractions:
 
         current_tcp: list[str] = []
         target_tcp: list[str] = []
+        # Align TCP to the requested tool frame if it is different.
         ret = self.cps.HRIF_ReadCurTCP(box_id, robot_id, current_tcp)
         if ret != 0:
             self.logger.error(f"Failed to read current TCP (code {ret}).")
@@ -241,13 +322,29 @@ class RobotInteractions:
         task_id: int | None = None,
         label: str | None = None,
     ) -> None:
+        """
+        Emit progress updates via callback or rich progress bar.
+        :param progress_callback: Optional callback to report progress.
+        :param value: Progress value (0.0 to 100.0).
+        :param message: Optional progress message.
+        :param progress: Optional rich Progress instance.
+        :param task_id: Optional rich Progress task ID.
+        :param label: Optional label for rich Progress.
+        :return: None
+        """
+
         if progress_callback:
             try:
                 progress_callback(value, message)
             except Exception:
-                self.logger.debug("Progress callback raised an exception", exc_info=True)
+                self.logger.debug(
+                    "Progress callback raised an exception", exc_info=True
+                )
+
         if progress is not None and task_id is not None:
-            progress.update(task_id, completed=value, description=message or label or "")
+            progress.update(
+                task_id, completed=value, description=message or label or ""
+            )
 
     def _wait_for_motion_done(
         self,
@@ -259,6 +356,18 @@ class RobotInteractions:
         show_progress: bool = False,
         progress_label: str | None = "Motion",
     ) -> bool:
+        """
+        Poll for motion completion with timeout and progress updates.
+
+        :param box_id: Controller box ID.
+        :param robot_id: Robot ID within the box.
+        :param timeout: Maximum time to wait for motion completion (None for no timeout).
+        :param progress_callback: Optional callback to report progress.
+        :param show_progress: Whether to display a rich progress bar.
+        :param progress_label: Label for the progress bar.
+        :return: True if motion completed successfully, False on timeout or error.
+
+        """
         start = time.monotonic()
         last_progress = 0.0
 
@@ -280,26 +389,59 @@ class RobotInteractions:
         try:
             while True:
                 state: list[str] = []
+                # Poll controller for motion complete flag; bail on failures.
                 ret = self.cps.HRIF_ReadRobotState(box_id, robot_id, state)
                 if ret != 0:
                     self.logger.error(f"Failed to read robot state (code {ret}).")
-                    self._update_progress(progress_callback, last_progress, "State read failed", progress, task_id, progress_label)
+                    self._update_progress(
+                        progress_callback,
+                        last_progress,
+                        "State read failed",
+                        progress,
+                        task_id,
+                        progress_label,
+                    )
                     return False
+
                 if len(state) > 11 and state[11] == "1":
-                    self._update_progress(progress_callback, 100.0, "Motion complete", progress, task_id, progress_label)
+                    self._update_progress(
+                        progress_callback,
+                        100.0,
+                        "Motion complete",
+                        progress,
+                        task_id,
+                        progress_label,
+                    )
                     return True
+
+                # Keep updating progress while respecting timeout bounds.
                 elapsed = time.monotonic() - start
                 if timeout is not None and timeout > 0 and elapsed > timeout:
                     self.logger.error("Timed out waiting for motion completion.")
-                    self._update_progress(progress_callback, last_progress, "Timed out", progress, task_id, progress_label)
+                    self._update_progress(
+                        progress_callback,
+                        last_progress,
+                        "Timed out",
+                        progress,
+                        task_id,
+                        progress_label,
+                    )
                     return False
+
                 if timeout is not None and timeout > 0:
                     guess = min(95.0, (elapsed / timeout) * 100.0)
                 else:
                     guess = min(95.0, last_progress + 1.0)
                 if guess > last_progress:
                     last_progress = guess
-                    self._update_progress(progress_callback, guess, "In progress", progress, task_id, progress_label)
+                    self._update_progress(
+                        progress_callback,
+                        guess,
+                        "In progress",
+                        progress,
+                        task_id,
+                        progress_label,
+                    )
                 time.sleep(0.1)
         finally:
             if progress is not None:
@@ -312,10 +454,17 @@ class RobotInteractions:
         if ret == 0 and result:
             self.logger.error(f"Controller description for error {code}: {result[0]}")
         else:
-            self.logger.error(f"Unable to fetch error description for {code} (ret={ret}, raw={result})")
+            self.logger.error(
+                f"Unable to fetch error description for {code} (ret={ret}, raw={result})"
+            )
 
     def _log_robot_state(self, box_id: int) -> None:
-        """Log current robot state flags for quick diagnosis."""
+        """
+        Log current robot state flags for quick diagnosis.
+
+        :param box_id: Controller box ID.
+        :return: None
+        """
         result: list[str] = []
         ret = self.cps.HRIF_ReadRobotState(box_id, 0, result)
         if ret != 0:
@@ -343,9 +492,23 @@ class RobotInteractions:
 
 
 class RobotInteractionsAsync:
-    """Async runner that executes robot commands on a worker thread."""
+    """
+    Async runner that executes robot commands on a worker thread.
+    Commands (like MoveL) are queued and executed sequentially on the worker
+
+    The following methdos are present:
+    - submit_move_l: Queue a MoveL command with specified parameters.
+    - submit_callable: Queue an arbitrary callable to run on the worker.
+    - wait_for_all: Block until all queued commands are complete.
+    - stop: Signal the worker to stop processing new commands.
+    - shutdown: Gracefully stop the worker and wait for it to finish.
+    """
 
     def __init__(self, robot: RobotInteractions) -> None:
+        """
+        Initialize the async worker with a RobotInteractions instance.
+        :param robot: RobotInteractions instance to run commands on.
+        """
         self.robot = robot
         self._queue: Queue[tuple[str, Callable[..., bool]]] = Queue()
         self._stop_event = threading.Event()
@@ -358,11 +521,16 @@ class RobotInteractionsAsync:
 
     def submit_move_l(self, **kwargs: Any) -> None:
         def runner() -> bool:
-            return self.robot.move_l(progress_callback=None, show_progress=False, **kwargs)
+            return self.robot.move_l(
+                progress_callback=None, show_progress=False, **kwargs
+            )
 
         self._queue.put(("MoveL", runner))
 
     def submit_callable(self, name: str, func: Callable[[], bool]) -> None:
+        """
+        Use this function scarcely to submit arbitrary callables to the async worker.
+        """
         self._queue.put((name, func))
 
     def wait_for_all(self, timeout: float | None = None) -> None:
@@ -389,6 +557,7 @@ class RobotInteractionsAsync:
                 continue
 
             try:
+                # Run queued robot call; errors are logged but do not stop the worker.
                 func()
             except Exception as exc:  # pragma: no cover - defensive logging
                 self.robot.logger.exception(f"Async task {name} failed: {exc}")
