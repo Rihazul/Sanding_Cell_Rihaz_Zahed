@@ -17,6 +17,8 @@ from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepT
 from modules.CPS import CPSClient
 import time
 
+from cycle_data_utils import get_spiral_settings
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -129,6 +131,12 @@ def startingRobotToSandmodel1():
     json_config = load_json_config()
     innerSandingOffset=int(json_config['inverseOverlapping'])
     json_config_TableB = json_config['TableB']
+
+    spiral_settings = get_spiral_settings(json_config)
+    pocketzigzag_cfg = json_config_TableB.get('pocketzigzag', {})
+    vertical_spiral = bool(pocketzigzag_cfg.get('verticalSpiral', False))
+    horizontal_spiral = bool(pocketzigzag_cfg.get('horizontalSpiral', False))
+    edge_coverage = bool(pocketzigzag_cfg.get('edgeCoverage', False))
     
     side_cycles = int(json_config_TableB['frame']['cycle'])
     print("the side cycle is", side_cycles)
