@@ -103,7 +103,7 @@ def generate_spiral_between_points(
     elif x0 == x1 and orientation == "horizontal":
         turns = 3
     else:
-        turns = 20
+        turns = turns 
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -496,7 +496,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
 
         #Second Pocket 1st Cycle
         zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
-                                                       innerOffset=20,innerOffsetX=5, 
+                                                       innerOffset=17,innerOffsetX=10, 
                                                        orientation=orientation, movement=movement,
                                                        innerSandingOffset=50)
         print("zigzag_pathp=",zigzag_pathp1)
@@ -557,7 +557,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=12,
+                    turns=4,
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
