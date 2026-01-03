@@ -274,6 +274,137 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
 
     return True
 
+def generate_zigzag_path(
+    x_coords, y_coords, z_coords, 
+    innerOffset,innerOffsetX, 
+    orientation="horizontal", movement="zigzag",
+    innerSandingOffset=50):
+    prepoint = None
+    zigzag_coords = []
+    
+    # Parameters (adjust as needed)
+    tool3y = 50.8   # Tool offset in Y
+    tool3x = 38.1   # Tool offset in X
+    xframe_1 = 0
+    xframe_2 = 0
+
+    # 1) Collect boundary coordinates as [x, y, z]
+    boundary_coords = []
+    for i in range(len(x_coords)):
+        boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
+
+    # Close the loop by duplicating the first point at the end
+    if boundary_coords:
+        boundary_coords.append(boundary_coords[0][:])  # copy for safety
+
+    # 2) Compute the zigzag path (offset corners + zigzag)
+    zigzag_coords = []
+
+    # Ensure we have valid coordinates
+    if x_coords and y_coords and z_coords:
+        # We'll assume the pocket's Z-level is the same as the first boundary point
+        z_zigzag = boundary_coords[0][2]
+
+        # For Pocket4, corners (P13, P14, P15, P16):
+        modified_Point2 = [
+            (x_coords[1])/1 + tool3x + innerOffsetX,
+            y_coords[1] - tool3y - (innerOffset*0.5),
+        ]
+        modified_Point3 = [
+            x_coords[2] - tool3x - innerOffset,
+            y_coords[2] - tool3y - innerOffset,
+        ]
+        modified_Point1 = [
+            (x_coords[0])/1 + tool3x + innerOffsetX,
+            y_coords[0] + tool3y + innerOffset,
+        ]
+        modified_Point4 = [
+            x_coords[3] - tool3x - innerOffset,
+            y_coords[3] + tool3y + innerOffset,
+        ]
+        print("modified_Point1:", modified_Point1)
+        print("modified_Point2:", modified_Point2)
+        print("modified_Point3:", modified_Point3)
+        print("modified_Point4:", modified_Point4)
+
+        # Bounding box for alternate orientations
+        x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
+        x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
+        y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
+        y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
+
+        # Calculate available horizontal dimension
+        xlen1 = abs(modified_Point3[0] - modified_Point1[0])
+        xinner = xlen1 - xframe_1 - xframe_2
+        print("xinner=", xinner)
+
+        orientation_mode = (orientation or "vertical").lower()
+        movement_mode = (movement or "zigzag").lower()
+        if movement_mode == "rect":
+            zigzag_coords = [
+                [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
+                [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],
+                [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],
+                [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],
+                [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
+            ]
+        elif orientation_mode == "horizontal":
+            yinner = abs(y_max - y_min)
+            if yinner > 0:
+                num_steps = math.ceil(yinner / innerSandingOffset)
+                adjusted_step = yinner / num_steps
+
+                offset = 0.0
+                toggle = 0
+
+                # Build zigzag rows from top (max y) to bottom (min y)
+                while offset <= yinner + 1e-9:
+                    current_y = y_max - offset
+                    row_points = [
+                        [x_max, current_y, z_zigzag, 0, 0, 0],
+                        [x_min, current_y, z_zigzag, 0, 0, 0],
+                    ]
+                    if toggle:
+                        row_points.reverse()
+
+                    zigzag_coords.extend(row_points)
+                    offset += adjusted_step
+                    toggle = 1 - toggle
+        else:
+            if xinner > 0:
+                # Determine how many "columns" in the zigzag
+                num_steps = math.ceil(xinner / innerSandingOffset)
+                adjusted_step = xinner / num_steps
+
+                offset = 0.0
+                toggle = 0
+
+                # Build zigzag path from left to right
+                while offset <= xinner + 1e-9:  # small floating-point tolerance
+                    row_points = [
+                        [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
+                        [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                    ]
+                    # Reverse every other row to create a zigzag
+                    if toggle:
+                        row_points.reverse()
+
+                    zigzag_coords.extend(row_points)
+                    offset += adjusted_step
+                    toggle = 1 - toggle
+
+        # Update only the y coordinate to its absolute value
+        for point in zigzag_coords:
+            point[1] = abs(point[1])
+            point[0] = abs(point[0])
+    
+        if movement_mode == "rect":
+            prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
+        elif orientation_mode == "horizontal":
+            prepoint = [abs(x_max)+0.5, y_max, z_zigzag, 0, 0, 0]
+        else:
+            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
+    return zigzag_coords,prepoint
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -359,138 +490,13 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation="horizontal", movement="zigzag"):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Bounding box for alternate orientations
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                orientation_mode = (orientation or "vertical").lower()
-                movement_mode = (movement or "zigzag").lower()
-                if movement_mode == "rect":
-                    zigzag_coords = [
-                        [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                        [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],
-                        [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],
-                        [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],
-                        [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                    ]
-                elif orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.ceil(yinner / innerSandingOffset)
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                if movement_mode == "rect":
-                    prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
-                elif orientation_mode == "horizontal":
-                    prepoint = [abs(x_max)+0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=17, orientation=orientation, movement=movement)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
+                                                       innerOffset=20,innerOffsetX=5, 
+                                                       orientation=orientation, movement=movement,
+                                                       innerSandingOffset=50)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -704,7 +710,10 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation="vertical", movement="zigzag"):
+        def generate_zigzag_path(
+            x_coords, y_coords, z_coords, 
+            innerOffset,innerOffsetX, 
+            orientation="vertical", movement="zigzag"):
             prepoint = None
             zigzag_coords = []
             
@@ -835,7 +844,10 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=17, orientation=orientation, movement=movement)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
+            innerOffset=17,innerOffsetX=10, 
+            orientation=orientation, movement=movement, innerSandingOffset=50)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -1051,138 +1063,14 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation="vertical", movement="zigzag"):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Bounding box for alternate orientations
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                orientation_mode = (orientation or "vertical").lower()
-                movement_mode = (movement or "zigzag").lower()
-                if movement_mode == "rect":
-                    zigzag_coords = [
-                        [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                        [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],
-                        [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],
-                        [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],
-                        [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                    ]
-                elif orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.ceil(yinner / innerSandingOffset)
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                if movement_mode == "rect":
-                    prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
-                elif orientation_mode == "horizontal":
-                    prepoint = [abs(x_min)+0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=17, orientation=orientation, movement=movement)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
+            innerOffset=22,innerOffsetX=10, 
+            orientation=orientation, movement=movement,
+            innerSandingOffset=50)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -1397,138 +1285,14 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation="vertical", movement="zigzag"):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 30  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset*0.5),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Bounding box for alternate orientations
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                orientation_mode = (orientation or "vertical").lower()
-                movement_mode = (movement or "zigzag").lower()
-                if movement_mode == "rect":
-                    zigzag_coords = [
-                        [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                        [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],
-                        [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],
-                        [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],
-                        [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                    ]
-                elif orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.ceil(yinner / innerSandingOffset)
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-            
-                if movement_mode == "rect":
-                    prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
-                elif orientation_mode == "horizontal":
-                    prepoint = [abs(x_min)+0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
-            return zigzag_coords,prepoint
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=17, orientation=orientation, movement=movement)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(
+            x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
+            innerOffset=17,innerOffsetX=10, 
+            orientation=orientation, movement=movement,
+            innerSandingOffset=50)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
