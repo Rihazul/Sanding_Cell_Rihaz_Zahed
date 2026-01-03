@@ -82,7 +82,7 @@ def apply_spiral_settings(settings: Optional[dict]) -> None:
 def generate_spiral_between_points(
     start_pose,
     end_pose,
-    turns: Optional[int] = None,
+    turns: Optional[int] = 12,
     radius: Optional[float] = None,
     angle_step_deg: float = 120.0,
     max_points: Optional[int] = 80,
@@ -97,13 +97,13 @@ def generate_spiral_between_points(
     x1, y1, _, _, _, _ = end_pose[:6]
     if radius is None:
         radius = DEFAULT_SPIRAL_RADIUS
-    if y0 == y1 and orientation == "vertical":
-        turns = 3
-    if x0 == x1 and orientation == "horizontal":
-        turns = 3
+    if y0 == y1:
+        turns = 2
+    # if x0 == x1 and orientation == "horizontal":
+    #     turns = 3
 
     # Always map speed -> turns so higher speed yields fewer turns
-    turns = _linear_speed_to_turns(DEFAULT_SPIRAL_LINEAR_SPEED)
+    # turns = _linear_speed_to_turns(DEFAULT_SPIRAL_LINEAR_SPEED)
 
     total_steps = int(turns * (360.0 / angle_step_deg))
     if max_points is not None:
@@ -134,7 +134,7 @@ def run_spiral_between_points(
     start_pose,
     end_pose,
     *,
-    turns: Optional[int] = None,
+    turns: Optional[int] = 12,
     radius: Optional[float] = None,
     angle_step_deg: float = 120.0,
     max_points: Optional[int] = 80,
@@ -230,6 +230,8 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             return False
         time.sleep(0.1)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
+
+    turn_vibration_on(cps)
 
     print("[Spiral][Move] Starting MovePathL...")
     ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
@@ -357,7 +359,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         #prepoint = None
         #zigzag_coords = []
 
-        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation="vertical", movement="zigzag"):
+        def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, orientation="horizontal", movement="zigzag"):
             prepoint = None
             zigzag_coords = []
             
@@ -441,8 +443,8 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         while offset <= yinner + 1e-9:
                             current_y = y_max - offset
                             row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
                                 [x_max, current_y, z_zigzag, 0, 0, 0],
+                                [x_min, current_y, z_zigzag, 0, 0, 0],
                             ]
                             if toggle:
                                 row_points.reverse()
@@ -481,7 +483,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 if movement_mode == "rect":
                     prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
                 elif orientation_mode == "horizontal":
-                    prepoint = [abs(x_min)+0.5, y_max, z_zigzag, 0, 0, 0]
+                    prepoint = [abs(x_max)+0.5, y_max, z_zigzag, 0, 0, 0]
                 else:
                     prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
             return zigzag_coords,prepoint
@@ -504,7 +506,6 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            turn_vibration_on(cps)
             print("Turned Vibration On")
             
             # Communicate to each point in points1
@@ -548,9 +549,9 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=6,
+                    turns=12,
                     radius=12.0,
-                    angle_step_deg=90.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,

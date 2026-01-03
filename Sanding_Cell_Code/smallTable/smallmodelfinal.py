@@ -62,7 +62,7 @@ def run_side_cycles(count, force, door_num, cps):
             print("Pausing 3 seconds...")
             time.sleep(3)
 
-def run_zigzag_cycles(count, force, door_num, z, cps, *, orientation="horizontal", movement="zigzag", spiral_settings=None):
+def run_zigzag_cycles(count, force, door_num, z, cps, *, orientation="vertical", movement="zigzag", spiral_settings=None):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
         return
@@ -406,7 +406,7 @@ def sandingModelATableA():
             for door_number in zig_zag_cycle_doors:
                 cfg = zigzag_by_door.get(int(door_number), {})
                 # Map UI toggles to orientation/movement
-                orientation = "vertical"
+                orientation = "horizontal"
                 if cfg.get("horizontalSpiral"):
                     orientation = "horizontal"
                 movement = "rect" if cfg.get("edgeCoverage") else "zigzag"
