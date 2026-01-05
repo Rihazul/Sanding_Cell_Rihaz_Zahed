@@ -25,13 +25,15 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values
 )
-from smallTable.spiral_cache import (
-    save_full_track_to_excel,
-    load_full_track_from_excel,
-    load_full_track_with_validation,
+# Fast cache using pickle + in-memory (100x faster than Excel)
+from smallTable.spiral_cache_fast import (
+    save_spiral_track,
+    load_with_validation,
+    load_from_cache,
     cache_exists,
     _generate_cache_key,
-    get_cache_path,
+    get_pickle_path as get_cache_path,
+    preload_all_caches,
 )
 def compute_timeout(
     *,
@@ -336,32 +338,29 @@ def run_spiral_with_cache(
     all_points = None
     total_count = 0
     
-    # Try to load from cache with dimension validation
+    # Try to load from FAST cache with dimension validation
     if use_cache and not force_regenerate and door_x_length and door_y_length:
-        cached_points, metadata, is_valid = load_full_track_with_validation(
+        cached_points, metadata, is_valid = load_with_validation(
             track_name, door_id, orientation,
-            current_x_length=door_x_length,
-            current_y_length=door_y_length,
+            current_x=door_x_length,
+            current_y=door_y_length,
             radius=radius, turns=turns, angle_step_deg=angle_step_deg
         )
         if cached_points and is_valid:
             all_points = cached_points
             total_count = len(all_points) // 6
-            print(f"[SpiralCache] Loaded {total_count} points from cache (dimensions validated)")
+            print(f"[FastCache] Ready! {total_count} points loaded")
     elif use_cache and not force_regenerate:
-        # No dimensions provided, load without validation (legacy mode)
-        cached_points, metadata = load_full_track_from_excel(
-            track_name, door_id, orientation, radius, turns, angle_step_deg
-        )
+        # No dimensions provided, load without validation
+        cached_points, metadata = load_from_cache(cache_key)
         if cached_points:
             all_points = cached_points
             total_count = len(all_points) // 6
-            print(f"[SpiralCache] Loaded {total_count} points from cache (no dimension validation)")
+            print(f"[FastCache] Ready! {total_count} points (no validation)")
     
     # Generate if not cached or validation failed
     if all_points is None:
-        print("[SpiralCache] Generating spiral points (will cache for next time)...")
-        all_segments = []
+        print("[FastCache] Generating spiral points (will cache)...")
         all_points = []
         
         for index in range(len(zigzag_points) - 1):
@@ -378,18 +377,17 @@ def run_spiral_with_cache(
                 orientation=orientation,
             )
             
-            all_segments.append((start_pose, end_pose, segment_points))
             all_points.extend(segment_points)
         
         total_count = len(all_points) // 6
         
-        # Save to cache with door dimensions
+        # Save to FAST cache with door dimensions
         if use_cache:
-            save_full_track_to_excel(
+            save_spiral_track(
                 track_name=track_name,
                 door_id=door_id,
                 orientation=orientation,
-                all_segments=all_segments,
+                all_points=all_points,
                 radius=radius,
                 turns=turns,
                 angle_step_deg=angle_step_deg,
@@ -399,7 +397,7 @@ def run_spiral_with_cache(
     
     # Now push and execute the path
     if len(all_points) % 6 != 0:
-        print("[SpiralCache] Point list misaligned")
+        print("[FastCache] Point list misaligned")
         return False
     
     # Initialize path
@@ -413,7 +411,7 @@ def run_spiral_with_cache(
         tcp_name
     )
     if ret != 0:
-        print(f"[SpiralCache] InitMovePathL failed: {ret}")
+        print(f"[FastCache] InitMovePathL failed: {ret}")
         return False
     
     # Push all points at once
@@ -425,10 +423,10 @@ def run_spiral_with_cache(
         all_points
     )
     if ret != 0:
-        print(f"[SpiralCache] PushMovePaths failed: {ret}")
+        print(f"[FastCache] PushMovePaths failed: {ret}")
         return False
     
-    print(f"[SpiralCache] Pushed {total_count} points to robot")
+    print(f"[FastCache] Pushed {total_count} points to robot")
     
     # Finalize and execute
     timeout = compute_timeout(total_points=total_count, velocity=velocity)
