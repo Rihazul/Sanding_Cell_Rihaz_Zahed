@@ -25,6 +25,14 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values
 )
+from smallTable.spiral_cache import (
+    save_full_track_to_excel,
+    load_full_track_from_excel,
+    load_full_track_with_validation,
+    cache_exists,
+    _generate_cache_key,
+    get_cache_path,
+)
 def compute_timeout(
     *,
     total_points: Optional[int] = None,
@@ -103,7 +111,8 @@ def generate_spiral_between_points(
     elif x0 == x1 and orientation == "horizontal":
         turns = 3
     else:
-        turns = turns 
+        dist = max(abs(x1 - x0), abs(y1 - y0))
+        turns = (4/26) * dist 
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -276,6 +285,156 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
 
     return True
 
+
+def run_spiral_with_cache(
+    cps: CPSClient,
+    config: dict,
+    zigzag_points: list,
+    *,
+    door_id: int = 1,
+    track_name: str = "spiral_cached",
+    orientation: str = "horizontal",
+    radius: float = 12.0,
+    turns: int = 12,
+    angle_step_deg: float = 45.0,
+    max_points: int = 80,
+    velocity: float = 300.0,
+    accel: float = 500.0,
+    jerk: float = 10000.0,
+    tcp: str = None,
+    ucs: str = None,
+    use_cache: bool = True,
+    force_regenerate: bool = False,
+    door_x_length: float = None,
+    door_y_length: float = None,
+) -> bool:
+    """
+    Run spiral path with Excel caching to avoid recalculation.
+    Validates cached path against current door dimensions.
+    
+    Args:
+        cps: Robot client
+        config: Configuration dict
+        zigzag_points: List of [x,y,z,rx,ry,rz] waypoints
+        door_id: Door identifier for cache key
+        track_name: Name for the robot track
+        orientation: "horizontal" or "vertical"
+        radius, turns, angle_step_deg: Spiral parameters
+        velocity, accel, jerk: Motion parameters
+        use_cache: If True, try to load from cache first
+        force_regenerate: If True, regenerate even if cache exists
+        door_x_length: Current door X dimension (for cache validation)
+        door_y_length: Current door Y dimension (for cache validation)
+    
+    Returns:
+        True if successful
+    """
+    tcp_name = tcp or config["coords"].get("tcptool1plane1")
+    ucs_name = ucs or config["coords"].get("ucsTable1")
+    
+    cache_key = _generate_cache_key(track_name, door_id, orientation, radius, turns, angle_step_deg)
+    all_points = None
+    total_count = 0
+    
+    # Try to load from cache with dimension validation
+    if use_cache and not force_regenerate and door_x_length and door_y_length:
+        cached_points, metadata, is_valid = load_full_track_with_validation(
+            track_name, door_id, orientation,
+            current_x_length=door_x_length,
+            current_y_length=door_y_length,
+            radius=radius, turns=turns, angle_step_deg=angle_step_deg
+        )
+        if cached_points and is_valid:
+            all_points = cached_points
+            total_count = len(all_points) // 6
+            print(f"[SpiralCache] Loaded {total_count} points from cache (dimensions validated)")
+    elif use_cache and not force_regenerate:
+        # No dimensions provided, load without validation (legacy mode)
+        cached_points, metadata = load_full_track_from_excel(
+            track_name, door_id, orientation, radius, turns, angle_step_deg
+        )
+        if cached_points:
+            all_points = cached_points
+            total_count = len(all_points) // 6
+            print(f"[SpiralCache] Loaded {total_count} points from cache (no dimension validation)")
+    
+    # Generate if not cached or validation failed
+    if all_points is None:
+        print("[SpiralCache] Generating spiral points (will cache for next time)...")
+        all_segments = []
+        all_points = []
+        
+        for index in range(len(zigzag_points) - 1):
+            start_pose = zigzag_points[index]
+            end_pose = zigzag_points[index + 1]
+            
+            segment_points = generate_spiral_between_points(
+                start_pose=start_pose,
+                end_pose=end_pose,
+                turns=turns,
+                radius=radius,
+                angle_step_deg=angle_step_deg,
+                max_points=max_points,
+                orientation=orientation,
+            )
+            
+            all_segments.append((start_pose, end_pose, segment_points))
+            all_points.extend(segment_points)
+        
+        total_count = len(all_points) // 6
+        
+        # Save to cache with door dimensions
+        if use_cache:
+            save_full_track_to_excel(
+                track_name=track_name,
+                door_id=door_id,
+                orientation=orientation,
+                all_segments=all_segments,
+                radius=radius,
+                turns=turns,
+                angle_step_deg=angle_step_deg,
+                door_x_length=door_x_length,
+                door_y_length=door_y_length,
+            )
+    
+    # Now push and execute the path
+    if len(all_points) % 6 != 0:
+        print("[SpiralCache] Point list misaligned")
+        return False
+    
+    # Initialize path
+    ret = cps.HRIF_InitMovePathL(
+        0, 0,
+        track_name,
+        velocity,
+        accel,
+        jerk,
+        ucs_name,
+        tcp_name
+    )
+    if ret != 0:
+        print(f"[SpiralCache] InitMovePathL failed: {ret}")
+        return False
+    
+    # Push all points at once
+    ret = cps.HRIF_PushMovePaths(
+        0, 0,
+        track_name,
+        1,
+        total_count,
+        all_points
+    )
+    if ret != 0:
+        print(f"[SpiralCache] PushMovePaths failed: {ret}")
+        return False
+    
+    print(f"[SpiralCache] Pushed {total_count} points to robot")
+    
+    # Finalize and execute
+    timeout = compute_timeout(total_points=total_count, velocity=velocity)
+    return finalize_spiral_path(cps, track_name, completion_timeout=timeout)
+
+
 def generate_zigzag_path(
     x_coords, y_coords, z_coords, 
     innerOffset,innerOffsetX, 
@@ -310,7 +469,7 @@ def generate_zigzag_path(
         # For Pocket4, corners (P13, P14, P15, P16):
         modified_Point2 = [
             (x_coords[1])/1 + tool3x + innerOffsetX,
-            y_coords[1] - tool3y - (innerOffset*0.5),
+            y_coords[1] - tool3y - innerOffset,
         ]
         modified_Point3 = [
             x_coords[2] - tool3x - innerOffset,
@@ -496,16 +655,24 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
 
         #Second Pocket 1st Cycle
         zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
-                                                       innerOffset=17,innerOffsetX=10, 
+                                                       innerOffset=17,innerOffsetX=17, 
                                                        orientation=orientation, movement=movement,
                                                        innerSandingOffset=50)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, points1,force):
-            # Vibration on
+        def perform_process_top(cps, config, points1, force, door_x_len, door_y_len):
+            """
+            Execute spiral sanding with caching.
             
-            
+            Args:
+                cps: Robot client
+                config: Configuration dict
+                points1: Zigzag waypoints
+                force: Force control value
+                door_x_len: Current door X dimension (for cache validation)
+                door_y_len: Current door Y dimension (for cache validation)
+            """
             # Force Control Activated
             putForceZminus(
                 cps=cps,
@@ -514,81 +681,33 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 ucs=config['coords']['ucsTable1'],
                 config=config
             )
-            print("Turned Vibration On")
+            print("Force Control Activated")
             
-            # Communicate to each point in points1
-            # for point in points1:
-            #     communicate(
-            #         cps=cps,
-            #         config=config,
-            #         point=point,
-            #         tcp=config['coords']['tcptool1plane1'],
-            #         ucs=config['coords']['ucsTable1'],
-            #         seventh=-1,
-            #         speed=float(json_config['sandingSpeed']),
-            #         wait=False
-            #     )
+            # Run spiral with caching (replaces the old loop)
+            success = run_spiral_with_cache(
+                cps=cps,
+                config=config,
+                zigzag_points=points1,
+                door_id=1,                      # Door 1
+                track_name="small_door1",       # Unique track name
+                orientation=orientation,        # "horizontal" or "vertical"
+                radius=12.0,
+                turns=12,                       # Or calculate based on lane length
+                angle_step_deg=45.0,
+                velocity=300.0,
+                accel=500.0,
+                jerk=10000.0,
+                use_cache=True,                 # Enable caching
+                force_regenerate=False,         # Set True to force recalculation
+                door_x_length=door_x_len,       # For cache validation
+                door_y_length=door_y_len,       # For cache validation
+            )
             
-            spiral_track_name = "small"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-
-            for index,_ in enumerate(points1):
-                point_A = points1[index]
-                if index + 1 >= len(points1):
-                    break
-                point_B = points1[index + 1]
-
-                # communicate(
-                #     cps=cps,    
-                #     config=config,
-                #     point=point_A,
-                #     tcp=config['coords']['tcptool1plane1'],
-                #     ucs=config['coords']['ucsTable1'],
-                #     seventh=-1,
-                #     speed=0.6,
-                #     wait=True
-                # )
-
-                print("Spiral move from A to B:", point_A, "->", point_B)
-                success, count = run_spiral_between_points(
-                    cps=cps,
-                    config=config,
-                    start_pose=point_A,
-                    end_pose=point_B,
-                    turns=4,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
-                    init_path=not path_initialized,
-                    orientation=orientation,
-                )
-                if not success:
-                    push_failed = True
-                    break
-
-                path_initialized = True
-                # waitForBlending(cps=cps, config=config)
-                total_count += count
-
-
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(total_points=total_count, velocity=300.0*10.0/45.0)
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                )
-            # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            if not success:
+                print("[ERROR] Spiral execution failed!")
+            
+            # Turn off vibration and release force
             turn_vibration_off(cps)
-            #Release force
             releaseForce(cps=cps, config=config)
 
 
@@ -617,9 +736,22 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             seventh=-1, 
             speed=0.2, wait=True
         )
-        # # turn_vibration_on(cps)
-        perform_process_top(cps, config, points1=zigzag_pathp1,force=force)  # Dynamic zigzag path
-        # # turn_vibration_off(cps)
+        
+        # Get current door dimensions for cache validation
+        x_data = get_x_values(1, default_on_error=True)
+        y_data = get_y_values(1, default_on_error=True)
+        door_x_len = x_data.get('xlen', 390)  # Default if not available
+        door_y_len = y_data.get('ylen', 700)  # Default if not available
+        
+        # Execute spiral with caching
+        perform_process_top(
+            cps, config, 
+            points1=zigzag_pathp1,
+            force=force,
+            door_x_len=door_x_len,
+            door_y_len=door_y_len
+        )
+        
         communicate(
             cps=cps, config=config, 
             point=prehoming, 
