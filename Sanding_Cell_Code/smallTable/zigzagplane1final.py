@@ -644,8 +644,12 @@ def run_spiral_with_cache(
     all_points = None
     total_count = 0
     
+    # TEMPORARY: Disable cache loading to test if fresh generation works
+    # TODO: Remove this bypass once caching is fixed
+    BYPASS_CACHE = True  # Set to False to re-enable cache
+    
     # Try to load from FAST cache with dimension validation
-    if use_cache and not force_regenerate and door_x_length and door_y_length:
+    if not BYPASS_CACHE and use_cache and not force_regenerate and door_x_length and door_y_length:
         cached_points, metadata, is_valid = load_with_validation(
             track_name, door_id, orientation,
             current_x=door_x_length,
@@ -656,7 +660,7 @@ def run_spiral_with_cache(
             all_points = cached_points
             total_count = len(all_points) // 6
             print(f"[FastCache] Ready! {total_count} points loaded")
-    elif use_cache and not force_regenerate:
+    elif not BYPASS_CACHE and use_cache and not force_regenerate:
         # No dimensions provided, load without validation
         cached_points, metadata = load_from_cache(cache_key)
         if cached_points:
@@ -705,6 +709,20 @@ def run_spiral_with_cache(
     if len(all_points) % 6 != 0:
         print("[FastCache] Point list misaligned")
         return False
+    
+    # DEBUG: Print first and last few points
+    print(f"[DEBUG] Total points: {total_count}")
+    print(f"[DEBUG] First point: {all_points[0:6]}")
+    print(f"[DEBUG] Second point: {all_points[6:12]}")
+    if total_count > 2:
+        print(f"[DEBUG] Last point: {all_points[-6:]}")
+    
+    # Check for invalid values
+    for i in range(0, len(all_points), 6):
+        x, y, z = all_points[i], all_points[i+1], all_points[i+2]
+        if abs(x) > 1000 or abs(y) > 1000 or abs(z) > 500:
+            print(f"[DEBUG] WARNING: Point {i//6} has large values: [{x}, {y}, {z}]")
+            break
     
     # Initialize path
     ret = cps.HRIF_InitMovePathL(
