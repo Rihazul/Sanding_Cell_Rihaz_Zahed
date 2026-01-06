@@ -114,7 +114,7 @@ def generate_spiral_between_points(
         turns = 3
     else:
         dist = max(abs(x1 - x0), abs(y1 - y0))
-        turns = (4/180) * dist 
+        turns = (4/26) * dist 
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -510,7 +510,7 @@ def generate_zigzag_path(
         elif orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
             if yinner > 0:
-                num_steps = math.floor(yinner / innerSandingOffset)
+                num_steps = math.ceil(yinner / innerSandingOffset)
                 adjusted_step = yinner / num_steps
 
                 offset = 0.0
@@ -689,7 +689,8 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 door_id=1,                      # Door 1
                 track_name="small_door1",       # Unique track name
                 orientation=orientation,        # "horizontal" or "vertical"
-                radius=12.0,                       # Or calculate based on lane length
+                radius=12.0,
+                turns=12,                       # Or calculate based on lane length
                 angle_step_deg=45.0,
                 velocity=300.0,
                 accel=500.0,
