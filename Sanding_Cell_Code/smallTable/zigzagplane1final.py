@@ -353,19 +353,38 @@ def generate_zigzag_path(
         orientation_mode = (orientation or "vertical").lower()
         movement_mode = (movement or "zigzag").lower()
         
+        # Modified Point Layout:
+        # modified_Point1 = Bottom-left
+        # modified_Point2 = Top-left
+        # modified_Point3 = Top-right
+        # modified_Point4 = Bottom-right
+        
         # Generate edge coverage path if enabled (rectangular path around the boundary)
+        # The edge coverage must END at the point where zigzag/spiral will START
         edge_coverage_coords = []
         if edge_coverage:
-            # Edge coverage: P1 → P2 → P3 → P4 → P1 (full rectangle around boundary)
-            # This covers all edges before starting the zigzag/spiral
-            edge_coverage_coords = [
-                [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],
-                [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],
-                [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],
-                [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-            ]
-            print("Edge coverage enabled: P1→P2→P3→P4→P1")
+            if orientation_mode == "horizontal":
+                # Horizontal zigzag starts at top-left (P2)
+                # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
+                edge_coverage_coords = [
+                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # Start P2 (top-left)
+                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
+                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # P4 (bottom-right)
+                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
+                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # End P2 (top-left) - zigzag start
+                ]
+                print("Edge coverage (horizontal): P2→P3→P4→P1→P2 (ends at top-left for zigzag start)")
+            else:
+                # Vertical zigzag starts at bottom-right (P4)
+                # Edge coverage: P4 → P1 → P2 → P3 → P4 (ends at bottom-right)
+                edge_coverage_coords = [
+                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # Start P4 (bottom-right)
+                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
+                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # P2 (top-left)
+                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
+                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # End P4 (bottom-right) - zigzag start
+                ]
+                print("Edge coverage (vertical): P4→P1→P2→P3→P4 (ends at bottom-right for zigzag start)")
         
         if movement_mode == "rect":
             zigzag_coords = [
@@ -385,11 +404,12 @@ def generate_zigzag_path(
                 toggle = 0
 
                 # Build zigzag rows from top (max y) to bottom (min y)
+                # Starts at top-left (x_min, y_max)
                 while offset <= yinner + 1e-9:
                     current_y = y_max - offset
                     row_points = [
-                        [x_max, current_y, z_zigzag, 0, 0, 0],
-                        [x_min, current_y, z_zigzag, 0, 0, 0],
+                        [x_min, current_y, z_zigzag, 0, 0, 0],  # Start at x_min (left side)
+                        [x_max, current_y, z_zigzag, 0, 0, 0],  # Go to x_max (right side)
                     ]
                     if toggle:
                         row_points.reverse()
@@ -398,6 +418,8 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
         else:
+            # Vertical orientation - starts at bottom-right (P4)
+            # P4 = Bottom-right, P3 = Top-right
             if xinner > 0:
                 # Determine how many "columns" in the zigzag
                 num_steps = math.ceil(xinner / innerSandingOffset)
@@ -406,11 +428,11 @@ def generate_zigzag_path(
                 offset = 0.0
                 toggle = 0
 
-                # Build zigzag path from left to right
+                # Build zigzag path from right to left (starting at bottom-right P4)
                 while offset <= xinner + 1e-9:  # small floating-point tolerance
                     row_points = [
-                        [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                        [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                        [modified_Point4[0] - offset, modified_Point4[1], z_zigzag, 0, 0, 0],  # P4 side (bottom-right)
+                        [modified_Point3[0] - offset, modified_Point3[1], z_zigzag, 0, 0, 0],  # P3 side (top-right)
                     ]
                     # Reverse every other row to create a zigzag
                     if toggle:
@@ -433,13 +455,17 @@ def generate_zigzag_path(
         if movement_mode == "rect":
             prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
         elif orientation_mode == "horizontal":
-            # When edge_coverage is enabled, prepoint should be at P1 (start of edge coverage)
+            # Horizontal: edge coverage starts at P2 (top-left), zigzag starts at top-left
             if edge_coverage:
-                prepoint = [abs(modified_Point1[0])+0.5, abs(modified_Point1[1]), z_zigzag, 0, 0, 0]
+                prepoint = [abs(modified_Point2[0])+0.5, abs(modified_Point2[1]), z_zigzag, 0, 0, 0]
             else:
-                prepoint = [abs(x_max)+0.5, y_max, z_zigzag, 0, 0, 0]
+                prepoint = [abs(x_min)+0.5, y_max, z_zigzag, 0, 0, 0]
         else:
-            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
+            # Vertical: edge coverage starts at P4 (bottom-right), zigzag starts at bottom-right
+            if edge_coverage:
+                prepoint = [abs(modified_Point4[0])+0.5, abs(modified_Point4[1]), z_zigzag, 0, 0, 0]
+            else:
+                prepoint = [abs(modified_Point4[0])+0.5, abs(modified_Point4[1]), z_zigzag, 0, 0, 0]
         
         if edge_coverage:
             print(f"Edge coverage: {len(edge_coverage_coords)} points (MoveL), Zigzag: {len(zigzag_coords)} points (spiral)")
