@@ -497,7 +497,7 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
         ret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
         if ret == 0 and len(st) > 3:
             if st[2] == "3" and st[3] == "0":
-                print(f"[Spiral] PATH_READY in {(time.time()-start)*1000:.0f}ms, state={st}")
+                print(f"[Spiral] PATH_READY achieved in {(time.time()-start)*1000:.0f}ms, state={st}")
                 break
             if st[3] != "0":
                 print(f"[Spiral] Path error during prep: state={st}")
@@ -506,7 +506,7 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
         if elapsed > 30.0:
             print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s: state={st}")
             return False
-        time.sleep(0.01)
+        time.sleep(0.01)  # 10ms poll
 
     # Turn on vibration AFTER path is ready
     turn_vibration_on(cps)
@@ -519,59 +519,13 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
         print(f"[Spiral] MovePathL failed with code {ret}")
         return False
 
-    # PHASE 1: Wait for robot to START moving (up to 2 seconds)
-    start = time.time()
-    robot_started = False
-    while time.time() - start < 2.0:
-        robot_state = []
-        ret = cps.HRIF_ReadRobotState(box_id, robot_id, robot_state)
-        if ret == 0 and len(robot_state) > 2:
-            in_motion = robot_state[0] == "1"
-            has_error = robot_state[2] == "1"
-            
-            if has_error:
-                error_code = robot_state[3] if len(robot_state) > 3 else "unknown"
-                print(f"[Spiral] Robot ERROR before starting motion! Error code: {error_code}")
-                return False
-            
-            if in_motion:
-                print(f"[Spiral] Robot started moving after {(time.time()-start)*1000:.0f}ms")
-                robot_started = True
-                break
-        time.sleep(0.05)
-    
-    if not robot_started:
-        # Check if there's an error
-        robot_state = []
-        cps.HRIF_ReadRobotState(box_id, robot_id, robot_state)
-        if len(robot_state) > 2 and robot_state[2] == "1":
-            print(f"[Spiral] Robot has error, state: {robot_state[:5]}")
-            return False
-        print(f"[Spiral] Warning: Robot didn't report in_motion within 2s, continuing anyway...")
+    # Give robot time to start moving (important!)
+    time.sleep(0.3)
 
-    # PHASE 2: Wait for motion to complete
+    # Wait for completion using HRIF_IsMotionDone
     start = time.time()
     last_print = 0
     while True:
-        # Check robot state
-        robot_state = []
-        ret = cps.HRIF_ReadRobotState(box_id, robot_id, robot_state)
-        if ret == 0 and len(robot_state) > 12:
-            in_motion = robot_state[0] == "1"
-            has_error = robot_state[2] == "1"
-            motion_done = robot_state[11] == "1"
-            
-            # Check for errors first
-            if has_error:
-                error_code = robot_state[3] if len(robot_state) > 3 else "unknown"
-                print(f"[Spiral] Robot ERROR during motion! Error code: {error_code}")
-                return False
-            
-            # Motion complete when: not moving AND motion_done flag is set
-            if not in_motion and motion_done:
-                print(f"[Spiral] Motion completed in {time.time()-start:.1f}s")
-                break
-
         # Check path state for errors
         pstate = []
         pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
@@ -579,14 +533,21 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             print(f"[Spiral] Path reported error: {pstate}")
             return False
 
+        # Check if motion is done
+        motion_result = []
+        mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
+        if mret == 0 and motion_result and motion_result[0]:
+            print(f"[Spiral] Motion completed in {time.time()-start:.1f}s")
+            break
+
         elapsed = time.time() - start
         if elapsed > completion_timeout:
-            print(f"[Spiral] Timeout after {elapsed:.1f}s. Robot state: {robot_state[:5]}")
+            print(f"[Spiral] Timeout after {elapsed:.1f}s. Path state: {pstate}")
             return False
 
         # Print progress every 2 seconds
         if elapsed - last_print >= 2.0:
-            print(f"[Spiral] Moving... {elapsed:.1f}s, in_motion={robot_state[0] if robot_state else '?'}")
+            print(f"[Spiral] Running... {elapsed:.1f}s elapsed, state={pstate}")
             last_print = elapsed
 
         time.sleep(0.1)
