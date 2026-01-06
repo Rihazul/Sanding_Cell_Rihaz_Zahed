@@ -81,13 +81,8 @@ class RobotInteractions:
         )
         self.config["logger"] = self.logger
 
-        # Only connect if no existing client was provided
-        if cps_client is None:
-            self.cps = CPSClient()
-            self.initialize_comms()
-        else:
-            # Reuse existing connection - don't reconnect!
-            self.cps = cps_client
+        self.cps = cps_client or CPSClient()
+        self.initialize_comms()
 
     def initialize_comms(self) -> bool:
         """Establish connection to the robot controller."""
