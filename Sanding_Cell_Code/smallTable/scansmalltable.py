@@ -111,11 +111,16 @@ def scanTableA():
     # (2 orientations × 4 doors = 8 paths)
     # This eliminates calculation delay during execution!
     # ========================================
-    print("\n[PostScan] Auto-generating all spiral paths...")
-    gen_results = pregenerate_all_paths(z=-6.5)
-    print(f"[PostScan] Generated {len(gen_results['success'])}/8 paths, "
-          f"{gen_results['total_points']} total points in {gen_results['generation_time_ms']:.0f}ms")
-    print("[PostScan] Paths are now cached - execution will be INSTANT!")
+    try:
+        print("\n[PostScan] Auto-generating all spiral paths...")
+        gen_results = pregenerate_all_paths(z=-6.5)
+        print(f"[PostScan] Generated {len(gen_results['success'])}/8 paths, "
+              f"{gen_results['total_points']} total points in {gen_results['generation_time_ms']:.0f}ms")
+        print("[PostScan] Paths are now cached - execution will be INSTANT!")
+    except Exception as e:
+        print(f"[PostScan] ERROR generating spiral paths: {e}")
+        import traceback
+        traceback.print_exc()
     
     
     
