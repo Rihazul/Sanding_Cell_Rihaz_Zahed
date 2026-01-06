@@ -35,6 +35,274 @@ from smallTable.spiral_cache_fast import (
     get_pickle_path as get_cache_path,
     preload_all_caches,
 )
+
+# ============================================================
+# FAST EXECUTION: Load pre-generated paths and execute directly
+# No calculation delay - paths were generated after scanning
+# ============================================================
+
+# Default spiral parameters (must match path_pregenerator.py)
+_PREGEN_PARAMS = {
+    "radius": 12.0,
+    "turns": 12,
+    "angle_step_deg": 45.0,
+    "velocity": 300.0,
+    "accel": 500.0,
+    "jerk": 10000.0,
+}
+
+
+def execute_precached_spiral(
+    cps,
+    config: dict,
+    door_id: int,
+    orientation: str = "horizontal",
+    force: float = 3.0,
+    params: dict = None,
+) -> bool:
+    """
+    Execute a pre-generated spiral path from cache.
+    NO CALCULATION - just load and execute immediately!
+    
+    Call this instead of run_spiral_with_cache() when paths are pre-generated.
+    
+    Args:
+        cps: Robot CPS client
+        config: Configuration dict
+        door_id: Door number (1-4)
+        orientation: "horizontal" or "vertical"
+        force: Force control value
+        params: Override spiral parameters (must match what was used during pre-generation)
+        
+    Returns:
+        True if successful
+    """
+    p = {**_PREGEN_PARAMS, **(params or {})}
+    
+    track_name = f"small_door{door_id}_{orientation}"
+    cache_key = _generate_cache_key(
+        track_name, door_id, orientation,
+        p["radius"], p["turns"], p["angle_step_deg"]
+    )
+    
+    # Load from cache - INSTANT from memory!
+    all_points, metadata = load_from_cache(cache_key)
+    
+    if all_points is None:
+        print(f"[FastExec] ERROR: No cached path for door{door_id}_{orientation}")
+        print("[FastExec] Paths must be pre-generated after scanning!")
+        print("[FastExec] Run: from smallTable.path_pregenerator import pregenerate_all_paths")
+        return False
+    
+    total_count = len(all_points) // 6
+    print(f"[FastExec] Loaded {total_count} points from cache - INSTANT!")
+    
+    # Get TCP/UCS from config
+    tcp_name = config['coords'].get('tcptool1plane1')
+    ucs_name = config['coords'].get('ucsTable1')
+    
+    # Initialize path on robot
+    ret = cps.HRIF_InitMovePathL(
+        0, 0,
+        track_name,
+        p["velocity"],
+        p["accel"],
+        p["jerk"],
+        ucs_name,
+        tcp_name
+    )
+    if ret != 0:
+        print(f"[FastExec] InitMovePathL failed: {ret}")
+        return False
+    
+    # Push all points at once to robot controller
+    ret = cps.HRIF_PushMovePaths(
+        0, 0,
+        track_name,
+        1,
+        total_count,
+        all_points
+    )
+    if ret != 0:
+        print(f"[FastExec] PushMovePaths failed: {ret}")
+        return False
+    
+    print(f"[FastExec] Pushed {total_count} points - waiting for PATH_READY...")
+    
+    # Activate force control
+    putForceZminus(
+        cps=cps,
+        force=force,
+        tcp=tcp_name,
+        ucs=ucs_name,
+        config=config
+    )
+    
+    # Finalize and execute
+    timeout = compute_timeout(total_points=total_count, velocity=p["velocity"])
+    success = finalize_spiral_path(cps, track_name, completion_timeout=timeout)
+    
+    # Cleanup
+    turn_vibration_off(cps)
+    releaseForce(cps=cps, config=config)
+    
+    return success
+
+
+def get_cached_prepoint(door_id: int, orientation: str = "horizontal", params: dict = None):
+    """
+    Get the prepoint (approach position) and door position from cached metadata.
+    Use this for motion setup before executing the cached path.
+    
+    Returns:
+        Tuple of (prepoint, door_position) or (None, None) if not cached
+    """
+    p = {**_PREGEN_PARAMS, **(params or {})}
+    track_name = f"small_door{door_id}_{orientation}"
+    cache_key = _generate_cache_key(
+        track_name, door_id, orientation,
+        p["radius"], p["turns"], p["angle_step_deg"]
+    )
+    
+    _, metadata = load_from_cache(cache_key)
+    if metadata:
+        return metadata.get("prepoint"), metadata.get("door_position")
+    return None, None
+
+
+# ============================================================
+# SIMPLE DOOR EXECUTION FUNCTIONS
+# Just load cached track and execute MovePathL - no calculation!
+# ============================================================
+
+def run_door_spiral_fast(
+    cps,
+    door_id: int,
+    orientation: str = "horizontal",
+    force: float = 3.0,
+    z: float = -6.5,
+) -> bool:
+    """
+    Execute pre-cached spiral for a door. Simple wrapper that:
+    1. Moves to door position (7th axis)
+    2. Moves to prepoint (approach)
+    3. Loads cached track
+    4. Executes MovePathL
+    
+    Args:
+        cps: Robot CPS client
+        door_id: Door number (1-4)
+        orientation: "horizontal" or "vertical"
+        force: Force control value
+        z: Z depth (unused, tracks already have Z)
+        
+    Returns:
+        True if successful
+    """
+    config = load_config()
+    config['logger'] = setup_logger(config['settings']['debug'])
+    
+    # Get cached prepoint and door position
+    prepoint, door_position = get_cached_prepoint(door_id, orientation)
+    
+    if prepoint is None:
+        print(f"[RunDoor] ERROR: No cached path for door {door_id} {orientation}")
+        print("[RunDoor] Run scanning first to generate paths!")
+        return False
+    
+    prehoming = [0, 200, 50, 0, 0, 0]
+    tcp = config['coords']['tcptool1plane1']
+    ucs = config['coords']['ucsTable1']
+    
+    # Move to door position (7th axis)
+    communicate(
+        cps=cps, config=config,
+        seventh=door_position,
+        tcp=tcp, ucs=ucs,
+        speed=0.2, wait=True
+    )
+    
+    # Move to prehoming
+    communicate(
+        cps=cps, config=config,
+        point=prehoming,
+        tcp=tcp, ucs=ucs,
+        seventh=-1,
+        speed=0.2, wait=True
+    )
+    
+    # Move to prepoint (approach position)
+    communicate(
+        cps=cps, config=config,
+        point=prepoint,
+        tcp=tcp, ucs=ucs,
+        seventh=-1,
+        speed=0.2, wait=True
+    )
+    
+    # Execute the cached spiral path
+    success = execute_precached_spiral(
+        cps=cps,
+        config=config,
+        door_id=door_id,
+        orientation=orientation,
+        force=force,
+    )
+    
+    # Return to prehoming
+    communicate(
+        cps=cps, config=config,
+        point=prehoming,
+        tcp=tcp, ucs=ucs,
+        seventh=-1,
+        speed=0.2, wait=True
+    )
+    
+    return success
+
+
+def smalldoor1_fast(force: float = 3.0, z: float = -6.5, cps=None, orientation: str = "horizontal"):
+    """Fast execution for Door 1 - loads cached track and runs MovePathL."""
+    return run_door_spiral_fast(cps, door_id=1, orientation=orientation, force=force, z=z)
+
+
+def smalldoor2_fast(force: float = 3.0, z: float = -6.5, cps=None, orientation: str = "horizontal"):
+    """Fast execution for Door 2 - loads cached track and runs MovePathL."""
+    return run_door_spiral_fast(cps, door_id=2, orientation=orientation, force=force, z=z)
+
+
+def smalldoor3_fast(force: float = 3.0, z: float = -6.5, cps=None, orientation: str = "horizontal"):
+    """Fast execution for Door 3 - loads cached track and runs MovePathL."""
+    return run_door_spiral_fast(cps, door_id=3, orientation=orientation, force=force, z=z)
+
+
+def smalldoor4_fast(force: float = 3.0, z: float = -6.5, cps=None, orientation: str = "horizontal"):
+    """Fast execution for Door 4 - loads cached track and runs MovePathL."""
+    return run_door_spiral_fast(cps, door_id=4, orientation=orientation, force=force, z=z)
+
+
+def run_all_doors_fast(cps, force: float = 3.0, orientations: list = None):
+    """
+    Execute all 4 doors with specified orientations.
+    
+    Args:
+        cps: Robot CPS client
+        force: Force control value
+        orientations: List of orientations per door, e.g., ["horizontal", "horizontal", "vertical", "vertical"]
+                     Defaults to all horizontal
+    """
+    orientations = orientations or ["horizontal"] * 4
+    
+    results = []
+    for door_id in [1, 2, 3, 4]:
+        orient = orientations[door_id - 1] if door_id <= len(orientations) else "horizontal"
+        print(f"\n[RunAll] ===== Door {door_id} ({orient}) =====")
+        success = run_door_spiral_fast(cps, door_id, orient, force)
+        results.append({"door": door_id, "orientation": orient, "success": success})
+    
+    return results
+
+
 def compute_timeout(
     *,
     total_points: Optional[int] = None,
@@ -241,7 +509,7 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
         if elapsed > 120.0:
             print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s:", st)
             return False
-        time.sleep(0.1)
+        time.sleep(0.02)  # Faster response (20ms)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
 
     turn_vibration_on(cps)
@@ -432,6 +700,13 @@ def run_spiral_with_cache(
     timeout = compute_timeout(total_points=total_count, velocity=velocity)
     return finalize_spiral_path(cps, track_name, completion_timeout=timeout)
 
+# While robot executes path A, prepare path B in background
+def prepare_next_path_async(cps, next_track_name, next_points):
+    """Call this while robot is moving on current path"""
+    cps.HRIF_InitMovePathL(0, 0, next_track_name, ...)
+    cps.HRIF_PushMovePaths(0, 0, next_track_name, 1, len(next_points)//6, next_points)
+    cps.HRIF_EndPushPathPoints(0, 0, next_track_name)
+    # Now next_track_name is buffered and will reach PATH_READY faster
 
 def generate_zigzag_path(
     x_coords, y_coords, z_coords, 
@@ -699,7 +974,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 door_x_length=door_x_len,       # For cache validation
                 door_y_length=door_y_len,       # For cache validation
             )
-            
+
             if not success:
                 print("[ERROR] Spiral execution failed!")
             

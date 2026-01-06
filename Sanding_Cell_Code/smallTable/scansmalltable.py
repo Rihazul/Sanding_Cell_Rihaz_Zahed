@@ -10,6 +10,9 @@ import yaml
 from Server_Better_V2 import setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,handle_client
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 
+# Import path pre-generator for automatic path generation after scanning
+from smallTable.path_pregenerator import pregenerate_all_paths
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -103,12 +106,22 @@ def scanTableA():
     json_file_path = save_scan_results_to_json(scan_data)
     print(f"Scan results saved to JSON file: {json_file_path}")
     
+    # ========================================
+    # AUTO-GENERATE ALL 8 SPIRAL PATHS
+    # (2 orientations × 4 doors = 8 paths)
+    # This eliminates calculation delay during execution!
+    # ========================================
+    print("\n[PostScan] Auto-generating all spiral paths...")
+    gen_results = pregenerate_all_paths(z=-6.5)
+    print(f"[PostScan] Generated {len(gen_results['success'])}/8 paths, "
+          f"{gen_results['total_points']} total points in {gen_results['generation_time_ms']:.0f}ms")
+    print("[PostScan] Paths are now cached - execution will be INSTANT!")
     
     
     
     
     
-
+    
 
 if __name__ == "__main__":
     scanTableA()
