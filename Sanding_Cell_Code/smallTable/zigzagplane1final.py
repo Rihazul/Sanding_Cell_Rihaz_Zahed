@@ -306,21 +306,25 @@ def run_all_doors_fast(cps, force: float = 3.0, orientations: list = None):
 def compute_timeout(
     *,
     total_points: Optional[int] = None,
-    cap: float = 120.0,
+    cap: float = 72.0,
     velocity: float = 300.0,
 ) -> float:
     """
     Estimate a completion timeout based on total points.
-    This is just a safety cap - actual completion is detected by HRIF_IsMotionDone.
+
+    - Uses a simple model: time = (points / vmax) + overhead
+    - Caps the timeout to avoid excessive waits.
     """
     if total_points is None:
         return cap
 
     distance_per_point = 4.64 
-    time_factor = float(total_points * distance_per_point / velocity)
-    
-    # Add 50% buffer and cap at max
-    timeout = min(time_factor * 1.5, cap)
+    # vmax = 300.0
+    # time_factor_max = float(total_points / vmax)
+    time_factor= float(total_points * distance_per_point / (velocity)) 
+
+    timeout = float(time_factor)
+    print(f"[Timeout] total_points={total_points}, est={time_factor:.1f}s timeout={timeout:.1f}s")
     return timeout
 
 
@@ -483,74 +487,71 @@ def run_spiral_between_points(
     return True, count
 
 
-def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, robot_id: int = 0, completion_timeout: float = 120.0) -> bool:
+def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, robot_id: int = 0, completion_timeout = 76.0) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
-    print(f"[Spiral][EndPush] ret = {ret}")
+    print("[Spiral][EndPush] ret =", ret)
     if ret != 0:
         return False
 
-    # Wait for PATH_READY (state[2] == "3" means ready, state[3] == "0" means no error)
+    # Create a lightweight state helper for motion monitoring.
+    robot_state = RobotState(config=load_config(), cps_client=cps)
+
+    # Wait for PATH_READY
     start = time.time()
+    state = []
     while True:
         st = []
         ret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
-        if ret == 0 and len(st) > 3:
-            if st[2] == "3" and st[3] == "0":
-                print(f"[Spiral] PATH_READY achieved in {(time.time()-start)*1000:.0f}ms, state={st}")
-                break
-            if st[3] != "0":
-                print(f"[Spiral] Path error during prep: state={st}")
-                return False
+        if ret == 0 and len(st) > 3 and st[2] == "3" and st[3] == "0":
+            break
         elapsed = time.time() - start
-        if elapsed > 30.0:
-            print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s: state={st}")
+        if elapsed > 120.0:
+            print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s:", st)
             return False
-        time.sleep(0.01)  # 10ms poll
+        time.sleep(0.02)  # Faster response (20ms)
+        print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
 
-    # Turn on vibration AFTER path is ready
     turn_vibration_on(cps)
 
-    # Start motion
     print("[Spiral][Move] Starting MovePathL...")
     ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-    print(f"[Spiral][Move] ret = {ret}")
+    print("[Spiral][Move] ret =", ret)
     if ret != 0:
-        print(f"[Spiral] MovePathL failed with code {ret}")
         return False
 
-    # Give robot time to start moving (important!)
-    time.sleep(0.3)
-
-    # Wait for completion using HRIF_IsMotionDone
+    # Wait for completion (track path state + robot flags)
     start = time.time()
-    last_print = 0
     while True:
-        # Check path state for errors
         pstate = []
         pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
-        if pret == 0 and len(pstate) > 3 and pstate[3] != "0":
+        if pret != 0:
+            print("HRIF_ReadPathState failed:", pret)
+            return False
+        if len(pstate) > 3 and pstate[3] != "0":
             print(f"[Spiral] Path reported error: {pstate}")
             return False
 
-        # Check if motion is done
-        motion_result = []
-        mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
-        if mret == 0 and motion_result and motion_result[0]:
-            print(f"[Spiral] Motion completed in {time.time()-start:.1f}s")
+        # Break early if the robot stays still for 0.5s.
+        if robot_state.wait_until_still(still_seconds=0.2, poll_seconds=0.05):
+            print("[Spiral] No motion detected for 0.5s; exiting wait loop.")
             break
 
-        elapsed = time.time() - start
-        if elapsed > completion_timeout:
-            print(f"[Spiral] Timeout after {elapsed:.1f}s. Path state: {pstate}")
-            return False
+        # motion_result = []
+        # mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
+        # print(f"[Spiral] Path state: {pstate}, Motion done: {motion_result}")
+        # if mret != 0:
+        #     print("HRIF_IsMotionDone failed:", mret)
+        #     return False
 
-        # Print progress every 2 seconds
-        if elapsed - last_print >= 2.0:
-            print(f"[Spiral] Running... {elapsed:.1f}s elapsed, state={pstate}")
-            last_print = elapsed
+        # if motion_result[0]:
+        #     break
 
-        time.sleep(0.1)
+        # if time.time() - start > completion_timeout:
+        #     print("Timeout waiting for idle. Path state:", pstate)
+        #     return False
+        # time.sleep(0.1)
+        # print(f"Waiting for spiral move to complete... path={pstate}\r", end="")
 
     return True
 
