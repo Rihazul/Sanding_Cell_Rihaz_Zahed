@@ -306,7 +306,7 @@ def run_all_doors_fast(cps, force: float = 3.0, orientations: list = None):
 def compute_timeout(
     *,
     total_points: Optional[int] = None,
-    cap: float = 300.0,  # 5 minutes max
+    cap: float = 120.0,
     velocity: float = 300.0,
 ) -> float:
     """
@@ -319,9 +319,9 @@ def compute_timeout(
     distance_per_point = 4.64 
     time_factor = float(total_points * distance_per_point / velocity)
     
-    # Add 3x buffer to be safe - the motion can take longer due to spirals and force control
-    timeout = min(time_factor * 3.0, cap)
-    return max(timeout, 60.0)  # At least 60 seconds
+    # Add 50% buffer and cap at max
+    timeout = min(time_factor * 1.5, cap)
+    return timeout
 
 
 
@@ -549,7 +549,7 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             return False
         print(f"[Spiral] Warning: Robot didn't report in_motion within 2s, continuing anyway...")
 
-    # PHASE 2: Wait for motion to complete (no artificial timeout - just wait for robot)
+    # PHASE 2: Wait for motion to complete
     start = time.time()
     last_print = 0
     while True:
@@ -580,6 +580,9 @@ def finalize_spiral_path(cps: CPSClient, track_name: str, *, box_id: int = 0, ro
             return False
 
         elapsed = time.time() - start
+        if elapsed > completion_timeout:
+            print(f"[Spiral] Timeout after {elapsed:.1f}s. Robot state: {robot_state[:5]}")
+            return False
 
         # Print progress every 2 seconds
         if elapsed - last_print >= 2.0:
@@ -884,78 +887,14 @@ def generate_zigzag_path(
         for point in zigzag_coords:
             point[1] = abs(point[1])
             point[0] = abs(point[0])
-        
-        # Create edge points for rectangular coverage (P1→P2→P3→P4→P1)
-        edge_points = [
-            [abs(modified_Point1[0]), abs(modified_Point1[1]), z_zigzag, 0, 0, 0],
-            [abs(modified_Point2[0]), abs(modified_Point2[1]), z_zigzag, 0, 0, 0],
-            [abs(modified_Point3[0]), abs(modified_Point3[1]), z_zigzag, 0, 0, 0],
-            [abs(modified_Point4[0]), abs(modified_Point4[1]), z_zigzag, 0, 0, 0],
-            [abs(modified_Point1[0]), abs(modified_Point1[1]), z_zigzag, 0, 0, 0],  # Close the loop
-        ]
     
         if movement_mode == "rect":
             prepoint = [abs(zigzag_coords[0][0])+0.5, zigzag_coords[0][1], z_zigzag, 0, 0, 0]
         elif orientation_mode == "horizontal":
             prepoint = [abs(x_max)+0.5, y_max, z_zigzag, 0, 0, 0]
         else:
-            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-    else:
-        edge_points = []
-    
-    return zigzag_coords, prepoint, edge_points
-
-
-def run_edge_coverage_movel(
-    cps: CPSClient,
-    config: dict,
-    edge_points: list,
-    velocity: float = 0.2,
-) -> bool:
-    """
-    Run 4 linear MoveL paths around the pocket perimeter with vibration.
-    Goes: Point1 → Point2 → Point3 → Point4 → Point1
-    
-    Args:
-        cps: Robot client
-        config: Configuration dict  
-        edge_points: List of 5 points [P1, P2, P3, P4, P1]
-        velocity: Speed ratio (0.0 to 1.0)
-    
-    Returns:
-        True if successful
-    """
-    if not edge_points or len(edge_points) < 5:
-        print("[EdgeCover] Not enough edge points")
-        return False
-    
-    tcp_name = config['coords']['tcptool1plane1']
-    ucs_name = config['coords']['ucsTable1']
-    
-    print(f"[EdgeCover] Running rectangular edge coverage with {len(edge_points)-1} MoveL segments")
-    
-    # Turn on vibration for edge coverage
-    turn_vibration_on(cps)
-    
-    # Execute 4 MoveL segments: P1→P2, P2→P3, P3→P4, P4→P1
-    for i in range(len(edge_points) - 1):
-        point = edge_points[i + 1]  # Move TO this point
-        print(f"[EdgeCover] MoveL segment {i+1}/4: → [{point[0]:.1f}, {point[1]:.1f}, {point[2]:.1f}]")
-        
-        communicate(
-            cps=cps,
-            config=config,
-            point=point,
-            tcp=tcp_name,
-            ucs=ucs_name,
-            seventh=-1,
-            speed=velocity,
-            wait=True
-        )
-    
-    print("[EdgeCover] Rectangular edge coverage complete")
-    return True
-
+            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 0, 0, 0]  
+    return zigzag_coords,prepoint
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -1044,19 +983,16 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
 
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1, prepointp1, edge_points1 = generate_zigzag_path(
-            x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
-            innerOffset=17, innerOffsetX=17, 
-            orientation=orientation, movement=movement,
-            innerSandingOffset=50
-        )
-        print("zigzag_pathp=", zigzag_pathp1)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, 
+                                                       innerOffset=17,innerOffsetX=17, 
+                                                       orientation=orientation, movement=movement,
+                                                       innerSandingOffset=50)
+        print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
-        print("edge_points:", edge_points1)
 
-        def perform_process_top(cps, config, points1, force, door_x_len, door_y_len, edge_pts=None):
+        def perform_process_top(cps, config, points1, force, door_x_len, door_y_len):
             """
-            Execute edge coverage + spiral sanding.
+            Execute spiral sanding with caching.
             
             Args:
                 cps: Robot client
@@ -1065,7 +1001,6 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 force: Force control value
                 door_x_len: Current door X dimension (for cache validation)
                 door_y_len: Current door Y dimension (for cache validation)
-                edge_pts: Edge coverage points for rectangular perimeter
             """
             # Force Control Activated
             putForceZminus(
@@ -1077,13 +1012,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             )
             print("Force Control Activated")
             
-            # STEP 1: Run rectangular edge coverage (4 MoveL segments)
-            if edge_pts and len(edge_pts) >= 5:
-                print("\n========== STEP 1: Edge Coverage ==========")
-                run_edge_coverage_movel(cps, config, edge_pts, velocity=0.2)
-            
-            # STEP 2: Run spiral zigzag with caching
-            print("\n========== STEP 2: Spiral Zigzag ==========")
+            # Run spiral with caching (replaces the old loop)
             success = run_spiral_with_cache(
                 cps=cps,
                 config=config,
@@ -1142,14 +1071,13 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         door_x_len = x_data.get('xlen', 390)  # Default if not available
         door_y_len = y_data.get('ylen', 700)  # Default if not available
         
-        # Execute edge coverage + spiral with caching
+        # Execute spiral with caching
         perform_process_top(
             cps, config, 
             points1=zigzag_pathp1,
             force=force,
             door_x_len=door_x_len,
-            door_y_len=door_y_len,
-            edge_pts=edge_points1,  # Rectangular edge coverage first
+            door_y_len=door_y_len
         )
         
         communicate(
