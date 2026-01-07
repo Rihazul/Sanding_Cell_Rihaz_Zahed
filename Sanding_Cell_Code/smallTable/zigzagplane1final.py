@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import yaml
 import threading
 from Components.RobotState import RobotState
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus, putForceXplus,putForceXminus,putForceYminus1,putForceYplus1edge
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -367,10 +367,10 @@ def generate_zigzag_path(
             # Remove the offsets from modified points to get original boundary positions
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
-            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, z_zigzag]
-            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, z_zigzag]
-            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, z_zigzag]
-            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, z_zigzag]
+            edge_Point1 = [x_coords[0] + tool3x + 2, y_coords[0] + tool3y + 2, z_zigzag]
+            edge_Point2 = [x_coords[1] + tool3x + 2, y_coords[1] - tool3y - 2, z_zigzag]
+            edge_Point3 = [x_coords[2] - tool3x - 2, y_coords[2] - tool3y - 2, z_zigzag]
+            edge_Point4 = [x_coords[3] - tool3x - 2, y_coords[3] + tool3y + 2, z_zigzag]
             
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)
@@ -598,6 +598,38 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
                 turn_vibration_on(cps)
                 for point in edge_points:
+                    p0 = edge_points[point]
+                    p1 = edge_points[point + 1]
+                    dx = p1[0] - p0[0]
+                    dy = p1[1] - p0[1]
+                    
+                    if abs(dx) >= abs(dy):
+                        if dx >= 0:
+                            putForceXplus(cps=cps, 
+                                        force=force, 
+                                        tcp=config['coords']['tcptool1plane1'], 
+                                        ucs=config['coords']['ucsTable1'], 
+                                        config=config)
+                        else:
+                            putForceXminus(cps=cps, 
+                                        force=force, 
+                                        tcp=config['coords']['tcptool1plane1'], 
+                                        ucs=config['coords']['ucsTable1'], 
+                                        config=config)
+                    else:
+                        if dy >= 0:
+                            putForceYplus1edge(cps=cps, 
+                                        force=force, 
+                                        tcp=config['coords']['tcptool1plane1'], 
+                                        ucs=config['coords']['ucsTable1'], 
+                                        config=config)
+                        else:
+                            putForceYminus1(cps=cps, 
+                                        force=force, 
+                                        tcp=config['coords']['tcptool1plane1'], 
+                                        ucs=config['coords']['ucsTable1'], 
+                                        config=config)
+                   
                     if point == edge_points[-1]:
                         # For the first point, wait for the move to complete
                         communicate(
@@ -621,6 +653,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                             speed=float(json_config['sandingSpeed']),
                             wait=False
                         )
+                        releaseForce(cps=cps, config=config)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
