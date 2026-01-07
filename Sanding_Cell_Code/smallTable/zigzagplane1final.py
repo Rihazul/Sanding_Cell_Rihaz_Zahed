@@ -99,12 +99,12 @@ def generate_spiral_between_points(
     if radius is None:
         radius = DEFAULT_SPIRAL_RADIUS
     if y0 == y1 and orientation == "vertical":
-        turns = 3
+        turns = 2
     elif x0 == x1 and orientation == "horizontal":
-        turns = 3
+        turns = 2
     else:
         dist = max(abs(x1 - x0), abs(y1 - y0))
-        turns = dist/(radius*2) 
+        turns = math.ceil(dist/(radius*3)) 
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -354,37 +354,46 @@ def generate_zigzag_path(
         movement_mode = (movement or "zigzag").lower()
         
         # Modified Point Layout:
-        # modified_Point1 = Bottom-left
-        # modified_Point2 = Top-left
-        # modified_Point3 = Top-right
-        # modified_Point4 = Bottom-right
+        # modified_Point1 = Bottom-right
+        # modified_Point2 = Top-right
+        # modified_Point3 = Top-left
+        # modified_Point4 = Bottom-left
         
         # Generate edge coverage path if enabled (rectangular path around the boundary)
         # The edge coverage must END at the point where zigzag/spiral will START
+        # Edge coverage uses ORIGINAL boundary points (without innerOffsetX/innerOffset applied)
         edge_coverage_coords = []
         if edge_coverage:
+            # Remove the offsets from modified points to get original boundary positions
+            # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
+            # For edge coverage, we only want tool3x and tool3y, not the inner offsets
+            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, z_zigzag]
+            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, z_zigzag]
+            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, z_zigzag]
+            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, z_zigzag]
+            
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)
-                # Edge coverage: P3 → P4 → P1 → P2 → P3 (ends at top-left)
+                # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
                 edge_coverage_coords = [
-                    [modified_Point3[0] + innerOffsetX, modified_Point3[1] + innerOffset, z_zigzag, 0, 0, 0],  # Start P3 (top-left)
-                    [modified_Point4[0] + innerOffsetX, modified_Point4[1] - innerOffset, z_zigzag, 0, 0, 0],  # P4 (top-right)
-                    [modified_Point1[0] - innerOffsetX, modified_Point1[1] - innerOffset, z_zigzag, 0, 0, 0],  # P1 (bottom-right)
-                    [modified_Point2[0] - innerOffsetX, modified_Point2[1] + innerOffset, z_zigzag, 0, 0, 0],  # P2 (bottom-left)
-                    [modified_Point3[0] + innerOffsetX, modified_Point3[1] + innerOffset, z_zigzag, 0, 0, 0],  # End P3 (top-left) - zigzag start
+                    [edge_Point2[0], edge_Point2[1], edge_Point2[2], 0, 0, 0],  # Start P2 (top-left)
+                    [edge_Point3[0], edge_Point3[1], edge_Point3[2], 0, 0, 0],  # P3 (top-right)
+                    [edge_Point4[0], edge_Point4[1], edge_Point4[2], 0, 0, 0],  # P4 (bottom-right)
+                    [edge_Point1[0], edge_Point1[1], edge_Point1[2], 0, 0, 0],  # P1 (bottom-left)
+                    [edge_Point2[0], edge_Point2[1], edge_Point2[2], 0, 0, 0],  # End P2 (top-left) - zigzag start
                 ]
-                print("Edge coverage (horizontal): P3 → P4 → P1 → P2 → P3 (ends at top-left for zigzag start)")
+                print("Edge coverage (horizontal): P2 → P3 → P4 → P1 → P2 (ends at top-left for zigzag start)")
             else:
                 # Vertical zigzag starts at bottom-right (P4)
-                # Edge coverage: P1 → P2 → P3 → P4 → P1 (ends at bottom-right)
+                # Edge coverage: P4 → P1 → P2 → P3 → P4 (ends at bottom-right)
                 edge_coverage_coords = [
-                    [modified_Point1[0] - innerOffsetX, modified_Point1[1] - innerOffset, z_zigzag, 0, 0, 0],  # Start P1 (bottom-right)
-                    [modified_Point2[0] - innerOffsetX, modified_Point2[1] + innerOffset, z_zigzag, 0, 0, 0],  # P2 (bottom-left)
-                    [modified_Point3[0] + innerOffsetX, modified_Point3[1] + innerOffset, z_zigzag, 0, 0, 0],  # P3 (top-left)
-                    [modified_Point4[0] + innerOffsetX, modified_Point4[1] - innerOffset, z_zigzag, 0, 0, 0],  # P4 (top-right)
-                    [modified_Point1[0] - innerOffsetX, modified_Point1[1] - innerOffset, z_zigzag, 0, 0, 0],  # End P1 (bottom-right) - zigzag start
+                    [edge_Point4[0], edge_Point4[1], edge_Point4[2], 0, 0, 0],  # Start P4 (bottom-right)
+                    [edge_Point1[0], edge_Point1[1], edge_Point1[2], 0, 0, 0],  # P1 (bottom-left)
+                    [edge_Point2[0], edge_Point2[1], edge_Point2[2], 0, 0, 0],  # P2 (top-left)
+                    [edge_Point3[0], edge_Point3[1], edge_Point3[2], 0, 0, 0],  # P3 (top-right)
+                    [edge_Point4[0], edge_Point4[1], edge_Point4[2], 0, 0, 0],  # End P4 (bottom-right) - zigzag start
                 ]
-                print("Edge coverage (vertical): P1 → P2 → P3 → P4 → P1 (ends at bottom-right for zigzag start)")
+                print("Edge coverage (vertical): P4 → P1 → P2 → P3 → P4 (ends at bottom-right for zigzag start)")
         
         if movement_mode == "rect":
             zigzag_coords = [
@@ -602,6 +611,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
             spiral_track_name = "small"
@@ -646,7 +656,6 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=4,
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
@@ -739,6 +748,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         
         # Load configuration from YAML
         config = load_config()
+        json_config = load_json_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -838,12 +848,13 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=float(json_config['sandingSpeed']),
                         wait=False
                     )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
             spiral_track_name = "small_door_tab2"
@@ -861,7 +872,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
 
@@ -888,9 +899,8 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=6,
                     radius=12.0,
-                    angle_step_deg=90.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -983,6 +993,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         
         # Load configuration from YAML
         config = load_config()
+        json_config = load_json_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -1084,12 +1095,13 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=float(json_config['sandingSpeed']),
                         wait=False
                     )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
             spiral_track_name = "small_door_tab3"
@@ -1107,7 +1119,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
 
@@ -1123,9 +1135,8 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=6,
                     radius=12.0,
-                    angle_step_deg=90.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1216,6 +1227,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         
         # Load configuration from YAML
         config = load_config()
+        json_config = load_json_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -1317,12 +1329,13 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=float(json_config['sandingSpeed']),
                         wait=False
                     )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
             spiral_track_name = "small_door_tab4"
@@ -1340,7 +1353,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
 
@@ -1356,9 +1369,8 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     config=config,
                     start_pose=point_A,
                     end_pose=point_B,
-                    turns=6,
                     radius=12.0,
-                    angle_step_deg=90.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
