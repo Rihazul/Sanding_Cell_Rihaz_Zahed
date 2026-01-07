@@ -365,26 +365,26 @@ def generate_zigzag_path(
         if edge_coverage:
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)
-                # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
+                # Edge coverage: P3 → P4 → P1 → P2 → P3 (ends at top-left)
                 edge_coverage_coords = [
-                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # Start P2 (top-left)
-                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
-                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # P4 (bottom-right)
-                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
-                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # End P2 (top-left) - zigzag start
+                    [modified_Point3[0] + innerOffsetX, modified_Point3[1] + innerOffset, z_zigzag, 0, 0, 0],  # Start P3 (top-left)
+                    [modified_Point4[0] + innerOffsetX, modified_Point4[1] - innerOffset, z_zigzag, 0, 0, 0],  # P4 (top-right)
+                    [modified_Point1[0] - innerOffsetX, modified_Point1[1] - innerOffset, z_zigzag, 0, 0, 0],  # P1 (bottom-right)
+                    [modified_Point2[0] - innerOffsetX, modified_Point2[1] + innerOffset, z_zigzag, 0, 0, 0],  # P2 (bottom-left)
+                    [modified_Point3[0] + innerOffsetX, modified_Point3[1] + innerOffset, z_zigzag, 0, 0, 0],  # End P3 (top-left) - zigzag start
                 ]
-                print("Edge coverage (horizontal): P2→P3→P4→P1→P2 (ends at top-left for zigzag start)")
+                print("Edge coverage (horizontal): P3 → P4 → P1 → P2 → P3 (ends at top-left for zigzag start)")
             else:
                 # Vertical zigzag starts at bottom-right (P4)
-                # Edge coverage: P4 → P1 → P2 → P3 → P4 (ends at bottom-right)
+                # Edge coverage: P1 → P2 → P3 → P4 → P1 (ends at bottom-right)
                 edge_coverage_coords = [
-                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # Start P4 (bottom-right)
-                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
-                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # P2 (top-left)
-                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
-                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # End P4 (bottom-right) - zigzag start
+                    [modified_Point1[0] - innerOffsetX, modified_Point1[1] - innerOffset, z_zigzag, 0, 0, 0],  # Start P1 (bottom-right)
+                    [modified_Point2[0] - innerOffsetX, modified_Point2[1] + innerOffset, z_zigzag, 0, 0, 0],  # P2 (bottom-left)
+                    [modified_Point3[0] + innerOffsetX, modified_Point3[1] + innerOffset, z_zigzag, 0, 0, 0],  # P3 (top-left)
+                    [modified_Point4[0] + innerOffsetX, modified_Point4[1] - innerOffset, z_zigzag, 0, 0, 0],  # P4 (top-right)
+                    [modified_Point1[0] - innerOffsetX, modified_Point1[1] - innerOffset, z_zigzag, 0, 0, 0],  # End P1 (bottom-right) - zigzag start
                 ]
-                print("Edge coverage (vertical): P4→P1→P2→P3→P4 (ends at bottom-right for zigzag start)")
+                print("Edge coverage (vertical): P1 → P2 → P3 → P4 → P1 (ends at bottom-right for zigzag start)")
         
         if movement_mode == "rect":
             zigzag_coords = [
