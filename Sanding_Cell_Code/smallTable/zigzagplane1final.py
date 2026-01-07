@@ -367,22 +367,22 @@ def generate_zigzag_path(
                 # Horizontal zigzag starts at top-left (P2)
                 # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
                 edge_coverage_coords = [
-                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # Start P2 (top-left)
-                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
-                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # P4 (bottom-right)
-                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
-                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # End P2 (top-left) - zigzag start
+                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # Start P2 (top-left)
+                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
+                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # P4 (bottom-right)
+                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
+                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # End P2 (top-left) - zigzag start
                 ]
                 print("Edge coverage (horizontal): P2→P3→P4→P1→P2 (ends at top-left for zigzag start)")
             else:
                 # Vertical zigzag starts at bottom-right (P4)
                 # Edge coverage: P4 → P1 → P2 → P3 → P4 (ends at bottom-right)
                 edge_coverage_coords = [
-                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # Start P4 (bottom-right)
-                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
-                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # P2 (top-left)
-                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
-                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # End P4 (bottom-right) - zigzag start
+                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # Start P4 (bottom-right)
+                    [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],  # P1 (bottom-left)
+                    [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],  # P2 (top-left)
+                    [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],  # P3 (top-right)
+                    [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],  # End P4 (bottom-right) - zigzag start
                 ]
                 print("Edge coverage (vertical): P4→P1→P2→P3→P4 (ends at bottom-right for zigzag start)")
         
@@ -608,6 +608,20 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Move to first zigzag point to ensure proper transition from edge coverage
+            if zigzag_points and len(zigzag_points) > 0:
+                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=zigzag_points[0],
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    seventh=-1,
+                    speed=float(json_config['sandingSpeed']),
+                    wait=True
+                )
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
@@ -836,6 +850,20 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Move to first zigzag point to ensure proper transition from edge coverage
+            if zigzag_points and len(zigzag_points) > 0:
+                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=zigzag_points[0],
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True
+                )
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
@@ -1068,6 +1096,20 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Move to first zigzag point to ensure proper transition from edge coverage
+            if zigzag_points and len(zigzag_points) > 0:
+                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=zigzag_points[0],
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True
+                )
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
@@ -1287,6 +1329,20 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Move to first zigzag point to ensure proper transition from edge coverage
+            if zigzag_points and len(zigzag_points) > 0:
+                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=zigzag_points[0],
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True
+                )
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
