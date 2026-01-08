@@ -367,10 +367,11 @@ def generate_zigzag_path(
             # Remove the offsets from modified points to get original boundary positions
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
-            edge_Point1 = [x_coords[0] + tool3x + 2, y_coords[0] + tool3y + 2, z_zigzag]
-            edge_Point2 = [x_coords[1] + tool3x + 2, y_coords[1] - tool3y - 2, z_zigzag]
-            edge_Point3 = [x_coords[2] - tool3x - 2, y_coords[2] - tool3y - 2, z_zigzag]
-            edge_Point4 = [x_coords[3] - tool3x - 2, y_coords[3] + tool3y + 2, z_zigzag]
+            # No crash prevention offset needed - compliant force control handles wall contact
+            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, z_zigzag]
+            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, z_zigzag]
+            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, z_zigzag]
+            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, z_zigzag]
             
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)

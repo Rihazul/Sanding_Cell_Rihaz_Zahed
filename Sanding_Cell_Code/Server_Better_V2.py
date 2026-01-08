@@ -381,20 +381,18 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # Same damping as putForceZminus
-    damp = [8000, 8000, 8000, 40, 40, 40]
+    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
+    damp = [15000, 15000, 8000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
         config["logger"].error(f"[PocketEdge] Failed to set damp params: {nRet}")
         return
 
-    # Edge force ratio: 50% force toward wall, 100% force on Z
-    edge_force = force * 0.5
-    force_goal = [edge_force, 0, -force, 0, 0, 0, 0]  # +X toward wall, -Z down
+    force_goal = [1, 0, -force, 0, 0, 0, 0]  # +X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge X+ wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
+    config["logger"].info(f"[PocketEdge X+ wall] Edge force: 1.0N, Z force: {force}N")
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set force control goal: {nret}")
         return
@@ -449,16 +447,15 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    damp = [8000, 8000, 8000, 40, 40, 40]
+    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
+    damp = [15000, 15000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Edge force ratio: 50% force toward wall, 100% force on Z
-    edge_force = force * 0.5
-    force_goal = [-edge_force, 0, -force, 0, 0, 0, 0]  # -X toward wall, -Z down
+    force_goal = [-1, 0, -force, 0, 0, 0, 0]  # -X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge X- wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
+    config["logger"].info(f"[PocketEdge X- wall] Edge force: 1.0N, Z force: {force}N")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
@@ -509,16 +506,15 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    damp = [8000, 8000, 8000, 40, 40, 40]
+    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
+    damp = [15000, 15000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Edge force ratio: 50% force toward wall, 100% force on Z
-    edge_force = force * 0.5
-    force_goal = [0, edge_force, -force, 0, 0, 0, 0]  # +Y toward wall, -Z down
+    force_goal = [0, 1, -force, 0, 0, 0, 0]  # +Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge Y+ wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
+    config["logger"].info(f"[PocketEdge Y+ wall] Edge force: 1.0N, Z force: {force}N")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
@@ -569,16 +565,15 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    damp = [8000, 8000, 8000, 40, 40, 40]
+    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
+    damp = [15000, 15000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Edge force ratio: 50% force toward wall, 100% force on Z
-    edge_force = force * 0.5
-    force_goal = [0, -edge_force, -force, 0, 0, 0, 0]  # -Y toward wall, -Z down
+    force_goal = [0, -1, -force, 0, 0, 0, 0]  # -Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge Y- wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
+    config["logger"].info(f"[PocketEdge Y- wall] Edge force: 1.0N, Z force: {force}N")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
