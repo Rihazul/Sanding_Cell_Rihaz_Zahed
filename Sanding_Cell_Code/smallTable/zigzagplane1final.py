@@ -590,7 +590,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 2.0
+                offset_mm = 5.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -665,18 +665,6 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     communicate(
                         cps=cps,
                         config=config,
-                        point=p1,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    releaseForce(cps=cps, config=config)
-
-                    communicate(
-                        cps=cps,
-                        config=config,
                         point=p1_off,
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
@@ -684,6 +672,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -910,7 +899,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 2.0
+                offset_mm = 5.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -985,18 +974,6 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     communicate(
                         cps=cps,
                         config=config,
-                        point=p1,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    releaseForce(cps=cps, config=config)
-
-                    communicate(
-                        cps=cps,
-                        config=config,
                         point=p1_off,
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
@@ -1004,6 +981,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1234,7 +1212,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 2.0
+                offset_mm = 5.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -1309,18 +1287,6 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     communicate(
                         cps=cps,
                         config=config,
-                        point=p1,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    releaseForce(cps=cps, config=config)
-
-                    communicate(
-                        cps=cps,
-                        config=config,
                         point=p1_off,
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
@@ -1328,6 +1294,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1545,7 +1512,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 2.0
+                offset_mm = 5.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -1620,18 +1587,6 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     communicate(
                         cps=cps,
                         config=config,
-                        point=p1,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    releaseForce(cps=cps, config=config)
-
-                    communicate(
-                        cps=cps,
-                        config=config,
                         point=p1_off,
                         tcp=config['coords']['tcptool1plane1'],
                         ucs=config['coords']['ucsTable1'],
@@ -1639,6 +1594,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
