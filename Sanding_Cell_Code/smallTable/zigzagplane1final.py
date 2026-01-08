@@ -591,8 +591,8 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
-                offset_mm = 2.0
+                # Safe distance offset for pocket edge coverage (reduced to 1mm for closer contact)
+                offset_mm = 1.0
 
                 # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
                 # This ensures the tool stays pressed on the pocket surface during edge coverage
@@ -908,8 +908,8 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
-                offset_mm = 2.0
+                # Safe distance offset for pocket edge coverage (reduced to 1mm for closer contact)
+                offset_mm = 1.0
 
                 # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
                 # This ensures the tool stays pressed on the pocket surface during edge coverage
@@ -1229,8 +1229,8 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
-                offset_mm = 2.0
+                # Safe distance offset for pocket edge coverage (reduced to 1mm for closer contact)
+                offset_mm = 1.0
 
                 # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
                 # This ensures the tool stays pressed on the pocket surface during edge coverage
@@ -1537,8 +1537,8 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
-                offset_mm = 2.0
+                # Safe distance offset for pocket edge coverage (reduced to 1mm for closer contact)
+                offset_mm = 1.0
 
                 # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
                 # This ensures the tool stays pressed on the pocket surface during edge coverage

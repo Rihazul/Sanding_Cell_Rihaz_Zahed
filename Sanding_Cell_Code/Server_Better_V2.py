@@ -368,8 +368,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     time.sleep(0.0001)
 
     # SOFT APPROACH: Lower search velocity for gentle edge contact
-    linear_velocity = 2  # Reduced from 5 mm/s to 2 mm/s for gentler approach
-    angular_velocity = 0.5  # Reduced from 1 °/s
+    linear_velocity = 5  # Same as putForceZminus
+    angular_velocity = 1  # Same as putForceZminus
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] search velocities: linear={linear_velocity}, angular={angular_velocity}")
@@ -377,38 +377,9 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # SOFT PID: Lower gains for smoother control
-    dFp = 0.5  # Reduced from 0.8
-    dFi = 0.0005  # Reduced from 0.001
-    dFd = 0.03  # Slightly increased for damping
-    dTp = 0.5
-    dTi = 0.0005
-    dTd = 0.03
-
-    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    time.sleep(0.0001)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set PID control params: {nRet}")
-        return
-
-    # SOFT Mass: Higher values for more inertia (smoother)
-    Mass = [120, 120, 120, 15, 15, 15]  # Increased from [80, 80, 80, 10, 10, 10]
-    nRet = cps.HRIF_SetMassParams(0, 0, Mass)
-    time.sleep(0.0001)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set mass params: {nRet}")
-        return
-
-    # SOFT Stiffness: Lower values for gentler contact
-    Stiff = [800, 800, 800, 60, 60, 60]  # Reduced from [1500, 1500, 1500, 100, 100, 100]
-    nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
-    time.sleep(0.0001)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set stiffness params: {nRet}")
-        return
-
-    # SOFT Damping: Use same damping as putForceZminus for reliable Z force
-    damp = [8000, 8000, 8000, 60, 60, 60]  # Matched to putForceZminus for Z-axis
+    # Use same damping as putForceZminus for reliable Z force
+    # DO NOT set PID, Mass, or Stiffness - putForceZminus doesn't set them and it works
+    damp = [8000, 8000, 8000, 40, 40, 40]  # Exactly same as putForceZminus
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
@@ -477,29 +448,17 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # SOFT APPROACH parameters
-    linear_velocity = 2
-    angular_velocity = 0.5
+    # Same parameters as putForceZminus
+    linear_velocity = 5
+    angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    dFp, dFi, dFd = 0.5, 0.0005, 0.03
-    dTp, dTi, dTd = 0.5, 0.0005, 0.03
-    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    time.sleep(0.0001)
-
-    Mass = [120, 120, 120, 15, 15, 15]
-    cps.HRIF_SetMassParams(0, 0, Mass)
-    time.sleep(0.0001)
-
-    Stiff = [800, 800, 800, 60, 60, 60]
-    cps.HRIF_SetStiffParams(0, 0, Stiff)
-    time.sleep(0.0001)
-
-    damp = [8000, 8000, 8000, 60, 60, 60]
+    # DO NOT set PID, Mass, or Stiffness - match putForceZminus
+    damp = [8000, 8000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
@@ -561,29 +520,17 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # SOFT APPROACH parameters
-    linear_velocity = 2
-    angular_velocity = 0.5
+    # Same parameters as putForceZminus
+    linear_velocity = 5
+    angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    dFp, dFi, dFd = 0.5, 0.0005, 0.03
-    dTp, dTi, dTd = 0.5, 0.0005, 0.03
-    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    time.sleep(0.0001)
-
-    Mass = [120, 120, 120, 15, 15, 15]
-    cps.HRIF_SetMassParams(0, 0, Mass)
-    time.sleep(0.0001)
-
-    Stiff = [800, 800, 800, 60, 60, 60]
-    cps.HRIF_SetStiffParams(0, 0, Stiff)
-    time.sleep(0.0001)
-
-    damp = [8000, 8000, 8000, 60, 60, 60]
+    # DO NOT set PID, Mass, or Stiffness - match putForceZminus
+    damp = [8000, 8000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
@@ -645,29 +592,17 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # SOFT APPROACH parameters
-    linear_velocity = 2
-    angular_velocity = 0.5
+    # Same parameters as putForceZminus
+    linear_velocity = 5
+    angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    dFp, dFi, dFd = 0.5, 0.0005, 0.03
-    dTp, dTi, dTd = 0.5, 0.0005, 0.03
-    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    time.sleep(0.0001)
-
-    Mass = [120, 120, 120, 15, 15, 15]
-    cps.HRIF_SetMassParams(0, 0, Mass)
-    time.sleep(0.0001)
-
-    Stiff = [800, 800, 800, 60, 60, 60]
-    cps.HRIF_SetStiffParams(0, 0, Stiff)
-    time.sleep(0.0001)
-
-    damp = [8000, 8000, 8000, 60, 60, 60]
+    # DO NOT set PID, Mass, or Stiffness - match putForceZminus
+    damp = [8000, 8000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
