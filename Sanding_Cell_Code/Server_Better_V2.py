@@ -336,8 +336,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     """
     Compliant force control for pocket edge sanding - X+ wall side.
     - Z force: Active push down to maintain surface contact
-    - X: Compliant (no active push) - allows wall on X+ side to push tool back
-    The robot yields to wall contact, doesn't fight against it.
+    - X: Light force toward wall for edge contact
+    NOTE: Does NOT zero force sensor - allows smooth transition from Z-only force
     """
     boxID = 0
     rbtID = 0
@@ -347,10 +347,7 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
-        return
+    # NOTE: Removed SetForceZero - we're transitioning from Z-only force, don't disrupt it
 
     # Set tool coordinate system mode for force control
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
@@ -407,7 +404,8 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     """
     Compliant force control for pocket edge sanding - X- wall side.
     - Z force: Active push down to maintain surface contact
-    - X: Compliant (no active push) - allows wall on X- side to push tool back
+    - X: Light force toward wall for edge contact
+    NOTE: Does NOT zero force sensor - allows smooth transition from Z-only force
     """
     boxID = 0
     rbtID = 0
@@ -417,10 +415,7 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
-        return
+    # NOTE: Removed SetForceZero - we're transitioning from Z-only force, don't disrupt it
 
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
     time.sleep(0.0001)
@@ -466,7 +461,8 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     """
     Compliant force control for pocket edge sanding - Y+ wall side.
     - Z force: Active push down to maintain surface contact
-    - Y: Compliant (no active push) - allows wall on Y+ side to push tool back
+    - Y: Light force toward wall for edge contact
+    NOTE: Does NOT zero force sensor - allows smooth transition from Z-only force
     """
     boxID = 0
     rbtID = 0
@@ -476,10 +472,7 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
-        return
+    # NOTE: Removed SetForceZero - we're transitioning from Z-only force, don't disrupt it
 
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
     time.sleep(0.0001)
@@ -525,7 +518,8 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     """
     Compliant force control for pocket edge sanding - Y- wall side.
     - Z force: Active push down to maintain surface contact
-    - Y: Compliant (no active push) - allows wall on Y- side to push tool back
+    - Y: Light force toward wall for edge contact
+    NOTE: Does NOT zero force sensor - allows smooth transition from Z-only force
     """
     boxID = 0
     rbtID = 0
@@ -535,10 +529,7 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
-        return
+    # NOTE: Removed SetForceZero - we're transitioning from Z-only force, don't disrupt it
 
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
     time.sleep(0.0001)
