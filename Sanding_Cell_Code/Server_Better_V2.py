@@ -333,14 +333,19 @@ def toggle_stopper_status(cps, digital_number=2):
 # ============================================================================
 
 def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
-    """Soft force control for pocket edge - push in +X direction AND maintain -Z force simultaneously."""
+    """
+    Compliant force control for pocket edge sanding - X+ wall side.
+    - Z force: Active push down to maintain surface contact
+    - X: Compliant (no active push) - allows wall on X+ side to push tool back
+    The robot yields to wall contact, doesn't fight against it.
+    """
     boxID = 0
     rbtID = 0
     result = []
 
-    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
-    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+    json_config = load_json_config()
+    setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
@@ -362,36 +367,34 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    # Enable X and Z force control simultaneously (for edge + floor contact)
+    # Enable X and Z force control - X is compliant (wall provides constraint)
     freedom = [1, 0, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # SOFT APPROACH: Lower search velocity for gentle edge contact
-    linear_velocity = 5  # Same as putForceZminus
-    angular_velocity = 1  # Same as putForceZminus
+    # Same search velocity as putForceZminus
+    linear_velocity = 5
+    angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] search velocities: linear={linear_velocity}, angular={angular_velocity}")
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # Use same damping as putForceZminus for reliable Z force
-    # DO NOT set PID, Mass, or Stiffness - putForceZminus doesn't set them and it works
-    damp = [8000, 8000, 8000, 40, 40, 40]  # Exactly same as putForceZminus
+    # Same damping as putForceZminus
+    damp = [8000, 8000, 8000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
         config["logger"].error(f"[PocketEdge] Failed to set damp params: {nRet}")
         return
 
-    # +X force for edge contact, -Z force to maintain pocket floor contact
-    # Use same force magnitude for Z to ensure proper pocket floor contact
-    force_goal = [force, 0, -force, 0, 0, 0, 0]
+    # Edge force ratio: 50% force toward wall, 100% force on Z
+    edge_force = force * 0.5
+    force_goal = [edge_force, 0, -force, 0, 0, 0, 0]  # +X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X+, Z-)")
+    config["logger"].info(f"[PocketEdge X+ wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set force control goal: {nret}")
         return
@@ -399,32 +402,22 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     # Enable force control
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for X+ and Z- direction")
-
-    if not wait_for_force:
-        return
-
-    # Wait for X force to be reached
-    notFound = True
-    while notFound:
-        result = []
-        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        # Check X axis force (index 0)
-        if abs(float(result[0])) > abs(force):
-            config["logger"].info(f"[PocketEdge] Force condition met: X axis, Force {result[0]}")
-            notFound = False
-        time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled - compliant in X, active Z")
 
 
 def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False):
-    """Soft force control for pocket edge - push in -X direction AND maintain -Z force simultaneously."""
+    """
+    Compliant force control for pocket edge sanding - X- wall side.
+    - Z force: Active push down to maintain surface contact
+    - X: Compliant (no active push) - allows wall on X- side to push tool back
+    """
     boxID = 0
     rbtID = 0
     result = []
 
-    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
-    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+    json_config = load_json_config()
+    setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
@@ -443,12 +436,11 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    # Enable X and Z force control simultaneously (for edge + floor contact)
+    # Enable X and Z force control - X is compliant
     freedom = [1, 0, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # Same parameters as putForceZminus
     linear_velocity = 5
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
@@ -457,46 +449,35 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # DO NOT set PID, Mass, or Stiffness - match putForceZminus
     damp = [8000, 8000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # -X force for edge contact, -Z force to maintain pocket floor contact
-    # Use same force magnitude for Z to ensure proper pocket floor contact
-    force_goal = [-force, 0, -force, 0, 0, 0, 0]
+    # Edge force ratio: 50% force toward wall, 100% force on Z
+    edge_force = force * 0.5
+    force_goal = [-edge_force, 0, -force, 0, 0, 0, 0]  # -X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X-, Z-)")
-    
+    config["logger"].info(f"[PocketEdge X- wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
+
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for X- and Z- direction")
-
-    if not wait_for_force:
-        return
-
-    # Wait for X force to be reached
-    notFound = True
-    while notFound:
-        result = []
-        cps.HRIF_ReadFTCabData(0, 0, result)
-        # Check X axis force (index 0)
-        if abs(float(result[0])) > abs(force):
-            config["logger"].info(f"[PocketEdge] Force condition met: X axis, Force {result[0]}")
-            notFound = False
-        time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled - compliant in X, active Z")
 
 
 def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
-    """Soft force control for pocket edge - push in +Y direction AND maintain -Z force simultaneously."""
+    """
+    Compliant force control for pocket edge sanding - Y+ wall side.
+    - Z force: Active push down to maintain surface contact
+    - Y: Compliant (no active push) - allows wall on Y+ side to push tool back
+    """
     boxID = 0
     rbtID = 0
     result = []
 
-    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
-    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+    json_config = load_json_config()
+    setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
@@ -515,12 +496,11 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    # Enable Y and Z force control simultaneously (for edge + floor contact)
+    # Enable Y and Z force control - Y is compliant
     freedom = [0, 1, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # Same parameters as putForceZminus
     linear_velocity = 5
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
@@ -529,45 +509,35 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # DO NOT set PID, Mass, or Stiffness - match putForceZminus
     damp = [8000, 8000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # +Y force for edge contact, -Z force to maintain pocket floor contact
-    force_goal = [0, force, -force, 0, 0, 0, 0]
+    # Edge force ratio: 50% force toward wall, 100% force on Z
+    edge_force = force * 0.5
+    force_goal = [0, edge_force, -force, 0, 0, 0, 0]  # +Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (Y+, Z-)")
+    config["logger"].info(f"[PocketEdge Y+ wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for Y+ and Z- direction")
-
-    if not wait_for_force:
-        return
-
-    # Wait for Y force to be reached
-    notFound = True
-    while notFound:
-        result = []
-        cps.HRIF_ReadFTCabData(0, 0, result)
-        # Check Y axis force (index 1)
-        if abs(float(result[1])) > abs(force):
-            config["logger"].info(f"[PocketEdge] Force condition met: Y axis, Force {result[1]}")
-            notFound = False
-        time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled - compliant in Y, active Z")
 
 
 def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False):
-    """Soft force control for pocket edge - push in -Y direction AND maintain -Z force simultaneously."""
+    """
+    Compliant force control for pocket edge sanding - Y- wall side.
+    - Z force: Active push down to maintain surface contact
+    - Y: Compliant (no active push) - allows wall on Y- side to push tool back
+    """
     boxID = 0
     rbtID = 0
     result = []
 
-    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
-    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+    json_config = load_json_config()
+    setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
@@ -586,12 +556,11 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    # Enable Y and Z force control simultaneously (for edge + floor contact)
+    # Enable Y and Z force control - Y is compliant
     freedom = [0, 1, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # Same parameters as putForceZminus
     linear_velocity = 5
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
@@ -600,52 +569,20 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # DO NOT set PID, Mass, or Stiffness - match putForceZminus
     damp = [8000, 8000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # -Y force for edge contact, -Z force to maintain pocket floor contact
-    force_goal = [0, -force, -force, 0, 0, 0, 0]
+    # Edge force ratio: 50% force toward wall, 100% force on Z
+    edge_force = force * 0.5
+    force_goal = [0, -edge_force, -force, 0, 0, 0, 0]  # -Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (Y-, Z-)")
+    config["logger"].info(f"[PocketEdge Y- wall] Edge force: {edge_force:.1f}N, Z force: {force}N")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for Y- and Z- direction")
-
-    if not wait_for_force:
-        return
-
-    # Wait for Y force to be reached
-    notFound = True
-    while notFound:
-        result = []
-        cps.HRIF_ReadFTCabData(0, 0, result)
-        # Check Y axis force (index 1)
-        if abs(float(result[1])) > abs(force):
-            config["logger"].info(f"[PocketEdge] Force condition met: Y axis, Force {result[1]}")
-            notFound = False
-        time.sleep(0.0001)
-
-    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
-    time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for X- and Z- direction")
-
-    if not wait_for_force:
-        return
-
-    # Wait for X force to be reached
-    notFound = True
-    while notFound:
-        result = []
-        cps.HRIF_ReadFTCabData(0, 0, result)
-        # Check X axis force (index 0)
-        if abs(float(result[0])) > abs(force):
-            config["logger"].info(f"[PocketEdge] Force condition met: X axis, Force {result[0]}")
-            notFound = False
-        time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled - 50% edge force, 100% Z force")
 
 
 def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=True):
