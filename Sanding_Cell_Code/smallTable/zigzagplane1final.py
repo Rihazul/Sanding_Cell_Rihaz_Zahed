@@ -580,98 +580,81 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
-            # Step 1: Edge coverage - continuous motion along pocket edges with force control
+            # Step 1: Edge coverage with directional force control
+            # Force pushes inward toward pocket center on each edge + Z down
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Processing {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
-                # Calculate center for determining force direction
+                # Calculate pocket center for determining inward direction
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-
-                # Move to first edge point (no force yet, no vibration)
-                communicate(cps=cps, config=config, point=edge_points[0], 
-                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
-                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
-
-                # Determine initial force direction based on first segment
-                p0, p1 = edge_points[0], edge_points[1]
-                dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                nx, ny = -dy, dx
-                nlen = math.hypot(nx, ny)
-                if nlen > 0:
-                    nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
-                        nx, ny = -nx, -ny
-
-                if abs(nx) >= abs(ny):
-                    force_dir = 'Xplus' if nx > 0 else 'Xminus'
-                else:
-                    force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                if force_dir == 'Xminus':
-                    putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Xplus':
-                    putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Yminus':
-                    putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                else:
-                    putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
                 
-                current_force_dir = force_dir
-                print(f"[Edge Coverage] Initial force: {force_dir}")
-                turn_vibration_on(cps)
-
-                for i in range(len(edge_points) - 1):
-                    p0, p1 = edge_points[i], edge_points[i + 1]
+                def get_force_direction(p0, p1):
+                    """Determine force direction based on segment - pushes inward toward center"""
                     dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+                    # Normal to segment
                     nx, ny = -dy, dx
                     nlen = math.hypot(nx, ny)
                     if nlen == 0:
-                        continue
+                        return None
                     nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
+                    # Make normal point toward center
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
                         nx, ny = -nx, -ny
-
+                    # Return dominant direction
                     if abs(nx) >= abs(ny):
-                        new_force_dir = 'Xplus' if nx > 0 else 'Xminus'
+                        return 'Xplus' if nx > 0 else 'Xminus'
                     else:
-                        new_force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                    if new_force_dir != current_force_dir:
-                        turn_vibration_off(cps)
-                        releaseForce(cps=cps, config=config)
-                        if new_force_dir == 'Xminus':
-                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Xplus':
-                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Yminus':
-                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        else:
-                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        current_force_dir = new_force_dir
-                        print(f"[Edge Coverage] Force changed: {new_force_dir}")
-                        turn_vibration_on(cps)
-
-                    is_last = (i == len(edge_points) - 2)
-                    next_dir_same = False
-                    if not is_last:
-                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
-                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
-                        nnx, nny = -ndy, ndx
-                        nnlen = math.hypot(nnx, nny)
-                        if nnlen > 0:
-                            nnx, nny = nnx / nnlen, nny / nnlen
-                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny > 0:
-                                nnx, nny = -nnx, -nny
-                            next_dir = ('Xplus' if nnx > 0 else 'Xminus') if abs(nnx) >= abs(nny) else ('Yplus' if nny > 0 else 'Yminus')
-                            next_dir_same = (next_dir == current_force_dir)
-
-                    communicate(cps=cps, config=config, point=p1, 
+                        return 'Yplus' if ny > 0 else 'Yminus'
+                
+                def apply_force(direction):
+                    """Apply force in the specified direction + Z down"""
+                    if direction == 'Xminus':
+                        putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Xplus':
+                        putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Yminus':
+                        putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    else:
+                        putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                
+                # Move to first edge point without force
+                communicate(cps=cps, config=config, point=edge_points[0], 
+                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
+                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                
+                # Determine initial force direction and apply
+                current_dir = get_force_direction(edge_points[0], edge_points[1])
+                apply_force(current_dir)
+                print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Turn on vibration
+                turn_vibration_on(cps)
+                
+                # Process each edge segment
+                for i in range(1, len(edge_points)):
+                    # Check if next segment needs different force (at corners)
+                    if i < len(edge_points) - 1:
+                        next_dir = get_force_direction(edge_points[i], edge_points[i+1])
+                    else:
+                        next_dir = current_dir  # Last segment, keep same
+                    
+                    # Move to this point - wait only at corners (direction change) or last point
+                    is_corner = (next_dir != current_dir and next_dir is not None)
+                    is_last = (i == len(edge_points) - 1)
+                    communicate(cps=cps, config=config, point=edge_points[i], 
                                tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                                seventh=-1, speed=float(json_config['sandingSpeed']), 
-                               wait=(not next_dir_same))
-
+                               wait=(is_corner or is_last))
+                    
+                    # Switch force direction at corners
+                    if is_corner and not is_last:
+                        print(f"[Edge Coverage] Corner: switching force {current_dir} -> {next_dir}")
+                        apply_force(next_dir)
+                        current_dir = next_dir
+                
+                # Done - release and cleanup
                 turn_vibration_off(cps)
                 releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
@@ -900,98 +883,81 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
-            # Step 1: Edge coverage - continuous motion along pocket edges with force control
+            # Step 1: Edge coverage with directional force control
+            # Force pushes inward toward pocket center on each edge + Z down
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Processing {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
-                # Calculate center for determining force direction
+                # Calculate pocket center for determining inward direction
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-
-                # Move to first edge point (no force yet, no vibration)
-                communicate(cps=cps, config=config, point=edge_points[0], 
-                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
-                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
-
-                # Determine initial force direction based on first segment
-                p0, p1 = edge_points[0], edge_points[1]
-                dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                nx, ny = -dy, dx
-                nlen = math.hypot(nx, ny)
-                if nlen > 0:
-                    nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
-                        nx, ny = -nx, -ny
-
-                if abs(nx) >= abs(ny):
-                    force_dir = 'Xplus' if nx > 0 else 'Xminus'
-                else:
-                    force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                if force_dir == 'Xminus':
-                    putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Xplus':
-                    putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Yminus':
-                    putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                else:
-                    putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
                 
-                current_force_dir = force_dir
-                print(f"[Edge Coverage] Initial force: {force_dir}")
-                turn_vibration_on(cps)
-
-                for i in range(len(edge_points) - 1):
-                    p0, p1 = edge_points[i], edge_points[i + 1]
+                def get_force_direction(p0, p1):
+                    """Determine force direction based on segment - pushes inward toward center"""
                     dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+                    # Normal to segment
                     nx, ny = -dy, dx
                     nlen = math.hypot(nx, ny)
                     if nlen == 0:
-                        continue
+                        return None
                     nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
+                    # Make normal point toward center
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
                         nx, ny = -nx, -ny
-
+                    # Return dominant direction
                     if abs(nx) >= abs(ny):
-                        new_force_dir = 'Xplus' if nx > 0 else 'Xminus'
+                        return 'Xplus' if nx > 0 else 'Xminus'
                     else:
-                        new_force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                    if new_force_dir != current_force_dir:
-                        turn_vibration_off(cps)
-                        releaseForce(cps=cps, config=config)
-                        if new_force_dir == 'Xminus':
-                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Xplus':
-                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Yminus':
-                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        else:
-                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        current_force_dir = new_force_dir
-                        print(f"[Edge Coverage] Force changed: {new_force_dir}")
-                        turn_vibration_on(cps)
-
-                    is_last = (i == len(edge_points) - 2)
-                    next_dir_same = False
-                    if not is_last:
-                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
-                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
-                        nnx, nny = -ndy, ndx
-                        nnlen = math.hypot(nnx, nny)
-                        if nnlen > 0:
-                            nnx, nny = nnx / nnlen, nny / nnlen
-                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny > 0:
-                                nnx, nny = -nnx, -nny
-                            next_dir = ('Xplus' if nnx > 0 else 'Xminus') if abs(nnx) >= abs(nny) else ('Yplus' if nny > 0 else 'Yminus')
-                            next_dir_same = (next_dir == current_force_dir)
-
-                    communicate(cps=cps, config=config, point=p1, 
+                        return 'Yplus' if ny > 0 else 'Yminus'
+                
+                def apply_force(direction):
+                    """Apply force in the specified direction + Z down"""
+                    if direction == 'Xminus':
+                        putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Xplus':
+                        putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Yminus':
+                        putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    else:
+                        putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                
+                # Move to first edge point without force
+                communicate(cps=cps, config=config, point=edge_points[0], 
+                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
+                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                
+                # Determine initial force direction and apply
+                current_dir = get_force_direction(edge_points[0], edge_points[1])
+                apply_force(current_dir)
+                print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Turn on vibration
+                turn_vibration_on(cps)
+                
+                # Process each edge segment
+                for i in range(1, len(edge_points)):
+                    # Check if next segment needs different force (at corners)
+                    if i < len(edge_points) - 1:
+                        next_dir = get_force_direction(edge_points[i], edge_points[i+1])
+                    else:
+                        next_dir = current_dir  # Last segment, keep same
+                    
+                    # Move to this point - wait only at corners (direction change) or last point
+                    is_corner = (next_dir != current_dir and next_dir is not None)
+                    is_last = (i == len(edge_points) - 1)
+                    communicate(cps=cps, config=config, point=edge_points[i], 
                                tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                                seventh=-1, speed=float(json_config['sandingSpeed']), 
-                               wait=(not next_dir_same))
-
+                               wait=(is_corner or is_last))
+                    
+                    # Switch force direction at corners
+                    if is_corner and not is_last:
+                        print(f"[Edge Coverage] Corner: switching force {current_dir} -> {next_dir}")
+                        apply_force(next_dir)
+                        current_dir = next_dir
+                
+                # Done - release and cleanup
                 turn_vibration_off(cps)
                 releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
@@ -1224,98 +1190,81 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
-            # Step 1: Edge coverage - continuous motion along pocket edges with force control
+            # Step 1: Edge coverage with directional force control
+            # Force pushes inward toward pocket center on each edge + Z down
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Processing {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
-                # Calculate center for determining force direction
+                # Calculate pocket center for determining inward direction
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-
-                # Move to first edge point (no force yet, no vibration)
-                communicate(cps=cps, config=config, point=edge_points[0], 
-                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
-                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
-
-                # Determine initial force direction based on first segment
-                p0, p1 = edge_points[0], edge_points[1]
-                dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                nx, ny = -dy, dx
-                nlen = math.hypot(nx, ny)
-                if nlen > 0:
-                    nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
-                        nx, ny = -nx, -ny
-
-                if abs(nx) >= abs(ny):
-                    force_dir = 'Xplus' if nx > 0 else 'Xminus'
-                else:
-                    force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                if force_dir == 'Xminus':
-                    putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Xplus':
-                    putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Yminus':
-                    putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                else:
-                    putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
                 
-                current_force_dir = force_dir
-                print(f"[Edge Coverage] Initial force: {force_dir}")
-                turn_vibration_on(cps)
-
-                for i in range(len(edge_points) - 1):
-                    p0, p1 = edge_points[i], edge_points[i + 1]
+                def get_force_direction(p0, p1):
+                    """Determine force direction based on segment - pushes inward toward center"""
                     dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+                    # Normal to segment
                     nx, ny = -dy, dx
                     nlen = math.hypot(nx, ny)
                     if nlen == 0:
-                        continue
+                        return None
                     nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
+                    # Make normal point toward center
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
                         nx, ny = -nx, -ny
-
+                    # Return dominant direction
                     if abs(nx) >= abs(ny):
-                        new_force_dir = 'Xplus' if nx > 0 else 'Xminus'
+                        return 'Xplus' if nx > 0 else 'Xminus'
                     else:
-                        new_force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                    if new_force_dir != current_force_dir:
-                        turn_vibration_off(cps)
-                        releaseForce(cps=cps, config=config)
-                        if new_force_dir == 'Xminus':
-                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Xplus':
-                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Yminus':
-                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        else:
-                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        current_force_dir = new_force_dir
-                        print(f"[Edge Coverage] Force changed: {new_force_dir}")
-                        turn_vibration_on(cps)
-
-                    is_last = (i == len(edge_points) - 2)
-                    next_dir_same = False
-                    if not is_last:
-                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
-                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
-                        nnx, nny = -ndy, ndx
-                        nnlen = math.hypot(nnx, nny)
-                        if nnlen > 0:
-                            nnx, nny = nnx / nnlen, nny / nnlen
-                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny > 0:
-                                nnx, nny = -nnx, -nny
-                            next_dir = ('Xplus' if nnx > 0 else 'Xminus') if abs(nnx) >= abs(nny) else ('Yplus' if nny > 0 else 'Yminus')
-                            next_dir_same = (next_dir == current_force_dir)
-
-                    communicate(cps=cps, config=config, point=p1, 
+                        return 'Yplus' if ny > 0 else 'Yminus'
+                
+                def apply_force(direction):
+                    """Apply force in the specified direction + Z down"""
+                    if direction == 'Xminus':
+                        putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Xplus':
+                        putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Yminus':
+                        putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    else:
+                        putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                
+                # Move to first edge point without force
+                communicate(cps=cps, config=config, point=edge_points[0], 
+                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
+                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                
+                # Determine initial force direction and apply
+                current_dir = get_force_direction(edge_points[0], edge_points[1])
+                apply_force(current_dir)
+                print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Turn on vibration
+                turn_vibration_on(cps)
+                
+                # Process each edge segment
+                for i in range(1, len(edge_points)):
+                    # Check if next segment needs different force (at corners)
+                    if i < len(edge_points) - 1:
+                        next_dir = get_force_direction(edge_points[i], edge_points[i+1])
+                    else:
+                        next_dir = current_dir  # Last segment, keep same
+                    
+                    # Move to this point - wait only at corners (direction change) or last point
+                    is_corner = (next_dir != current_dir and next_dir is not None)
+                    is_last = (i == len(edge_points) - 1)
+                    communicate(cps=cps, config=config, point=edge_points[i], 
                                tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                                seventh=-1, speed=float(json_config['sandingSpeed']), 
-                               wait=(not next_dir_same))
-
+                               wait=(is_corner or is_last))
+                    
+                    # Switch force direction at corners
+                    if is_corner and not is_last:
+                        print(f"[Edge Coverage] Corner: switching force {current_dir} -> {next_dir}")
+                        apply_force(next_dir)
+                        current_dir = next_dir
+                
+                # Done - release and cleanup
                 turn_vibration_off(cps)
                 releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
@@ -1535,98 +1484,81 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
-            # Step 1: Edge coverage - continuous motion along pocket edges with force control
+            # Step 1: Edge coverage with directional force control
+            # Force pushes inward toward pocket center on each edge + Z down
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Processing {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
-                # Calculate center for determining force direction
+                # Calculate pocket center for determining inward direction
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-
-                # Move to first edge point (no force yet, no vibration)
-                communicate(cps=cps, config=config, point=edge_points[0], 
-                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
-                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
-
-                # Determine initial force direction based on first segment
-                p0, p1 = edge_points[0], edge_points[1]
-                dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                nx, ny = -dy, dx
-                nlen = math.hypot(nx, ny)
-                if nlen > 0:
-                    nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
-                        nx, ny = -nx, -ny
-
-                if abs(nx) >= abs(ny):
-                    force_dir = 'Xplus' if nx > 0 else 'Xminus'
-                else:
-                    force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                if force_dir == 'Xminus':
-                    putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Xplus':
-                    putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                elif force_dir == 'Yminus':
-                    putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                else:
-                    putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
                 
-                current_force_dir = force_dir
-                print(f"[Edge Coverage] Initial force: {force_dir}")
-                turn_vibration_on(cps)
-
-                for i in range(len(edge_points) - 1):
-                    p0, p1 = edge_points[i], edge_points[i + 1]
+                def get_force_direction(p0, p1):
+                    """Determine force direction based on segment - pushes inward toward center"""
                     dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+                    # Normal to segment
                     nx, ny = -dy, dx
                     nlen = math.hypot(nx, ny)
                     if nlen == 0:
-                        continue
+                        return None
                     nx, ny = nx / nlen, ny / nlen
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny > 0:
+                    # Make normal point toward center
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
                         nx, ny = -nx, -ny
-
+                    # Return dominant direction
                     if abs(nx) >= abs(ny):
-                        new_force_dir = 'Xplus' if nx > 0 else 'Xminus'
+                        return 'Xplus' if nx > 0 else 'Xminus'
                     else:
-                        new_force_dir = 'Yplus' if ny > 0 else 'Yminus'
-
-                    if new_force_dir != current_force_dir:
-                        turn_vibration_off(cps)
-                        releaseForce(cps=cps, config=config)
-                        if new_force_dir == 'Xminus':
-                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Xplus':
-                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        elif new_force_dir == 'Yminus':
-                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        else:
-                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
-                        current_force_dir = new_force_dir
-                        print(f"[Edge Coverage] Force changed: {new_force_dir}")
-                        turn_vibration_on(cps)
-
-                    is_last = (i == len(edge_points) - 2)
-                    next_dir_same = False
-                    if not is_last:
-                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
-                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
-                        nnx, nny = -ndy, ndx
-                        nnlen = math.hypot(nnx, nny)
-                        if nnlen > 0:
-                            nnx, nny = nnx / nnlen, nny / nnlen
-                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny > 0:
-                                nnx, nny = -nnx, -nny
-                            next_dir = ('Xplus' if nnx > 0 else 'Xminus') if abs(nnx) >= abs(nny) else ('Yplus' if nny > 0 else 'Yminus')
-                            next_dir_same = (next_dir == current_force_dir)
-
-                    communicate(cps=cps, config=config, point=p1, 
+                        return 'Yplus' if ny > 0 else 'Yminus'
+                
+                def apply_force(direction):
+                    """Apply force in the specified direction + Z down"""
+                    if direction == 'Xminus':
+                        putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Xplus':
+                        putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    elif direction == 'Yminus':
+                        putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                    else:
+                        putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                
+                # Move to first edge point without force
+                communicate(cps=cps, config=config, point=edge_points[0], 
+                           tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
+                           seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                
+                # Determine initial force direction and apply
+                current_dir = get_force_direction(edge_points[0], edge_points[1])
+                apply_force(current_dir)
+                print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Turn on vibration
+                turn_vibration_on(cps)
+                
+                # Process each edge segment
+                for i in range(1, len(edge_points)):
+                    # Check if next segment needs different force (at corners)
+                    if i < len(edge_points) - 1:
+                        next_dir = get_force_direction(edge_points[i], edge_points[i+1])
+                    else:
+                        next_dir = current_dir  # Last segment, keep same
+                    
+                    # Move to this point - wait only at corners (direction change) or last point
+                    is_corner = (next_dir != current_dir and next_dir is not None)
+                    is_last = (i == len(edge_points) - 1)
+                    communicate(cps=cps, config=config, point=edge_points[i], 
                                tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                                seventh=-1, speed=float(json_config['sandingSpeed']), 
-                               wait=(not next_dir_same))
-
+                               wait=(is_corner or is_last))
+                    
+                    # Switch force direction at corners
+                    if is_corner and not is_last:
+                        print(f"[Edge Coverage] Corner: switching force {current_dir} -> {next_dir}")
+                        apply_force(next_dir)
+                        current_dir = next_dir
+                
+                # Done - release and cleanup
                 turn_vibration_off(cps)
                 releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)

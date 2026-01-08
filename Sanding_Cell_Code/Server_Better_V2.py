@@ -338,7 +338,7 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     rbtID = 0
     result = []
 
-    waitForBlending(cps, config)
+    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
@@ -422,7 +422,7 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     rbtID = 0
     result = []
 
-    waitForBlending(cps, config)
+    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
@@ -494,7 +494,7 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     rbtID = 0
     result = []
 
-    waitForBlending(cps, config)
+    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
@@ -566,7 +566,7 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     rbtID = 0
     result = []
 
-    waitForBlending(cps, config)
+    # No waitForBlending - allow continuous motion during force switching
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
