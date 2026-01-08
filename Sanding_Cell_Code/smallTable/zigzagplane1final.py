@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import yaml
 import threading
 from Components.RobotState import RobotState
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus, putForceXplus,putForceXminus,putForceYminus1,putForceYplus1edge
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus, putForceXplus,putForceXminus,putForceYminus1,putForceYplus1edge, putForcePocketEdgeXplus,putForcePocketEdgeXminus,putForcePocketEdgeYplus,putForcePocketEdgeYminus
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -584,13 +584,15 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             
             
             # Step 1: Edge coverage with MoveL (linear path between modified points)
+            # Using SOFT force control for pocket edges (7mm depth) with 2mm safe offset
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points (soft pocket edge mode)")
                 turn_vibration_on(cps)
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 5.0
+                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
+                offset_mm = 2.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -623,9 +625,11 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         wait=True
                     )
 
+                    # Use SOFT pocket edge force control for gentle edge contact
+                    # Lower search velocity (2mm/s), lower stiffness, higher damping
                     if abs(nx) >= abs(ny):
                         if nx > 0:
-                            putForceXminus(
+                            putForcePocketEdgeXminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -634,7 +638,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                                 wait_for_force=False
                             )
                         else:
-                            putForceXplus(
+                            putForcePocketEdgeXplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -644,7 +648,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                             )
                     else:
                         if ny > 0:
-                            putForceYminus1(
+                            putForcePocketEdgeYminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -653,7 +657,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                                 wait_for_force=False
                             )
                         else:
-                            putForceYplus1edge(
+                            putForcePocketEdgeYplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -675,7 +679,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
+                print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
@@ -893,13 +897,15 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             
             
             # Step 1: Edge coverage with MoveL (linear path between modified points)
+            # Using SOFT force control for pocket edges (7mm depth) with 2mm safe offset
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points (soft pocket edge mode)")
                 turn_vibration_on(cps)
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 5.0
+                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
+                offset_mm = 2.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -932,9 +938,11 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         wait=True
                     )
 
+                    # Use SOFT pocket edge force control for gentle edge contact
+                    # Lower search velocity (2mm/s), lower stiffness, higher damping
                     if abs(nx) >= abs(ny):
                         if nx > 0:
-                            putForceXminus(
+                            putForcePocketEdgeXminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -943,7 +951,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                                 wait_for_force=False
                             )
                         else:
-                            putForceXplus(
+                            putForcePocketEdgeXplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -953,7 +961,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                             )
                     else:
                         if ny > 0:
-                            putForceYminus1(
+                            putForcePocketEdgeYminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -962,7 +970,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                                 wait_for_force=False
                             )
                         else:
-                            putForceYplus1edge(
+                            putForcePocketEdgeYplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -984,7 +992,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
+                print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
@@ -1206,13 +1214,15 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             
             
             # Step 1: Edge coverage with MoveL (linear path between modified points)
+            # Using SOFT force control for pocket edges (7mm depth) with 2mm safe offset
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points (soft pocket edge mode)")
                 turn_vibration_on(cps)
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 5.0
+                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
+                offset_mm = 2.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -1245,9 +1255,11 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         wait=True
                     )
 
+                    # Use SOFT pocket edge force control for gentle edge contact
+                    # Lower search velocity (2mm/s), lower stiffness, higher damping
                     if abs(nx) >= abs(ny):
                         if nx > 0:
-                            putForceXminus(
+                            putForcePocketEdgeXminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1256,7 +1268,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                                 wait_for_force=False
                             )
                         else:
-                            putForceXplus(
+                            putForcePocketEdgeXplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1266,7 +1278,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                             )
                     else:
                         if ny > 0:
-                            putForceYminus1(
+                            putForcePocketEdgeYminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1275,7 +1287,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                                 wait_for_force=False
                             )
                         else:
-                            putForceYplus1edge(
+                            putForcePocketEdgeYplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1297,7 +1309,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
+                print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion
@@ -1506,13 +1518,15 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             
             
             # Step 1: Edge coverage with MoveL (linear path between modified points)
+            # Using SOFT force control for pocket edges (7mm depth) with 2mm safe offset
             if edge_points and len(edge_points) > 1:
-                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
+                print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points (soft pocket edge mode)")
                 turn_vibration_on(cps)
                 corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
                 cx = sum(p[0] for p in corners) / len(corners)
                 cy = sum(p[1] for p in corners) / len(corners)
-                offset_mm = 5.0
+                # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
+                offset_mm = 2.0
 
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
@@ -1545,9 +1559,11 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         wait=True
                     )
 
+                    # Use SOFT pocket edge force control for gentle edge contact
+                    # Lower search velocity (2mm/s), lower stiffness, higher damping
                     if abs(nx) >= abs(ny):
                         if nx > 0:
-                            putForceXminus(
+                            putForcePocketEdgeXminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1556,7 +1572,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                                 wait_for_force=False
                             )
                         else:
-                            putForceXplus(
+                            putForcePocketEdgeXplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1566,7 +1582,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                             )
                     else:
                         if ny > 0:
-                            putForceYminus1(
+                            putForcePocketEdgeYminus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1575,7 +1591,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                                 wait_for_force=False
                             )
                         else:
-                            putForceYplus1edge(
+                            putForcePocketEdgeYplus(
                                 cps=cps,
                                 force=force,
                                 tcp=config['coords']['tcptool1plane1'],
@@ -1597,7 +1613,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     releaseForce(cps=cps, config=config)
 
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
+                print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
             
             # Step 2: Zigzag/Spiral motion

@@ -324,6 +324,368 @@ def toggle_stopper_status(cps, digital_number=2):
 #         nRet = cps.HRIF_SetBoxDO(0, 1, 1)
 
 
+# ============================================================================
+# SOFT POCKET EDGE FORCE CONTROL FUNCTIONS
+# These functions are optimized for pocket edge coverage with reduced
+# search velocity, lower stiffness, and higher damping for smooth edge contact.
+# Use these when the tool needs to gently touch pocket edges (e.g., 7mm depth)
+# without making noise or risking tool damage.
+# ============================================================================
+
+def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_for_force=False):
+    """Soft force control for pocket edge - push in +X direction (gentle approach)."""
+    boxID = 0
+    rbtID = 0
+    result = []
+
+    waitForBlending(cps, config)
+    setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
+    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+
+    nRet = cps.HRIF_SetForceZero(0, 0)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
+        return
+
+    # Set tool coordinate system mode for force control
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] forcetoolcoordinate: {nret}, result: {result}")
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force tool coordinate motion: {nret}")
+        return
+
+    # Set the force control strategy to constant force mode
+    nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
+        return
+
+    # Define the target force control values
+    freedom = goal + [0, 0, 0]
+    cps.HRIF_SetControlFreedom(0, 0, freedom)
+    time.sleep(0.0001)
+
+    # SOFT APPROACH: Lower search velocity for gentle edge contact
+    linear_velocity = 2  # Reduced from 5 mm/s to 2 mm/s for gentler approach
+    angular_velocity = 0.5  # Reduced from 1 °/s
+    nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] search velocities: linear={linear_velocity}, angular={angular_velocity}")
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
+        return
+
+    # SOFT PID: Lower gains for smoother control
+    dFp = 0.5  # Reduced from 0.8
+    dFi = 0.0005  # Reduced from 0.001
+    dFd = 0.03  # Slightly increased for damping
+    dTp = 0.5
+    dTi = 0.0005
+    dTd = 0.03
+
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set PID control params: {nRet}")
+        return
+
+    # SOFT Mass: Higher values for more inertia (smoother)
+    Mass = [120, 120, 120, 15, 15, 15]  # Increased from [80, 80, 80, 10, 10, 10]
+    nRet = cps.HRIF_SetMassParams(0, 0, Mass)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set mass params: {nRet}")
+        return
+
+    # SOFT Stiffness: Lower values for gentler contact
+    Stiff = [800, 800, 800, 60, 60, 60]  # Reduced from [1500, 1500, 1500, 100, 100, 100]
+    nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set stiffness params: {nRet}")
+        return
+
+    # SOFT Damping: Higher values to absorb impact
+    damp = [3500, 3500, 3500, 60, 60, 60]  # Increased from [2500, 2500, 2500, 40, 40, 40]
+    nRet = cps.HRIF_SetDampParams(0, 0, damp)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set damp params: {nRet}")
+        return
+
+    force_goal = [force * goal[0], force * goal[1], force * goal[2], 0, 0, 0, 0]
+    nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force control goal: {nret}")
+        return
+
+    # Enable force control
+    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled for X+ direction")
+
+    if not wait_for_force:
+        return
+
+    # Wait for force to be reached
+    notFound = True
+    while notFound:
+        result = []
+        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
+        for i, val in enumerate(goal):
+            if val and abs(float(result[i])) > abs(force):
+                config["logger"].info(f"[PocketEdge] Force condition met: Axis {i}, Force {result[i]}")
+                notFound = False
+                break
+        time.sleep(0.0001)
+
+
+def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_for_force=False):
+    """Soft force control for pocket edge - push in -X direction (gentle approach)."""
+    boxID = 0
+    rbtID = 0
+    result = []
+
+    waitForBlending(cps, config)
+    setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
+    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+
+    nRet = cps.HRIF_SetForceZero(0, 0)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
+        return
+
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force tool coordinate motion: {nret}")
+        return
+
+    nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
+        return
+
+    freedom = goal + [0, 0, 0]
+    cps.HRIF_SetControlFreedom(0, 0, freedom)
+    time.sleep(0.0001)
+
+    # SOFT APPROACH parameters
+    linear_velocity = 2
+    angular_velocity = 0.5
+    nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
+        return
+
+    dFp, dFi, dFd = 0.5, 0.0005, 0.03
+    dTp, dTi, dTd = 0.5, 0.0005, 0.03
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+
+    Mass = [120, 120, 120, 15, 15, 15]
+    cps.HRIF_SetMassParams(0, 0, Mass)
+    time.sleep(0.0001)
+
+    Stiff = [800, 800, 800, 60, 60, 60]
+    cps.HRIF_SetStiffParams(0, 0, Stiff)
+    time.sleep(0.0001)
+
+    damp = [3500, 3500, 3500, 60, 60, 60]
+    cps.HRIF_SetDampParams(0, 0, damp)
+    time.sleep(0.0001)
+
+    # Negative force for -X direction
+    force_goal = [-force * goal[0], force * goal[1], force * goal[2], 0, 0, 0, 0]
+    nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+
+    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled for X- direction")
+
+    if not wait_for_force:
+        return
+
+    notFound = True
+    while notFound:
+        result = []
+        cps.HRIF_ReadFTCabData(0, 0, result)
+        for i, val in enumerate(goal):
+            if val and abs(float(result[i])) > abs(force):
+                notFound = False
+                break
+        time.sleep(0.0001)
+
+
+def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=False):
+    """Soft force control for pocket edge - push in +Y direction (gentle approach)."""
+    boxID = 0
+    rbtID = 0
+    result = []
+
+    waitForBlending(cps, config)
+    setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
+    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+
+    nRet = cps.HRIF_SetForceZero(0, 0)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
+        return
+
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force tool coordinate motion: {nret}")
+        return
+
+    nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
+        return
+
+    freedom = goal + [0, 0, 0]
+    cps.HRIF_SetControlFreedom(0, 0, freedom)
+    time.sleep(0.0001)
+
+    # SOFT APPROACH parameters
+    linear_velocity = 2
+    angular_velocity = 0.5
+    nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
+        return
+
+    dFp, dFi, dFd = 0.5, 0.0005, 0.03
+    dTp, dTi, dTd = 0.5, 0.0005, 0.03
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+
+    Mass = [120, 120, 120, 15, 15, 15]
+    cps.HRIF_SetMassParams(0, 0, Mass)
+    time.sleep(0.0001)
+
+    Stiff = [800, 800, 800, 60, 60, 60]
+    cps.HRIF_SetStiffParams(0, 0, Stiff)
+    time.sleep(0.0001)
+
+    damp = [3500, 3500, 3500, 60, 60, 60]
+    cps.HRIF_SetDampParams(0, 0, damp)
+    time.sleep(0.0001)
+
+    force_goal = [force * goal[0], force * goal[1], force * goal[2], 0, 0, 0, 0]
+    nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+
+    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled for Y+ direction")
+
+    if not wait_for_force:
+        return
+
+    notFound = True
+    while notFound:
+        result = []
+        cps.HRIF_ReadFTCabData(0, 0, result)
+        for i, val in enumerate(goal):
+            if val and abs(float(result[i])) > abs(force):
+                notFound = False
+                break
+        time.sleep(0.0001)
+
+
+def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=False):
+    """Soft force control for pocket edge - push in -Y direction (gentle approach)."""
+    boxID = 0
+    rbtID = 0
+    result = []
+
+    waitForBlending(cps, config)
+    setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
+    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
+
+    nRet = cps.HRIF_SetForceZero(0, 0)
+    if nRet != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force zero: {nRet}")
+        return
+
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force tool coordinate motion: {nret}")
+        return
+
+    nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
+        return
+
+    freedom = goal + [0, 0, 0]
+    cps.HRIF_SetControlFreedom(0, 0, freedom)
+    time.sleep(0.0001)
+
+    # SOFT APPROACH parameters
+    linear_velocity = 2
+    angular_velocity = 0.5
+    nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
+    time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
+        return
+
+    dFp, dFi, dFd = 0.5, 0.0005, 0.03
+    dTp, dTi, dTd = 0.5, 0.0005, 0.03
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+
+    Mass = [120, 120, 120, 15, 15, 15]
+    cps.HRIF_SetMassParams(0, 0, Mass)
+    time.sleep(0.0001)
+
+    Stiff = [800, 800, 800, 60, 60, 60]
+    cps.HRIF_SetStiffParams(0, 0, Stiff)
+    time.sleep(0.0001)
+
+    damp = [3500, 3500, 3500, 60, 60, 60]
+    cps.HRIF_SetDampParams(0, 0, damp)
+    time.sleep(0.0001)
+
+    # Negative force for -Y direction
+    force_goal = [force * goal[0], -force * goal[1], force * goal[2], 0, 0, 0, 0]
+    nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+
+    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled for Y- direction")
+
+    if not wait_for_force:
+        return
+
+    notFound = True
+    while notFound:
+        result = []
+        cps.HRIF_ReadFTCabData(0, 0, result)
+        for i, val in enumerate(goal):
+            if val and abs(float(result[i])) > abs(force):
+                notFound = False
+                break
+        time.sleep(0.0001)
+
+
 def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=True):
     # Initialize parameters
     boxID = 0  # Control box ID
