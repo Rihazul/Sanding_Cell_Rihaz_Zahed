@@ -520,6 +520,9 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         print("p6:", p6)
         p5 = get_inner_corner_point(1, 3)
         print("p5:", p5)
+        # Scanned Z from laser scan - use for safe approach height
+        scanned_z = p8[2]
+        print("scanned_z from scan:", scanned_z)
         #7th axis postion
         x1=p8[0]+get_door_position(1)
         print("x1:", x1)
@@ -579,7 +582,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(cps, config, edge_points, zigzag_points, force, scanned_z):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
             # Corner layout: P1=bottom-right, P2=top-right, P3=bottom-left, P4=top-left
@@ -628,15 +631,30 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # Move to first edge point without force
-                communicate(cps=cps, config=config, point=edge_points[0], 
+                # SAFE APPROACH: First move to a point ABOVE the first edge point
+                # This prevents crashing into the wall when descending
+                # Use scanned_z from laser scan for accurate approach height
+                safe_approach_point = list(edge_points[0])
+                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
-                # Determine initial force direction and apply
+                # CRITICAL: Wait for robot to be completely still before applying force
+                waitForBlending(cps=cps, config=config)
+                print("[Edge Coverage] Robot still, applying force control...")
+                
+                # Determine initial force direction and apply BEFORE descending
+                # Force will push tool down (Z) and toward edge (X or Y)
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
                 print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Wait for force to engage and push tool down to surface
+                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
+                print("[Edge Coverage] Force engaged, tool should be on surface...")
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -784,7 +802,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             speed=0.2, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force)  # Edge coverage + zigzag path
+        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force, scanned_z=scanned_z)  # Edge coverage + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
@@ -836,6 +854,9 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         print("p6:", p6)
         p5 = get_inner_corner_point(2, 3)
         print("p5:", p5)
+        # Scanned Z from laser scan - use for safe approach height
+        scanned_z = p8[2]
+        print("scanned_z from scan:", scanned_z)
         #7th axis postion
         x1=p8[0]+get_door_position(2)
         print("x1:", x1)
@@ -891,7 +912,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(cps, config, edge_points, zigzag_points, force, scanned_z):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
             # Corner layout: P1=bottom-right, P2=top-right, P3=bottom-left, P4=top-left
@@ -940,15 +961,29 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # Move to first edge point without force
-                communicate(cps=cps, config=config, point=edge_points[0], 
+                # SAFE APPROACH: First move to a point ABOVE the first edge point
+                # This prevents crashing into the wall when descending
+                safe_approach_point = list(edge_points[0])
+                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
-                # Determine initial force direction and apply
+                # CRITICAL: Wait for robot to be completely still before applying force
+                waitForBlending(cps=cps, config=config)
+                print("[Edge Coverage] Robot still, applying force control...")
+                
+                # Determine initial force direction and apply BEFORE descending
+                # Force will push tool down (Z) and toward edge (X or Y)
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
                 print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Wait for force to engage and push tool down to surface
+                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
+                print("[Edge Coverage] Force engaged, tool should be on surface...")
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -1097,7 +1132,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             speed=0.2, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force)  # Edge coverage + zigzag path
+        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force, scanned_z=scanned_z)  # Edge coverage + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
@@ -1150,6 +1185,9 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         print("p6:", p6)
         p5 = get_inner_corner_point(3, 3)
         print("p5:", p5)
+        # Scanned Z from laser scan - use for safe approach height
+        scanned_z = p8[2]
+        print("scanned_z from scan:", scanned_z)
         #7th axis postion
         x1=p8[0]+get_door_position(3)
         print("x1:", x1)
@@ -1207,7 +1245,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(cps, config, edge_points, zigzag_points, force, scanned_z):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
             # Corner layout: P1=bottom-right, P2=top-right, P3=bottom-left, P4=top-left
@@ -1256,15 +1294,29 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # Move to first edge point without force
-                communicate(cps=cps, config=config, point=edge_points[0], 
+                # SAFE APPROACH: First move to a point ABOVE the first edge point
+                # This prevents crashing into the wall when descending
+                safe_approach_point = list(edge_points[0])
+                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
-                # Determine initial force direction and apply
+                # CRITICAL: Wait for robot to be completely still before applying force
+                waitForBlending(cps=cps, config=config)
+                print("[Edge Coverage] Robot still, applying force control...")
+                
+                # Determine initial force direction and apply BEFORE descending
+                # Force will push tool down (Z) and toward edge (X or Y)
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
                 print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Wait for force to engage and push tool down to surface
+                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
+                print("[Edge Coverage] Force engaged, tool should be on surface...")
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -1401,7 +1453,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             speed=0.2, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force)  # Edge coverage + zigzag path
+        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force, scanned_z=scanned_z)  # Edge coverage + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
@@ -1453,6 +1505,9 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         print("p6:", p6)
         p5 = get_inner_corner_point(4, 3)
         print("p5:", p5)
+        # Scanned Z from laser scan - use for safe approach height
+        scanned_z = p8[2]
+        print("scanned_z from scan:", scanned_z)
         #7th axis postion
         x1=p8[0]+get_door_position(4)
         print("x1:", x1)
@@ -1510,7 +1565,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(cps, config, edge_points, zigzag_points, force, scanned_z):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
             if edge_points and len(edge_points) > 1:
@@ -1554,15 +1609,29 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # Move to first edge point without force
-                communicate(cps=cps, config=config, point=edge_points[0], 
+                # SAFE APPROACH: First move to a point ABOVE the first edge point
+                # This prevents crashing into the wall when descending
+                safe_approach_point = list(edge_points[0])
+                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
-                # Determine initial force direction and apply
+                # CRITICAL: Wait for robot to be completely still before applying force
+                waitForBlending(cps=cps, config=config)
+                print("[Edge Coverage] Robot still, applying force control...")
+                
+                # Determine initial force direction and apply BEFORE descending
+                # Force will push tool down (Z) and toward edge (X or Y)
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
                 print(f"[Edge Coverage] Initial force: {current_dir}")
+                
+                # Wait for force to engage and push tool down to surface
+                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
+                print("[Edge Coverage] Force engaged, tool should be on surface...")
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -1699,7 +1768,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             speed=0.2, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force)  # Edge coverage + zigzag path
+        perform_process_top(cps, config, edge_points=edge_coverage_pathp1, zigzag_points=zigzag_pathp1, force=force, scanned_z=scanned_z)  # Edge coverage + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
