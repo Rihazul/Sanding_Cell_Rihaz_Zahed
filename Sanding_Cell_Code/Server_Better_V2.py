@@ -324,7 +324,7 @@ def toggle_stopper_status(cps, digital_number=2):
 #         nRet = cps.HRIF_SetBoxDO(0, 1, 1)
 
 
-def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
+def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -431,6 +431,9 @@ def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     # Enable force control
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
+
+    if not wait_for_force:
+        return
 
     notFound = True
     while notFound:
@@ -1272,7 +1275,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
+def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_for_force=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1380,6 +1383,9 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
+    if not wait_for_force:
+        return
+
     notFound = True
     while notFound:
         result = []
@@ -1402,7 +1408,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
+def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_for_force=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1510,6 +1516,9 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
+    if not wait_for_force:
+        return
+
     notFound = True
     while notFound:
         result = []
@@ -1532,7 +1541,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
+def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1639,6 +1648,9 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     # Enable force control
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
+
+    if not wait_for_force:
+        return
 
     notFound = True
     while notFound:

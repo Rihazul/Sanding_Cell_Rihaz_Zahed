@@ -583,78 +583,108 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             # Vibration on
             
             
-            # Force Control Activated
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-            )
-            print("Turned Vibration On")
-            
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
                 turn_vibration_on(cps)
-                for point in edge_points:
-                    p0 = edge_points[point]
-                    p1 = edge_points[point + 1]
+                corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
+                cx = sum(p[0] for p in corners) / len(corners)
+                cy = sum(p[1] for p in corners) / len(corners)
+                offset_mm = 2.0
+
+                for i in range(len(edge_points) - 1):
+                    p0 = edge_points[i]
+                    p1 = edge_points[i + 1]
+
                     dx = p1[0] - p0[0]
                     dy = p1[1] - p0[1]
-                    
-                    if abs(dx) >= abs(dy):
-                        if dx >= 0:
-                            putForceXplus(cps=cps, 
-                                        force=force, 
-                                        tcp=config['coords']['tcptool1plane1'], 
-                                        ucs=config['coords']['ucsTable1'], 
-                                        config=config)
+                    nx, ny = -dy, dx
+                    nlen = math.hypot(nx, ny)
+                    if nlen == 0:
+                        continue
+                    nx /= nlen
+                    ny /= nlen
+
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
+                        nx = -nx
+                        ny = -ny
+
+                    p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
+                    p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p0_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
+                    if abs(nx) >= abs(ny):
+                        if nx > 0:
+                            putForceXminus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
                         else:
-                            putForceXminus(cps=cps, 
-                                        force=force, 
-                                        tcp=config['coords']['tcptool1plane1'], 
-                                        ucs=config['coords']['ucsTable1'], 
-                                        config=config)
+                            putForceXplus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
                     else:
-                        if dy >= 0:
-                            putForceYplus1edge(cps=cps, 
-                                        force=force, 
-                                        tcp=config['coords']['tcptool1plane1'], 
-                                        ucs=config['coords']['ucsTable1'], 
-                                        config=config)
+                        if ny > 0:
+                            putForceYminus1(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
                         else:
-                            putForceYminus1(cps=cps, 
-                                        force=force, 
-                                        tcp=config['coords']['tcptool1plane1'], 
-                                        ucs=config['coords']['ucsTable1'], 
-                                        config=config)
-                   
-                    if point == edge_points[-1]:
-                        # For the first point, wait for the move to complete
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=True
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=False
-                        )
-                        releaseForce(cps=cps, config=config)
-                # Wait for edge coverage to complete before starting spiral
+                            putForceYplus1edge(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+                    releaseForce(cps=cps, config=config)
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
             turn_vibration_off(cps)
@@ -873,44 +903,108 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             # Vibration on
             
             
-            # Force Control Activated
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-            )
-            
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
                 turn_vibration_on(cps)
-                for point in edge_points:
-                    if point == edge_points[-1]:
-                        print("Last point of edge coverage, setting wait=True")
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=True
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=False
+                corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
+                cx = sum(p[0] for p in corners) / len(corners)
+                cy = sum(p[1] for p in corners) / len(corners)
+                offset_mm = 2.0
+
+                for i in range(len(edge_points) - 1):
+                    p0 = edge_points[i]
+                    p1 = edge_points[i + 1]
+
+                    dx = p1[0] - p0[0]
+                    dy = p1[1] - p0[1]
+                    nx, ny = -dy, dx
+                    nlen = math.hypot(nx, ny)
+                    if nlen == 0:
+                        continue
+                    nx /= nlen
+                    ny /= nlen
+
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
+                        nx = -nx
+                        ny = -ny
+
+                    p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
+                    p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p0_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
+                    if abs(nx) >= abs(ny):
+                        if nx > 0:
+                            putForceXminus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
                             )
-                # Wait for edge coverage to complete before starting spiral
+                        else:
+                            putForceXplus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+                    else:
+                        if ny > 0:
+                            putForceYminus1(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+                        else:
+                            putForceYplus1edge(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+                    releaseForce(cps=cps, config=config)
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
             turn_vibration_off(cps)
@@ -1133,44 +1227,108 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             # Vibration on
             
             
-            # Force Control Activated
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-            )
-            
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
                 turn_vibration_on(cps)
-                for point in edge_points:
-                    if point == edge_points[-1]:
-                        print("Last point of edge coverage, setting wait=True")
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=True
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=False
+                corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
+                cx = sum(p[0] for p in corners) / len(corners)
+                cy = sum(p[1] for p in corners) / len(corners)
+                offset_mm = 2.0
+
+                for i in range(len(edge_points) - 1):
+                    p0 = edge_points[i]
+                    p1 = edge_points[i + 1]
+
+                    dx = p1[0] - p0[0]
+                    dy = p1[1] - p0[1]
+                    nx, ny = -dy, dx
+                    nlen = math.hypot(nx, ny)
+                    if nlen == 0:
+                        continue
+                    nx /= nlen
+                    ny /= nlen
+
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
+                        nx = -nx
+                        ny = -ny
+
+                    p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
+                    p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p0_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
+                    if abs(nx) >= abs(ny):
+                        if nx > 0:
+                            putForceXminus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
                             )
-                # Wait for edge coverage to complete before starting spiral
+                        else:
+                            putForceXplus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+                    else:
+                        if ny > 0:
+                            putForceYminus1(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+                        else:
+                            putForceYplus1edge(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+                    releaseForce(cps=cps, config=config)
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
             turn_vibration_off(cps)
@@ -1380,44 +1538,108 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
             # Vibration on
             
             
-            # Force Control Activated
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-            )
-            
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
                 turn_vibration_on(cps)
-                for point in edge_points:
-                    if point == edge_points[-1]:
-                        print("Last point of edge coverage, setting wait=True")
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=True
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config['coords']['tcptool1plane1'],
-                            ucs=config['coords']['ucsTable1'],
-                            seventh=-1,
-                            speed=float(json_config['sandingSpeed']),
-                            wait=False
+                corners = edge_points[:-1] if len(edge_points) > 1 else edge_points
+                cx = sum(p[0] for p in corners) / len(corners)
+                cy = sum(p[1] for p in corners) / len(corners)
+                offset_mm = 2.0
+
+                for i in range(len(edge_points) - 1):
+                    p0 = edge_points[i]
+                    p1 = edge_points[i + 1]
+
+                    dx = p1[0] - p0[0]
+                    dy = p1[1] - p0[1]
+                    nx, ny = -dy, dx
+                    nlen = math.hypot(nx, ny)
+                    if nlen == 0:
+                        continue
+                    nx /= nlen
+                    ny /= nlen
+
+                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
+                        nx = -nx
+                        ny = -ny
+
+                    p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
+                    p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p0_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
+                    if abs(nx) >= abs(ny):
+                        if nx > 0:
+                            putForceXminus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
                             )
-                # Wait for edge coverage to complete before starting spiral
+                        else:
+                            putForceXplus(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+                    else:
+                        if ny > 0:
+                            putForceYminus1(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+                        else:
+                            putForceYplus1edge(
+                                cps=cps,
+                                force=force,
+                                tcp=config['coords']['tcptool1plane1'],
+                                ucs=config['coords']['ucsTable1'],
+                                config=config,
+                                wait_for_force=False
+                            )
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+                    releaseForce(cps=cps, config=config)
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=p1_off,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        seventh=-1,
+                        speed=float(json_config['sandingSpeed']),
+                        wait=True
+                    )
+
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
             turn_vibration_off(cps)
