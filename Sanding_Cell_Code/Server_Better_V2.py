@@ -332,7 +332,7 @@ def toggle_stopper_status(cps, digital_number=2):
 # without making noise or risking tool damage.
 # ============================================================================
 
-def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     """Soft force control for pocket edge - push in +X direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
@@ -407,8 +407,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, z_force=10, wait_for_f
         config["logger"].error(f"[PocketEdge] Failed to set stiffness params: {nRet}")
         return
 
-    # SOFT Damping: Higher values to absorb impact
-    damp = [3500, 3500, 3500, 60, 60, 60]  # Increased from [2500, 2500, 2500, 40, 40, 40]
+    # SOFT Damping: Use same damping as putForceZminus for reliable Z force
+    damp = [8000, 8000, 8000, 60, 60, 60]  # Matched to putForceZminus for Z-axis
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
@@ -416,7 +416,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, z_force=10, wait_for_f
         return
 
     # +X force for edge contact, -Z force to maintain pocket floor contact
-    force_goal = [force, 0, -z_force, 0, 0, 0, 0]
+    # Use same force magnitude for Z to ensure proper pocket floor contact
+    force_goal = [force, 0, -force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X+, Z-)")
@@ -444,7 +445,7 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, z_force=10, wait_for_f
         time.sleep(0.0001)
 
 
-def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False):
     """Soft force control for pocket edge - push in -X direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
@@ -498,12 +499,13 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, z_force=10, wait_for_
     cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
 
-    damp = [3500, 3500, 3500, 60, 60, 60]
+    damp = [8000, 8000, 8000, 60, 60, 60]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
     # -X force for edge contact, -Z force to maintain pocket floor contact
-    force_goal = [-force, 0, -z_force, 0, 0, 0, 0]
+    # Use same force magnitude for Z to ensure proper pocket floor contact
+    force_goal = [-force, 0, -force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X-, Z-)")
@@ -527,7 +529,7 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, z_force=10, wait_for_
         time.sleep(0.0001)
 
 
-def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     """Soft force control for pocket edge - push in +Y direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
@@ -581,12 +583,13 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, z_force=10, wait_for_f
     cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
 
-    damp = [3500, 3500, 3500, 60, 60, 60]
+    damp = [8000, 8000, 8000, 60, 60, 60]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
     # +Y force for edge contact, -Z force to maintain pocket floor contact
-    force_goal = [0, force, -z_force, 0, 0, 0, 0]
+    # Use same force magnitude for Z to ensure proper pocket floor contact
+    force_goal = [0, force, -force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (Y+, Z-)")
@@ -610,7 +613,7 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, z_force=10, wait_for_f
         time.sleep(0.0001)
 
 
-def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False):
     """Soft force control for pocket edge - push in -Y direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
@@ -664,12 +667,13 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, z_force=10, wait_for_
     cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
 
-    damp = [3500, 3500, 3500, 60, 60, 60]
+    damp = [8000, 8000, 8000, 60, 60, 60]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
     # -Y force for edge contact, -Z force to maintain pocket floor contact
-    force_goal = [0, -force, -z_force, 0, 0, 0, 0]
+    # Use same force magnitude for Z to ensure proper pocket floor contact
+    force_goal = [0, -force, -force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (Y-, Z-)")

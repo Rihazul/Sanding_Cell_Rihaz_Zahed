@@ -605,6 +605,9 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 )
                 print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
 
+                # Track current force direction to avoid unnecessary force re-application
+                current_force_dir = None  # 'Xplus', 'Xminus', 'Yplus', 'Yminus'
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -625,71 +628,47 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
                     p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p0_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-
-                    # Use SOFT pocket edge force control for gentle edge contact
-                    # Lower search velocity (2mm/s), lower stiffness, higher damping
+                    # Determine required force direction for this segment
                     if abs(nx) >= abs(ny):
-                        if nx > 0:
-                            putForcePocketEdgeXminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeXplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Xminus' if nx > 0 else 'Xplus'
                     else:
-                        if ny > 0:
-                            putForcePocketEdgeYminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeYplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Yminus' if ny > 0 else 'Yplus'
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p1_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    # Release force after each edge segment
-                    # Next putForcePocketEdge call will re-establish both edge + Z force
-                    releaseForce(cps=cps, config=config)
+                    # Only change force direction if it differs from current (smoother transitions)
+                    if new_force_dir != current_force_dir:
+                        if current_force_dir is not None:
+                            releaseForce(cps=cps, config=config)
+                        
+                        communicate(cps=cps, config=config, point=p0_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                        
+                        if new_force_dir == 'Xminus':
+                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Xplus':
+                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Yminus':
+                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        else:
+                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        
+                        current_force_dir = new_force_dir
+                        print(f"[Edge Coverage] Force direction: {new_force_dir}")
+
+                    # Check if next segment continues same direction for smooth blending
+                    is_last = (i == len(edge_points) - 2)
+                    use_wait = True
+                    if not is_last:
+                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
+                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
+                        nnx, nny = -ndy, ndx
+                        nnlen = math.hypot(nnx, nny)
+                        if nnlen > 0:
+                            nnx /= nnlen; nny /= nnlen
+                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny < 0:
+                                nnx, nny = -nnx, -nny
+                            next_dir = ('Xminus' if nnx > 0 else 'Xplus') if abs(nnx) >= abs(nny) else ('Yminus' if nny > 0 else 'Yplus')
+                            use_wait = (next_dir != current_force_dir)
+
+                    communicate(cps=cps, config=config, point=p1_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=use_wait)
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
@@ -943,6 +922,9 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 )
                 print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
 
+                # Track current force direction to avoid unnecessary force re-application
+                current_force_dir = None  # 'Xplus', 'Xminus', 'Yplus', 'Yminus'
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -963,71 +945,47 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
                     p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p0_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-
-                    # Use SOFT pocket edge force control for gentle edge contact
-                    # Lower search velocity (2mm/s), lower stiffness, higher damping
+                    # Determine required force direction for this segment
                     if abs(nx) >= abs(ny):
-                        if nx > 0:
-                            putForcePocketEdgeXminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeXplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Xminus' if nx > 0 else 'Xplus'
                     else:
-                        if ny > 0:
-                            putForcePocketEdgeYminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeYplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Yminus' if ny > 0 else 'Yplus'
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p1_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    # Release force after each edge segment
-                    # Next putForcePocketEdge call will re-establish both edge + Z force
-                    releaseForce(cps=cps, config=config)
+                    # Only change force direction if it differs from current (smoother transitions)
+                    if new_force_dir != current_force_dir:
+                        if current_force_dir is not None:
+                            releaseForce(cps=cps, config=config)
+                        
+                        communicate(cps=cps, config=config, point=p0_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                        
+                        if new_force_dir == 'Xminus':
+                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Xplus':
+                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Yminus':
+                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        else:
+                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        
+                        current_force_dir = new_force_dir
+                        print(f"[Edge Coverage] Force direction: {new_force_dir}")
+
+                    # Check if next segment continues same direction for smooth blending
+                    is_last = (i == len(edge_points) - 2)
+                    use_wait = True
+                    if not is_last:
+                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
+                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
+                        nnx, nny = -ndy, ndx
+                        nnlen = math.hypot(nnx, nny)
+                        if nnlen > 0:
+                            nnx /= nnlen; nny /= nnlen
+                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny < 0:
+                                nnx, nny = -nnx, -nny
+                            next_dir = ('Xminus' if nnx > 0 else 'Xplus') if abs(nnx) >= abs(nny) else ('Yminus' if nny > 0 else 'Yplus')
+                            use_wait = (next_dir != current_force_dir)
+
+                    communicate(cps=cps, config=config, point=p1_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=use_wait)
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
@@ -1285,6 +1243,9 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 )
                 print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
 
+                # Track current force direction to avoid unnecessary force re-application
+                current_force_dir = None  # 'Xplus', 'Xminus', 'Yplus', 'Yminus'
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -1305,71 +1266,47 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
                     p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p0_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-
-                    # Use SOFT pocket edge force control for gentle edge contact
-                    # Lower search velocity (2mm/s), lower stiffness, higher damping
+                    # Determine required force direction for this segment
                     if abs(nx) >= abs(ny):
-                        if nx > 0:
-                            putForcePocketEdgeXminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeXplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Xminus' if nx > 0 else 'Xplus'
                     else:
-                        if ny > 0:
-                            putForcePocketEdgeYminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeYplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Yminus' if ny > 0 else 'Yplus'
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p1_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    # Release force after each edge segment
-                    # Next putForcePocketEdge call will re-establish both edge + Z force
-                    releaseForce(cps=cps, config=config)
+                    # Only change force direction if it differs from current (smoother transitions)
+                    if new_force_dir != current_force_dir:
+                        if current_force_dir is not None:
+                            releaseForce(cps=cps, config=config)
+                        
+                        communicate(cps=cps, config=config, point=p0_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                        
+                        if new_force_dir == 'Xminus':
+                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Xplus':
+                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Yminus':
+                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        else:
+                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        
+                        current_force_dir = new_force_dir
+                        print(f"[Edge Coverage] Force direction: {new_force_dir}")
+
+                    # Check if next segment continues same direction for smooth blending
+                    is_last = (i == len(edge_points) - 2)
+                    use_wait = True
+                    if not is_last:
+                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
+                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
+                        nnx, nny = -ndy, ndx
+                        nnlen = math.hypot(nnx, nny)
+                        if nnlen > 0:
+                            nnx /= nnlen; nny /= nnlen
+                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny < 0:
+                                nnx, nny = -nnx, -nny
+                            next_dir = ('Xminus' if nnx > 0 else 'Xplus') if abs(nnx) >= abs(nny) else ('Yminus' if nny > 0 else 'Yplus')
+                            use_wait = (next_dir != current_force_dir)
+
+                    communicate(cps=cps, config=config, point=p1_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=use_wait)
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
@@ -1614,6 +1551,9 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 )
                 print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
 
+                # Track current force direction to avoid unnecessary force re-application
+                current_force_dir = None  # 'Xplus', 'Xminus', 'Yplus', 'Yminus'
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -1634,71 +1574,47 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     p0_off = [p0[0] + nx * offset_mm, p0[1] + ny * offset_mm, p0[2], p0[3], p0[4], p0[5]]
                     p1_off = [p1[0] + nx * offset_mm, p1[1] + ny * offset_mm, p1[2], p1[3], p1[4], p1[5]]
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p0_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-
-                    # Use SOFT pocket edge force control for gentle edge contact
-                    # Lower search velocity (2mm/s), lower stiffness, higher damping
+                    # Determine required force direction for this segment
                     if abs(nx) >= abs(ny):
-                        if nx > 0:
-                            putForcePocketEdgeXminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeXplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Xminus' if nx > 0 else 'Xplus'
                     else:
-                        if ny > 0:
-                            putForcePocketEdgeYminus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
-                        else:
-                            putForcePocketEdgeYplus(
-                                cps=cps,
-                                force=force,
-                                tcp=config['coords']['tcptool1plane1'],
-                                ucs=config['coords']['ucsTable1'],
-                                config=config,
-                                wait_for_force=False
-                            )
+                        new_force_dir = 'Yminus' if ny > 0 else 'Yplus'
 
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=p1_off,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        seventh=-1,
-                        speed=float(json_config['sandingSpeed']),
-                        wait=True
-                    )
-                    # Release force after each edge segment
-                    # Next putForcePocketEdge call will re-establish both edge + Z force
-                    releaseForce(cps=cps, config=config)
+                    # Only change force direction if it differs from current (smoother transitions)
+                    if new_force_dir != current_force_dir:
+                        if current_force_dir is not None:
+                            releaseForce(cps=cps, config=config)
+                        
+                        communicate(cps=cps, config=config, point=p0_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
+                        
+                        if new_force_dir == 'Xminus':
+                            putForcePocketEdgeXminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Xplus':
+                            putForcePocketEdgeXplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        elif new_force_dir == 'Yminus':
+                            putForcePocketEdgeYminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        else:
+                            putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config, wait_for_force=False)
+                        
+                        current_force_dir = new_force_dir
+                        print(f"[Edge Coverage] Force direction: {new_force_dir}")
+
+                    # Check if next segment continues same direction for smooth blending
+                    is_last = (i == len(edge_points) - 2)
+                    use_wait = True
+                    if not is_last:
+                        np0, np1 = edge_points[i + 1], edge_points[i + 2]
+                        ndx, ndy = np1[0] - np0[0], np1[1] - np0[1]
+                        nnx, nny = -ndy, ndx
+                        nnlen = math.hypot(nnx, nny)
+                        if nnlen > 0:
+                            nnx /= nnlen; nny /= nnlen
+                            if (cx - np0[0]) * nnx + (cy - np0[1]) * nny < 0:
+                                nnx, nny = -nnx, -nny
+                            next_dir = ('Xminus' if nnx > 0 else 'Xplus') if abs(nnx) >= abs(nny) else ('Yminus' if nny > 0 else 'Yplus')
+                            use_wait = (next_dir != current_force_dir)
+
+                    communicate(cps=cps, config=config, point=p1_off, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], seventh=-1, speed=float(json_config['sandingSpeed']), wait=use_wait)
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
