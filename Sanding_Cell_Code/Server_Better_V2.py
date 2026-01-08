@@ -468,7 +468,7 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X-, Z-)")
-
+    
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge] Force control enabled for X- and Z- direction")
@@ -535,7 +535,6 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     time.sleep(0.0001)
 
     # +Y force for edge contact, -Z force to maintain pocket floor contact
-    # Use same force magnitude for Z to ensure proper pocket floor contact
     force_goal = [0, force, -force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -607,7 +606,6 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     time.sleep(0.0001)
 
     # -Y force for edge contact, -Z force to maintain pocket floor contact
-    # Use same force magnitude for Z to ensure proper pocket floor contact
     force_goal = [0, -force, -force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -628,6 +626,24 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
         # Check Y axis force (index 1)
         if abs(float(result[1])) > abs(force):
             config["logger"].info(f"[PocketEdge] Force condition met: Y axis, Force {result[1]}")
+            notFound = False
+        time.sleep(0.0001)
+
+    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    time.sleep(0.0001)
+    config["logger"].info(f"[PocketEdge] Force control enabled for X- and Z- direction")
+
+    if not wait_for_force:
+        return
+
+    # Wait for X force to be reached
+    notFound = True
+    while notFound:
+        result = []
+        cps.HRIF_ReadFTCabData(0, 0, result)
+        # Check X axis force (index 0)
+        if abs(float(result[0])) > abs(force):
+            config["logger"].info(f"[PocketEdge] Force condition met: X axis, Force {result[0]}")
             notFound = False
         time.sleep(0.0001)
 

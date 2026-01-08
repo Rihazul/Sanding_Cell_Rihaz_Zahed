@@ -582,6 +582,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
+            # Corner layout: P1=bottom-right, P2=top-right, P3=bottom-left, P4=top-left
             if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
@@ -591,22 +592,30 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 cy = sum(p[1] for p in corners) / len(corners)
                 
                 def get_force_direction(p0, p1):
-                    """Determine force direction based on segment - pushes inward toward center"""
-                    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                    # Normal to segment
-                    nx, ny = -dy, dx
-                    nlen = math.hypot(nx, ny)
-                    if nlen == 0:
-                        return None
-                    nx, ny = nx / nlen, ny / nlen
-                    # Make normal point toward center
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
-                        nx, ny = -nx, -ny
-                    # Return dominant direction
-                    if abs(nx) >= abs(ny):
-                        return 'Xplus' if nx > 0 else 'Xminus'
+                    """
+                    Determine force direction based on movement direction.
+                    Force should push perpendicular to movement, toward pocket center.
+                    - Moving along X (horizontal edge): push Y direction (toward center)
+                    - Moving along Y (vertical edge): push X direction (toward center)
+                    """
+                    dx = p1[0] - p0[0]  # movement in X
+                    dy = p1[1] - p0[1]  # movement in Y
+                    
+                    # Midpoint of segment
+                    mid_x = (p0[0] + p1[0]) / 2
+                    mid_y = (p0[1] + p1[1]) / 2
+                    
+                    # Direction from midpoint to center
+                    to_center_x = cx - mid_x
+                    to_center_y = cy - mid_y
+                    
+                    # Determine if this is a horizontal or vertical edge
+                    if abs(dx) > abs(dy):
+                        # Horizontal edge (moving in X) -> force in Y direction
+                        return 'Yplus' if to_center_y > 0 else 'Yminus'
                     else:
-                        return 'Yplus' if ny > 0 else 'Yminus'
+                        # Vertical edge (moving in Y) -> force in X direction
+                        return 'Xplus' if to_center_x > 0 else 'Xminus'
                 
                 def apply_force(direction):
                     """Apply force in the specified direction + Z down"""
@@ -885,6 +894,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
+            # Corner layout: P1=bottom-right, P2=top-right, P3=bottom-left, P4=top-left
             if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
@@ -894,22 +904,30 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 cy = sum(p[1] for p in corners) / len(corners)
                 
                 def get_force_direction(p0, p1):
-                    """Determine force direction based on segment - pushes inward toward center"""
-                    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                    # Normal to segment
-                    nx, ny = -dy, dx
-                    nlen = math.hypot(nx, ny)
-                    if nlen == 0:
-                        return None
-                    nx, ny = nx / nlen, ny / nlen
-                    # Make normal point toward center
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
-                        nx, ny = -nx, -ny
-                    # Return dominant direction
-                    if abs(nx) >= abs(ny):
-                        return 'Xplus' if nx > 0 else 'Xminus'
+                    """
+                    Determine force direction based on movement direction.
+                    Force should push perpendicular to movement, toward pocket center.
+                    - Moving along X (horizontal edge): push Y direction (toward center)
+                    - Moving along Y (vertical edge): push X direction (toward center)
+                    """
+                    dx = p1[0] - p0[0]  # movement in X
+                    dy = p1[1] - p0[1]  # movement in Y
+                    
+                    # Midpoint of segment
+                    mid_x = (p0[0] + p1[0]) / 2
+                    mid_y = (p0[1] + p1[1]) / 2
+                    
+                    # Direction from midpoint to center
+                    to_center_x = cx - mid_x
+                    to_center_y = cy - mid_y
+                    
+                    # Determine if this is a horizontal or vertical edge
+                    if abs(dx) > abs(dy):
+                        # Horizontal edge (moving in X) -> force in Y direction
+                        return 'Yplus' if to_center_y > 0 else 'Yminus'
                     else:
-                        return 'Yplus' if ny > 0 else 'Yminus'
+                        # Vertical edge (moving in Y) -> force in X direction
+                        return 'Xplus' if to_center_x > 0 else 'Xminus'
                 
                 def apply_force(direction):
                     """Apply force in the specified direction + Z down"""
@@ -1192,6 +1210,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
             # Step 1: Edge coverage with directional force control
             # Force pushes inward toward pocket center on each edge + Z down
+            # Corner layout: P1=bottom-right, P2=top-right, P3=bottom-left, P4=top-left
             if edge_points and len(edge_points) > 1:
                 print(f"[Edge Coverage] Processing {len(edge_points)} edge points with directional force")
                 
@@ -1201,22 +1220,30 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 cy = sum(p[1] for p in corners) / len(corners)
                 
                 def get_force_direction(p0, p1):
-                    """Determine force direction based on segment - pushes inward toward center"""
-                    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                    # Normal to segment
-                    nx, ny = -dy, dx
-                    nlen = math.hypot(nx, ny)
-                    if nlen == 0:
-                        return None
-                    nx, ny = nx / nlen, ny / nlen
-                    # Make normal point toward center
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
-                        nx, ny = -nx, -ny
-                    # Return dominant direction
-                    if abs(nx) >= abs(ny):
-                        return 'Xplus' if nx > 0 else 'Xminus'
+                    """
+                    Determine force direction based on movement direction.
+                    Force should push perpendicular to movement, toward pocket center.
+                    - Moving along X (horizontal edge): push Y direction (toward center)
+                    - Moving along Y (vertical edge): push X direction (toward center)
+                    """
+                    dx = p1[0] - p0[0]  # movement in X
+                    dy = p1[1] - p0[1]  # movement in Y
+                    
+                    # Midpoint of segment
+                    mid_x = (p0[0] + p1[0]) / 2
+                    mid_y = (p0[1] + p1[1]) / 2
+                    
+                    # Direction from midpoint to center
+                    to_center_x = cx - mid_x
+                    to_center_y = cy - mid_y
+                    
+                    # Determine if this is a horizontal or vertical edge
+                    if abs(dx) > abs(dy):
+                        # Horizontal edge (moving in X) -> force in Y direction
+                        return 'Yplus' if to_center_y > 0 else 'Yminus'
                     else:
-                        return 'Yplus' if ny > 0 else 'Yminus'
+                        # Vertical edge (moving in Y) -> force in X direction
+                        return 'Xplus' if to_center_x > 0 else 'Xminus'
                 
                 def apply_force(direction):
                     """Apply force in the specified direction + Z down"""
@@ -1495,22 +1522,26 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 cy = sum(p[1] for p in corners) / len(corners)
                 
                 def get_force_direction(p0, p1):
-                    """Determine force direction based on segment - pushes inward toward center"""
-                    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
-                    # Normal to segment
-                    nx, ny = -dy, dx
-                    nlen = math.hypot(nx, ny)
-                    if nlen == 0:
-                        return None
-                    nx, ny = nx / nlen, ny / nlen
-                    # Make normal point toward center
-                    if (cx - p0[0]) * nx + (cy - p0[1]) * ny < 0:
-                        nx, ny = -nx, -ny
-                    # Return dominant direction
-                    if abs(nx) >= abs(ny):
-                        return 'Xplus' if nx > 0 else 'Xminus'
+                    """Determine force direction based on movement - simple and reliable"""
+                    dx = p1[0] - p0[0]  # movement in X
+                    dy = p1[1] - p0[1]  # movement in Y
+                    
+                    # Midpoint of this edge segment
+                    mid_x = (p0[0] + p1[0]) / 2
+                    mid_y = (p0[1] + p1[1]) / 2
+                    
+                    # Vector from midpoint to center
+                    to_center_x = cx - mid_x
+                    to_center_y = cy - mid_y
+                    
+                    # If moving mostly horizontal, force in Y direction
+                    # If moving mostly vertical, force in X direction
+                    if abs(dx) > abs(dy):
+                        # Horizontal edge -> force pushes in Y toward center
+                        return 'Yplus' if to_center_y > 0 else 'Yminus'
                     else:
-                        return 'Yplus' if ny > 0 else 'Yminus'
+                        # Vertical edge -> force pushes in X toward center
+                        return 'Xplus' if to_center_x > 0 else 'Xminus'
                 
                 def apply_force(direction):
                     """Apply force in the specified direction + Z down"""
