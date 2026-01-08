@@ -368,10 +368,13 @@ def generate_zigzag_path(
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
             # No crash prevention offset needed - compliant force control handles wall contact
-            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, z_zigzag]
-            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, z_zigzag]
-            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, z_zigzag]
-            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, z_zigzag]
+            # Use Z below surface level - force control will maintain actual surface contact
+            # This prevents hovering - robot target is below surface, Z force keeps it ON surface
+            edge_z = z_zigzag - 5  # 5mm below surface level - force control maintains contact
+            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, edge_z]
+            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, edge_z]
+            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, edge_z]
+            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, edge_z]
             
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)

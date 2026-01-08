@@ -378,15 +378,17 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
-    damp = [15000, 15000, 8000, 40, 40, 40]
+    # Higher X/Y damping (20000) for very soft edge contact, Z (8000) for firm surface contact
+    damp = [20000, 20000, 8000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
         config["logger"].error(f"[PocketEdge] Failed to set damp params: {nRet}")
         return
 
-    force_goal = [1, 0, -force, 0, 0, 0, 0]  # +X toward wall, -Z down
+    # Edge force: very light 1N toward wall, full force on Z for surface contact
+    edge_force = 1  # Light touch on wall
+    force_goal = [edge_force, 0, -force, 0, 0, 0, 0]  # +X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge X+ wall] Edge force: 1.0N, Z force: {force}N")
@@ -442,12 +444,14 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
-    damp = [15000, 15000, 8000, 40, 40, 40]
+    # Higher X/Y damping (20000) for very soft edge contact, Z (8000) for firm surface contact
+    damp = [20000, 20000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    force_goal = [-1, 0, -force, 0, 0, 0, 0]  # -X toward wall, -Z down
+    # Edge force: very light 1N toward wall, full force on Z for surface contact
+    edge_force = 1  # Light touch on wall
+    force_goal = [-edge_force, 0, -force, 0, 0, 0, 0]  # -X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge X- wall] Edge force: 1.0N, Z force: {force}N")
@@ -499,12 +503,14 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
-    damp = [15000, 15000, 8000, 40, 40, 40]
+    # Higher X/Y damping (20000) for very soft edge contact, Z (8000) for firm surface contact
+    damp = [20000, 20000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    force_goal = [0, 1, -force, 0, 0, 0, 0]  # +Y toward wall, -Z down
+    # Edge force: very light 1N toward wall, full force on Z for surface contact
+    edge_force = 1  # Light touch on wall
+    force_goal = [0, edge_force, -force, 0, 0, 0, 0]  # +Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge Y+ wall] Edge force: 1.0N, Z force: {force}N")
@@ -556,12 +562,14 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
         config["logger"].error(f"[PocketEdge] Failed to set max search velocities: {nret}")
         return
 
-    # Higher X/Y damping (15000) for softer edge contact, Z (8000) for firm surface contact
-    damp = [15000, 15000, 8000, 40, 40, 40]
+    # Higher X/Y damping (20000) for very soft edge contact, Z (8000) for firm surface contact
+    damp = [20000, 20000, 8000, 40, 40, 40]
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    force_goal = [0, -1, -force, 0, 0, 0, 0]  # -Y toward wall, -Z down
+    # Edge force: very light 1N toward wall, full force on Z for surface contact
+    edge_force = 1  # Light touch on wall
+    force_goal = [0, -edge_force, -force, 0, 0, 0, 0]  # -Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[PocketEdge Y- wall] Edge force: 1.0N, Z force: {force}N")
