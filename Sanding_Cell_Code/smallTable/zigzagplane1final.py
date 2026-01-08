@@ -687,16 +687,9 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
-                    # Release only X/Y edge force after each edge segment, keep Z force active
+                    # Release force after each edge segment
+                    # Next putForcePocketEdge call will re-establish both edge + Z force
                     releaseForce(cps=cps, config=config)
-                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        config=config
-                    )
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
@@ -1032,16 +1025,9 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
-                    # Release only X/Y edge force after each edge segment, keep Z force active
+                    # Release force after each edge segment
+                    # Next putForcePocketEdge call will re-establish both edge + Z force
                     releaseForce(cps=cps, config=config)
-                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        config=config
-                    )
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
@@ -1381,16 +1367,9 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
-                    # Release only X/Y edge force after each edge segment, keep Z force active
+                    # Release force after each edge segment
+                    # Next putForcePocketEdge call will re-establish both edge + Z force
                     releaseForce(cps=cps, config=config)
-                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        config=config
-                    )
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)
@@ -1717,16 +1696,9 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
-                    # Release only X/Y edge force after each edge segment, keep Z force active
+                    # Release force after each edge segment
+                    # Next putForcePocketEdge call will re-establish both edge + Z force
                     releaseForce(cps=cps, config=config)
-                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config['coords']['tcptool1plane1'],
-                        ucs=config['coords']['ucsTable1'],
-                        config=config
-                    )
 
                 # Release all forces after edge coverage is complete
                 releaseForce(cps=cps, config=config)

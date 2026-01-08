@@ -332,8 +332,8 @@ def toggle_stopper_status(cps, digital_number=2):
 # without making noise or risking tool damage.
 # ============================================================================
 
-def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_for_force=False):
-    """Soft force control for pocket edge - push in +X direction (gentle approach)."""
+def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+    """Soft force control for pocket edge - push in +X direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
     result = []
@@ -362,8 +362,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_f
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    # Define the target force control values
-    freedom = goal + [0, 0, 0]
+    # Enable X and Z force control simultaneously (for edge + floor contact)
+    freedom = [1, 0, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
@@ -415,10 +415,11 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_f
         config["logger"].error(f"[PocketEdge] Failed to set damp params: {nRet}")
         return
 
-    force_goal = [force * goal[0], force * goal[1], force * goal[2], 0, 0, 0, 0]
+    # +X force for edge contact, -Z force to maintain pocket floor contact
+    force_goal = [force, 0, -z_force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X+, Z-)")
     if nret != 0:
         config["logger"].error(f"[PocketEdge] Failed to set force control goal: {nret}")
         return
@@ -426,26 +427,25 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_f
     # Enable force control
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for X+ direction")
+    config["logger"].info(f"[PocketEdge] Force control enabled for X+ and Z- direction")
 
     if not wait_for_force:
         return
 
-    # Wait for force to be reached
+    # Wait for X force to be reached
     notFound = True
     while notFound:
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        for i, val in enumerate(goal):
-            if val and abs(float(result[i])) > abs(force):
-                config["logger"].info(f"[PocketEdge] Force condition met: Axis {i}, Force {result[i]}")
-                notFound = False
-                break
+        # Check X axis force (index 0)
+        if abs(float(result[0])) > abs(force):
+            config["logger"].info(f"[PocketEdge] Force condition met: X axis, Force {result[0]}")
+            notFound = False
         time.sleep(0.0001)
 
 
-def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_for_force=False):
-    """Soft force control for pocket edge - push in -X direction (gentle approach)."""
+def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+    """Soft force control for pocket edge - push in -X direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
     result = []
@@ -471,7 +471,8 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    freedom = goal + [0, 0, 0]
+    # Enable X and Z force control simultaneously (for edge + floor contact)
+    freedom = [1, 0, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
@@ -501,32 +502,33 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0], wait_
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Negative force for -X direction
-    force_goal = [-force * goal[0], force * goal[1], force * goal[2], 0, 0, 0, 0]
+    # -X force for edge contact, -Z force to maintain pocket floor contact
+    force_goal = [-force, 0, -z_force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (X-, Z-)")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for X- direction")
+    config["logger"].info(f"[PocketEdge] Force control enabled for X- and Z- direction")
 
     if not wait_for_force:
         return
 
+    # Wait for X force to be reached
     notFound = True
     while notFound:
         result = []
         cps.HRIF_ReadFTCabData(0, 0, result)
-        for i, val in enumerate(goal):
-            if val and abs(float(result[i])) > abs(force):
-                notFound = False
-                break
+        # Check X axis force (index 0)
+        if abs(float(result[0])) > abs(force):
+            config["logger"].info(f"[PocketEdge] Force condition met: X axis, Force {result[0]}")
+            notFound = False
         time.sleep(0.0001)
 
 
-def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=False):
-    """Soft force control for pocket edge - push in +Y direction (gentle approach)."""
+def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+    """Soft force control for pocket edge - push in +Y direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
     result = []
@@ -552,7 +554,8 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_f
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    freedom = goal + [0, 0, 0]
+    # Enable Y and Z force control simultaneously (for edge + floor contact)
+    freedom = [0, 1, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
@@ -582,31 +585,33 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_f
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    force_goal = [force * goal[0], force * goal[1], force * goal[2], 0, 0, 0, 0]
+    # +Y force for edge contact, -Z force to maintain pocket floor contact
+    force_goal = [0, force, -z_force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (Y+, Z-)")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for Y+ direction")
+    config["logger"].info(f"[PocketEdge] Force control enabled for Y+ and Z- direction")
 
     if not wait_for_force:
         return
 
+    # Wait for Y force to be reached
     notFound = True
     while notFound:
         result = []
         cps.HRIF_ReadFTCabData(0, 0, result)
-        for i, val in enumerate(goal):
-            if val and abs(float(result[i])) > abs(force):
-                notFound = False
-                break
+        # Check Y axis force (index 1)
+        if abs(float(result[1])) > abs(force):
+            config["logger"].info(f"[PocketEdge] Force condition met: Y axis, Force {result[1]}")
+            notFound = False
         time.sleep(0.0001)
 
 
-def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_for_force=False):
-    """Soft force control for pocket edge - push in -Y direction (gentle approach)."""
+def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, z_force=10, wait_for_force=False):
+    """Soft force control for pocket edge - push in -Y direction AND maintain -Z force simultaneously."""
     boxID = 0
     rbtID = 0
     result = []
@@ -632,7 +637,8 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_
         config["logger"].error(f"[PocketEdge] Failed to set force control strategy: {nret}")
         return
 
-    freedom = goal + [0, 0, 0]
+    # Enable Y and Z force control simultaneously (for edge + floor contact)
+    freedom = [0, 1, 1, 0, 0, 0]
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
@@ -662,27 +668,28 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, goal=[0, 1, 0], wait_
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Negative force for -Y direction
-    force_goal = [force * goal[0], -force * goal[1], force * goal[2], 0, 0, 0, 0]
+    # -Y force for edge contact, -Z force to maintain pocket floor contact
+    force_goal = [0, -force, -z_force, 0, 0, 0, 0]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]}")
+    config["logger"].info(f"[PocketEdge] force control goal set: {force_goal[:3]} (Y-, Z-)")
 
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    config["logger"].info(f"[PocketEdge] Force control enabled for Y- direction")
+    config["logger"].info(f"[PocketEdge] Force control enabled for Y- and Z- direction")
 
     if not wait_for_force:
         return
 
+    # Wait for Y force to be reached
     notFound = True
     while notFound:
         result = []
         cps.HRIF_ReadFTCabData(0, 0, result)
-        for i, val in enumerate(goal):
-            if val and abs(float(result[i])) > abs(force):
-                notFound = False
-                break
+        # Check Y axis force (index 1)
+        if abs(float(result[1])) > abs(force):
+            config["logger"].info(f"[PocketEdge] Force condition met: Y axis, Force {result[1]}")
+            notFound = False
         time.sleep(0.0001)
 
 
