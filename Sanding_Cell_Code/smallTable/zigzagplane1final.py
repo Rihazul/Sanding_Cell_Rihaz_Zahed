@@ -594,6 +594,17 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
                 offset_mm = 2.0
 
+                # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
+                # This ensures the tool stays pressed on the pocket surface during edge coverage
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -676,8 +687,19 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    # Release only X/Y edge force after each edge segment, keep Z force active
                     releaseForce(cps=cps, config=config)
+                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        config=config
+                    )
 
+                # Release all forces after edge coverage is complete
+                releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
@@ -701,6 +723,16 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
+
+                # Apply Z-minus force to maintain contact with pocket floor during spiral sanding
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Spiral] Applied Z-minus force ({force}N) to maintain pocket floor contact during spiral")
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
@@ -755,7 +787,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            #Release force
+            # Release Z force after spiral motion complete
             releaseForce(cps=cps, config=config)
 
 
@@ -907,6 +939,17 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
                 offset_mm = 2.0
 
+                # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
+                # This ensures the tool stays pressed on the pocket surface during edge coverage
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -989,8 +1032,19 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    # Release only X/Y edge force after each edge segment, keep Z force active
                     releaseForce(cps=cps, config=config)
+                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        config=config
+                    )
 
+                # Release all forces after edge coverage is complete
+                releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
@@ -1014,6 +1068,16 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
+
+                # Apply Z-minus force to maintain contact with pocket floor during spiral sanding
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Spiral] Applied Z-minus force ({force}N) to maintain pocket floor contact during spiral")
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
@@ -1224,6 +1288,17 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
                 offset_mm = 2.0
 
+                # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
+                # This ensures the tool stays pressed on the pocket surface during edge coverage
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -1306,8 +1381,19 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    # Release only X/Y edge force after each edge segment, keep Z force active
                     releaseForce(cps=cps, config=config)
+                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        config=config
+                    )
 
+                # Release all forces after edge coverage is complete
+                releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
@@ -1331,6 +1417,16 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
+
+                # Apply Z-minus force to maintain contact with pocket floor during spiral sanding
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Spiral] Applied Z-minus force ({force}N) to maintain pocket floor contact during spiral")
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
@@ -1528,6 +1624,17 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 # Safe distance offset for pocket edge coverage (reduced from 5mm to 2mm)
                 offset_mm = 2.0
 
+                # Apply Z-minus force to maintain contact with pocket floor (7mm depth)
+                # This ensures the tool stays pressed on the pocket surface during edge coverage
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Edge Coverage] Applied Z-minus force ({force}N) to maintain pocket floor contact")
+
                 for i in range(len(edge_points) - 1):
                     p0 = edge_points[i]
                     p1 = edge_points[i + 1]
@@ -1610,8 +1717,19 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                         speed=float(json_config['sandingSpeed']),
                         wait=True
                     )
+                    # Release only X/Y edge force after each edge segment, keep Z force active
                     releaseForce(cps=cps, config=config)
+                    # Re-apply Z-minus force to maintain pocket floor contact for next segment
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config['coords']['tcptool1plane1'],
+                        ucs=config['coords']['ucsTable1'],
+                        config=config
+                    )
 
+                # Release all forces after edge coverage is complete
+                releaseForce(cps=cps, config=config)
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path (soft pocket edge mode)")
             turn_vibration_off(cps)
@@ -1635,6 +1753,16 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     speed=float(json_config['sandingSpeed']),
                     wait=True
                 )
+
+                # Apply Z-minus force to maintain contact with pocket floor during spiral sanding
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    config=config
+                )
+                print(f"[Spiral] Applied Z-minus force ({force}N) to maintain pocket floor contact during spiral")
 
             for index, _ in enumerate(zigzag_points):
                 point_A = zigzag_points[index]
