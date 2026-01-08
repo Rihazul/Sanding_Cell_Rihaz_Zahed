@@ -631,30 +631,32 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # SAFE APPROACH: First move to a point ABOVE the first edge point
-                # This prevents crashing into the wall when descending
-                # Use scanned_z from laser scan for accurate approach height
+                # SAFE APPROACH: First move to a point WELL ABOVE the pocket
+                # Use edge_points XY but with Z high enough to clear pocket walls (above frame level)
+                # edge_points[0][2] is the pocket floor Z in UCS, add 15mm to be above the frame
                 safe_approach_point = list(edge_points[0])
-                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                safe_approach_point[2] = edge_points[0][2] + 15  # 15mm above pocket floor (above frame)
                 
-                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (pocket_z={edge_points[0][2]} + 15mm)")
                 communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
                 # CRITICAL: Wait for robot to be completely still before applying force
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Robot still, applying force control...")
+                print("[Edge Coverage] Robot still, applying Z-only force to descend...")
                 
-                # Determine initial force direction and apply BEFORE descending
-                # Force will push tool down (Z) and toward edge (X or Y)
+                # STEP 1: Apply Z-only force to descend safely into pocket
+                # This prevents crashing into walls - tool descends straight down
+                putForceZminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                time.sleep(1.5)  # Wait for tool to descend to pocket floor
+                print("[Edge Coverage] Tool descended to surface...")
+                
+                # STEP 2: Now apply directional force (X/Y + Z) for edge sanding
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
-                print(f"[Edge Coverage] Initial force: {current_dir}")
-                
-                # Wait for force to engage and push tool down to surface
-                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
-                print("[Edge Coverage] Force engaged, tool should be on surface...")
+                print(f"[Edge Coverage] Directional force applied: {current_dir}")
+                time.sleep(0.5)  # Brief wait for force transition
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -961,29 +963,32 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # SAFE APPROACH: First move to a point ABOVE the first edge point
-                # This prevents crashing into the wall when descending
+                # SAFE APPROACH: First move to a point WELL ABOVE the pocket
+                # Use edge_points XY but with Z high enough to clear pocket walls (above frame level)
+                # edge_points[0][2] is the pocket floor Z in UCS, add 15mm to be above the frame
                 safe_approach_point = list(edge_points[0])
-                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                safe_approach_point[2] = edge_points[0][2] + 15  # 15mm above pocket floor (above frame)
                 
-                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (pocket_z={edge_points[0][2]} + 15mm)")
                 communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
                 # CRITICAL: Wait for robot to be completely still before applying force
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Robot still, applying force control...")
+                print("[Edge Coverage] Robot still, applying Z-only force to descend...")
                 
-                # Determine initial force direction and apply BEFORE descending
-                # Force will push tool down (Z) and toward edge (X or Y)
+                # STEP 1: Apply Z-only force to descend safely into pocket
+                # This prevents crashing into walls - tool descends straight down
+                putForceZminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                time.sleep(1.5)  # Wait for tool to descend to pocket floor
+                print("[Edge Coverage] Tool descended to surface...")
+                
+                # STEP 2: Now apply directional force (X/Y + Z) for edge sanding
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
-                print(f"[Edge Coverage] Initial force: {current_dir}")
-                
-                # Wait for force to engage and push tool down to surface
-                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
-                print("[Edge Coverage] Force engaged, tool should be on surface...")
+                print(f"[Edge Coverage] Directional force applied: {current_dir}")
+                time.sleep(0.5)  # Brief wait for force transition
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -1294,29 +1299,32 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # SAFE APPROACH: First move to a point ABOVE the first edge point
-                # This prevents crashing into the wall when descending
+                # SAFE APPROACH: First move to a point WELL ABOVE the pocket
+                # Use edge_points XY but with Z high enough to clear pocket walls (above frame level)
+                # edge_points[0][2] is the pocket floor Z in UCS, add 15mm to be above the frame
                 safe_approach_point = list(edge_points[0])
-                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                safe_approach_point[2] = edge_points[0][2] + 15  # 15mm above pocket floor (above frame)
                 
-                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (pocket_z={edge_points[0][2]} + 15mm)")
                 communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
                 # CRITICAL: Wait for robot to be completely still before applying force
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Robot still, applying force control...")
+                print("[Edge Coverage] Robot still, applying Z-only force to descend...")
                 
-                # Determine initial force direction and apply BEFORE descending
-                # Force will push tool down (Z) and toward edge (X or Y)
+                # STEP 1: Apply Z-only force to descend safely into pocket
+                # This prevents crashing into walls - tool descends straight down
+                putForceZminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                time.sleep(1.5)  # Wait for tool to descend to pocket floor
+                print("[Edge Coverage] Tool descended to surface...")
+                
+                # STEP 2: Now apply directional force (X/Y + Z) for edge sanding
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
-                print(f"[Edge Coverage] Initial force: {current_dir}")
-                
-                # Wait for force to engage and push tool down to surface
-                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
-                print("[Edge Coverage] Force engaged, tool should be on surface...")
+                print(f"[Edge Coverage] Directional force applied: {current_dir}")
+                time.sleep(0.5)  # Brief wait for force transition
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
@@ -1609,29 +1617,32 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                     else:
                         putForcePocketEdgeYplus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
                 
-                # SAFE APPROACH: First move to a point ABOVE the first edge point
-                # This prevents crashing into the wall when descending
+                # SAFE APPROACH: First move to a point WELL ABOVE the pocket
+                # Use edge_points XY but with Z high enough to clear pocket walls (above frame level)
+                # edge_points[0][2] is the pocket floor Z in UCS, add 15mm to be above the frame
                 safe_approach_point = list(edge_points[0])
-                safe_approach_point[2] = scanned_z + 5  # 5mm above scanned pocket floor
+                safe_approach_point[2] = edge_points[0][2] + 15  # 15mm above pocket floor (above frame)
                 
-                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (scanned_z={scanned_z} + 5mm)")
+                print(f"[Edge Coverage] Safe approach: moving to Z={safe_approach_point[2]} (pocket_z={edge_points[0][2]} + 15mm)")
                 communicate(cps=cps, config=config, point=safe_approach_point, 
                            tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], 
                            seventh=-1, speed=float(json_config['sandingSpeed']), wait=True)
                 
                 # CRITICAL: Wait for robot to be completely still before applying force
                 waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Robot still, applying force control...")
+                print("[Edge Coverage] Robot still, applying Z-only force to descend...")
                 
-                # Determine initial force direction and apply BEFORE descending
-                # Force will push tool down (Z) and toward edge (X or Y)
+                # STEP 1: Apply Z-only force to descend safely into pocket
+                # This prevents crashing into walls - tool descends straight down
+                putForceZminus(cps=cps, force=force, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], config=config)
+                time.sleep(1.5)  # Wait for tool to descend to pocket floor
+                print("[Edge Coverage] Tool descended to surface...")
+                
+                # STEP 2: Now apply directional force (X/Y + Z) for edge sanding
                 current_dir = get_force_direction(edge_points[0], edge_points[1])
                 apply_force(current_dir)
-                print(f"[Edge Coverage] Initial force: {current_dir}")
-                
-                # Wait for force to engage and push tool down to surface
-                time.sleep(1.0)  # Give force control time to push tool down to pocket floor
-                print("[Edge Coverage] Force engaged, tool should be on surface...")
+                print(f"[Edge Coverage] Directional force applied: {current_dir}")
+                time.sleep(0.5)  # Brief wait for force transition
                 
                 # Turn on vibration
                 turn_vibration_on(cps)
