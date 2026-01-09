@@ -369,8 +369,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    # Same search velocity as putForceZminus
-    linear_velocity = 5
+    # Slow search velocity for smooth wall approach
+    linear_velocity = 2  # Very slow for gentle wall contact
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
@@ -386,8 +386,8 @@ def putForcePocketEdgeXplus(cps, force, tcp, ucs, config, wait_for_force=False):
         config["logger"].error(f"[PocketEdge] Failed to set damp params: {nRet}")
         return
 
-    # Edge force: very light 1N toward wall, full force on Z for surface contact
-    edge_force = 1  # Light touch on wall
+    # Edge force: very light 0.5N toward wall, full force on Z for surface contact
+    edge_force = 0.5  # Very light touch on wall
     force_goal = [edge_force, 0, -force, 0, 0, 0, 0]  # +X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -436,7 +436,8 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    linear_velocity = 5
+    # Slow search velocity for smooth wall approach
+    linear_velocity = 2  # Very slow for gentle wall contact
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
@@ -449,8 +450,8 @@ def putForcePocketEdgeXminus(cps, force, tcp, ucs, config, wait_for_force=False)
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Edge force: very light 1N toward wall, full force on Z for surface contact
-    edge_force = 1  # Light touch on wall
+    # Edge force: very light 0.5N toward wall, full force on Z for surface contact
+    edge_force = 0.5  # Very light touch on wall
     force_goal = [-edge_force, 0, -force, 0, 0, 0, 0]  # -X toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -495,7 +496,8 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    linear_velocity = 5
+    # Slow search velocity for smooth wall approach
+    linear_velocity = 2  # Very slow for gentle wall contact
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
@@ -508,8 +510,8 @@ def putForcePocketEdgeYplus(cps, force, tcp, ucs, config, wait_for_force=False):
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Edge force: very light 1N toward wall, full force on Z for surface contact
-    edge_force = 1  # Light touch on wall
+    # Edge force: very light 0.5N toward wall, full force on Z for surface contact
+    edge_force = 0.5  # Very light touch on wall
     force_goal = [0, edge_force, -force, 0, 0, 0, 0]  # +Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -554,7 +556,8 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     cps.HRIF_SetControlFreedom(0, 0, freedom)
     time.sleep(0.0001)
 
-    linear_velocity = 5
+    # Slow search velocity for smooth wall approach
+    linear_velocity = 2  # Very slow for gentle wall contact
     angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(boxID, rbtID, linear_velocity, angular_velocity)
     time.sleep(0.0001)
@@ -567,8 +570,8 @@ def putForcePocketEdgeYminus(cps, force, tcp, ucs, config, wait_for_force=False)
     cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
 
-    # Edge force: very light 1N toward wall, full force on Z for surface contact
-    edge_force = 1  # Light touch on wall
+    # Edge force: very light 0.5N toward wall, full force on Z for surface contact
+    edge_force = 0.5  # Very light touch on wall
     force_goal = [0, -edge_force, -force, 0, 0, 0, 0]  # -Y toward wall, -Z down
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)

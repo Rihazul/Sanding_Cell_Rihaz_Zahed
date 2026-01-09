@@ -367,14 +367,15 @@ def generate_zigzag_path(
             # Remove the offsets from modified points to get original boundary positions
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
-            # No crash prevention offset needed - compliant force control handles wall contact
+            # 1mm offset from wall to prevent crashing while force control maintains contact
             # Use Z below surface level - force control will maintain actual surface contact
             # This prevents hovering - robot target is below surface, Z force keeps it ON surface
             edge_z = z_zigzag - 5  # 5mm below surface level - force control maintains contact
-            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, edge_z]
-            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, edge_z]
-            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, edge_z]
-            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, edge_z]
+            edge_offset = 1  # 1mm offset from wall
+            edge_Point1 = [x_coords[0] + tool3x + edge_offset, y_coords[0] + tool3y + edge_offset, edge_z]
+            edge_Point2 = [x_coords[1] + tool3x + edge_offset, y_coords[1] - tool3y - edge_offset, edge_z]
+            edge_Point3 = [x_coords[2] - tool3x - edge_offset, y_coords[2] - tool3y - edge_offset, edge_z]
+            edge_Point4 = [x_coords[3] - tool3x - edge_offset, y_coords[3] + tool3y + edge_offset, edge_z]
             
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)
@@ -666,7 +667,7 @@ def smalldoor1zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 turn_vibration_on(cps)
                 
                 # Process each edge segment
-                for i in range(1, len(edge_points)):
+                for i in range(0, len(edge_points)):
                     # Check if next segment needs different force (at corners)
                     if i < len(edge_points) - 1:
                         next_dir = get_force_direction(edge_points[i], edge_points[i+1])
@@ -998,7 +999,7 @@ def smalldoor2zizag(force,z,cps, orientation="horizontal", movement="zigzag", sp
                 turn_vibration_on(cps)
                 
                 # Process each edge segment
-                for i in range(1, len(edge_points)):
+                for i in range(0, len(edge_points)):
                     # Check if next segment needs different force (at corners)
                     if i < len(edge_points) - 1:
                         next_dir = get_force_direction(edge_points[i], edge_points[i+1])
@@ -1334,7 +1335,7 @@ def smalldoor3zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 turn_vibration_on(cps)
                 
                 # Process each edge segment
-                for i in range(1, len(edge_points)):
+                for i in range(0, len(edge_points)):
                     # Check if next segment needs different force (at corners)
                     if i < len(edge_points) - 1:
                         next_dir = get_force_direction(edge_points[i], edge_points[i+1])
@@ -1652,7 +1653,7 @@ def smalldoor4zizag(force,z,cps, orientation="vertical", movement="zigzag", spir
                 turn_vibration_on(cps)
                 
                 # Process each edge segment
-                for i in range(1, len(edge_points)):
+                for i in range(0, len(edge_points)):
                     # Check if next segment needs different force (at corners)
                     if i < len(edge_points) - 1:
                         next_dir = get_force_direction(edge_points[i], edge_points[i+1])
