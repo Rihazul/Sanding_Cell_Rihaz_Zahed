@@ -90,7 +90,9 @@ export function CompactTableConfig({
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
     setIsOperating(true);
-    addActivity(`Table ${tableName}: Scan bypassed (temporary)`, 'info');
+    // addActivity(`Table ${tableName}: Scan bypassed (temporary)`, 'info');
+    addActivity(`Table ${tableName}: Scan Started.`, 'info');
+    performAction('scan')
     setScanCompleted(true);
     setIsOperating(false);
   };
@@ -635,10 +637,10 @@ export function CompactTableConfig({
               <>
                 <Button 
                   onClick={handleStartScan} 
-                  disabled={true}
+                  disabled={isOperating}
                   className="bg-gray-300 text-gray-600 cursor-not-allowed"
                 >
-                  {'Scan Temporarily Disabled'}
+                  {isOperating ? 'Scanning...' : 'Scan'}
                 </Button>
                 <Button 
                   onClick={handleStartTask} 
