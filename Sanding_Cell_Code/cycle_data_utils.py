@@ -85,13 +85,21 @@ def get_spiral_settings(cycle_data: Mapping[str, Any]) -> SpiralSettings:
 
 def _extract_task_fields(task_cfg: Mapping[str, Any]) -> Dict[str, Any]:
     """Extracts known fields for a TableA/TableB task section."""
+    vertical_spiral = _to_bool(task_cfg.get("verticalSpiral"), False)
+    horizontal_spiral = _to_bool(task_cfg.get("horizontalSpiral"), False)
+    orientation = str(task_cfg.get("orientation") or "").lower()
+    if orientation not in {"vertical", "horizontal"}:
+        orientation = "horizontal" if horizontal_spiral and not vertical_spiral else "vertical"
+    edge_flag = _to_bool(task_cfg.get("edge"), _to_bool(task_cfg.get("edgeCoverage"), False))
     return {
         "cycle": _to_int(task_cfg.get("cycle"), 0),
         "force": _to_int(task_cfg.get("force"), 0),
         # Pocket ZigZag options (safe defaults)
-        "verticalSpiral": _to_bool(task_cfg.get("verticalSpiral"), False),
-        "horizontalSpiral": _to_bool(task_cfg.get("horizontalSpiral"), False),
-        "edgeCoverage": _to_bool(task_cfg.get("edgeCoverage"), False),
+        "verticalSpiral": vertical_spiral,
+        "horizontalSpiral": horizontal_spiral,
+        "edgeCoverage": edge_flag,
+        "edge": edge_flag,
+        "orientation": orientation,
     }
 
 

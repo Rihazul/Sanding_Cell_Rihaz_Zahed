@@ -17,7 +17,7 @@ async function apiCall(endpoint: string, method: 'GET' | 'POST', payload?: any) 
     }
 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-    
+
     if (!response.ok) {
       throw new Error(`API call failed: ${response.statusText}`);
     }
@@ -67,6 +67,9 @@ export interface DoorConfig {
     verticalSpiral?: boolean;
     horizontalSpiral?: boolean;
     edgeCoverage?: boolean;
+    // Derived helpers
+    orientation?: 'vertical' | 'horizontal';
+    edge?: boolean;
   }[];
 }
 
@@ -88,33 +91,74 @@ export async function startTableAProcess(data: {
   const inferredModel =
     data.doorConfigs.find(d => d.model && d.model !== '')?.model || '';
 
+  const getDoorsForRow = (label: string) =>
+    data.doorConfigs
+      .filter(door => {
+        const row = door.rows.find(r => r.label === label);
+        return row && (row.force > 0 || row.cycle > 0);
+      })
+      .map(door => door.doorNumber);
+
+  const getRowValues = (label: string) => {
+    for (const door of data.doorConfigs) {
+      const row = door.rows.find(r => r.label === label && (r.force > 0 || r.cycle > 0));
+      if (row) {
+        return { cycle: row.cycle || 0, force: row.force || 0 };
+      }
+    }
+    for (const door of data.doorConfigs) {
+      const row = door.rows.find(r => r.label === label);
+      if (row) {
+        return { cycle: row.cycle || 0, force: row.force || 0 };
+      }
+    }
+    return { cycle: 0, force: 0 };
+  };
+
+  const buildRowPayload = (label: string) => {
+    const base = getRowValues(label);
+    return { ...base, doors: getDoorsForRow(label) };
+  };
+
+  const getPocketZigZagMeta = () => {
+    const derive = (row?: DoorConfig['rows'][number]) => {
+      const verticalSpiral = !!row?.verticalSpiral;
+      const horizontalSpiral = !!row?.horizontalSpiral;
+      const orientation: 'vertical' | 'horizontal' =
+        horizontalSpiral && !verticalSpiral ? 'horizontal' : 'vertical';
+      const edge = !!row?.edgeCoverage;
+      return { orientation, edge };
+    };
+
+    for (const door of data.doorConfigs) {
+      const row = door.rows.find(r => r.label === 'Pocket ZigZag' && (r.force > 0 || r.cycle > 0));
+      if (row) return derive(row);
+    }
+    for (const door of data.doorConfigs) {
+      const row = door.rows.find(r => r.label === 'Pocket ZigZag');
+      if (row) return derive(row);
+    }
+    return { orientation: 'vertical' as const, edge: false };
+  };
+
   // Build the payload matching the Flask backend format
   const payload = {
     TableA: {
       // Keep legacy compatibility: backend expects TableA.model
       model: inferredModel,
-      doors: data.doorConfigs.map(door => ({
-        doorNumber: door.doorNumber,
-        model: door.model,
-        frame: { cycle: door.rows[0]?.cycle || 0, force: door.rows[0]?.force || 0 },
-        pocketzigzag: {
-          cycle: door.rows[1]?.cycle || 0,
-          force: door.rows[1]?.force || 0,
-          verticalSpiral: !!door.rows[1]?.verticalSpiral,
-          horizontalSpiral: !!door.rows[1]?.horizontalSpiral,
-          edgeCoverage: !!door.rows[1]?.edgeCoverage,
-        },
-        '3D': { cycle: door.rows[2]?.cycle || 0, force: door.rows[2]?.force || 0 },
-        edgeOutside: { cycle: door.rows[3]?.cycle || 0, force: door.rows[3]?.force || 0 },
-        side: { cycle: door.rows[4]?.cycle || 0, force: door.rows[4]?.force || 0 },
-      }))
+      frame: buildRowPayload('Frame'),
+      pocketzigzag: { ...buildRowPayload('Pocket ZigZag'), ...getPocketZigZagMeta() },
+      pocketsquare: buildRowPayload('Pocket Square'),
+      '3D': buildRowPayload('3D'),
+      edgeInside: buildRowPayload('Edge Inside'),
+      edgeOutside: buildRowPayload('Edge Outside'),
+      side: buildRowPayload('Side'),
     },
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,
     inverseOverlapping: data.inverseOverlapping,
-    spiralSettings: data.spiralSettings,
   };
-  
+
   return apiCall('/start_TableA_process', 'POST', payload);
 }
 
@@ -126,8 +170,7 @@ export async function startTableAProcessLegacy(data: {
     cycle: number;
     force: number;
     doors?: number[];
-    verticalSpiral?: boolean;
-    horizontalSpiral?: boolean;
+    Operation?: boolean;
     edgeCoverage?: boolean;
   };
   pocketsquare?: { cycle: number; force: number; doors?: number[] };
@@ -156,7 +199,7 @@ export async function startTableAProcessLegacy(data: {
     inverseOverlapping: data.inverseOverlapping || 50,
     spiralSettings: data.spiralSettings,
   };
-  
+
   return apiCall('/start_TableA_process', 'POST', payload);
 }
 
@@ -181,7 +224,7 @@ export async function startTableBProcess(data: {
   inverseOverlapping: number;
   spiralSettings?: SpiralSettingsPayload;
 }) {
-  return apiCall('/start_TableB_process', 'POST', { 
+  return apiCall('/start_TableB_process', 'POST', {
     TableB: {
       model: data.model,
       frame: data.frame,
@@ -203,17 +246,17 @@ export async function startTableBProcess(data: {
 export async function upload3DFile(file: File) {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   try {
     const response = await fetch(`${API_BASE_URL}/upload_3d_file`, {
       method: 'POST',
       body: formData
     });
-    
+
     if (!response.ok) {
       throw new Error(`Upload failed: ${response.statusText}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Error uploading 3D file:', error);
@@ -224,9 +267,9 @@ export async function upload3DFile(file: File) {
 // Tool toggle operations
 export async function toolToggle(toolNumber: 1 | 2 | 3 | 4, action: 'pick' | 'keep') {
   const endpoint = toolNumber === 1 ? '/tool_toggle1' :
-                   toolNumber === 2 ? '/tool_toggle2' :
-                   toolNumber === 3 ? '/tool_toggle' :
-                   '/tool_toggle4';
+    toolNumber === 2 ? '/tool_toggle2' :
+      toolNumber === 3 ? '/tool_toggle' :
+        '/tool_toggle4';
   return apiCall(endpoint, 'POST', { toolNumber, action });
 }
 
@@ -249,8 +292,8 @@ export async function getTableState(tableId: 'tableAOpenClose' | 'tableBOpenClos
 export async function checkToolStatus(toolNumber: 1 | 2 | 3) {
   const endpoint =
     toolNumber === 1 ? '/check_tool1_status' :
-    toolNumber === 2 ? '/check_tool2_status' :
-    '/check_tool3_status';
+      toolNumber === 2 ? '/check_tool2_status' :
+        '/check_tool3_status';
   return apiCall(endpoint, 'GET');
 }
 
