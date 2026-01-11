@@ -133,7 +133,10 @@ def generate_spiral_between_points(
         turns = 2
     else:
         dist = max(abs(x1 - x0), abs(y1 - y0))
-        turns = math.ceil(dist / (radius * 3.5))
+        factor = 1.0
+        if orientation == "vertical":
+            factor= 1.3
+        turns = int(4.0/260.0 * float(dist) * float(factor))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -858,7 +861,7 @@ def smalldoor1zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=60.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1134,7 +1137,7 @@ def smalldoor2zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=60.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1400,7 +1403,7 @@ def smalldoor3zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=60.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1665,7 +1668,7 @@ def smalldoor4zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=45.0,
+                    angle_step_deg=60.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
