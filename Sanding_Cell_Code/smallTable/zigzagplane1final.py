@@ -414,6 +414,10 @@ def generate_zigzag_path(
         # modified_Point2 = Top-right
         # modified_Point3 = Top-left
         # modified_Point4 = Bottom-left
+        
+        rx_sanding = - 0.034
+        ry_sanding = 0.556
+        rz_sanding = 0.251
 
         # Generate edge coverage path if enabled (rectangular path around the boundary)
         # The edge coverage must END at the point where zigzag/spiral will START
@@ -438,41 +442,41 @@ def generate_zigzag_path(
                         edge_Point2[0],
                         edge_Point2[1],
                         edge_Point2[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # Start P2 (top-left)
                     [
                         edge_Point3[0],
                         edge_Point3[1],
                         edge_Point3[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # P3 (top-right)
                     [
                         edge_Point4[0],
                         edge_Point4[1],
                         edge_Point4[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # P4 (bottom-right)
                     [
                         edge_Point1[0],
                         edge_Point1[1],
                         edge_Point1[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # P1 (bottom-left)
                     [
                         edge_Point2[0],
                         edge_Point2[1],
                         edge_Point2[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # End P2 (top-left) - zigzag start
                 ]
                 print(
@@ -486,41 +490,41 @@ def generate_zigzag_path(
                         edge_Point4[0],
                         edge_Point4[1],
                         edge_Point4[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # Start P4 (bottom-right)
                     [
                         edge_Point1[0],
                         edge_Point1[1],
                         edge_Point1[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # P1 (bottom-left)
                     [
                         edge_Point2[0],
                         edge_Point2[1],
                         edge_Point2[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # P2 (top-left)
                     [
                         edge_Point3[0],
                         edge_Point3[1],
                         edge_Point3[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # P3 (top-right)
                     [
                         edge_Point4[0],
                         edge_Point4[1],
                         edge_Point4[2],
-                        0,
-                        0,
-                        0,
+                        rx_sanding,
+                        ry_sanding,
+                        rz_sanding,
                     ],  # End P4 (bottom-right) - zigzag start
                 ]
                 print(
@@ -529,11 +533,11 @@ def generate_zigzag_path(
 
         if movement_mode == "rect":
             zigzag_coords = [
-                [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
-                [modified_Point2[0], modified_Point2[1], z_zigzag, 0, 0, 0],
-                [modified_Point3[0], modified_Point3[1], z_zigzag, 0, 0, 0],
-                [modified_Point4[0], modified_Point4[1], z_zigzag, 0, 0, 0],
-                [modified_Point1[0], modified_Point1[1], z_zigzag, 0, 0, 0],
+                [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point2[0], modified_Point2[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point3[0], modified_Point3[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point4[0], modified_Point4[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
             ]
         elif orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
@@ -553,17 +557,17 @@ def generate_zigzag_path(
                             x_min,
                             current_y,
                             z_zigzag,
-                            0,
-                            0,
-                            0,
+                            rx_sanding,
+                            ry_sanding,
+                            rz_sanding,
                         ],  # Start at x_min (left side)
                         [
                             x_max,
                             current_y,
                             z_zigzag,
-                            0,
-                            0,
-                            0,
+                            rx_sanding,
+                            ry_sanding,
+                            rz_sanding,
                         ],  # Go to x_max (right side)
                     ]
                     if toggle:
@@ -595,17 +599,17 @@ def generate_zigzag_path(
                             modified_Point4[0] - offset,
                             modified_Point4[1],
                             z_zigzag,
-                            0,
-                            0,
-                            0,
+                            rx_sanding,
+                            ry_sanding,
+                            rz_sanding,
                         ],  # P1 side (bottom-right, moving left)
                         [
                             modified_Point3[0] - offset,
                             modified_Point3[1],
                             z_zigzag,
-                            0,
-                            0,
-                            0,
+                            rx_sanding,
+                            ry_sanding,
+                            rz_sanding,
                         ],  # P2 side (top-right, moving left)
                     ]
                     # Reverse every other column to create a zigzag
@@ -633,9 +637,9 @@ def generate_zigzag_path(
                 abs(zigzag_coords[0][0]) + 0.5,
                 zigzag_coords[0][1],
                 z_zigzag,
-                0,
-                0,
-                0,
+                rx_sanding,
+                ry_sanding,
+                rz_sanding,
             ]
         elif orientation_mode == "horizontal":
             # Horizontal: edge coverage starts at P2 (top-left), zigzag starts at top-left
@@ -644,12 +648,12 @@ def generate_zigzag_path(
                     abs(modified_Point2[0]) + 0.5,
                     abs(modified_Point2[1]),
                     z_zigzag,
-                    0,
-                    0,
-                    0,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
                 ]
             else:
-                prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
+                prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, rx_sanding, ry_sanding, rz_sanding]
         else:
             # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
             if edge_coverage:
@@ -657,18 +661,18 @@ def generate_zigzag_path(
                     abs(modified_Point4[0]) + 0.5,
                     abs(modified_Point4[1]),
                     z_zigzag,
-                    0,
-                    0,
-                    0,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
                 ]
             else:
                 prepoint = [
                     abs(modified_Point4[0]) + 0.5,
                     abs(modified_Point4[1]),
                     z_zigzag,
-                    0,
-                    0,
-                    0,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
                 ]
 
         if edge_coverage:
@@ -810,7 +814,7 @@ def smalldoor1zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=True,
                         )
                     else:
@@ -821,7 +825,7 @@ def smalldoor1zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=False,
                         )
                 # Wait for edge coverage to complete before starting spiral
