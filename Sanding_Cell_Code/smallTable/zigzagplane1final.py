@@ -534,16 +534,16 @@ def generate_zigzag_path(
                 while offset <= xinner + 1e-9:  # small floating-point tolerance
                     row_points = [
                         [
-                            modified_Point4[0] - offset,
-                            modified_Point4[1],
+                            modified_Point2[0] - offset,
+                            modified_Point2[1],
                             z_zigzag,
                             0,
                             0,
                             0,
                         ],  # P4 side (bottom-right)
                         [
-                            modified_Point3[0] - offset,
-                            modified_Point3[1],
+                            modified_Point1[0] - offset,
+                            modified_Point1[1],
                             z_zigzag,
                             0,
                             0,
