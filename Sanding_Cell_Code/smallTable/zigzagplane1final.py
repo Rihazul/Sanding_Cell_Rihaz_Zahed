@@ -520,8 +520,8 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
         else:
-            # Vertical orientation - starts at bottom-right (P4)
-            # P4 = Bottom-right, P3 = Top-right
+            # Vertical orientation - starts at top-right and goes left
+            # Uses bounding box values like horizontal does
             if xinner > 0:
                 # Determine how many "columns" in the zigzag
                 num_steps = math.ceil(xinner / innerSandingOffset)
@@ -533,27 +533,29 @@ def generate_zigzag_path(
                 offset = 0.0
                 toggle = 0
 
-                # Build zigzag path from right to left (starting at bottom-right P4)
+                # Build zigzag path from right to left (starting at x_max)
+                # Similar pattern to horizontal but swapping X and Y roles
                 while offset <= xinner + 1e-9:  # small floating-point tolerance
+                    current_x = x_max - offset
                     row_points = [
                         [
-                            modified_Point2[0] - offset,
-                            modified_Point2[1],
+                            current_x,
+                            y_max,
                             z_zigzag,
                             0,
                             0,
                             0,
-                        ],  # P4 side (bottom-right)
+                        ],  # Start at y_max (top)
                         [
-                            modified_Point1[0] - offset,
-                            modified_Point1[1],
+                            current_x,
+                            y_min,
                             z_zigzag,
                             0,
                             0,
                             0,
-                        ],  # P3 side (top-right)
+                        ],  # Go to y_min (bottom)
                     ]
-                    # Reverse every other row to create a zigzag
+                    # Reverse every other column to create a zigzag
                     if toggle:
                         row_points.reverse()
 
