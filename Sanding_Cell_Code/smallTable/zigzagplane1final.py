@@ -563,19 +563,13 @@ def generate_zigzag_path(
             else:
                 print(f"[Vertical] WARNING: xinner={xinner} is not > 0, no zigzag points generated")
 
-        # Update coordinates to absolute values for edge coverage
-        for point in edge_coverage_coords:
-            point[1] = abs(point[1])
-            point[0] = abs(point[0])
-
-        # Update only the y coordinate to its absolute value for zigzag
-        for point in zigzag_coords:
-            point[1] = abs(point[1])
-            point[0] = abs(point[0])
+        # Note: Removed abs() calls on coordinates as they can reflect points
+        # to incorrect locations when the robot coordinate system uses negative values.
+        # This was causing issues especially with vertical orientation and spiral paths.
 
         if movement_mode == "rect":
             prepoint = [
-                abs(zigzag_coords[0][0]) + 0.5,
+                zigzag_coords[0][0] + 0.5,
                 zigzag_coords[0][1],
                 z_zigzag,
                 0,
@@ -586,21 +580,21 @@ def generate_zigzag_path(
             # Horizontal: edge coverage starts at P2 (top-left), zigzag starts at top-left
             if edge_coverage:
                 prepoint = [
-                    abs(modified_Point2[0]) + 0.5,
-                    abs(modified_Point2[1]),
+                    modified_Point2[0] + 0.5,
+                    modified_Point2[1],
                     z_zigzag,
                     0,
                     0,
                     0,
                 ]
             else:
-                prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
+                prepoint = [x_min + 0.5, y_max, z_zigzag, 0, 0, 0]
         else:
             # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
             if edge_coverage:
                 prepoint = [
-                    abs(modified_Point2[0]) + 0.5,
-                    abs(modified_Point2[1]),
+                    modified_Point2[0] + 0.5,
+                    modified_Point2[1],
                     z_zigzag,
                     0,
                     0,
@@ -608,8 +602,8 @@ def generate_zigzag_path(
                 ]
             else:
                 prepoint = [
-                    abs(modified_Point4[0]) + 0.5,
-                    abs(modified_Point4[1]),
+                    modified_Point4[0] + 0.5,
+                    modified_Point4[1],
                     z_zigzag,
                     0,
                     0,
