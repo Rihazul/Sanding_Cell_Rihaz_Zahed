@@ -785,7 +785,7 @@ def toggle_state(table_id):
             new_state = "Open"
             nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
             nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-            socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
+            # socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
         elif di_state_0[0] == '0' and di_state_1[0] == '1':
             new_state = "Close"
             nRet = CPS.HRIF_SetBoxDO(0, 0, 0)

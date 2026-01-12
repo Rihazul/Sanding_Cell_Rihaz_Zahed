@@ -133,10 +133,11 @@ def generate_spiral_between_points(
         turns = 2
     else:
         dist = max(abs(x1 - x0), abs(y1 - y0))
-        factor = 1.0
-        if orientation == "vertical":
-            factor= 1.3
-        turns = int(4.0/260.0 * float(dist) * float(factor))
+        # factor = 1.0
+        # if orientation == "vertical":
+        #     factor= 1.3
+        # turns = int((4.0/260.0) * float(dist) * float(factor))
+        turns = math.floor(dist/(radius*3))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -420,10 +421,10 @@ def generate_zigzag_path(
             # Remove the offsets from modified points to get original boundary positions
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
-            edge_Point1 = [x_coords[0] + tool3x, y_coords[0] + tool3y, z_zigzag]
-            edge_Point2 = [x_coords[1] + tool3x, y_coords[1] - tool3y, z_zigzag]
-            edge_Point3 = [x_coords[2] - tool3x, y_coords[2] - tool3y, z_zigzag]
-            edge_Point4 = [x_coords[3] - tool3x, y_coords[3] + tool3y, z_zigzag]
+            edge_Point1 = [x_coords[0] + tool3x + 1.0, y_coords[0] + tool3y + 1.0, z_zigzag]
+            edge_Point2 = [x_coords[1] + tool3x + 1.0, y_coords[1] - tool3y - 1.0, z_zigzag]
+            edge_Point3 = [x_coords[2] - tool3x - 1.0, y_coords[2] - tool3y - 1.0, z_zigzag]
+            edge_Point4 = [x_coords[3] - tool3x - 1.0, y_coords[3] + tool3y + 1.0, z_zigzag]
 
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)
@@ -861,7 +862,7 @@ def smalldoor1zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=60.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1137,7 +1138,7 @@ def smalldoor2zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=60.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1403,7 +1404,7 @@ def smalldoor3zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=60.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
@@ -1668,7 +1669,7 @@ def smalldoor4zizag(
                     start_pose=point_A,
                     end_pose=point_B,
                     radius=12.0,
-                    angle_step_deg=60.0,
+                    angle_step_deg=45.0,
                     track_name=spiral_track_name,
                     velocity=300.0,
                     accel=500.0,
