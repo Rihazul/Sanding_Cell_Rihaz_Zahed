@@ -400,8 +400,7 @@ def generate_zigzag_path(
         )
 
         # Calculate available horizontal dimension
-        xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-        xinner = xlen1 - xframe_1 - xframe_2
+        xinner = abs(x_max - x_min)
         print("xinner=", xinner)
 
         orientation_mode = (orientation or "vertical").lower()
@@ -426,6 +425,8 @@ def generate_zigzag_path(
             edge_Point3 = [x_coords[2] - tool3x - 1.0, y_coords[2] - tool3y - 1.0, z_zigzag]
             edge_Point4 = [x_coords[3] - tool3x - 1.0, y_coords[3] + tool3y + 1.0, z_zigzag]
 
+            # Edge coverage always uses the same path regardless of orientation
+            # Edge coverage: P2 → P3 → P4 → P1 → P2 (starts at top-left like horizontal)
             if orientation_mode == "horizontal":
                 # Horizontal zigzag starts at top-left (P2)
                 # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
@@ -569,43 +570,50 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
         else:
-            # Vertical orientation - starts at bottom-right (P4)
-            # P4 = Bottom-right, P3 = Top-right
+            # Vertical orientation
+            # In real robot, P1/P2 (X = -212.56) are physically RIGHT, P3/P4 (X = -55.1) are physically LEFT
+            # Start from RIGHT side (P1/P2) and subtract offset to move toward LEFT (P3/P4)
             if xinner > 0:
                 # Determine how many "columns" in the zigzag
                 num_steps = math.ceil(xinner / innerSandingOffset)
+                if num_steps == 0:
+                    num_steps = 1  # Prevent division by zero
                 adjusted_step = xinner / num_steps
+                print(f"[Vertical] xinner={xinner}, num_steps={num_steps}, adjusted_step={adjusted_step}")
 
                 offset = 0.0
                 toggle = 0
 
-                # Build zigzag path from right to left (starting at bottom-right P4)
+                # Build zigzag path from right (P1/P2) to left (P3/P4)
+                # Subtract offset from P1/P2 X values to move toward more negative X
                 while offset <= xinner + 1e-9:  # small floating-point tolerance
                     row_points = [
                         [
-                            modified_Point4[0] - offset,
-                            modified_Point4[1],
+                            modified_Point1[0] - offset,
+                            modified_Point1[1],
                             z_zigzag,
                             0,
                             0,
                             0,
-                        ],  # P4 side (bottom-right)
+                        ],  # P1 side (bottom-right, moving left)
                         [
-                            modified_Point3[0] - offset,
-                            modified_Point3[1],
+                            modified_Point2[0] - offset,
+                            modified_Point2[1],
                             z_zigzag,
                             0,
                             0,
                             0,
-                        ],  # P3 side (top-right)
+                        ],  # P2 side (top-right, moving left)
                     ]
-                    # Reverse every other row to create a zigzag
+                    # Reverse every other column to create a zigzag
                     if toggle:
                         row_points.reverse()
 
                     zigzag_coords.extend(row_points)
                     offset += adjusted_step
                     toggle = 1 - toggle
+            else:
+                print(f"[Vertical] WARNING: xinner={xinner} is not > 0, no zigzag points generated")
 
         # Update coordinates to absolute values for edge coverage
         for point in edge_coverage_coords:
@@ -640,11 +648,11 @@ def generate_zigzag_path(
             else:
                 prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
         else:
-            # Vertical: edge coverage starts at P4 (bottom-right), zigzag starts at bottom-right
+            # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
             if edge_coverage:
                 prepoint = [
-                    abs(modified_Point4[0]) + 0.5,
-                    abs(modified_Point4[1]),
+                    abs(modified_Point2[0]) + 0.5,
+                    abs(modified_Point2[1]),
                     z_zigzag,
                     0,
                     0,
