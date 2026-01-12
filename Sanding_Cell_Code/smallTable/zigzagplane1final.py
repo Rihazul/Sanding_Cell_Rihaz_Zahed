@@ -426,102 +426,53 @@ def generate_zigzag_path(
             edge_Point3 = [x_coords[2] - tool3x - 1.0, y_coords[2] - tool3y - 1.0, z_zigzag]
             edge_Point4 = [x_coords[3] - tool3x - 1.0, y_coords[3] + tool3y + 1.0, z_zigzag]
 
-            if orientation_mode == "horizontal":
-                # Horizontal zigzag starts at top-left (P2)
-                # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
-                edge_coverage_coords = [
-                    [
-                        edge_Point2[0],
-                        edge_Point2[1],
-                        edge_Point2[2],
-                        0,
-                        0,
-                        0,
-                    ],  # Start P2 (top-left)
-                    [
-                        edge_Point3[0],
-                        edge_Point3[1],
-                        edge_Point3[2],
-                        0,
-                        0,
-                        0,
-                    ],  # P3 (top-right)
-                    [
-                        edge_Point4[0],
-                        edge_Point4[1],
-                        edge_Point4[2],
-                        0,
-                        0,
-                        0,
-                    ],  # P4 (bottom-right)
-                    [
-                        edge_Point1[0],
-                        edge_Point1[1],
-                        edge_Point1[2],
-                        0,
-                        0,
-                        0,
-                    ],  # P1 (bottom-left)
-                    [
-                        edge_Point2[0],
-                        edge_Point2[1],
-                        edge_Point2[2],
-                        0,
-                        0,
-                        0,
-                    ],  # End P2 (top-left) - zigzag start
-                ]
-                print(
-                    "Edge coverage (horizontal): P2 → P3 → P4 → P1 → P2 (ends at top-left for zigzag start)"
-                )
-            else:
-                # Vertical zigzag starts at bottom-right (P4)
-                # Edge coverage: P4 → P1 → P2 → P3 → P4 (ends at bottom-right)
-                edge_coverage_coords = [
-                    [
-                        edge_Point4[0],
-                        edge_Point4[1],
-                        edge_Point4[2],
-                        0,
-                        0,
-                        0,
-                    ],  # Start P4 (bottom-right)
-                    [
-                        edge_Point1[0],
-                        edge_Point1[1],
-                        edge_Point1[2],
-                        0,
-                        0,
-                        0,
-                    ],  # P1 (bottom-left)
-                    [
-                        edge_Point2[0],
-                        edge_Point2[1],
-                        edge_Point2[2],
-                        0,
-                        0,
-                        0,
-                    ],  # P2 (top-left)
-                    [
-                        edge_Point3[0],
-                        edge_Point3[1],
-                        edge_Point3[2],
-                        0,
-                        0,
-                        0,
-                    ],  # P3 (top-right)
-                    [
-                        edge_Point4[0],
-                        edge_Point4[1],
-                        edge_Point4[2],
-                        0,
-                        0,
-                        0,
-                    ],  # End P4 (bottom-right) - zigzag start
-                ]
-                print(
-                    "Edge coverage (vertical): P4 → P1 → P2 → P3 → P4 (ends at bottom-right for zigzag start)"
-                )
+            # Edge coverage always uses the same path regardless of orientation
+            # Edge coverage: P2 → P3 → P4 → P1 → P2 (starts at top-left like horizontal)
+            edge_coverage_coords = [
+                [
+                    edge_Point2[0],
+                    edge_Point2[1],
+                    edge_Point2[2],
+                    0,
+                    0,
+                    0,
+                ],  # Start P2 (top-left)
+                [
+                    edge_Point3[0],
+                    edge_Point3[1],
+                    edge_Point3[2],
+                    0,
+                    0,
+                    0,
+                ],  # P3 (top-right)
+                [
+                    edge_Point4[0],
+                    edge_Point4[1],
+                    edge_Point4[2],
+                    0,
+                    0,
+                    0,
+                ],  # P4 (bottom-right)
+                [
+                    edge_Point1[0],
+                    edge_Point1[1],
+                    edge_Point1[2],
+                    0,
+                    0,
+                    0,
+                ],  # P1 (bottom-left)
+                [
+                    edge_Point2[0],
+                    edge_Point2[1],
+                    edge_Point2[2],
+                    0,
+                    0,
+                    0,
+                ],  # End P2 (top-left) - complete the loop
+            ]
+            print(
+                "Edge coverage: P2 → P3 → P4 → P1 → P2 (same start position regardless of orientation)"
+            )
 
         if movement_mode == "rect":
             zigzag_coords = [
@@ -640,11 +591,11 @@ def generate_zigzag_path(
             else:
                 prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
         else:
-            # Vertical: edge coverage starts at P4 (bottom-right), zigzag starts at bottom-right
+            # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
             if edge_coverage:
                 prepoint = [
-                    abs(modified_Point4[0]) + 0.5,
-                    abs(modified_Point4[1]),
+                    abs(modified_Point2[0]) + 0.5,
+                    abs(modified_Point2[1]),
                     z_zigzag,
                     0,
                     0,
