@@ -525,7 +525,10 @@ def generate_zigzag_path(
             if xinner > 0:
                 # Determine how many "columns" in the zigzag
                 num_steps = math.ceil(xinner / innerSandingOffset)
+                if num_steps == 0:
+                    num_steps = 1  # Prevent division by zero
                 adjusted_step = xinner / num_steps
+                print(f"[Vertical] xinner={xinner}, num_steps={num_steps}, adjusted_step={adjusted_step}")
 
                 offset = 0.0
                 toggle = 0
@@ -557,6 +560,8 @@ def generate_zigzag_path(
                     zigzag_coords.extend(row_points)
                     offset += adjusted_step
                     toggle = 1 - toggle
+            else:
+                print(f"[Vertical] WARNING: xinner={xinner} is not > 0, no zigzag points generated")
 
         # Update coordinates to absolute values for edge coverage
         for point in edge_coverage_coords:
