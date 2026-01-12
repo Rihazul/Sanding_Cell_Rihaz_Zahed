@@ -206,6 +206,9 @@ def run_spiral_between_points(
         max_points=max_points,
         orientation=orientation,
     )
+    xs = all_points[0::6] 
+    ys = all_points[1::6]   
+    print("spiral x range:", min(xs), max(xs), " y range:", min(ys), max(ys))
 
     if len(all_points) % 6 != 0:
         print("[Spiral] Point list misaligned (not divisible by 6).")
