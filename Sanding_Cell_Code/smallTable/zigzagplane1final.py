@@ -400,8 +400,7 @@ def generate_zigzag_path(
         )
 
         # Calculate available horizontal dimension
-        xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-        xinner = xlen1 - xframe_1 - xframe_2
+        xinner = abs(x_max - x_min)
         print("xinner=", xinner)
 
         orientation_mode = (orientation or "vertical").lower()
@@ -521,6 +520,7 @@ def generate_zigzag_path(
                     toggle = 1 - toggle
         else:
             # Vertical orientation - starts at top-right and goes left
+            # This matches where edge coverage ends (P2 = top-right)
             # Uses bounding box values like horizontal does
             if xinner > 0:
                 # Determine how many "columns" in the zigzag
@@ -534,7 +534,7 @@ def generate_zigzag_path(
                 toggle = 0
 
                 # Build zigzag path from right to left (starting at x_max)
-                # Similar pattern to horizontal but swapping X and Y roles
+                # Starts at top-right to match edge coverage end point (P2)
                 while offset <= xinner + 1e-9:  # small floating-point tolerance
                     current_x = x_max - offset
                     row_points = [
