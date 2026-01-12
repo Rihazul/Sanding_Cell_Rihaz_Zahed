@@ -117,11 +117,15 @@ def generate_spiral_between_points(
     angle_step_deg: float = 120.0,
     max_points: Optional[int] = 80,
     orientation: str = "horizontal",
+    x_bounds: Optional[tuple] = None,  # (x_min, x_max) for clamping
+    y_bounds: Optional[tuple] = None,  # (y_min, y_max) for clamping
 ):
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
     Keeps orientation from start_pose, interpolates center XY between poses,
     and adds radial offsets for each step.
+    
+    x_bounds/y_bounds: Optional tuple (min, max) to clamp spiral points within valid range.
     """
     x0, y0, z0, rx, ry, rz = start_pose[:6]
     x1, y1, _, _, _, _ = end_pose[:6]
@@ -159,6 +163,12 @@ def generate_spiral_between_points(
         py = cy + radius * math.sin(theta)
         pz = z0  # hold Z while spiraling along Y
 
+        # Clamp to boundaries if provided (prevents points outside safety zone)
+        if x_bounds is not None:
+            px = max(x_bounds[0], min(x_bounds[1], px))
+        if y_bounds is not None:
+            py = max(y_bounds[0], min(y_bounds[1], py))
+
         points.extend([px, py, pz, rx, ry, rz])
 
     return points
@@ -184,6 +194,8 @@ def run_spiral_between_points(
     robot_id: int = 0,
     init_path: bool = True,
     orientation: str = "horizontal",
+    x_bounds: Optional[tuple] = None,  # (x_min, x_max) for clamping
+    y_bounds: Optional[tuple] = None,  # (y_min, y_max) for clamping
 ):
     """Push a spiral MovePathL between two poses.
 
@@ -205,6 +217,8 @@ def run_spiral_between_points(
         angle_step_deg=angle_step_deg,
         max_points=max_points,
         orientation=orientation,
+        x_bounds=x_bounds,
+        y_bounds=y_bounds,
     )
 
     if len(all_points) % 6 != 0:
@@ -782,6 +796,16 @@ def smalldoor1zizag(
             push_failed = False
             total_count = 0
 
+            # Calculate boundaries from zigzag points for spiral clamping
+            x_bounds = None
+            y_bounds = None
+            if zigzag_points and len(zigzag_points) > 0:
+                all_x = [p[0] for p in zigzag_points]
+                all_y = [p[1] for p in zigzag_points]
+                x_bounds = (min(all_x), max(all_x))
+                y_bounds = (min(all_y), max(all_y))
+                print(f"[Spiral] Boundary clamping: x={x_bounds}, y={y_bounds}")
+
             # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
@@ -827,6 +851,8 @@ def smalldoor1zizag(
                     jerk=10000.0,
                     init_path=not path_initialized,
                     orientation=orientation,
+                    x_bounds=x_bounds,
+                    y_bounds=y_bounds,
                 )
                 if not success:
                     push_failed = True
@@ -1058,6 +1084,16 @@ def smalldoor2zizag(
             push_failed = False
             total_count = 0
 
+            # Calculate boundaries from zigzag points for spiral clamping
+            x_bounds = None
+            y_bounds = None
+            if zigzag_points and len(zigzag_points) > 0:
+                all_x = [p[0] for p in zigzag_points]
+                all_y = [p[1] for p in zigzag_points]
+                x_bounds = (min(all_x), max(all_x))
+                y_bounds = (min(all_y), max(all_y))
+                print(f"[Spiral] Boundary clamping: x={x_bounds}, y={y_bounds}")
+
             # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
@@ -1103,6 +1139,8 @@ def smalldoor2zizag(
                     jerk=10000.0,
                     init_path=not path_initialized,
                     orientation=orientation,
+                    x_bounds=x_bounds,
+                    y_bounds=y_bounds,
                 )
                 if not success:
                     push_failed = True
@@ -1335,6 +1373,16 @@ def smalldoor3zizag(
             push_failed = False
             total_count = 0
 
+            # Calculate boundaries from zigzag points for spiral clamping
+            x_bounds = None
+            y_bounds = None
+            if zigzag_points and len(zigzag_points) > 0:
+                all_x = [p[0] for p in zigzag_points]
+                all_y = [p[1] for p in zigzag_points]
+                x_bounds = (min(all_x), max(all_x))
+                y_bounds = (min(all_y), max(all_y))
+                print(f"[Spiral] Boundary clamping: x={x_bounds}, y={y_bounds}")
+
             # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
@@ -1369,6 +1417,8 @@ def smalldoor3zizag(
                     jerk=10000.0,
                     init_path=not path_initialized,
                     orientation=orientation,
+                    x_bounds=x_bounds,
+                    y_bounds=y_bounds,
                 )
                 if not success:
                     push_failed = True
@@ -1600,6 +1650,16 @@ def smalldoor4zizag(
             push_failed = False
             total_count = 0
 
+            # Calculate boundaries from zigzag points for spiral clamping
+            x_bounds = None
+            y_bounds = None
+            if zigzag_points and len(zigzag_points) > 0:
+                all_x = [p[0] for p in zigzag_points]
+                all_y = [p[1] for p in zigzag_points]
+                x_bounds = (min(all_x), max(all_x))
+                y_bounds = (min(all_y), max(all_y))
+                print(f"[Spiral] Boundary clamping: x={x_bounds}, y={y_bounds}")
+
             # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
@@ -1634,6 +1694,8 @@ def smalldoor4zizag(
                     jerk=10000.0,
                     init_path=not path_initialized,
                     orientation=orientation,
+                    x_bounds=x_bounds,
+                    y_bounds=y_bounds,
                 )
                 if not success:
                     push_failed = True
