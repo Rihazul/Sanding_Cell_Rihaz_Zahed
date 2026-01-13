@@ -4713,7 +4713,7 @@ def communicate(
                 velocity = speed_value * velocity
                 acceleration = (
                     config["coords"]["roboAcceleration"]
-                    * (velocity / config["coords"]["roboVelocity"])
+                    * speed_value
                 )
 
         nRet = cps.HRIF_MoveL(

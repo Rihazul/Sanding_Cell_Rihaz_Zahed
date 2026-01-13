@@ -138,7 +138,7 @@ def generate_spiral_between_points(
         # if orientation == "vertical":
         #     factor= 1.3
         # turns = int((4.0/260.0) * float(dist) * float(factor))
-        turns = math.floor(dist/(radius*3))
+        turns = math.floor(dist/(radius*2))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
