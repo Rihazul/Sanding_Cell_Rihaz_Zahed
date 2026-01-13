@@ -18,6 +18,7 @@ from Server_Better_V2 import (
     communicate,
     setup_logger,
     waitForBlending,
+    setSpeed,
     turn_vibration_on,
     turn_vibration_off,
     putForce,
@@ -803,31 +804,20 @@ def smalldoor1zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
+                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                setSpeed(cps, edge_speed, config=config)
                 turn_vibration_on(cps)
                 for point in edge_points:
-                    if point == edge_points[-1]:
-                        # For the first point, wait for the move to complete
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=True,
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=False,
-                        )
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=None,
+                        wait=False,
+                    )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1080,31 +1070,20 @@ def smalldoor2zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
+                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                setSpeed(cps, edge_speed, config=config)
                 turn_vibration_on(cps)
                 for point in edge_points:
-                    if point == edge_points[-1]:
-                        print("Last point of edge coverage, setting wait=True")
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=True,
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=False,
-                        ) 
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=None,
+                        wait=False,
+                    )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1358,31 +1337,20 @@ def smalldoor3zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
+                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                setSpeed(cps, edge_speed, config=config)
                 turn_vibration_on(cps)
                 for point in edge_points:
-                    if point == edge_points[-1]:
-                        print("Last point of edge coverage, setting wait=True")
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=True,
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=False,
-                        )
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=None,
+                        wait=False,
+                    )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1623,31 +1591,20 @@ def smalldoor4zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
+                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                setSpeed(cps, edge_speed, config=config)
                 turn_vibration_on(cps)
                 for point in edge_points:
-                    if point == edge_points[-1]:
-                        print("Last point of edge coverage, setting wait=True")
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=True,
-                        )
-                    else:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.6,
-                            wait=False,
-                        )
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=None,
+                        wait=False,
+                    )
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
