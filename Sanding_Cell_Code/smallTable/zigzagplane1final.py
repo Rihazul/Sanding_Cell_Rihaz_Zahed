@@ -1041,26 +1041,73 @@ def smalldoor2zizag(
         print("x_coords1 ", x_coords1)
         print("y_coords2 ", y_coords1)
         print("z_coords3", z_coords1)
+        
+        RawACSpoints = [0, 0, 0, 0, 0, 0]  # Define the tool coordinate variable
+
+        nIsSeek = 0  # Define The DI index of the detection
+        nIOBit = 0  # Define The DI status of the detected state www.hansrobot.com 164Interface Description
+        nIOState = 0  # Defining Road Point ID
+        stdCmdID = "0"  # Perform road point movement
+
+        setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
+
+        # input("Is this fine?")
+        tcp=config["coords"]["tcptool1plane1"],
+        ucs=config["coords"]["ucsTable1"],
+
+        cps.HRIF_MoveL(
+            0,
+            0,
+            point5u,
+            RawACSpoints,
+            tcp,
+            ucs,
+            config["coords"]["roboVelocity"],
+            config["coords"]["roboAcceleration"],
+            config["coords"]["transitionRadius"],
+            nIsSeek,
+            nIOBit,
+            nIOState,
+            stdCmdID,
+        )
+        
+        print("Moved to point5u")
+        
+        cps.HRIF_MoveL(
+            0,
+            0,
+            point6u,
+            RawACSpoints,
+            tcp,
+            ucs,
+            config["coords"]["roboVelocity"],
+            config["coords"]["roboAcceleration"],
+            config["coords"]["transitionRadius"],
+            nIsSeek,
+            nIOBit,
+            nIOState,
+            stdCmdID,
+        )
 
         # Global variables
         # prepoint = None
         # zigzag_coords = []
 
         # Second Pocket 1st Cycle
-        edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
-            y_coords=y_coords1,
-            z_coords=z_coords1,
-            innerOffset=17,
-            innerOffsetX=17,
-            orientation=orientation,
-            movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-        )
-        print("edge_coverage_pathp1=", edge_coverage_pathp1)
-        print("zigzag_pathp=", zigzag_pathp1)
-        print("prepointp:", prepointp1)
+        # edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
+        #     x_coords=x_coords1,
+        #     y_coords=y_coords1,
+        #     z_coords=z_coords1,
+        #     innerOffset=17,
+        #     innerOffsetX=17,
+        #     orientation=orientation,
+        #     movement=movement,
+        #     innerSandingOffset=50,
+        #     edge_coverage=True,  # Enable edge coverage with MoveL before spiral
+        # )
+        # print("edge_coverage_pathp1=", edge_coverage_pathp1)
+        # print("zigzag_pathp=", zigzag_pathp1)
+        # print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, edge_points, zigzag_points, force):
             # Vibration on
@@ -1090,7 +1137,7 @@ def smalldoor2zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5 ,
                             wait=True,
                         )
                     else:
@@ -1101,9 +1148,9 @@ def smalldoor2zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=False,
-                        )
+                        ) 
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1219,13 +1266,14 @@ def smalldoor2zizag(
             wait=True,
         )
         # # turn_vibration_on(cps)
-        perform_process_top(
-            cps,
-            config,
-            edge_points=edge_coverage_pathp1,
-            zigzag_points=zigzag_pathp1,
-            force=force,
-        )  # Edge coverage + zigzag path
+        # perform_process_top(
+        #     cps,
+        #     config,
+        #     edge_points=edge_coverage_pathp1,
+        #     zigzag_points=zigzag_pathp1,
+        #     force=force,
+        # )  
+        # Edge coverage + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps,
@@ -1367,7 +1415,7 @@ def smalldoor3zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=True,
                         )
                     else:
@@ -1378,7 +1426,7 @@ def smalldoor3zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=False,
                         )
                 # Wait for edge coverage to complete before starting spiral
@@ -1632,7 +1680,7 @@ def smalldoor4zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=True,
                         )
                     else:
@@ -1643,7 +1691,7 @@ def smalldoor4zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
+                            speed=float(json_config["sandingSpeed"]) * 0.5,
                             wait=False,
                         )
                 # Wait for edge coverage to complete before starting spiral
