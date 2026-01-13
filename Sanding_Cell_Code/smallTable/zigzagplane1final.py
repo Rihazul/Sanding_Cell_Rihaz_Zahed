@@ -1066,13 +1066,13 @@ def smalldoor2zizag(
             # Vibration on
 
             # Force Control Activated
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                config=config,
-            )
+            # putForceZminus(
+            #     cps=cps,
+            #     force=force,
+            #     tcp=config["coords"]["tcptool1plane1"],
+            #     ucs=config["coords"]["ucsTable1"],
+            #     config=config,
+            # )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
             if edge_points and len(edge_points) > 0:
@@ -1185,7 +1185,7 @@ def smalldoor2zizag(
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release force
-            releaseForce(cps=cps, config=config)
+            # releaseForce(cps=cps, config=config)
 
         # Original sequence with dynamic variables
         communicate(
