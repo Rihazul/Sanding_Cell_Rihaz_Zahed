@@ -4700,6 +4700,20 @@ def communicate(
 
         # input("Is this fine?")
 
+        velocity = config["coords"]["roboVelocity"]
+        acceleration = config["coords"]["roboAcceleration"]
+        if speed is not None:
+            try:
+                speed_value = float(speed)
+            except (TypeError, ValueError):
+                speed_value = None
+            if speed_value is not None:
+                if 0 < speed_value <= 1:
+                    velocity = velocity * speed_value
+                    acceleration = acceleration * speed_value
+                elif speed_value > 1:
+                    velocity = speed_value
+
         nRet = cps.HRIF_MoveL(
             0,
             0,
@@ -4707,8 +4721,8 @@ def communicate(
             RawACSpoints,
             tcp,
             ucs,
-            config["coords"]["roboVelocity"],
-            config["coords"]["roboAcceleration"],
+            velocity,
+            acceleration,
             config["coords"]["transitionRadius"],
             nIsSeek,
             nIOBit,

@@ -814,7 +814,7 @@ def smalldoor1zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=True,
                         )
                     else:
@@ -825,7 +825,7 @@ def smalldoor1zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=False,
                         )
                 # Wait for edge coverage to complete before starting spiral
@@ -1091,7 +1091,7 @@ def smalldoor2zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5 ,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=True,
                         )
                     else:
@@ -1102,7 +1102,7 @@ def smalldoor2zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=False,
                         ) 
                 # Wait for edge coverage to complete before starting spiral
@@ -1369,7 +1369,7 @@ def smalldoor3zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=True,
                         )
                     else:
@@ -1380,7 +1380,7 @@ def smalldoor3zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=False,
                         )
                 # Wait for edge coverage to complete before starting spiral
@@ -1634,7 +1634,7 @@ def smalldoor4zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=True,
                         )
                     else:
@@ -1645,7 +1645,7 @@ def smalldoor4zizag(
                             tcp=config["coords"]["tcptool1plane1"],
                             ucs=config["coords"]["ucsTable1"],
                             seventh=-1,
-                            speed=float(json_config["sandingSpeed"]) * 0.5,
+                            speed=float(json_config["sandingSpeed"]) * 0.6,
                             wait=False,
                         )
                 # Wait for edge coverage to complete before starting spiral
