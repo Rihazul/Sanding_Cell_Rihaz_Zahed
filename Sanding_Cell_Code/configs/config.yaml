@@ -88,7 +88,7 @@ scanThresholdMinD:
 door:
   frame: 60
   sandSpeed: 0.02 #0.02 real
-  homingSpeed: 0.3
+  homingSpeed: 0.7
   # homingSpeed: 1.0
 
 point:
