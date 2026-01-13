@@ -237,7 +237,7 @@ def adjust_heights(data):
 #         return
 
 
-def setSpeed(cps, speed, config):
+def setSpeed(cps, speed, config, wait_for_blending=True):
     """
     Sets the speed of the cobot.
 
@@ -245,6 +245,7 @@ def setSpeed(cps, speed, config):
         cps: CPSClient instance
         speed (float): desired override speed, in [0,1]
         config (dict): must contain a 'logger' key
+        wait_for_blending (bool): wait before applying override
     """
     if speed is None:
         return
@@ -282,8 +283,9 @@ def setSpeed(cps, speed, config):
     if current == speed:
         return
 
-    # # Otherwise, wait for blending and set the new override
-    waitForBlending(cps=cps, config=config)
+    # Otherwise, optionally wait for blending and set the new override
+    if wait_for_blending:
+        waitForBlending(cps=cps, config=config)
     # waitForMotion(cps=cps, config=config)
 
     nRet = cps.HRIF_SetOverride(0, 0, speed)
