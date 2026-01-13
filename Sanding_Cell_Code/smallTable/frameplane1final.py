@@ -4,9 +4,11 @@ import sys
 import os
 import time
 import json
+import math
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from Components.RobotState import RobotState
 import yaml
 import threading
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
@@ -21,6 +23,252 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values
 )
+
+def compute_timeout(
+    *,
+    total_points: Optional[int] = None,
+    cap: float = 72.0,
+    velocity: float = 300.0,
+) -> float:
+    """
+    Estimate a completion timeout based on total points.
+
+    - Uses a simple model: time = (points / vmax) + overhead
+    - Caps the timeout to avoid excessive waits.
+    """
+    if total_points is None:
+        return cap
+
+    distance_per_point = 4.64
+    # vmax = 300.0
+    # time_factor_max = float(total_points / vmax)
+    time_factor = float(total_points * distance_per_point / (velocity))
+
+    timeout = float(time_factor)
+    print(
+        f"[Timeout] total_points={total_points}, est={time_factor:.1f}s timeout={timeout:.1f}s"
+    )
+    return timeout
+
+
+def apply_spiral_settings(settings: Optional[dict]) -> None:
+    """Apply incoming spiral settings to defaults used during spiral generation."""
+    global DEFAULT_SPIRAL_LINEAR_SPEED, DEFAULT_SPIRAL_RADIUS
+    if not settings:
+        return
+    # Handle dataclass or plain dict
+    radius_val = (
+        getattr(settings, "radius_mm", None)
+        if not isinstance(settings, dict)
+        else settings.get("radius_mm")
+    )
+    linear_val = (
+        getattr(settings, "linear_speed_mm_s", None)
+        if not isinstance(settings, dict)
+        else settings.get("linear_speed_mm_s")
+    )
+    DEFAULT_SPIRAL_LINEAR_SPEED = _clamp(
+        float(linear_val if linear_val is not None else DEFAULT_SPIRAL_LINEAR_SPEED),
+        100.0,
+        300.0,
+    )
+    DEFAULT_SPIRAL_RADIUS = _clamp(
+        float(radius_val if radius_val is not None else DEFAULT_SPIRAL_RADIUS),
+        10.0,
+        15.0,
+    )
+
+
+def generate_spiral_between_points(
+    start_pose,
+    end_pose,
+    turns: Optional[int] = 12,
+    radius: Optional[float] = None,
+    angle_step_deg: float = 120.0,
+    max_points: Optional[int] = 80,
+):
+    """
+    Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
+    Keeps orientation from start_pose, interpolates center XY between poses,
+    and adds radial offsets for each step.
+    """
+    x0, y0, z0, rx, ry, rz = start_pose[:6]
+    x1, y1, _, _, _, _ = end_pose[:6]
+    if radius is None:
+        radius = DEFAULT_SPIRAL_RADIUS
+    if y0 == y1:
+        dist = abs(x1 - x0)
+        turns = math.ceil(dist / (radius * 2))
+    elif x0 == x1 :
+        dist = abs(y1 - y0)
+        turns = math.ceil(dist / (radius * 2))
+
+    # Always map speed -> turns so higher speed yields fewer turns
+
+    total_steps = int(turns * (360.0 / angle_step_deg))
+    if max_points is not None:
+        total_steps = max(1, min(total_steps, int(max_points)))
+    else:
+        total_steps = max(1, total_steps)
+    points = list(start_pose[:6])  # start point
+
+    for step in range(1, total_steps + 1):
+        t = step / total_steps
+        cx = x0 + (x1 - x0) * t
+        cy = y0 + (y1 - y0) * t
+        theta_deg = step * angle_step_deg
+        theta = math.radians(theta_deg)
+
+        px = cx + radius * math.cos(theta)
+        py = cy + radius * math.sin(theta)
+        pz = z0  # hold Z while spiraling along Y
+
+        points.extend([px, py, pz, rx, ry, rz])
+
+    return points
+
+
+def run_spiral_between_points(
+    cps: CPSClient,
+    config: dict,
+    start_pose,
+    end_pose,
+    *,
+    turns: Optional[int] = 12,
+    radius: Optional[float] = None,
+    angle_step_deg: float = 120.0,
+    max_points: Optional[int] = 80,
+    tcp: str = None,
+    ucs: str = None,
+    track_name: str = None,
+    velocity: float = 300.0,
+    accel: float = 500.0,
+    jerk: float = 10000.0,
+    box_id: int = 0,
+    robot_id: int = 0,
+    init_path: bool = True,
+):
+    """Push a spiral MovePathL between two poses.
+
+    By default (`finalize=False`), the path is only pushed (optionally initialized
+    with `init_path`) and execution must be triggered separately via
+    `finalize_spiral_path`. Set `finalize=True` to push and execute immediately.
+    """
+    base_name = track_name or "spiral_path"
+    track_name = track_name
+    print(f"[Spiral] Using track name: {track_name}")
+    tcp_name = tcp or config["coords"].get("tcptool1plane1")
+    ucs_name = ucs or config["coords"].get("ucsTable1")
+
+    all_points = generate_spiral_between_points(
+        start_pose=start_pose,
+        end_pose=end_pose,
+        turns=turns,
+        radius=DEFAULT_SPIRAL_RADIUS if radius is None else radius,
+        angle_step_deg=angle_step_deg,
+        max_points=max_points,
+    )
+    xs = all_points[0::6] 
+    ys = all_points[1::6]   
+    print("spiral x range:", min(xs), max(xs), " y range:", min(ys), max(ys))
+
+    if len(all_points) % 6 != 0:
+        print("[Spiral] Point list misaligned (not divisible by 6).")
+        return False, None
+
+    count = len(all_points) // 6
+    print(f"[Spiral] Total points = {count}")
+
+    if init_path:
+        ret = cps.HRIF_InitMovePathL(
+            box_id, robot_id, track_name, velocity, accel, jerk, ucs_name, tcp_name
+        )
+        print("[Spiral][Init] ret =", ret)
+        if ret != 0:
+            return False, None
+
+    ret = cps.HRIF_PushMovePaths(box_id, robot_id, track_name, 1, count, all_points)
+    print("[Spiral][Push] ret =", ret)
+    if ret != 0:
+        return False, None
+
+    return True, count
+
+
+def finalize_spiral_path(
+    cps: CPSClient,
+    track_name: str,
+    *,
+    box_id: int = 0,
+    robot_id: int = 0,
+    completion_timeout=76.0,
+) -> bool:
+    """End push, wait for readiness, execute MovePathL, and wait for completion."""
+    ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
+    print("[Spiral][EndPush] ret =", ret)
+    if ret != 0:
+        return False
+
+    # Create a lightweight state helper for motion monitoring.
+    robot_state = RobotState(config=load_config(), cps_client=cps)
+
+    # Wait for PATH_READY
+    start = time.time()
+    state = []
+    while True:
+        st = []
+        ret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
+        if ret == 0 and len(st) > 3 and st[2] == "3" and st[3] == "0":
+            break
+        elapsed = time.time() - start
+        if elapsed > 120.0:
+            print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s:", st)
+            return False
+        time.sleep(0.1)
+        print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
+
+   # turn_vibration_on(cps)
+
+    print("[Spiral][Move] Starting MovePathL...")
+    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+    print("[Spiral][Move] ret =", ret)
+    if ret != 0:
+        return False
+
+    # Wait for completion (track path state + robot flags)
+    start = time.time()
+    while True:
+        pstate = []
+        pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
+        if pret != 0:
+            print("HRIF_ReadPathState failed:", pret)
+            return False
+        if len(pstate) > 3 and pstate[3] != "0":
+            print(f"[Spiral] Path reported error: {pstate}")
+            return False
+
+        # Break early if the robot stays still for 0.5s.
+        if robot_state.wait_until_still(still_seconds=0.2, poll_seconds=0.05):
+            print("[Spiral] No motion detected for 0.5s; exiting wait loop.")
+            break
+
+        # motion_result = []
+        # mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
+        # print(f"[Spiral] Path state: {pstate}, Motion done: {motion_result}")
+        # if mret != 0:
+        #     print("HRIF_IsMotionDone failed:", mret)
+        #     return False
+
+        # if motion_result[0]:
+        #     break
+
+        # if time.time() - start > completion_timeout:
+        #     print("Timeout waiting for idle. Path state:", pstate)
+        #     return False
+        # time.sleep(0.1)
+        # print(f"Waiting for spiral move to complete... path={pstate}\r", end="")
+
+    return True
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -88,8 +336,16 @@ def smalldoor1side(force,cps):
 
         def perform_process_bottom(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab1"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
                 if point==bottom03:putForceZminus(
                 cps=cps,
                 force=force,
@@ -100,21 +356,40 @@ def smalldoor1side(force,cps):
                 if point==bottom3:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=float(json_config['sandingSpeed']),
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
                 )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
             
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
+                )
+
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            #waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
@@ -226,8 +501,16 @@ def smalldoor1side(force,cps):
         
         def perform_process_bottom(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab2"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
                 if point==bottom4down:putForceZminus(
                 cps=cps,
                 force=force,
@@ -238,19 +521,39 @@ def smalldoor1side(force,cps):
                 if point==bottom0:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            #waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -258,9 +561,18 @@ def smalldoor1side(force,cps):
 
         def perform_process_top(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab1"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint5top:putForceZminus(
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
+                if point==toppoint5top:
+                    putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
@@ -270,19 +582,40 @@ def smalldoor1side(force,cps):
                 if point==toppoint2:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                    
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -421,8 +754,16 @@ def smalldoor2side(force,cps):
 
         def perform_process_bottom(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab2"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
                 if point==bottom03:putForceZminus(
                 cps=cps,
                 force=force,
@@ -433,19 +774,39 @@ def smalldoor2side(force,cps):
                 if point==bottom3:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -557,8 +918,16 @@ def smalldoor2side(force,cps):
         
         def perform_process_bottom(cps, config, points1,force):
             
+             # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab2"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
                 if point==bottom4down:putForceZminus(
                 cps=cps,
                 force=force,
@@ -569,19 +938,40 @@ def smalldoor2side(force,cps):
                 if point==bottom0:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
+            
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -589,9 +979,18 @@ def smalldoor2side(force,cps):
 
         def perform_process_top(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab2"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint5top:putForceZminus(
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
+                if point==toppoint5top:
+                    putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
@@ -601,19 +1000,40 @@ def smalldoor2side(force,cps):
                 if point==toppoint2:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                    
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -751,9 +1171,18 @@ def smalldoor3side(force,cps):
 
         def perform_process_bottom(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab3"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
-                if point==bottom03:putForceZminus(
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
+                if point==bottom03:
+                    putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
@@ -763,19 +1192,38 @@ def smalldoor3side(force,cps):
                 if point==bottom3:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
                 )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
             
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
+                )
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -888,8 +1336,16 @@ def smalldoor3side(force,cps):
         
         def perform_process_bottom(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab3"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
                 if point==bottom4down:putForceZminus(
                 cps=cps,
                 force=force,
@@ -900,19 +1356,40 @@ def smalldoor3side(force,cps):
                 if point==bottom0:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
+            
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -920,9 +1397,18 @@ def smalldoor3side(force,cps):
 
         def perform_process_top(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab3"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint5top:putForceZminus(
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
+                if point==toppoint5top:
+                    putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
@@ -932,19 +1418,40 @@ def smalldoor3side(force,cps):
                 if point==toppoint2:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                    
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1081,8 +1588,17 @@ def smalldoor4side(force,cps):
 
         def perform_process_bottom(cps, config, points1,force):
             
+    
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab4"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
                 if point==bottom03:putForceZminus(
                 cps=cps,
                 force=force,
@@ -1093,19 +1609,39 @@ def smalldoor4side(force,cps):
                 if point==bottom3:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1218,9 +1754,18 @@ def smalldoor4side(force,cps):
         
         def perform_process_bottom(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab4"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
-                if point==bottom4down:putForceZminus(
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
+                if point==bottom4down:
+                    putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
@@ -1230,19 +1775,39 @@ def smalldoor4side(force,cps):
                 if point==bottom0:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1250,9 +1815,18 @@ def smalldoor4side(force,cps):
 
         def perform_process_top(cps, config, points1,force):
             
+            # Step 2: Zigzag/Spiral motion
+            spiral_track_name = "small_door_tab4"
+            path_initialized = False
+            push_failed = False
+            total_count = 0
+
             # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint5top:putForceZminus(
+            for i, point in enumerate(points1):
+                start_pose = points1[i]
+                end_pose   = points1[i + 1]
+                if point==toppoint5top:
+                    putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
@@ -1262,19 +1836,40 @@ def smalldoor4side(force,cps):
                 if point==toppoint2:
                     time.sleep(0.01)
                     turn_vibration_on(cps)
-                communicate(
+                    
+                success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    start_pose=start_pose,
+                    end_pose=end_pose,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    track_name=spiral_track_name,
+                    velocity=300.0,
+                    accel=500.0,
+                    jerk=10000.0,
+                    init_path=not path_initialized,
+                )
+                if not success:
+                    push_failed = True
+                    break
+                path_initialized = True
+                total_count += count
+            
+            if path_initialized and not push_failed:
+                timeout = compute_timeout(
+                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                )
+                finalize_spiral_path(
+                    cps,
+                    spiral_track_name,
+                    box_id=0,
+                    robot_id=0,
+                    completion_timeout=timeout,
                 )
             
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control

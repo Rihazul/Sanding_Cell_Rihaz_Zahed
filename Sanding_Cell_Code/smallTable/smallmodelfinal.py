@@ -261,28 +261,32 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     # Check Conditions
     if ci0 is None or ci1 is None or ci2 is None:
         print("Failed to read one or more CI bits.")
-        return
-    else:
-        if ci0 == 0 and ci1 == 0 and ci2 == 0:
-            print("No tool in hand")
-        elif ci0 == 1 and ci1 == 0 and ci2 == 0:
-            # if tool_num == 3:
-            #     return
-            print("Tool 3 detected → executing keepTool11()")
-            keepTool11(cps, toolNumber=3, config=config)
-        elif ci0 == 0 and ci1 == 1 and ci2 == 0:
-            # if tool_num == 2:
-            #     return
-            print("Tool 2 detected → executing keepTool11()")
-            keepTool11(cps, toolNumber=2, config=config)
-        elif ci0 == 0 and ci1 == 1 and ci2 == 1:
-            # if tool_num == 1:
-            #     return
-            print("Tool 1 detected → executing keepTool11()")
-            keepTool11(cps, toolNumber=1, config=config)
-        else:
-            print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
+        return False
 
+    tool_in_hand = None
+    if ci0 == 1 and ci1 == 0 and ci2 == 0:
+        tool_in_hand = 3
+    elif ci0 == 0 and ci1 == 1 and ci2 == 0:
+        tool_in_hand = 2
+    elif ci0 == 0 and ci1 == 1 and ci2 == 1:
+        tool_in_hand = 1
+    elif ci0 == 0 and ci1 == 0 and ci2 == 0:
+        tool_in_hand = None
+    else:
+        print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
+        return False
+
+    if tool_in_hand is None:
+        print("No tool in hand")
+        return False
+
+    if tool_in_hand == tool_num:
+        print(f"Tool {tool_in_hand} already in hand; skipping drop/pick.")
+        return True
+
+    print(f"Tool {tool_in_hand} detected; dropping before picking tool {tool_num}.")
+    keepTool11(cps, toolNumber=tool_in_hand, config=config)
+    return False
 
 def sandingModelATableA():
     # Tool1 Side Cycle
@@ -445,7 +449,9 @@ def sandingModelATableA():
             or any_cycles(zigzag_by_door)
             or any_cycles(pocket_by_door)
         ):
-            check_tool(cps=cps, config=config, tool_num=3, ci0=ci0, ci1=ci1, ci2=ci2)
+            has_tool3 = check_tool(
+                cps=cps, config=config, tool_num=3, ci0=ci0, ci1=ci1, ci2=ci2
+            )
 
             # Intitial Position
             communicate(
@@ -460,7 +466,8 @@ def sandingModelATableA():
             )
 
             # Pick Tool 3
-            getTool11(cps, toolNumber=3, config=config)
+            if not has_tool3:
+                getTool11(cps, toolNumber=3, config=config)
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -570,7 +577,9 @@ def sandingModelATableA():
             is_door_available(tool2side_cycle_doors)
             or is_door_available(tool2sideedge_cycle_doors)
         ) and (any_cycles(tool2edge_by_door) or any_cycles(tool2side_by_door)):
-            check_tool(cps=cps, config=config, tool_num=2, ci0=ci0, ci1=ci1, ci2=ci2)
+            has_tool2 = check_tool(
+                cps=cps, config=config, tool_num=2, ci0=ci0, ci1=ci1, ci2=ci2
+            )
             # Pick Tool 2
             # getTool11(cps, toolNumber=2, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
@@ -580,7 +589,8 @@ def sandingModelATableA():
                 or any_cycles(pocket_by_door)
             ):
                 print("At least one cycle > 0 → running getToolUpdated()")
-                getToolUpdated(cps, toolNumber=2, config=config)
+                if not has_tool2:
+                    getToolUpdated(cps, toolNumber=2, config=config)
             else:
                 communicate(
                     cps=cps,
@@ -592,7 +602,8 @@ def sandingModelATableA():
                     speed=speeed,
                     wait=True,
                 )
-                getTool11(cps, toolNumber=2, config=config)
+                if not has_tool2:
+                    getTool11(cps, toolNumber=2, config=config)
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -673,7 +684,9 @@ def sandingModelATableA():
                 )
 
         if is_door_available(tl3sideedge_door) and any_cycles(tool3_by_door):
-            check_tool(cps=cps, config=config, tool_num=1, ci0=ci0, ci1=ci1, ci2=ci2)
+            has_tool1 = check_tool(
+                cps=cps, config=config, tool_num=1, ci0=ci0, ci1=ci1, ci2=ci2
+            )
             # Pick Tool 3
             print("taking tool 1")
             # getTool11(cps, toolNumber=1, config=config)
@@ -685,7 +698,8 @@ def sandingModelATableA():
                 or any_cycles(zigzag_by_door)
             ):
                 print("At least one cycle > 0 → running getToolUpdated()")
-                getToolUpdated(cps, toolNumber=1, config=config)
+                if not has_tool1:
+                    getToolUpdated(cps, toolNumber=1, config=config)
             else:
                 communicate(
                     cps=cps,
@@ -697,7 +711,8 @@ def sandingModelATableA():
                     speed=speeed,
                     wait=True,
                 )
-                getTool11(cps, toolNumber=1, config=config)
+                if not has_tool1:
+                    getTool11(cps, toolNumber=1, config=config)
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -756,3 +771,7 @@ def sandingModelATableA():
 
 if __name__ == "__main__":
     sandingModelATableA()
+
+
+
+

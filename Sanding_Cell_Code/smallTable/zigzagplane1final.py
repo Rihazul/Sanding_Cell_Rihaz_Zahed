@@ -804,7 +804,7 @@ def smalldoor1zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
                 turn_vibration_on(cps)
                 for point in edge_points:
@@ -1070,7 +1070,7 @@ def smalldoor2zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
                 turn_vibration_on(cps)
                 for point in edge_points:
@@ -1337,7 +1337,7 @@ def smalldoor3zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
                 turn_vibration_on(cps)
                 for point in edge_points:
@@ -1591,7 +1591,7 @@ def smalldoor4zizag(
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.6
+                edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
                 turn_vibration_on(cps)
                 for point in edge_points:
