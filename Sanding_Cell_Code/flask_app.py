@@ -861,6 +861,77 @@ def get_state(table_id):
     
     return jsonify({'newState': f"{new_state}"})
 
+############################################################################################
+# Send the Table A/B actual state to the frontend without emitting flash messages.
+@app.route('/table_state/<table_id>', methods=['GET'])
+def table_state(table_id):
+    if table_id == "tableAOpenClose":
+        di_state_0 = []
+        di_state_1 = []
+        nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+        nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+        if nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1:
+            if di_state_0[0] == '1' and di_state_1[0] == '0':
+                return jsonify({'state': 'Open'})
+            if di_state_0[0] == '0' and di_state_1[0] == '1':
+                return jsonify({'state': 'Close'})
+        return jsonify({'state': 'Unknown'})
+
+    if table_id == "tableBOpenClose":
+        robot_state = []
+        nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
+        if nRet == 0 and robot_state:
+            return jsonify({'state': 'Open' if robot_state[0] == '1' else 'Close'})
+        return jsonify({'state': 'Unknown'})
+
+    return jsonify({'state': 'Invalid'})
+
+############################################################################################
+# Send the Stopper A/B actual state to the frontend.
+@app.route('/stopper_state/<stopper_id>', methods=['GET'])
+def stopper_state(stopper_id):
+    if stopper_id == "A":
+        robot_state = []
+        nRet = CPS.HRIF_ReadBoxDO(0, 2, robot_state)
+        if nRet == 0 and robot_state:
+            return jsonify({'state': 'Up' if robot_state[0] == '1' else 'Down'})
+        return jsonify({'state': 'Unknown'})
+
+    if stopper_id == "B":
+        robot_state = []
+        nRet = CPS.HRIF_ReadBoxCO(0, 2, robot_state)
+        if nRet == 0 and robot_state:
+            return jsonify({'state': 'Up' if robot_state[0] == '1' else 'Down'})
+        return jsonify({'state': 'Unknown'})
+
+    return jsonify({'state': 'Invalid'})
+
+############################################################################################
+# Send robot enable/power status to the frontend.
+@app.route('/robot_status', methods=['GET'])
+def robot_status():
+    result = []
+    nRet = CPS.HRIF_ReadRobotState(0, 0, result)
+    if nRet != 0 or len(result) < 13:
+        return jsonify({'status': 'error', 'message': 'Failed to read robot state'}), 500
+
+    flags = {
+        'in_motion': result[0] == "1",
+        'enabled': result[1] == "1",
+        'has_error': result[2] == "1",
+        'error_code': result[3],
+        'error_axis': result[4],
+        'lock_state': result[5] == "1",
+        'paused': result[6] == "1",
+        'emergency_stop': result[7] == "1",
+        'light_screen': result[8] == "1",
+        'powered_on': result[9] == "1",
+        'ebox_connected': result[10] == "1",
+        'point_motion_done': result[11] == "1",
+        'in_position': result[12] == "1",
+    }
+    return jsonify({'status': 'ok', 'flags': flags})
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:

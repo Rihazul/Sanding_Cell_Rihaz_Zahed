@@ -8,7 +8,7 @@ import { SlidingPanel } from './dashboard/SlidingPanel';
 import { CompactTableConfig, type RowConfig, type DoorConfig } from './dashboard/CompactTableConfig';
 import { Button } from './ui/button';
 import { Settings } from 'lucide-react';
-import { getModalData } from '../services/api';
+import { checkToolStatus, getModalData, getRobotStatus, getStopperState, getTableState } from '../services/api';
 
 interface DashboardProps {
   onNavigateToAnalytics: () => void;
@@ -57,6 +57,89 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const refreshHardwareStatus = async () => {
+      const results = await Promise.allSettled([
+        getRobotStatus(),
+        getTableState('tableAOpenClose'),
+        getTableState('tableBOpenClose'),
+        getStopperState('A'),
+        getStopperState('B'),
+        checkToolStatus(1),
+        checkToolStatus(2),
+        checkToolStatus(3),
+      ]);
+
+      if (cancelled) return;
+
+      const [
+        robotResult,
+        tableAResult,
+        tableBResult,
+        stopperAResult,
+        stopperBResult,
+        tool1Result,
+        tool2Result,
+        tool3Result,
+      ] = results;
+
+      if (robotResult.status === 'fulfilled') {
+        const flags = robotResult.value?.flags;
+        if (flags && typeof flags.enabled === 'boolean') {
+          setRobotEnabled(flags.enabled);
+        }
+      }
+
+      if (tableAResult.status === 'fulfilled') {
+        const state = tableAResult.value?.state;
+        if (state === 'Open' || state === 'Close') {
+          setTableAOpen(state === 'Open');
+        }
+      }
+
+      if (tableBResult.status === 'fulfilled') {
+        const state = tableBResult.value?.state;
+        if (state === 'Open' || state === 'Close') {
+          setTableBOpen(state === 'Open');
+        }
+      }
+
+      if (stopperAResult.status === 'fulfilled') {
+        const state = stopperAResult.value?.state;
+        if (state === 'Up' || state === 'Down') {
+          setStopperAUp(state === 'Up');
+        }
+      }
+
+      if (stopperBResult.status === 'fulfilled') {
+        const state = stopperBResult.value?.state;
+        if (state === 'Up' || state === 'Down') {
+          setStopperBUp(state === 'Up');
+        }
+      }
+
+      if (tool1Result.status === 'fulfilled') {
+        setT1Picked(!!tool1Result.value?.shouldBlink);
+      }
+      if (tool2Result.status === 'fulfilled') {
+        setT2Picked(!!tool2Result.value?.shouldBlink);
+      }
+      if (tool3Result.status === 'fulfilled') {
+        setT3Picked(!!tool3Result.value?.shouldBlink);
+      }
+    };
+
+    refreshHardwareStatus();
+    const intervalId = window.setInterval(refreshHardwareStatus, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, []);
 

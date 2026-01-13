@@ -285,7 +285,17 @@ export async function toggleTableState(tableId: 'tableAOpenClose' | 'tableBOpenC
 
 // Get current state for Table open/close
 export async function getTableState(tableId: 'tableAOpenClose' | 'tableBOpenClose') {
-  return apiCall(`/get_state/${tableId}`, 'GET');
+  return apiCall(`/table_state/${tableId}`, 'GET');
+}
+
+// Get current stopper state
+export async function getStopperState(stopperId: 'A' | 'B') {
+  return apiCall(`/stopper_state/${stopperId}`, 'GET');
+}
+
+// Get robot status flags
+export async function getRobotStatus() {
+  return apiCall('/robot_status', 'GET');
 }
 
 // Tool attachment status checks (returns shouldBlink boolean)
@@ -310,5 +320,7 @@ export const api = {
   performAction,
   toggleTableState,
   getTableState,
+  getStopperState,
+  getRobotStatus,
   checkToolStatus,
 };

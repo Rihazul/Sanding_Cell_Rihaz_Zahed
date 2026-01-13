@@ -108,19 +108,45 @@ export function CompactTableConfig({
       const totalDoors = doorConfigs.length;
       const modelName = formatModelName(model);
       
-      addActivity(`Table ${tableName}: Starting task for all doors with ${modelName} (${configuredDoors.length} configured, ${totalDoors - configuredDoors.length} unconfigured)...`, 'info');
-      
       try {
+        const effectiveDoorConfigs = doorConfigs.map(dc => ({
+          ...dc,
+          rows: dc.rows.map(r => {
+            const allowed = rowDoorSelections[r.label] || [];
+            if (allowed.includes(dc.doorNumber)) return r;
+            return { ...r, force: 0, cycle: 0 };
+          })
+        }));
+
+        const validationErrors: string[] = [];
+        let hasTaskSelection = false;
+        effectiveDoorConfigs.forEach(dc => {
+          dc.rows.forEach(r => {
+            if (r.force > 0 || r.cycle > 0) {
+              hasTaskSelection = true;
+              if (r.force <= 0 || r.cycle <= 0) {
+                validationErrors.push(`Door ${dc.doorNumber} ${r.label}: set force & cycle`);
+              }
+            }
+          });
+        });
+
+        if (!hasTaskSelection) {
+          validationErrors.push('Select at least one task with force and cycle.');
+        }
+
+        if (validationErrors.length) {
+          const preview = validationErrors.slice(0, 3).join(' | ');
+          const suffix = validationErrors.length > 3 ? ' ...' : '';
+          addActivity(`Table ${tableName}: Fix task settings: ${preview}${suffix}`, 'warning');
+          return;
+        }
+
+        addActivity(`Table ${tableName}: Starting task for all doors with ${modelName} (${configuredDoors.length} configured, ${totalDoors - configuredDoors.length} unconfigured)...`, 'info');
+
         // Build payload with all door configurations
         const taskData = {
-          doorConfigs: doorConfigs.map(dc => ({
-            ...dc,
-            rows: dc.rows.map(r => {
-              const allowed = rowDoorSelections[r.label] || [];
-              if (allowed.includes(dc.doorNumber)) return r;
-              return { ...r, force: 0, cycle: 0 };
-            })
-          })),
+          doorConfigs: effectiveDoorConfigs,
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: inverseOverlapping[0],
@@ -235,12 +261,18 @@ export function CompactTableConfig({
   const handleRowChange = (idx: number, field: 'selection' | 'force' | 'cycle', value: any) => {
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
       const rowLabel = rows[idx]?.label;
-      const allowed = rowDoorSelections[rowLabel] || [];
-      if (!allowed.length) return;
+      if (!rowLabel) return;
+      setRowDoorSelections(prev => {
+        const current = prev[rowLabel] || [];
+        if (current.includes(selectedDoor)) {
+          return prev;
+        }
+        return { ...prev, [rowLabel]: [...current, selectedDoor].sort() };
+      });
 
       setDoorConfigs(prev =>
         prev.map(dc => {
-          if (!allowed.includes(dc.doorNumber)) return dc;
+          if (dc.doorNumber !== selectedDoor) return dc;
           const newRows = [...dc.rows];
           newRows[idx] = { ...newRows[idx], [field]: value };
           return { ...dc, rows: newRows };
@@ -256,6 +288,10 @@ export function CompactTableConfig({
   };
 
   const toggleRowDoor = (label: string, doorNumber: number) => {
+    const rowIndex = rows.findIndex(r => r.label === label);
+    const currentSelection = rowDoorSelections[label] || [];
+    const wasSelected = currentSelection.includes(doorNumber);
+
     setRowDoorSelections(prev => {
       const current = prev[label] || [];
       const exists = current.includes(doorNumber);
@@ -263,26 +299,63 @@ export function CompactTableConfig({
       return { ...prev, [label]: next };
     });
     setSelectedDoor(doorNumber);
+
+    if (wasSelected && tableName === 'A' && doorConfigs && setDoorConfigs && rowIndex >= 0) {
+      setDoorConfigs(prev =>
+        prev.map(dc => {
+          if (dc.doorNumber !== doorNumber) return dc;
+          const newRows = [...dc.rows];
+          const currentRow = newRows[rowIndex];
+          if (!currentRow) return dc;
+          const resetRow =
+            label === 'Pocket ZigZag'
+              ? { ...currentRow, force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false }
+              : { ...currentRow, force: 0, cycle: 0 };
+          newRows[rowIndex] = resetRow;
+          return { ...dc, rows: newRows };
+        })
+      );
+    }
   };
 
   const handlePocketZigZagOptionChange = (idx: number, option: 'verticalSpiral' | 'horizontalSpiral' | 'edgeCoverage', checked: boolean) => {
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
       const rowLabel = rows[idx]?.label;
-      const allowed = rowDoorSelections[rowLabel] || [];
-      if (!allowed.length) return;
+      if (!rowLabel) return;
+      setRowDoorSelections(prev => {
+        const current = prev[rowLabel] || [];
+        if (current.includes(selectedDoor)) {
+          return prev;
+        }
+        return { ...prev, [rowLabel]: [...current, selectedDoor].sort() };
+      });
 
       setDoorConfigs(prev =>
         prev.map(dc => {
-          if (!allowed.includes(dc.doorNumber)) return dc;
+          if (dc.doorNumber !== selectedDoor) return dc;
           const newRows = [...dc.rows];
-          newRows[idx] = { ...newRows[idx], [option]: checked };
+          const nextRow = { ...newRows[idx], [option]: checked };
+          if (option === 'verticalSpiral' && checked) {
+            nextRow.horizontalSpiral = false;
+          }
+          if (option === 'horizontalSpiral' && checked) {
+            nextRow.verticalSpiral = false;
+          }
+          newRows[idx] = nextRow;
           return { ...dc, rows: newRows };
         })
       );
     } else {
       setRows((prev: RowConfig[]) => {
         const next = [...prev];
-        next[idx] = { ...next[idx], [option]: checked };
+        const nextRow = { ...next[idx], [option]: checked };
+        if (option === 'verticalSpiral' && checked) {
+          nextRow.horizontalSpiral = false;
+        }
+        if (option === 'horizontalSpiral' && checked) {
+          nextRow.verticalSpiral = false;
+        }
+        next[idx] = nextRow;
         return next;
       });
     }
@@ -568,14 +641,7 @@ export function CompactTableConfig({
                             <input
                               type="checkbox"
                               checked={row.verticalSpiral || false}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setRows((prev: RowConfig[]) => {
-                                  const next = [...prev];
-                                  next[idx] = { ...next[idx], verticalSpiral: checked };
-                                  return next;
-                                });
-                              }}
+                              onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
                               disabled={isOperating}
                               className="sr-only"
                             />
@@ -589,14 +655,7 @@ export function CompactTableConfig({
                             <input
                               type="checkbox"
                               checked={row.horizontalSpiral || false}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setRows((prev: RowConfig[]) => {
-                                  const next = [...prev];
-                                  next[idx] = { ...next[idx], horizontalSpiral: checked };
-                                  return next;
-                                });
-                              }}
+                              onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
                               disabled={isOperating}
                               className="sr-only"
                             />
@@ -610,14 +669,7 @@ export function CompactTableConfig({
                             <input
                               type="checkbox"
                               checked={row.edgeCoverage || false}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setRows((prev: RowConfig[]) => {
-                                  const next = [...prev];
-                                  next[idx] = { ...next[idx], edgeCoverage: checked };
-                                  return next;
-                                });
-                              }}
+                              onChange={(e) => handlePocketZigZagOptionChange(idx, 'edgeCoverage', e.target.checked)}
                               disabled={isOperating}
                               className="sr-only"
                             />
