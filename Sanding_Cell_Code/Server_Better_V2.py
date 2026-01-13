@@ -4707,12 +4707,12 @@ def communicate(
                 speed_value = float(speed)
             except (TypeError, ValueError):
                 speed_value = None
-            if speed_value is not None:
-                if 0 < speed_value <= 1:
-                    velocity = velocity * speed_value
-                    acceleration = acceleration * speed_value
-                elif speed_value > 1:
-                    velocity = speed_value
+            if speed_value is not None and speed_value > 0:
+                velocity = speed_value * velocity
+                acceleration = (
+                    config["coords"]["roboAcceleration"]
+                    * (velocity / config["coords"]["roboVelocity"])
+                )
 
         nRet = cps.HRIF_MoveL(
             0,
@@ -4858,8 +4858,23 @@ def communicate(
     time.sleep(0.0001)
 
     measurements = []
-    # setting the speed of the client
-    setSpeed(cps, speed, config=config)
+    # Interpret speed as ratio (0-1) for override; >1 is absolute mm/s for MoveL.
+    override_speed = None
+    linear_speed = None
+    if speed is not None:
+        try:
+            speed_value = float(speed)
+        except (TypeError, ValueError):
+            speed_value = None
+        if speed_value is not None and speed_value > 0:
+            if speed_value <= 1:
+                override_speed = speed_value
+            else:
+                linear_speed = speed_value
+
+    # setting the speed of the client (ratio override only)
+    if override_speed is not None:
+        setSpeed(cps, override_speed, config=config)
     # time.sleep(0.1)
 
     if seventh != -1:
@@ -4879,7 +4894,7 @@ def communicate(
             point=point,
             tcp=tcp,
             ucs=ucs,
-            speed=speed,
+            speed=linear_speed,
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
         )
