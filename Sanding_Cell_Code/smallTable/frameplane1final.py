@@ -329,6 +329,27 @@ def run_frame_spiral_path(
 
     force_on = False
     vibration_on = False
+    path_initialized = False
+    push_failed = False
+    total_count = 0
+
+    def finalize_current_path():
+        nonlocal path_initialized, push_failed, total_count
+        if not path_initialized or push_failed:
+            return
+        timeout = compute_timeout(
+            total_points=total_count, velocity=velocity * 10.0 / angle_step_deg
+        )
+        if not finalize_spiral_path(
+            cps,
+            track_name,
+            box_id=0,
+            robot_id=0,
+            completion_timeout=timeout,
+        ):
+            push_failed = True
+        path_initialized = False
+        total_count = 0
 
     for i in range(len(points) - 1):
         start_pose = points[i]
@@ -354,6 +375,10 @@ def run_frame_spiral_path(
         )
 
         if z_delta > 0.5 or not sanding_segment:
+            if path_initialized:
+                finalize_current_path()
+                if push_failed:
+                    break
             if (force_on or vibration_on) and end_z > z_threshold:
                 if vibration_on:
                     turn_vibration_off(cps)
@@ -373,6 +398,20 @@ def run_frame_spiral_path(
             )
             continue
 
+        if not force_on and (force_trigger is None or start_force):
+            putForceZminus(
+                cps=cps,
+                force=force,
+                tcp=tcp_name,
+                ucs=ucs_name,
+                config=config,
+            )
+            force_on = True
+
+        if not vibration_on and (vibration_trigger is None or start_vibration):
+            turn_vibration_on(cps)
+            vibration_on = True
+
         success, count = run_spiral_between_points(
             cps=cps,
             config=config,
@@ -384,36 +423,17 @@ def run_frame_spiral_path(
             velocity=velocity,
             accel=accel,
             jerk=jerk,
-            init_path=True,
+            init_path=not path_initialized,
         )
         if not success:
+            push_failed = True
             break
 
-        if start_force:
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=tcp_name,
-                ucs=ucs_name,
-                config=config,
-            )
-            force_on = True
+        path_initialized = True
+        total_count += count
 
-        if start_vibration:
-            turn_vibration_on(cps)
-            vibration_on = True
-
-        timeout = compute_timeout(
-            total_points=count, velocity=velocity * 10.0 / angle_step_deg
-        )
-        if not finalize_spiral_path(
-            cps,
-            track_name,
-            box_id=0,
-            robot_id=0,
-            completion_timeout=timeout,
-        ):
-            break
+    if path_initialized and not push_failed:
+        finalize_current_path()
 
     if vibration_on:
         turn_vibration_off(cps)
