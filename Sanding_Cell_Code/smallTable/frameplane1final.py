@@ -517,23 +517,45 @@ def smalldoor1side(force,cps):
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Filter only sanding points (skip prepoints like Z=10)
+            sanding_points = []
+            for p in points1:
+                try:
+                    if float(p[2]) <= SANDING_Z_THRESHOLD:
+                        sanding_points.append(p)
+                except (TypeError, ValueError, IndexError):
+                    pass
 
+            if len(sanding_points) < 2:
+                return
+
+            # Move to first sanding point before pushing spiral
+            communicate(
+                cps=cps,
+                config=config,
+                point=sanding_points[0],
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.6,
+                wait=True,
+            )
+            
+            enable_force = False
+            enable_vibration = False
+            
             # Communicate to each point in points1
             for i in range(len(points1) - 1):
                 point = points1[i]
                 start_pose = points1[i]
                 end_pose   = points1[i + 1]
                 
-                if point==bottom4down:putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==bottom0:
-                    time.sleep(0.01)
-                    turn_vibration_on(cps)
+                if point == bottom4down:
+                    enable_force = True
+                if point == bottom0:
+                    enable_vibration = True
+
                 success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
@@ -554,6 +576,16 @@ def smalldoor1side(force,cps):
                 total_count += count
             
             if path_initialized and not push_failed:
+                if enable_force:
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        config=config,
+                    )
+                if enable_vibration:
+                    turn_vibration_on(cps)
                 timeout = compute_timeout(
                     total_points=total_count, velocity=300.0 * 10.0 / 45.0
                 )
@@ -578,24 +610,45 @@ def smalldoor1side(force,cps):
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Filter only sanding points (skip prepoints like Z=10)
+            sanding_points = []
+            for p in points1:
+                try:
+                    if float(p[2]) <= SANDING_Z_THRESHOLD:
+                        sanding_points.append(p)
+                except (TypeError, ValueError, IndexError):
+                    pass
+
+            if len(sanding_points) < 2:
+                return
+
+            # Move to first sanding point before pushing spiral
+            communicate(
+                cps=cps,
+                config=config,
+                point=sanding_points[0],
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.6,
+                wait=True,
+            )
+            
+            enable_force = False
+            enable_vibration = False
 
             # Communicate to each point in points1
-            for i in range(len(points1) - 1):
-                point = points1[i]
-                start_pose = points1[i]
-                end_pose   = points1[i + 1]
+            for i in range(len(sanding_points) - 1):
+                point = sanding_points[i]
+                start_pose = sanding_points[i]
+                end_pose   = sanding_points[i + 1]
                 
-                if point==toppoint5top:
-                    putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==toppoint2:
-                    time.sleep(0.01)
-                    turn_vibration_on(cps)
+                if point == toppoint5top:
+                    enable_force = True
+                if point == toppoint2:
+                    enable_vibration = True
+                
                 success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
@@ -616,6 +669,16 @@ def smalldoor1side(force,cps):
                 total_count += count
             
             if path_initialized and not push_failed:
+                if enable_force:
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        config=config,
+                    )
+                if enable_vibration:
+                    turn_vibration_on(cps)
                 timeout = compute_timeout(
                     total_points=total_count, velocity=300.0 * 10.0 / 45.0
                 )
@@ -937,23 +1000,45 @@ def smalldoor2side(force,cps):
             path_initialized = False
             push_failed = False
             total_count = 0
+            
+            # Filter only sanding points (skip prepoints like Z=10)
+            sanding_points = []
+            for p in points1:
+                try:
+                    if float(p[2]) <= SANDING_Z_THRESHOLD:
+                        sanding_points.append(p)
+                except (TypeError, ValueError, IndexError):
+                    pass
+
+            if len(sanding_points) < 2:
+                return
+
+            # Move to first sanding point before pushing spiral
+            communicate(
+                cps=cps,
+                config=config,
+                point=sanding_points[0],
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.6,
+                wait=True,
+            )
+            enable_force = False
+            enable_vibration = False
+
 
             # Communicate to each point in points1
-            for i in range(len(points1) - 1):
-                point = points1[i]
-                start_pose = points1[i]
-                end_pose   = points1[i + 1]
+            for i in range(len(sanding_points) - 1):
+                point = sanding_points[i]
+                start_pose = sanding_points[i]
+                end_pose   = sanding_points[i + 1]
                 
-                if point==bottom4down:putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==bottom0:
-                    time.sleep(0.01)
-                    turn_vibration_on(cps)
+                if point == bottom4down:
+                    enable_force = True
+                if point == bottom0:
+                    enable_vibration = True
+                
                 success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
@@ -974,6 +1059,17 @@ def smalldoor2side(force,cps):
                 total_count += count
             
             if path_initialized and not push_failed:
+                if enable_force:
+                    putForceZminus(
+                        cps=cps,
+                        force=force,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        config=config,
+                    )
+                if enable_vibration:
+                    turn_vibration_on(cps)
+
                 timeout = compute_timeout(
                     total_points=total_count, velocity=300.0 * 10.0 / 45.0
                 )
