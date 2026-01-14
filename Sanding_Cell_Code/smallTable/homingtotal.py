@@ -48,7 +48,7 @@ def homingtotal():
 
     
     # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-    communicate(cps=cps,config=config,seventh=-22,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)
+    communicate(cps=cps,config=config,seventh=-65,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)
 
 
 if __name__ == "__main__":
