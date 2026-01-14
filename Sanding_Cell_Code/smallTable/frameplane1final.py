@@ -305,10 +305,13 @@ def run_frame_spiral_path(
             return False
         if len(pose_a) < 3 or len(pose_b) < 3:
             return False
-        return all(
-            abs(float(a) - float(b)) <= tol
-            for a, b in zip(pose_a[:3], pose_b[:3])
-        )
+        try:
+            return all(
+                abs(float(a) - float(b)) <= tol
+                for a, b in zip(pose_a[:3], pose_b[:3])
+            )
+        except (TypeError, ValueError):
+            return False
 
     tcp_name = config["coords"]["tcptool1plane1"]
     ucs_name = config["coords"]["ucsTable1"]
@@ -345,10 +348,8 @@ def run_frame_spiral_path(
         start_z = float(start_pose[2])
         end_z = float(end_pose[2])
         z_delta = abs(end_z - start_z)
-        should_sand = force_on or vibration_on or start_force or start_vibration
         sanding_segment = (
-            should_sand
-            and start_z <= z_threshold
+            start_z <= z_threshold
             and end_z <= z_threshold
         )
 
