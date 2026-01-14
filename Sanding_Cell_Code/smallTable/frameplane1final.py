@@ -513,7 +513,7 @@ def smalldoor1side(force,cps):
         
         def perform_process_bottom(cps, config, points1, force):
             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab2"
+            spiral_track_name = "door1bottomtab1"
             path_initialized = False
             push_failed = False
             total_count = 0
@@ -606,7 +606,7 @@ def smalldoor1side(force,cps):
 
         def perform_process_top(cps, config, points1, force):
             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab1"
+            spiral_track_name = "door1toptab1"
             path_initialized = False
             push_failed = False
             total_count = 0
