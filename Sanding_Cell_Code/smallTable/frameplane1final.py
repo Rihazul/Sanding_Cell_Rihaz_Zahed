@@ -164,11 +164,17 @@ def run_spiral_between_points(
     with `init_path`) and execution must be triggered separately via
     `finalize_spiral_path`. Set `finalize=True` to push and execute immediately.
     """
-    base_name = track_name or "spiral_path"
-    track_name = track_name
-    print(f"[Spiral] Using track name: {track_name}")
+    track_name = track_name or "spiral_path"
     tcp_name = tcp or config["coords"].get("tcptool1plane1")
     ucs_name = ucs or config["coords"].get("ucsTable1")
+    for label, value in (("track", track_name), ("tcp", tcp_name), ("ucs", ucs_name)):
+        if not isinstance(value, str) or not value.strip():
+            print(f"[Spiral] Invalid {label} name: {value!r}")
+            return False, None
+        if "," in value or ";" in value:
+            print(f"[Spiral] {label} name contains invalid separator: {value!r}")
+            return False, None
+    print(f"[Spiral] Using track name: {track_name}")
 
     all_points = generate_spiral_between_points(
         start_pose=start_pose,
@@ -178,8 +184,20 @@ def run_spiral_between_points(
         angle_step_deg=angle_step_deg,
         max_points=max_points,
     )
-    xs = all_points[0::6] 
-    ys = all_points[1::6]   
+    cleaned_points = []
+    for idx, v in enumerate(all_points):
+        try:
+            fv = float(v)
+        except (TypeError, ValueError):
+            print(f"[Spiral] Non-numeric point value at {idx}: {v!r}")
+            return False, None
+        if not math.isfinite(fv):
+            print(f"[Spiral] Non-finite point value at {idx}: {fv!r}")
+            return False, None
+        cleaned_points.append(fv)
+    all_points = cleaned_points
+    xs = all_points[0::6]
+    ys = all_points[1::6]
     print("spiral x range:", min(xs), max(xs), " y range:", min(ys), max(ys))
 
     if len(all_points) % 6 != 0:
