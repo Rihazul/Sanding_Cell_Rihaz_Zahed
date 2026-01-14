@@ -555,6 +555,14 @@ def smalldoor1side(force,cps):
                     enable_force = True
                 if point == bottom0:
                     enable_vibration = True
+                    
+                # Ensure numeric 6‑DOF
+                try:
+                    start_pose = [float(v) for v in start_pose[:6]]
+                    end_pose = [float(v) for v in end_pose[:6]]
+                except (TypeError, ValueError):
+                    continue
+
 
                 success, count = run_spiral_between_points(
                     cps=cps,
@@ -648,6 +656,13 @@ def smalldoor1side(force,cps):
                     enable_force = True
                 if point == toppoint2:
                     enable_vibration = True
+                    
+                # Ensure numeric 6‑DOF
+                try:
+                    start_pose = [float(v) for v in start_pose[:6]]
+                    end_pose = [float(v) for v in end_pose[:6]]
+                except (TypeError, ValueError):
+                    continue
                 
                 success, count = run_spiral_between_points(
                     cps=cps,
