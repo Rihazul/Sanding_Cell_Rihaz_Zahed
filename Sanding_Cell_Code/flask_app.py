@@ -642,18 +642,18 @@ def tool_toggle1():
 def check_tool1_attachment_condition(cps):
     """
     Checks if these conditions are met:
-        (cps.HRIF_ReadBoxCI, 0, 0, 1)
-        (cps.HRIF_ReadBoxCI, 0, 1, 0)
-        (cps.HRIF_ReadBoxCI, 0, 2, 0)
-        (cps.HRIF_ReadBoxDI, 0, 4, 0)
+        (cps.HRIF_ReadBoxCI, 0, 0, 0)
+        (cps.HRIF_ReadBoxCI, 0, 1, 1)
+        (cps.HRIF_ReadBoxCI, 0, 2, 1)
+        (cps.HRIF_ReadBoxDI, 0, 7, 0)
     If true, signals to the frontend that the circle button should blink
     (or turn green+blink). If false, it tells the frontend to stop blinking.
     """
     condition_list = [
-        (cps.HRIF_ReadBoxCI, 0, 0, 1),
-        (cps.HRIF_ReadBoxCI, 0, 1, 0),
-        (cps.HRIF_ReadBoxCI, 0, 2, 0),
-        (cps.HRIF_ReadBoxDI, 0, 4, 0),
+        (cps.HRIF_ReadBoxCI, 0, 0, 0),
+        (cps.HRIF_ReadBoxCI, 0, 1, 1),
+        (cps.HRIF_ReadBoxCI, 0, 2, 1),
+        (cps.HRIF_ReadBoxDI, 0, 7, 0),
     ]
 
     all_met = True
@@ -730,20 +730,20 @@ def check_tool2_status():
 ############################################################################################
 def check_tool3_attachment_condition(cps):
     """
-    Checks if these conditions are met for Tool 2 attachment:
-        (cps.HRIF_ReadBoxCI, 0, 0, 0)
-        (cps.HRIF_ReadBoxCI, 0, 1, 1)
+    Checks if these conditions are met for Tool 3 attachment:
+        (cps.HRIF_ReadBoxCI, 0, 0, 1)
+        (cps.HRIF_ReadBoxCI, 0, 1, 0)
         (cps.HRIF_ReadBoxCI, 0, 2, 0)
-        (cps.HRIF_ReadBoxDI, 0, 5, 0)
+        (cps.HRIF_ReadBoxDI, 0, 4, 0)
 
-    If all are true, we emit 'blink_circle_button2' with shouldBlink=True.
+    If all are true, we emit 'blink_circle_button3' with shouldBlink=True.
     Otherwise, shouldBlink=False.
     """
     condition_list = [
-        (cps.HRIF_ReadBoxCI, 0, 0, 0),
+        (cps.HRIF_ReadBoxCI, 0, 0, 1),
         (cps.HRIF_ReadBoxCI, 0, 1, 0),
-        (cps.HRIF_ReadBoxCI, 0, 2, 1),
-        (cps.HRIF_ReadBoxDI, 0, 6, 0),
+        (cps.HRIF_ReadBoxCI, 0, 2, 0),
+        (cps.HRIF_ReadBoxDI, 0, 4, 0),
     ]
 
     all_met = True

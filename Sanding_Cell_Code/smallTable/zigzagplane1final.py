@@ -266,13 +266,16 @@ def finalize_spiral_path(
         time.sleep(0.1)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
 
-    turn_vibration_on(cps)
+    # Wait briefly for motion to start, then turn vibration on.
+    motion_wait_start = time.time()
+    while time.time() - motion_wait_start < 1.0:
+        if robot_state.fetch_and_update_flags():
+            if robot_state.state["flags"].get("in_motion"):
+                break
+        time.sleep(0.02)
 
-    print("[Spiral][Move] Starting MovePathL...")
-    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-    print("[Spiral][Move] ret =", ret)
-    if ret != 0:
-        return False
+    turn_vibration_on(cps)
+    vibration_on = True
 
     # Wait for completion (track path state + robot flags)
     start = time.time()
@@ -281,31 +284,27 @@ def finalize_spiral_path(
         pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
         if pret != 0:
             print("HRIF_ReadPathState failed:", pret)
+            if vibration_on:
+                turn_vibration_off(cps)
             return False
         if len(pstate) > 3 and pstate[3] != "0":
             print(f"[Spiral] Path reported error: {pstate}")
+            if vibration_on:
+                turn_vibration_off(cps)
             return False
 
-        # Break early if the robot stays still for 0.5s.
+        # Break early if the robot stays still for 0.2s.
         if robot_state.wait_until_still(still_seconds=0.2, poll_seconds=0.05):
-            print("[Spiral] No motion detected for 0.5s; exiting wait loop.")
+            print("[Spiral] No motion detected; exiting wait loop.")
+            if vibration_on:
+                turn_vibration_off(cps)
             break
-
-        # motion_result = []
-        # mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
-        # print(f"[Spiral] Path state: {pstate}, Motion done: {motion_result}")
-        # if mret != 0:
-        #     print("HRIF_IsMotionDone failed:", mret)
-        #     return False
-
-        # if motion_result[0]:
-        #     break
 
         # if time.time() - start > completion_timeout:
         #     print("Timeout waiting for idle. Path state:", pstate)
+        #     if vibration_on:
+        #         turn_vibration_off(cps)
         #     return False
-        # time.sleep(0.1)
-        # print(f"Waiting for spiral move to complete... path={pstate}\r", end="")
 
     return True
 
@@ -815,7 +814,7 @@ def smalldoor1zizag(
                         tcp=config["coords"]["tcptool1plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
-                        speed=None,
+                        speed=edge_speed,
                         wait=False,
                     )
                 # Wait for edge coverage to complete before starting spiral
@@ -1081,7 +1080,7 @@ def smalldoor2zizag(
                         tcp=config["coords"]["tcptool1plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
-                        speed=None,
+                        speed=edge_speed,
                         wait=False,
                     )
                 # Wait for edge coverage to complete before starting spiral
@@ -1348,7 +1347,7 @@ def smalldoor3zizag(
                         tcp=config["coords"]["tcptool1plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
-                        speed=None,
+                        speed=edge_speed,
                         wait=False,
                     )
                 # Wait for edge coverage to complete before starting spiral
@@ -1602,7 +1601,7 @@ def smalldoor4zizag(
                         tcp=config["coords"]["tcptool1plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
-                        speed=None,
+                        speed=edge_speed,
                         wait=False,
                     )
                 # Wait for edge coverage to complete before starting spiral
