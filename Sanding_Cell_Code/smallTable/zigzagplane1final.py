@@ -207,8 +207,8 @@ def run_spiral_between_points(
         max_points=max_points,
         orientation=orientation,
     )
-    xs = all_points[0::6] 
-    ys = all_points[1::6]   
+    xs = all_points[0::6]
+    ys = all_points[1::6]
     print("spiral x range:", min(xs), max(xs), " y range:", min(ys), max(ys))
 
     if len(all_points) % 6 != 0:
@@ -419,8 +419,8 @@ def generate_zigzag_path(
         # modified_Point2 = Top-right
         # modified_Point3 = Top-left
         # modified_Point4 = Bottom-left
-        
-        rx_sanding = - 0.034
+
+        rx_sanding = -0.034
         ry_sanding = 0.556
         rz_sanding = 0.251
 
@@ -432,10 +432,26 @@ def generate_zigzag_path(
             # Remove the offsets from modified points to get original boundary positions
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
-            edge_Point1 = [x_coords[0] + tool3x + 1.0, y_coords[0] + tool3y + 1.0, z_zigzag]
-            edge_Point2 = [x_coords[1] + tool3x + 1.0, y_coords[1] - tool3y - 1.0, z_zigzag]
-            edge_Point3 = [x_coords[2] - tool3x - 1.0, y_coords[2] - tool3y - 1.0, z_zigzag]
-            edge_Point4 = [x_coords[3] - tool3x - 1.0, y_coords[3] + tool3y + 1.0, z_zigzag]
+            edge_Point1 = [
+                x_coords[0] + tool3x + 1.0,
+                y_coords[0] + tool3y + 1.0,
+                z_zigzag,
+            ]
+            edge_Point2 = [
+                x_coords[1] + tool3x + 1.0,
+                y_coords[1] - tool3y - 1.0,
+                z_zigzag,
+            ]
+            edge_Point3 = [
+                x_coords[2] - tool3x - 1.0,
+                y_coords[2] - tool3y - 1.0,
+                z_zigzag,
+            ]
+            edge_Point4 = [
+                x_coords[3] - tool3x - 1.0,
+                y_coords[3] + tool3y + 1.0,
+                z_zigzag,
+            ]
 
             # Edge coverage always uses the same path regardless of orientation
             # Edge coverage: P2 → P3 → P4 → P1 → P2 (starts at top-left like horizontal)
@@ -538,11 +554,46 @@ def generate_zigzag_path(
 
         if movement_mode == "rect":
             zigzag_coords = [
-                [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
-                [modified_Point2[0], modified_Point2[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
-                [modified_Point3[0], modified_Point3[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
-                [modified_Point4[0], modified_Point4[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
-                [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [
+                    modified_Point1[0],
+                    modified_Point1[1],
+                    z_zigzag,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
+                ],
+                [
+                    modified_Point2[0],
+                    modified_Point2[1],
+                    z_zigzag,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
+                ],
+                [
+                    modified_Point3[0],
+                    modified_Point3[1],
+                    z_zigzag,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
+                ],
+                [
+                    modified_Point4[0],
+                    modified_Point4[1],
+                    z_zigzag,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
+                ],
+                [
+                    modified_Point1[0],
+                    modified_Point1[1],
+                    z_zigzag,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
+                ],
             ]
         elif orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
@@ -591,7 +642,9 @@ def generate_zigzag_path(
                 if num_steps == 0:
                     num_steps = 1  # Prevent division by zero
                 adjusted_step = xinner / num_steps
-                print(f"[Vertical] xinner={xinner}, num_steps={num_steps}, adjusted_step={adjusted_step}")
+                print(
+                    f"[Vertical] xinner={xinner}, num_steps={num_steps}, adjusted_step={adjusted_step}"
+                )
 
                 offset = 0.0
                 toggle = 0
@@ -625,7 +678,9 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
             else:
-                print(f"[Vertical] WARNING: xinner={xinner} is not > 0, no zigzag points generated")
+                print(
+                    f"[Vertical] WARNING: xinner={xinner} is not > 0, no zigzag points generated"
+                )
 
         # Update coordinates to absolute values for edge coverage
         for point in edge_coverage_coords:
@@ -658,7 +713,14 @@ def generate_zigzag_path(
                     rz_sanding,
                 ]
             else:
-                prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, rx_sanding, ry_sanding, rz_sanding]
+                prepoint = [
+                    abs(x_min) + 0.5,
+                    y_max,
+                    z_zigzag,
+                    rx_sanding,
+                    ry_sanding,
+                    rz_sanding,
+                ]
         else:
             # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
             if edge_coverage:
@@ -1036,7 +1098,6 @@ def smalldoor2zizag(
         print("x_coords1 ", x_coords1)
         print("y_coords2 ", y_coords1)
         print("z_coords3", z_coords1)
-        
 
         # Global variables
         # prepoint = None
@@ -1211,7 +1272,7 @@ def smalldoor2zizag(
             edge_points=edge_coverage_pathp1,
             zigzag_points=zigzag_pathp1,
             force=force,
-        )  
+        )
         # Edge coverage + zigzag path
         # turn_vibration_off(cps)
         communicate(
