@@ -263,12 +263,6 @@ def finalize_spiral_path(
 
     pass  # vibration handled in finalize
 
-    print("[Spiral][Move] Starting MovePathL...")
-    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-    print("[Spiral][Move] ret =", ret)
-    if ret != 0:
-        return False
-    vibration_active = False
     force_active = False
     if force is not None and force_func is not None:
         if config is None:
@@ -276,14 +270,22 @@ def finalize_spiral_path(
         else:
             tcp_name = tcp or config["coords"].get("tcptool1plane1")
             ucs_name = ucs or config["coords"].get("ucsTable1")
-            force_func(
+            ret = force_func(
                 cps=cps,
                 force=force,
                 tcp=tcp_name,
                 ucs=ucs_name,
                 config=config,
             )
+            print(f"Force control ret code: {ret}")
             force_active = True
+    print("[Spiral][Move] Starting MovePathL...")
+    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+    print("[Spiral][Move] ret =", ret)
+    if ret != 0:
+        return False
+    vibration_active = False
+    
     if vibration:
         turn_vibration_on(cps)
         vibration_active = True
@@ -373,7 +375,7 @@ def smalldoor1side(force,cps):
         #7th axis postion
         x1=get_door_position(1)
         print("x1:", x1)
-        bottom_axis_offset = -60.0  # Door 1 bottom only
+        bottom_axis_offset = -50  # Door 1 bottom only
         bottom_x_comp = -bottom_axis_offset
         #prehoming
         prehoming=[0,0,50,0,0,0]
@@ -407,13 +409,38 @@ def smalldoor1side(force,cps):
             total_count = 0
             enable_force = True
 
+             # Filter only sanding points (skip prepoints like Z=10)
+            sanding_points = []
+            for p in points1:
+                try:
+                    if float(p[2]) <= SANDING_Z_THRESHOLD:
+                        sanding_points.append(p)
+                except (TypeError, ValueError, IndexError):
+                    pass
+
+            if len(sanding_points) < 2:
+                return
+            
+            # Move to first sanding point before pushing spiral
+            communicate(
+                cps=cps,
+                config=config,
+                point=sanding_points[0],
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.6,
+                wait=True,
+            )   
+
             # Communicate to each point in points1
-            for i in range(len(points1) - 1):
-                point = points1[i]
-                start_pose = points1[i]
-                end_pose   = points1[i + 1]
+            for i in range(len(sanding_points) - 1):
+                point = sanding_points[i]
+                start_pose = sanding_points[i]
+                end_pose   = sanding_points[i + 1]
+
                 start_pose = [
-                    start_pose[0] + bottom_x_comp,
+                    start_pose[0] - bottom_axis_offset,
                     start_pose[1],
                     start_pose[2],
                     start_pose[3],
@@ -421,16 +448,14 @@ def smalldoor1side(force,cps):
                     start_pose[5],
                 ]
                 end_pose = [
-                    end_pose[0] + bottom_x_comp,
+                    end_pose[0] - bottom_axis_offset,
                     end_pose[1],
                     end_pose[2],
                     end_pose[3],
                     end_pose[4],
                     end_pose[5],
                 ]
-                if point==bottom3:
-                    time.sleep(0.01)
-                    pass  # vibration handled in finalize
+                
                 success, count = run_spiral_between_points(
                     cps=cps,
                     config=config,
@@ -563,7 +588,7 @@ def smalldoor1side(force,cps):
         print("toppoint4pre:", toppoint4pre)
 
         #COnveyer
-        conx1=x1
+        conx1= x1
         print("conx1:", conx1)
         conxb=b0[0]
         print ("conxb:",conxb)
@@ -603,7 +628,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=[
-                    sanding_points[0][0] + bottom_x_comp,
+                    sanding_points[0][0],
                     sanding_points[0][1],
                     sanding_points[0][2],
                     sanding_points[0][3],
@@ -626,7 +651,7 @@ def smalldoor1side(force,cps):
                 start_pose = points1[i]
                 end_pose   = points1[i + 1]
                 start_pose = [
-                    start_pose[0] + bottom_x_comp,
+                    start_pose[0],
                     start_pose[1],
                     start_pose[2],
                     start_pose[3],
@@ -634,7 +659,7 @@ def smalldoor1side(force,cps):
                     start_pose[5],
                 ]
                 end_pose = [
-                    end_pose[0] + bottom_x_comp,
+                    end_pose[0],
                     end_pose[1],
                     end_pose[2],
                     end_pose[3],

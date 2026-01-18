@@ -138,7 +138,7 @@ def generate_spiral_between_points(
         # if orientation == "vertical":
         #     factor= 1.3
         # turns = int((4.0/260.0) * float(dist) * float(factor))
-        turns = math.floor(dist/(radius*2))
+        turns = math.floor(dist/(radius*3))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -274,6 +274,11 @@ def finalize_spiral_path(
                 break
         time.sleep(0.02)
 
+    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+    print(f"[Spiral] Robot returned {ret} after MovePathL,")
+    if ret != 0:
+        return False
+    
     turn_vibration_on(cps)
     vibration_on = True
 
@@ -582,7 +587,7 @@ def generate_zigzag_path(
             # Start from RIGHT side (P1/P2) and subtract offset to move toward LEFT (P3/P4)
             if xinner > 0:
                 # Determine how many "columns" in the zigzag
-                num_steps = math.floor(xinner / innerSandingOffset)
+                num_steps = math.ceil(xinner / innerSandingOffset)
                 if num_steps == 0:
                     num_steps = 1  # Prevent division by zero
                 adjusted_step = xinner / num_steps
@@ -805,7 +810,7 @@ def smalldoor1zizag(
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                turn_vibration_on(cps)
+                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -817,6 +822,7 @@ def smalldoor1zizag(
                         speed=edge_speed,
                         wait=False,
                     )
+                    turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1071,7 +1077,7 @@ def smalldoor2zizag(
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                turn_vibration_on(cps)
+                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -1083,6 +1089,7 @@ def smalldoor2zizag(
                         speed=edge_speed,
                         wait=False,
                     )
+                    turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1338,7 +1345,7 @@ def smalldoor3zizag(
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                turn_vibration_on(cps)
+                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -1350,6 +1357,7 @@ def smalldoor3zizag(
                         speed=edge_speed,
                         wait=False,
                     )
+                    turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
@@ -1592,7 +1600,7 @@ def smalldoor4zizag(
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
                 setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                turn_vibration_on(cps)
+                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -1604,6 +1612,7 @@ def smalldoor4zizag(
                         speed=edge_speed,
                         wait=False,
                     )
+                    turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")

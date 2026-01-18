@@ -177,7 +177,7 @@ class RobotState(RobotInteractions):
             curr_cart = list(self.state.get("cartesian_position", []))
 
             if len(curr_cart) >= 6 and len(last_cart) >= 6:
-                if any(abs(a - b) > 1e-3 for a, b in zip(curr_cart[:6], last_cart[:6])):
+                if any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6])):
                     last_cart = curr_cart
                     last_change = time.time()
 
