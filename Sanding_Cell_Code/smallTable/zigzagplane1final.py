@@ -434,7 +434,7 @@ def generate_zigzag_path(
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
             edge_Point1 = [
                 x_coords[0] + tool3x + 1.0,
-                y_coords[0] + tool3y + 1.0,
+                y_coords[0] + tool3y + 1.5,
                 z_zigzag,
             ]
             edge_Point2 = [
@@ -449,7 +449,7 @@ def generate_zigzag_path(
             ]
             edge_Point4 = [
                 x_coords[3] - tool3x - 1.0,
-                y_coords[3] + tool3y + 1.0,
+                y_coords[3] + tool3y + 1.5,
                 z_zigzag,
             ]
 

@@ -643,11 +643,11 @@ def smalldoor1side(force,cps):
             enable_force = False
             enable_vibration = False
             
-            # Communicate to each point in points1
-            for i in range(len(points1) - 1):
-                point = points1[i]
-                start_pose = points1[i]
-                end_pose   = points1[i + 1]
+            # Communicate to each point in sanding_points
+            for i in range(len(sanding_points) - 1):
+                point = sanding_points[i]
+                start_pose = sanding_points[i]
+                end_pose   = sanding_points[i + 1]
                 start_pose = [
                     start_pose[0],
                     start_pose[1],
