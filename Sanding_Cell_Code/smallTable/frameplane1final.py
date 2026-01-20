@@ -376,24 +376,23 @@ def smalldoor1side(force,cps):
         x1=get_door_position(1)
         print("x1:", x1)
         bottom_axis_offset = -50  # Door 1 bottom only
-        bottom_x_comp = -bottom_axis_offset
         #prehoming
         prehoming=[0,0,50,0,0,0]
 
         #Bottom Points
-        bottom0=[b0[0],b0[1],1,b0[3],b0[4],0]
+        bottom0=[b0[0] - bottom_axis_offset,b0[1],1,b0[3],b0[4],0]
         print("bottom0:", bottom0)
-        bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
+        bottom3=[b3[0] - bottom_axis_offset,b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
         bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
         bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
-        bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
+        bottom03=[b0[0]+2 - bottom_axis_offset,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
-        bottom2= [b2[0],b2[1],1,b2[3],b2[4],0]
+        bottom2= [b2[0] - bottom_axis_offset,b2[1],1,b2[3],b2[4],0]
         print("bottom2:", bottom2)
-        bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
+        bottom1= [b1[0] - bottom_axis_offset,b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
         bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
@@ -440,7 +439,7 @@ def smalldoor1side(force,cps):
                 end_pose   = sanding_points[i + 1]
 
                 start_pose = [
-                    start_pose[0] - bottom_axis_offset,
+                    start_pose[0],
                     start_pose[1],
                     start_pose[2],
                     start_pose[3],
@@ -448,7 +447,7 @@ def smalldoor1side(force,cps):
                     start_pose[5],
                 ]
                 end_pose = [
-                    end_pose[0] - bottom_axis_offset,
+                    end_pose[0],
                     end_pose[1],
                     end_pose[2],
                     end_pose[3],
@@ -528,37 +527,36 @@ def smalldoor1side(force,cps):
         #7th axis postion
         x1=get_door_position(1)
         print("x1:", x1)
-        bottom_axis_offset = -60.0  # Door 1 bottom only
-        bottom_x_comp = -bottom_axis_offset
+        bottom_axis_offset = -50.0  # Door 1 bottom only
         #prehoming
         prehoming=[0,0,50,0,0,0]
 
         #Bottom Points
-        bottom0=[b0[0],b0[1],1,b0[3],b0[4],0]
+        bottom0=[b0[0] ,b0[1],1,b0[3],b0[4],0]
         print("bottom0:", bottom0)
-        bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
+        bottom3=[b3[0] ,b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
         bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
         bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
-        bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
+        bottom03=[b0[0]+2 ,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
-        bottom2= [b2[0],b2[1],1,b2[3],b2[4],0]
+        bottom2= [b2[0] ,b2[1],1,b2[3],b2[4],0]
         print("bottom2:", bottom2)
-        bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
+        bottom1= [b1[0] ,b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
         bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
-        bottom4=[b1[0],b1[1]/2,1,b1[3],b1[4],0]
+        bottom4=[b1[0] ,b1[1]/2,1,b1[3],b1[4],0]
         print("bottom4:", bottom4)
-        bottom4down= [b1[0],b1[1]/2-2,1,b1[3],b1[4],0]
+        bottom4down= [b1[0] ,b1[1]/2-2,1,b1[3],b1[4],0]
         print("bottom4down:", bottom4down)
-        bottom4up= [b1[0],b1[1]/2+2,1,b1[3],b1[4],0]
+        bottom4up= [b1[0] ,b1[1]/2+2,1,b1[3],b1[4],0]
         print("bottom4up:", bottom4up)
         bottom4pre= [b1[0],b1[1]/2,10,b1[3],b1[4],0]
         print("bottom4pre:", bottom4pre)
-        bottom5=[b2[0],b2[1]/2,1,b2[3],b2[4],0]
+        bottom5=[b2[0] ,b2[1]/2,1,b2[3],b2[4],0]
         print("bottom5:", bottom5)
         bottom5pre=[b2[0],b2[1]/2,10,b2[3],b2[4],0]
         print("bottom5pre:", bottom5pre)
