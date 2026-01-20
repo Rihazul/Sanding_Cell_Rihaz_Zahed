@@ -883,6 +883,18 @@ def smalldoor1zizag(
                         speed_mode="linear",
                         wait=False,
                     )
+                    if point == edge_points[-1]:
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=point,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=edge_speed,
+                            speed_mode="linear",
+                            wait=True,
+                        )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
@@ -1148,6 +1160,18 @@ def smalldoor2zizag(
                         speed_mode="linear",
                         wait=False,
                     )
+                    if point == edge_points[-1]:
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=point,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=edge_speed,
+                            speed_mode="linear",
+                            wait=True,
+                        )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
@@ -1415,6 +1439,18 @@ def smalldoor3zizag(
                         speed_mode="linear",
                         wait=False,
                     )
+                    if point == edge_points[-1]:
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=point,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=edge_speed,
+                            speed_mode="linear",
+                            wait=True,
+                        )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
@@ -1669,6 +1705,18 @@ def smalldoor4zizag(
                         speed_mode="linear",
                         wait=False,
                     )
+                    if point == edge_points[-1]:
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=point,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=edge_speed,
+                            speed_mode="linear",
+                            wait=True,
+                        )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
