@@ -532,9 +532,9 @@ def smalldoor1side(force,cps):
         prehoming=[0,0,50,0,0,0]
 
         #Bottom Points
-        bottom0=[b0[0] ,b0[1],1,b0[3],b0[4],0]
+        bottom0=[b0[0] + bottom_axis_offset,b0[1],1,b0[3],b0[4],0]
         print("bottom0:", bottom0)
-        bottom3=[b3[0] ,b3[1],1,b3[3],b3[4],0]
+        bottom3=[b3[0] + bottom_axis_offset ,b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
         bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
@@ -548,15 +548,15 @@ def smalldoor1side(force,cps):
         print("bottom1:", bottom1)
         bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
-        bottom4=[b1[0] ,b1[1]/2,1,b1[3],b1[4],0]
+        bottom4=[b1[0] + bottom_axis_offset ,b1[1]/2,1,b1[3],b1[4],0]
         print("bottom4:", bottom4)
-        bottom4down= [b1[0] ,b1[1]/2-2,1,b1[3],b1[4],0]
+        bottom4down= [b1[0] + bottom_axis_offset ,b1[1]/2-2,1,b1[3],b1[4],0]
         print("bottom4down:", bottom4down)
         bottom4up= [b1[0] ,b1[1]/2+2,1,b1[3],b1[4],0]
         print("bottom4up:", bottom4up)
         bottom4pre= [b1[0],b1[1]/2,10,b1[3],b1[4],0]
         print("bottom4pre:", bottom4pre)
-        bottom5=[b2[0] ,b2[1]/2,1,b2[3],b2[4],0]
+        bottom5=[b2[0] + bottom_axis_offset,b2[1]/2,1,b2[3],b2[4],0]
         print("bottom5:", bottom5)
         bottom5pre=[b2[0],b2[1]/2,10,b2[3],b2[4],0]
         print("bottom5pre:", bottom5pre)
