@@ -4665,6 +4665,7 @@ def communicate(
     speed=None,
     stopWhenNan=False,
     wait=None,
+    speed_mode="override",
 ):
     def euclidean_distance(point1, point2):
         """
@@ -4860,7 +4861,8 @@ def communicate(
     time.sleep(0.0001)
 
     measurements = []
-    # Interpret speed as ratio (0-1) for override; >1 is absolute mm/s for MoveL.
+    # speed_mode="override": <=1 uses override, >1 scales MoveL velocity.
+    # speed_mode="linear": always scales MoveL velocity, no override changes.
     override_speed = None
     linear_speed = None
     if speed is not None:
@@ -4869,8 +4871,11 @@ def communicate(
         except (TypeError, ValueError):
             speed_value = None
         if speed_value is not None and speed_value > 0:
-            if speed_value <= 1:
-                override_speed = speed_value
+            if speed_mode == "override":
+                if speed_value <= 1:
+                    override_speed = speed_value
+                else:
+                    linear_speed = speed_value
             else:
                 linear_speed = speed_value
 

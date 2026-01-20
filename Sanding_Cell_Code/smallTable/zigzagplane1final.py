@@ -871,8 +871,6 @@ def smalldoor1zizag(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -882,6 +880,7 @@ def smalldoor1zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=edge_speed,
+                        speed_mode="linear",
                         wait=False,
                     )
                     turn_vibration_on(cps)
@@ -1137,8 +1136,6 @@ def smalldoor2zizag(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -1148,6 +1145,7 @@ def smalldoor2zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=edge_speed,
+                        speed_mode="linear",
                         wait=False,
                     )
                     turn_vibration_on(cps)
@@ -1405,8 +1403,6 @@ def smalldoor3zizag(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -1416,6 +1412,7 @@ def smalldoor3zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=edge_speed,
+                        speed_mode="linear",
                         wait=False,
                     )
                     turn_vibration_on(cps)
@@ -1660,8 +1657,6 @@ def smalldoor4zizag(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
                 edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                setSpeed(cps, edge_speed, config=config, wait_for_blending=False)
-                
                 for point in edge_points:
                     communicate(
                         cps=cps,
@@ -1671,6 +1666,7 @@ def smalldoor4zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=edge_speed,
+                        speed_mode="linear",
                         wait=False,
                     )
                     turn_vibration_on(cps)
