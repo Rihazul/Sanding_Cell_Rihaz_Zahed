@@ -293,6 +293,8 @@ def finalize_spiral_path(
     # Wait for completion (track path state + robot flags)
     ok = True
     start = time.time()
+    motion_seen = False
+    last_cart = None
     try:
         while True:
             pstate = []
@@ -306,26 +308,29 @@ def finalize_spiral_path(
                 ok = False
                 break
 
-            # Break early if the robot stays still for 0.5s.
-            if robot_state.wait_until_still(still_seconds=0.2, poll_seconds=0.05):
-                print("[Spiral] No motion detected for 0.5s; exiting wait loop.")
+            if not motion_seen:
+                if robot_state.fetch_and_update_flags():
+                    if robot_state.state["flags"].get("in_motion"):
+                        motion_seen = True
+                if not motion_seen and robot_state.fetch_and_update_pos():
+                    curr_cart = list(robot_state.state.get("cartesian_position", []))
+                    if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
+                        if any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6])):
+                            motion_seen = True
+                    last_cart = curr_cart
+
+            # Only allow early exit after motion has started.
+            if motion_seen and robot_state.wait_until_still(
+                still_seconds=1.0, poll_seconds=0.05
+            ):
+                print("[Spiral] No motion detected for 1.0s; exiting wait loop.")
                 break
 
-        # motion_result = []
-        # mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_result)
-        # print(f"[Spiral] Path state: {pstate}, Motion done: {motion_result}")
-        # if mret != 0:
-        #     print("HRIF_IsMotionDone failed:", mret)
-        #     return False
-
-        # if motion_result[0]:
-        #     break
-
-        # if time.time() - start > completion_timeout:
-        #     print("Timeout waiting for idle. Path state:", pstate)
-        #     return False
-        # time.sleep(0.1)
-        # print(f"Waiting for spiral move to complete... path={pstate}\r", end="")
+            if time.time() - start > completion_timeout:
+                print("Timeout waiting for idle. Path state:", pstate)
+                ok = False
+                break
+            time.sleep(0.1)
 
     finally:
         if vibration_active:
