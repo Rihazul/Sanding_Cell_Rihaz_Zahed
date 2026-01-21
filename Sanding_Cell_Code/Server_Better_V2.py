@@ -2734,6 +2734,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
 
             return grouped_valids
 
+        def connect_j7():
+            result = []
+            cps.HRIF_HRApp(0, "HR_Motor", "GetMotorList", [], result)
+            cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
+
+        def get_j7_state():
+            result = []
+            nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+            if nret == 0 and len(result) > 2:
+                return result[2]
+            return None
+
         # find the 7th axis positions
         robo7thPos = [
             config["table"][f"lengthx{i}"] for i in range(config["table"]["count"])
@@ -2758,6 +2770,52 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
         control_table(cps, tableState="open")
 
         if config["settings"]["actualScan"]:
+            connect_j7()
+            state = get_j7_state()
+            if state is None or state == "-1":
+                config["logger"].error(
+                    "[scan] J7 state unknown; aborting scan for safety."
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="Scan safety check failed: J7 state unknown. Please verify J7 and try again.",
+                )
+                exit(-1)
+
+            if state == "1":
+                config["logger"].info("[scan] J7 moving; stopping before scan.")
+                stop_result = []
+                cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], stop_result)
+                for _ in range(50):
+                    time.sleep(0.1)
+                    state = get_j7_state()
+                    if state == "0":
+                        break
+                if state != "0":
+                    config["logger"].error(
+                        "[scan] J7 did not stop; aborting scan for safety."
+                    )
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Scan safety check failed: J7 did not stop. Please verify J7 and try again.",
+                    )
+                    exit(-1)
+
+            if robo7thPos:
+                start_pos = robo7thPos[0]
+                config["logger"].info(
+                    f"[scan] Pre-scan move to lengthx0: {start_pos}mm"
+                )
+                communicate(
+                    cps=cps,
+                    seventh=start_pos,
+                    tcp=config["coords"]["tcpLaserPlane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    speed=config["UI"]["robotSpeed"],
+                    wait=True,
+                )
+
             for tblCnt, roboPos in enumerate(robo7thPos):
                 communicate(
                     cps=cps,
