@@ -34,8 +34,6 @@ from smallTable.scancord import (
     get_inner_corner_point,
     get_outer_corner_point,
     get_pocket_point,
-    get_x_values,
-    get_y_values,
 )
 
 
@@ -781,6 +779,27 @@ def load_json_config():
     return config
 
 
+def get_pocket_size(door_number, default_on_error=True):
+    """Return pocket size (xlen, ylen) using pocket corner points."""
+    points = []
+    for corner in range(4):
+        point = get_pocket_point(
+            door_number, corner, default_on_error=default_on_error
+        )
+        if not point or len(point) < 2:
+            return {"xlen": "null", "ylen": "null"}
+        try:
+            x_val = float(point[0])
+            y_val = float(point[1])
+        except (TypeError, ValueError):
+            return {"xlen": "null", "ylen": "null"}
+        points.append((x_val, y_val))
+
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return {"xlen": max(xs) - min(xs), "ylen": max(ys) - min(ys)}
+
+
 def smalldoor1zizag(
     force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
 ):
@@ -861,8 +880,8 @@ def smalldoor1zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords_path,
+        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+            x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -872,11 +891,24 @@ def smalldoor1zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
         )
+        _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
+            x_coords=x_coords_path,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=17,
+            orientation=orientation,
+            movement=movement,
+            innerSandingOffset=50,
+            edge_coverage=False,
+        )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(
+            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+        ):
             # Vibration on
 
             # Force Control Activated
@@ -890,7 +922,7 @@ def smalldoor1zizag(
             print("Turned Vibration On")
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if run_edge_coverage and edge_points and len(edge_points) > 0:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -926,13 +958,13 @@ def smalldoor1zizag(
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-
-            # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
+                spiral_track_name = "small"
+                path_initialized = False
+                push_failed = False
+                total_count = 0
+
+                # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -945,63 +977,105 @@ def smalldoor1zizag(
                     wait=True,
                 )
 
-            for index, _ in enumerate(zigzag_points):
-                point_A = zigzag_points[index]
-                if index + 1 >= len(zigzag_points):
-                    break
-                point_B = zigzag_points[index + 1]
+                for index, _ in enumerate(zigzag_points):
+                    point_A = zigzag_points[index]
+                    if index + 1 >= len(zigzag_points):
+                        break
+                    point_B = zigzag_points[index + 1]
 
-                # communicate(
-                #     cps=cps,
-                #     config=config,
-                #     point=point_A,
-                #     tcp=config['coords']['tcptool1plane1'],
-                #     ucs=config['coords']['ucsTable1'],
-                #     seventh=-1,
-                #     speed=0.6,
-                #     wait=True
-                # )
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    success, count = run_spiral_between_points(
+                        cps=cps,
+                        config=config,
+                        start_pose=point_A,
+                        end_pose=point_B,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        track_name=spiral_track_name,
+                        velocity=300.0,
+                        accel=500.0,
+                        jerk=10000.0,
+                        init_path=not path_initialized,
+                        orientation=orientation,
+                    )
+                    if not success:
+                        push_failed = True
+                        break
 
-                print("Spiral move from A to B:", point_A, "->", point_B)
-                success, count = run_spiral_between_points(
-                    cps=cps,
-                    config=config,
-                    start_pose=point_A,
-                    end_pose=point_B,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
-                    init_path=not path_initialized,
-                    orientation=orientation,
-                )
-                if not success:
-                    push_failed = True
-                    break
+                    path_initialized = True
+                    total_count += count
 
-                path_initialized = True
-                # waitForBlending(cps=cps, config=config)
-                total_count += count
-
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                )
+                if path_initialized and not push_failed:
+                    timeout = compute_timeout(
+                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    )
+                    finalize_spiral_path(
+                        cps,
+                        spiral_track_name,
+                        box_id=0,
+                        robot_id=0,
+                        completion_timeout=timeout,
+                    )
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
 
+        if split and edge_coverage_pathp1:
+            edge_start = edge_coverage_pathp1[0]
+        else:
+            edge_start = prepointp1
+
+        if split:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=tcx0,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=edge_start,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=[],
+                force=force,
+                run_edge_coverage=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+        
         for seventh_pos in seventh_positions:
             communicate(
                 cps=cps,
@@ -1037,9 +1111,10 @@ def smalldoor1zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1,
+                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
+                run_edge_coverage=not split,
             )  # Edge coverage + zigzag path
             # # turn_vibration_off(cps)
             communicate(
@@ -1053,23 +1128,24 @@ def smalldoor1zizag(
                 wait=True,
             )
 
-    ylen_data = get_y_values(1, default_on_error=True)
-    ylen = ylen_data["ylen"]
-    xlen_data = get_x_values(1, default_on_error=True)
-    xlen = xlen_data["xlen"]
+    pocket_size = get_pocket_size(1, default_on_error=True)
+    pocket_y = pocket_size["ylen"]
+    pocket_x = pocket_size["xlen"]
 
-    print("ylen:", ylen)
-    print("xlen:", xlen)
+    print("pocket_y:", pocket_y)
+    print("pocket_x:", pocket_x)
 
     # Check conditions
-    if ylen == "null":
+    if pocket_y == "null" or pocket_x == "null":
         print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
-        smalldoor1zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
-    elif isinstance(ylen, (int, float)):
+    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
+        smalldoor1zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
+    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
         smalldoor1zizagsmall(force, z, cps, split=False)
     else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        print(
+            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
+        )
 
 
 def smalldoor2zizag(
@@ -1151,8 +1227,8 @@ def smalldoor2zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords_path,
+        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+            x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -1162,11 +1238,24 @@ def smalldoor2zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
         )
+        _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
+            x_coords=x_coords_path,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=17,
+            orientation=orientation,
+            movement=movement,
+            innerSandingOffset=50,
+            edge_coverage=False,
+        )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(
+            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+        ):
             # Vibration on
 
             # Force Control Activated
@@ -1179,7 +1268,7 @@ def smalldoor2zizag(
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if run_edge_coverage and edge_points and len(edge_points) > 0:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -1215,13 +1304,13 @@ def smalldoor2zizag(
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab2"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-
-            # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
+                spiral_track_name = "small_door_tab2"
+                path_initialized = False
+                push_failed = False
+                total_count = 0
+
+                # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -1234,63 +1323,105 @@ def smalldoor2zizag(
                     wait=True,
                 )
 
-            for index, _ in enumerate(zigzag_points):
-                point_A = zigzag_points[index]
-                if index + 1 >= len(zigzag_points):
-                    break
-                point_B = zigzag_points[index + 1]
+                for index, _ in enumerate(zigzag_points):
+                    point_A = zigzag_points[index]
+                    if index + 1 >= len(zigzag_points):
+                        break
+                    point_B = zigzag_points[index + 1]
 
-                # communicate(
-                #     cps=cps,
-                #     config=config,
-                #     point=point_A,
-                #     tcp=config['coords']['tcptool1plane1'],
-                #     ucs=config['coords']['ucsTable1'],
-                #     seventh=-1,
-                #     speed=0.6,
-                #     wait=True
-                # )
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    success, count = run_spiral_between_points(
+                        cps=cps,
+                        config=config,
+                        start_pose=point_A,
+                        end_pose=point_B,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        track_name=spiral_track_name,
+                        velocity=300.0,
+                        accel=500.0,
+                        jerk=10000.0,
+                        init_path=not path_initialized,
+                        orientation=orientation,
+                    )
+                    if not success:
+                        push_failed = True
+                        break
 
-                print("Spiral move from A to B:", point_A, "->", point_B)
-                success, count = run_spiral_between_points(
-                    cps=cps,
-                    config=config,
-                    start_pose=point_A,
-                    end_pose=point_B,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
-                    init_path=not path_initialized,
-                    orientation=orientation,
-                )
-                if not success:
-                    push_failed = True
-                    break
+                    path_initialized = True
+                    total_count += count
 
-                path_initialized = True
-                # waitForBlending(cps=cps, config=config)
-                total_count += count
-
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                )
+                if path_initialized and not push_failed:
+                    timeout = compute_timeout(
+                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    )
+                    finalize_spiral_path(
+                        cps,
+                        spiral_track_name,
+                        box_id=0,
+                        robot_id=0,
+                        completion_timeout=timeout,
+                    )
 
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
+
+        if split and edge_coverage_pathp1:
+            edge_start = edge_coverage_pathp1[0]
+        else:
+            edge_start = prepointp1
+
+        if split:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=tcx0,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=edge_start,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=[],
+                force=force,
+                run_edge_coverage=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
         for seventh_pos in seventh_positions:
             communicate(
@@ -1327,9 +1458,10 @@ def smalldoor2zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1,
+                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
+                run_edge_coverage=not split,
             )
             # Edge coverage + zigzag path
             # turn_vibration_off(cps)
@@ -1344,23 +1476,24 @@ def smalldoor2zizag(
                 wait=True,
             )
 
-    ylen_data = get_y_values(2, default_on_error=True)
-    ylen = ylen_data["ylen"]
-    xlen_data = get_x_values(2, default_on_error=True)
-    xlen = xlen_data["xlen"]
+    pocket_size = get_pocket_size(2, default_on_error=True)
+    pocket_y = pocket_size["ylen"]
+    pocket_x = pocket_size["xlen"]
 
-    print("ylen:", ylen)
-    print("xlen:", xlen)
+    print("pocket_y:", pocket_y)
+    print("pocket_x:", pocket_x)
 
     # Check conditions
-    if ylen == "null":
+    if pocket_y == "null" or pocket_x == "null":
         print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
-        smalldoor2zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
-    elif isinstance(ylen, (int, float)):
+    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
+        smalldoor2zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
+    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
         smalldoor2zizagsmall(force, z, cps, split=False)
     else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        print(
+            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
+        )
 
 
 def smalldoor3zizag(
@@ -1442,8 +1575,8 @@ def smalldoor3zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords_path,
+        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+            x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -1453,11 +1586,24 @@ def smalldoor3zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
         )
+        _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
+            x_coords=x_coords_path,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=17,
+            orientation=orientation,
+            movement=movement,
+            innerSandingOffset=50,
+            edge_coverage=False,
+        )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(
+            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+        ):
             # Vibration on
 
             # Force Control Activated
@@ -1470,7 +1616,7 @@ def smalldoor3zizag(
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if run_edge_coverage and edge_points and len(edge_points) > 0:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -1506,13 +1652,13 @@ def smalldoor3zizag(
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab3"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-
-            # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
+                spiral_track_name = "small_door_tab3"
+                path_initialized = False
+                push_failed = False
+                total_count = 0
+
+                # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -1525,51 +1671,105 @@ def smalldoor3zizag(
                     wait=True,
                 )
 
-            for index, _ in enumerate(zigzag_points):
-                point_A = zigzag_points[index]
-                if index + 1 >= len(zigzag_points):
-                    break
-                point_B = zigzag_points[index + 1]
+                for index, _ in enumerate(zigzag_points):
+                    point_A = zigzag_points[index]
+                    if index + 1 >= len(zigzag_points):
+                        break
+                    point_B = zigzag_points[index + 1]
 
-                print("Spiral move from A to B:", point_A, "->", point_B)
-                success, count = run_spiral_between_points(
-                    cps=cps,
-                    config=config,
-                    start_pose=point_A,
-                    end_pose=point_B,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
-                    init_path=not path_initialized,
-                    orientation=orientation,
-                )
-                if not success:
-                    push_failed = True
-                    break
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    success, count = run_spiral_between_points(
+                        cps=cps,
+                        config=config,
+                        start_pose=point_A,
+                        end_pose=point_B,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        track_name=spiral_track_name,
+                        velocity=300.0,
+                        accel=500.0,
+                        jerk=10000.0,
+                        init_path=not path_initialized,
+                        orientation=orientation,
+                    )
+                    if not success:
+                        push_failed = True
+                        break
 
-                path_initialized = True
-                total_count += count
+                    path_initialized = True
+                    total_count += count
 
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                )
+                if path_initialized and not push_failed:
+                    timeout = compute_timeout(
+                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    )
+                    finalize_spiral_path(
+                        cps,
+                        spiral_track_name,
+                        box_id=0,
+                        robot_id=0,
+                        completion_timeout=timeout,
+                    )
 
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
+
+        if split and edge_coverage_pathp1:
+            edge_start = edge_coverage_pathp1[0]
+        else:
+            edge_start = prepointp1
+
+        if split:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=tcx0,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=edge_start,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=[],
+                force=force,
+                run_edge_coverage=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
         for seventh_pos in seventh_positions:
             communicate(
@@ -1606,9 +1806,10 @@ def smalldoor3zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1,
+                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
+                run_edge_coverage=not split,
             )  # Edge coverage + zigzag path
             # # turn_vibration_off(cps)
             communicate(
@@ -1622,23 +1823,24 @@ def smalldoor3zizag(
                 wait=True,
             )
 
-    ylen_data = get_y_values(3, default_on_error=True)
-    ylen = ylen_data["ylen"]
-    xlen_data = get_x_values(3, default_on_error=True)
-    xlen = xlen_data["xlen"]
+    pocket_size = get_pocket_size(3, default_on_error=True)
+    pocket_y = pocket_size["ylen"]
+    pocket_x = pocket_size["xlen"]
 
-    print("ylen:", ylen)
-    print("xlen:", xlen)
+    print("pocket_y:", pocket_y)
+    print("pocket_x:", pocket_x)
 
     # Check conditions
-    if ylen == "null":
+    if pocket_y == "null" or pocket_x == "null":
         print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
-        smalldoor3zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
-    elif isinstance(ylen, (int, float)):
+    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
+        smalldoor3zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
+    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
         smalldoor3zizagsmall(force, z, cps, split=False)
     else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        print(
+            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
+        )
 
 
 def smalldoor4zizag(
@@ -1720,8 +1922,8 @@ def smalldoor4zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords_path,
+        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+            x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -1731,11 +1933,24 @@ def smalldoor4zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
         )
+        _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
+            x_coords=x_coords_path,
+            y_coords=y_coords1,
+            z_coords=z_coords1,
+            innerOffset=17,
+            innerOffsetX=17,
+            orientation=orientation,
+            movement=movement,
+            innerSandingOffset=50,
+            edge_coverage=False,
+        )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
-        def perform_process_top(cps, config, edge_points, zigzag_points, force):
+        def perform_process_top(
+            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+        ):
             # Vibration on
 
             # Force Control Activated
@@ -1748,7 +1963,7 @@ def smalldoor4zizag(
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if edge_points and len(edge_points) > 0:
+            if run_edge_coverage and edge_points and len(edge_points) > 0:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -1784,13 +1999,13 @@ def smalldoor4zizag(
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab4"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-
-            # Move to first zigzag point to ensure proper transition from edge coverage
             if zigzag_points and len(zigzag_points) > 0:
+                spiral_track_name = "small_door_tab4"
+                path_initialized = False
+                push_failed = False
+                total_count = 0
+
+                # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -1803,51 +2018,105 @@ def smalldoor4zizag(
                     wait=True,
                 )
 
-            for index, _ in enumerate(zigzag_points):
-                point_A = zigzag_points[index]
-                if index + 1 >= len(zigzag_points):
-                    break
-                point_B = zigzag_points[index + 1]
+                for index, _ in enumerate(zigzag_points):
+                    point_A = zigzag_points[index]
+                    if index + 1 >= len(zigzag_points):
+                        break
+                    point_B = zigzag_points[index + 1]
 
-                print("Spiral move from A to B:", point_A, "->", point_B)
-                success, count = run_spiral_between_points(
-                    cps=cps,
-                    config=config,
-                    start_pose=point_A,
-                    end_pose=point_B,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
-                    init_path=not path_initialized,
-                    orientation=orientation,
-                )
-                if not success:
-                    push_failed = True
-                    break
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    success, count = run_spiral_between_points(
+                        cps=cps,
+                        config=config,
+                        start_pose=point_A,
+                        end_pose=point_B,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        track_name=spiral_track_name,
+                        velocity=300.0,
+                        accel=500.0,
+                        jerk=10000.0,
+                        init_path=not path_initialized,
+                        orientation=orientation,
+                    )
+                    if not success:
+                        push_failed = True
+                        break
 
-                path_initialized = True
-                total_count += count
+                    path_initialized = True
+                    total_count += count
 
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                )
+                if path_initialized and not push_failed:
+                    timeout = compute_timeout(
+                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    )
+                    finalize_spiral_path(
+                        cps,
+                        spiral_track_name,
+                        box_id=0,
+                        robot_id=0,
+                        completion_timeout=timeout,
+                    )
 
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
+        
+        if split and edge_coverage_pathp1:
+            edge_start = edge_coverage_pathp1[0]
+        else:
+            edge_start = prepointp1
+
+        if split:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=tcx0,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=edge_start,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=[],
+                force=force,
+                run_edge_coverage=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
         for seventh_pos in seventh_positions:
             communicate(
@@ -1884,9 +2153,10 @@ def smalldoor4zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1,
+                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
+                run_edge_coverage=not split,
             )  # Edge coverage + zigzag path
             # # turn_vibration_off(cps)
             communicate(
@@ -1900,23 +2170,24 @@ def smalldoor4zizag(
                 wait=True,
             )
 
-    ylen_data = get_y_values(4, default_on_error=True)
-    ylen = ylen_data["ylen"]
-    xlen_data = get_x_values(4, default_on_error=True)
-    xlen = xlen_data["xlen"]
+    pocket_size = get_pocket_size(4, default_on_error=True)
+    pocket_y = pocket_size["ylen"]
+    pocket_x = pocket_size["xlen"]
 
-    print("ylen:", ylen)
-    print("xlen:", xlen)
+    print("pocket_y:", pocket_y)
+    print("pocket_x:", pocket_x)
 
     # Check conditions
-    if ylen == "null":
+    if pocket_y == "null" or pocket_x == "null":
         print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
-        smalldoor4zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
-    elif isinstance(ylen, (int, float)):
+    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
+        smalldoor4zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
+    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
         smalldoor4zizagsmall(force, z, cps, split=False)
     else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        print(
+            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
+        )
 
 
 if __name__ == "__main__":
