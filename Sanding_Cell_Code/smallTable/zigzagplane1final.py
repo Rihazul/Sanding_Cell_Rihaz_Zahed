@@ -786,7 +786,7 @@ def smalldoor1zizag(
 ):
     apply_spiral_settings(spiral_settings)
 
-    def smalldoor1zizagsmall(force, z, cps):
+    def smalldoor1zizagsmall(force, z, cps, split=False):
         # Load configuration from YAML
         config = load_config()
         json_config = load_json_config()
@@ -812,6 +812,9 @@ def smalldoor1zizag(
         # 7th axis postion
         x1 = p8[0] + get_door_position(1)
         print("x1:", x1)
+        tcx0 = x1
+        tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
+        seventh_positions = [tcx0, tcx1] if split else [x1]
         # prehoming
         prehoming = [0, 200, 50, 0, 0, 0]
         # #Depth of the poocket z
@@ -854,8 +857,12 @@ def smalldoor1zizag(
         # zigzag_coords = []
 
         # Second Pocket 1st Cycle
+        x_coords_path = x_coords1
+        if split:
+            x_coords_path = [coord / 2 for coord in x_coords1]
+
         edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
+            x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -995,67 +1002,72 @@ def smalldoor1zizag(
             # Release force
             releaseForce(cps=cps, config=config)
 
-        # Original sequence with dynamic variables
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=x1,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            speed=0.2,
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prepointp1,  # Dynamic prepoint
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        perform_process_top(
-            cps,
-            config,
-            edge_points=edge_coverage_pathp1,
-            zigzag_points=zigzag_pathp1,
-            force=force,
-        )  # Edge coverage + zigzag path
-        # # turn_vibration_off(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
+        for seventh_pos in seventh_positions:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_pos,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prepointp1,  # Dynamic prepoint
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=zigzag_pathp1,
+                force=force,
+            )  # Edge coverage + zigzag path
+            # # turn_vibration_off(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
     ylen_data = get_y_values(1, default_on_error=True)
     ylen = ylen_data["ylen"]
+    xlen_data = get_x_values(1, default_on_error=True)
+    xlen = xlen_data["xlen"]
 
     print("ylen:", ylen)
+    print("xlen:", xlen)
 
     # Check conditions
     if ylen == "null":
         print("No door data available - skipping operations")
+    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
+        smalldoor1zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
     elif isinstance(ylen, (int, float)):
-        smalldoor1zizagsmall(force, z, cps)
+        smalldoor1zizagsmall(force, z, cps, split=False)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
@@ -1065,7 +1077,7 @@ def smalldoor2zizag(
 ):
     apply_spiral_settings(spiral_settings)
 
-    def smalldoor2zizagsmall(force, z, cps):
+    def smalldoor2zizagsmall(force, z, cps, split=False):
         # Load configuration from YAML
         config = load_config()
         json_config = load_json_config()
@@ -1091,6 +1103,9 @@ def smalldoor2zizag(
         # 7th axis postion
         x1 = p8[0] + get_door_position(2)
         print("x1:", x1)
+        tcx0 = x1
+        tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
+        seventh_positions = [tcx0, tcx1] if split else [x1]
         # prehoming
         prehoming = [0, 200, 50, 0, 0, 0]
         # #Depth of the poocket z
@@ -1132,8 +1147,12 @@ def smalldoor2zizag(
         # zigzag_coords = []
 
         # Second Pocket 1st Cycle
+        x_coords_path = x_coords1
+        if split:
+            x_coords_path = [coord / 2 for coord in x_coords1]
+
         edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
+            x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -1273,68 +1292,73 @@ def smalldoor2zizag(
             # Release force
             releaseForce(cps=cps, config=config)
 
-        # Original sequence with dynamic variables
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=x1,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            speed=0.2,
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prepointp1,  # Dynamic prepoint
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # turn_vibration_on(cps)
-        perform_process_top(
-            cps,
-            config,
-            edge_points=edge_coverage_pathp1,
-            zigzag_points=zigzag_pathp1,
-            force=force,
-        )
-        # Edge coverage + zigzag path
-        # turn_vibration_off(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
+        for seventh_pos in seventh_positions:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_pos,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prepointp1,  # Dynamic prepoint
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # turn_vibration_on(cps)
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=zigzag_pathp1,
+                force=force,
+            )
+            # Edge coverage + zigzag path
+            # turn_vibration_off(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
     ylen_data = get_y_values(2, default_on_error=True)
     ylen = ylen_data["ylen"]
+    xlen_data = get_x_values(2, default_on_error=True)
+    xlen = xlen_data["xlen"]
 
     print("ylen:", ylen)
+    print("xlen:", xlen)
 
     # Check conditions
     if ylen == "null":
         print("No door data available - skipping operations")
+    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
+        smalldoor2zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
     elif isinstance(ylen, (int, float)):
-        smalldoor2zizagsmall(force, z, cps)
+        smalldoor2zizagsmall(force, z, cps, split=False)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
@@ -1344,7 +1368,7 @@ def smalldoor3zizag(
 ):
     apply_spiral_settings(spiral_settings)
 
-    def smalldoor3zizagsmall(force, z, cps):
+    def smalldoor3zizagsmall(force, z, cps, split=False):
         # Load configuration from YAML
         config = load_config()
         json_config = load_json_config()
@@ -1370,6 +1394,9 @@ def smalldoor3zizag(
         # 7th axis postion
         x1 = p8[0] + get_door_position(3)
         print("x1:", x1)
+        tcx0 = x1
+        tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
+        seventh_positions = [tcx0, tcx1] if split else [x1]
         # prehoming
         prehoming = [0, 200, 50, 0, 0, 0]
         # #Depth of the poocket z
@@ -1411,8 +1438,12 @@ def smalldoor3zizag(
         # zigzag_coords = []
 
         # Second Pocket 1st Cycle
+        x_coords_path = x_coords1
+        if split:
+            x_coords_path = [coord / 2 for coord in x_coords1]
+
         edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
+            x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -1540,67 +1571,72 @@ def smalldoor3zizag(
             # Release force
             releaseForce(cps=cps, config=config)
 
-        # Original sequence with dynamic variables
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=x1,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            speed=0.2,
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prepointp1,  # Dynamic prepoint
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        perform_process_top(
-            cps,
-            config,
-            edge_points=edge_coverage_pathp1,
-            zigzag_points=zigzag_pathp1,
-            force=force,
-        )  # Edge coverage + zigzag path
-        # # turn_vibration_off(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
+        for seventh_pos in seventh_positions:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_pos,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prepointp1,  # Dynamic prepoint
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=zigzag_pathp1,
+                force=force,
+            )  # Edge coverage + zigzag path
+            # # turn_vibration_off(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
     ylen_data = get_y_values(3, default_on_error=True)
     ylen = ylen_data["ylen"]
+    xlen_data = get_x_values(3, default_on_error=True)
+    xlen = xlen_data["xlen"]
 
     print("ylen:", ylen)
+    print("xlen:", xlen)
 
     # Check conditions
     if ylen == "null":
         print("No door data available - skipping operations")
+    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
+        smalldoor3zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
     elif isinstance(ylen, (int, float)):
-        smalldoor3zizagsmall(force, z, cps)
+        smalldoor3zizagsmall(force, z, cps, split=False)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
@@ -1610,7 +1646,7 @@ def smalldoor4zizag(
 ):
     apply_spiral_settings(spiral_settings)
 
-    def smalldoor4zizagsmall(force, z, cps):
+    def smalldoor4zizagsmall(force, z, cps, split=False):
         # Load configuration from YAML
         config = load_config()
         json_config = load_json_config()
@@ -1636,6 +1672,9 @@ def smalldoor4zizag(
         # 7th axis postion
         x1 = p8[0] + get_door_position(4)
         print("x1:", x1)
+        tcx0 = x1
+        tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
+        seventh_positions = [tcx0, tcx1] if split else [x1]
         # prehoming
         prehoming = [0, 200, 50, 0, 0, 0]
         # #Depth of the poocket z
@@ -1677,8 +1716,12 @@ def smalldoor4zizag(
         # zigzag_coords = []
 
         # Second Pocket 1st Cycle
+        x_coords_path = x_coords1
+        if split:
+            x_coords_path = [coord / 2 for coord in x_coords1]
+
         edge_coverage_pathp1, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
+            x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
@@ -1806,67 +1849,72 @@ def smalldoor4zizag(
             # Release force
             releaseForce(cps=cps, config=config)
 
-        # Original sequence with dynamic variables
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=x1,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            speed=0.2,
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prepointp1,  # Dynamic prepoint
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
-        # # turn_vibration_on(cps)
-        perform_process_top(
-            cps,
-            config,
-            edge_points=edge_coverage_pathp1,
-            zigzag_points=zigzag_pathp1,
-            force=force,
-        )  # Edge coverage + zigzag path
-        # # turn_vibration_off(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=0.2,
-            wait=True,
-        )
+        for seventh_pos in seventh_positions:
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_pos,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=0.2,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prepointp1,  # Dynamic prepoint
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
+            # # turn_vibration_on(cps)
+            perform_process_top(
+                cps,
+                config,
+                edge_points=edge_coverage_pathp1,
+                zigzag_points=zigzag_pathp1,
+                force=force,
+            )  # Edge coverage + zigzag path
+            # # turn_vibration_off(cps)
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=0.2,
+                wait=True,
+            )
 
     ylen_data = get_y_values(4, default_on_error=True)
     ylen = ylen_data["ylen"]
+    xlen_data = get_x_values(4, default_on_error=True)
+    xlen = xlen_data["xlen"]
 
     print("ylen:", ylen)
+    print("xlen:", xlen)
 
     # Check conditions
     if ylen == "null":
         print("No door data available - skipping operations")
+    elif isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
+        smalldoor4zizagsmall(force, z, cps, split=ylen > 600 and xlen > 250)
     elif isinstance(ylen, (int, float)):
-        smalldoor4zizagsmall(force, z, cps)
+        smalldoor4zizagsmall(force, z, cps, split=False)
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 

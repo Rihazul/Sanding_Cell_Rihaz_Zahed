@@ -279,8 +279,12 @@ def setSpeed(cps, speed, config, wait_for_blending=True):
         )
         return
 
+    # Detect override scale (older SDKs report 0-1, newer ones may report 0-100).
+    override_scale = 100.0 if current > 1.5 else 1.0
+    target_speed = speed * override_scale
+
     # If it’s already the requested speed, do nothing
-    if current == speed:
+    if abs(current - target_speed) < 1e-6:
         return
 
     # Otherwise, optionally wait for blending and set the new override
@@ -288,12 +292,14 @@ def setSpeed(cps, speed, config, wait_for_blending=True):
         waitForBlending(cps=cps, config=config)
     # waitForMotion(cps=cps, config=config)
 
-    nRet = cps.HRIF_SetOverride(0, 0, speed)
+    nRet = cps.HRIF_SetOverride(0, 0, target_speed)
     if nRet == 0:
-        config["logger"].info(f"[setSpeed] Could set speed to {speed * 100:.1f}%")
+        config["logger"].info(
+            f"[setSpeed] Could set speed to {target_speed:.1f} (scale={override_scale})"
+        )
     else:
         config["logger"].error(
-            f"[setSpeed] Couldn't set speed to {speed * 100:.1f}% (ret={nRet})"
+            f"[setSpeed] Couldn't set speed to {target_speed:.1f} (scale={override_scale}, ret={nRet})"
         )
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -5076,7 +5082,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         seventh=-1,
         config=config,
         speed=0.1,
-        wait=False,
+        wait=True,
     )
     # pick the tool
     waitForBlending(cps=cps, config=config)
@@ -5147,7 +5153,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=0.1,
-        wait=False,
+        wait=True,
     )
     # drop the tool
     waitForBlending(cps=cps, config=config)
