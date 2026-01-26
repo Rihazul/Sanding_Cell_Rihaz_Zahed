@@ -614,6 +614,8 @@ def generate_zigzag_path(
             yinner = abs(y_max - y_min)
             if yinner > 0:
                 num_steps = math.floor(yinner / innerSandingOffset)
+                if num_steps == 0:
+                    num_steps = 1  # Prevent division by zero, ensure at least 1 row
                 adjusted_step = yinner / num_steps
 
                 offset = 0.0
@@ -647,6 +649,14 @@ def generate_zigzag_path(
                     zigzag_coords.extend(row_points)
                     offset += adjusted_step
                     toggle = 1 - toggle
+            else:
+                # Fallback: single row when height is too small
+                zigzag_coords.extend(
+                    [
+                        [x_min, y_max, z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                        [x_max, y_max, z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                    ]
+                )
         else:
             # Vertical orientation
             # In real robot, P1/P2 (X = -212.56) are physically RIGHT, P3/P4 (X = -55.1) are physically LEFT
@@ -693,8 +703,26 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
             else:
-                print(
-                    f"[Vertical] WARNING: xinner={xinner} is not > 0, no zigzag points generated"
+                # Fallback: single column when width is too small
+                zigzag_coords.extend(
+                    [
+                        [
+                            modified_Point4[0],
+                            modified_Point4[1],
+                            z_zigzag,
+                            rx_sanding,
+                            ry_sanding,
+                            rz_sanding,
+                        ],
+                        [
+                            modified_Point3[0],
+                            modified_Point3[1],
+                            z_zigzag,
+                            rx_sanding,
+                            ry_sanding,
+                            rz_sanding,
+                        ],
+                    ]
                 )
 
         # Update coordinates to absolute values for edge coverage
