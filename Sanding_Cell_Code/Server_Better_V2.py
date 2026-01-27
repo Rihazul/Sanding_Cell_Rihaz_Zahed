@@ -2623,7 +2623,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
                     {"start_distance": start_dist, "end_distance": end_dist}
                 )
         print("stable_regions", stable_regions)
-        config["logger"].info("Debug: ", stable_regions)
+        config["logger"].info("Debug: %s", stable_regions)
         frame1_point1 = float(chunks[0]["dist"])
         frame1_point2 = stable_regions[0]["end_distance"]
         pocket_point1 = stable_regions[0]["end_distance"]
@@ -2631,7 +2631,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
         frame2_point1 = stable_regions[-1]["start_distance"]
         frame2_point2 = float(chunks[-1]["dist"])
 
-        config["logger"].info(
+        config["logger"].info("values: %s, %s, %s, %s, %s, %s",
             frame1_point1,
             frame1_point2,
             pocket_point1,
@@ -4827,7 +4827,7 @@ def communicate(
                 #---- SAFETY CHECK ----
                 if robotRes is None:
                     raise ValueError("customMoveL: robotRes is None")
-                if not isinstance(robotRes, (list, tuple))
+                if not isinstance(robotRes, (list, tuple)):
                     raise TypeError(f"customMoveL: robotRes is not list/tuple: {robotRes}")
                 if len(robotRes)<= 11:
                     raise IndexError(f"customMoveL: robotRes too short ({len(robotRes)}): {robotRes}")

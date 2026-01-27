@@ -14,6 +14,10 @@ import os
 import sys
 import webview  # PyWebView for embedding Flask in a window
 from werkzeug.utils import secure_filename
+import logging
+
+# Reduce noisy werkzeug request logs.
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 from FileUtils.upload import upload3DModel
 from Table1Model.plotexp import plot_data as plot_data_table1Model
 from Table2Model.plotexp import plot_data as plot_data_table2Model
