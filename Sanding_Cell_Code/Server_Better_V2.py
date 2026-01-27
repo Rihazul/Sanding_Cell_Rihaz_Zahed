@@ -4823,6 +4823,15 @@ def communicate(
             while wait:
                 nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
                 # config['logger'].info(robotRes)
+
+                #---- SAFETY CHECK ----
+                if robotRes is None:
+                    raise ValueError("customMoveL: robotRes is None")
+                if not isinstance(robotRes, (list, tuple))
+                    raise TypeError(f"customMoveL: robotRes is not list/tuple: {robotRes}")
+                if len(robotRes)<= 11:
+                    raise IndexError(f"customMoveL: robotRes too short ({len(robotRes)}): {robotRes}")
+                
                 if robotRes[11] == "1":
                     break
                 # time.sleep(0.2)
