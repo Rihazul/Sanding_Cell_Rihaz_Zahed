@@ -237,7 +237,7 @@ def adjust_heights(data):
 #         return
 
 
-def setSpeed(cps, speed, config, wait_for_blending=True):
+def setSpeed(cps, speed, config, wait_for_blending=False):
     """
     Sets the speed of the cobot.
 
