@@ -1885,6 +1885,15 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
         )
         # result = [ ] # Read the current actual location information
         nRet = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
+        
+        # ---- SAFETY CHECK ----
+        if result is None:
+            raise ValueError("homingFunction: result is None")
+        if not isinstance(result,(list,tuple)):
+            raise TypeError(f"homingFunction: result is not list/tuple: {result}")
+        if len(result)< 7:
+            raise IndexError(f"homingFunction: result too short ({len(result)}): {result}")
+        
         dX = float(result[6])
         # config['logger'].info(f"[homing] current position: {result}")
         msg_to_frontend(
