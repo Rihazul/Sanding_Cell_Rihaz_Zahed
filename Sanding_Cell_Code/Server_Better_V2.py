@@ -22,7 +22,9 @@ def waitForBlending(cps, config):
         nret = cps.HRIF_IsBlendingDone(0, 0, result)
         done = False
         if nret != 0:
-            if isinstance(config, dict) and config.get("logger"):
+            # Some SDKs return 20018 when blending status is not available in
+            # the current robot state; treat it as "no wait needed".
+            if nret != 20018 and isinstance(config, dict) and config.get("logger"):
                 config["logger"].warning(
                     f"[waitForBlending] HRIF_IsBlendingDone error (ret={nret}); continuing."
                 )
@@ -308,6 +310,33 @@ def setSpeed(cps, speed, config, wait_for_blending=False):
             f"[setSpeed] Could set speed to {target_speed:.1f} (scale={override_scale})"
         )
     else:
+        if nRet == 20018:
+            # Command prohibited in current state (often while moving).
+            config["logger"].warning(
+                f"[setSpeed] Override not allowed in current state (ret={nRet}); continuing."
+            )
+            return
+
+        # Fallback: some SDKs expect 0-100 instead of 0-1 (or vice-versa).
+        alt_speed = None
+        if override_scale == 1.0 and speed <= 1.0:
+            alt_speed = speed * 100.0
+        elif override_scale == 100.0:
+            alt_speed = speed
+
+        if alt_speed is not None:
+            # Clamp to a sane range to avoid invalid-argument errors.
+            if alt_speed > 100.0:
+                alt_speed = 100.0
+            if 0 < alt_speed < 1.0:
+                alt_speed = 1.0
+            nRet2 = cps.HRIF_SetOverride(0, 0, alt_speed)
+            if nRet2 == 0:
+                config["logger"].info(
+                    f"[setSpeed] Fallback override set to {alt_speed:.1f} (ret={nRet})"
+                )
+                return
+
         config["logger"].error(
             f"[setSpeed] Couldn't set speed to {target_speed:.1f} (scale={override_scale}, ret={nRet})"
         )
@@ -5001,6 +5030,8 @@ def communicate(
     # the list to collect values in
     if doMeasure:
         measurements = data_collection(cps, config, stopWhenNan)
+        # Ensure the robot is fully stopped before issuing the next command.
+        waitWhileMovingRobot(cps)
     # else:
     #     waitWhileMovingRobot(cps)
 
