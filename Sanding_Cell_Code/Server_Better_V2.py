@@ -16,13 +16,24 @@ import json
 
 
 def waitForBlending(cps, config):
-    result = [False]
     start_time = time.time()
-
     while True:
+        result = []
         nret = cps.HRIF_IsBlendingDone(0, 0, result)
-        print(f"Blending results : {result}", end="\r")
-        if result[0]:
+        done = False
+        if nret != 0:
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].warning(
+                    f"[waitForBlending] HRIF_IsBlendingDone error (ret={nret}); continuing."
+                )
+            break
+        if result:
+            last = result[-1]
+            if isinstance(last, bool):
+                done = last
+            else:
+                done = str(last).strip().lower() in ("1", "true", "ok")
+        if done:
             break
         if time.time() - start_time >= 7:
             # Avoid blocking forever if the controller never reports done.
@@ -31,8 +42,7 @@ def waitForBlending(cps, config):
                     "[waitForBlending] Timed out after 7s; continuing."
                 )
             break
-    print("\n")
-    time.sleep(0.3)
+    time.sleep(0.1)
     return
     # result = [False]
     # start_time = time.time()
