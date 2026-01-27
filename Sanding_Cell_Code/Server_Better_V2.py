@@ -389,7 +389,7 @@ def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -517,7 +517,7 @@ def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     nRet = cps.HRIF_SetForceZero(0, 0)
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     # Set the force control strategy to constant force mode
@@ -619,7 +619,7 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -750,7 +750,7 @@ def putForceZminus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -880,7 +880,7 @@ def putForce3Direction(cps, force, tcp, ucs, config, goal=[1, 1, 1]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -1011,7 +1011,7 @@ def putForce3Directionup(cps, force, tcp, ucs, config, goal=[1, 1, 1]):
             return False
 
         # Set force control parameters
-        nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, [])
+        nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
         if nret != 0:
             config["logger"].error(
                 f"Failed to set force tool coordinate motion: {nret}"
@@ -1105,7 +1105,7 @@ def putForceYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     nRet = cps.HRIF_SetForceZero(0, 0)
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.1)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     # Set the force control strategy to constant force mode
@@ -1207,7 +1207,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -1337,7 +1337,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -1467,7 +1467,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -1597,7 +1597,7 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -1727,7 +1727,7 @@ def putForceYminus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         return
 
     # Set tool coordinate system mode for force control
-    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0, result)
+    nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
@@ -5743,3 +5743,4 @@ if __name__ == "__main__":
         config = yaml.safe_load(file)
 
     handle_client(config)
+

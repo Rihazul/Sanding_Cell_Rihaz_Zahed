@@ -217,14 +217,25 @@ def run_spiral_between_points(
     print(f"[Spiral] Total points = {count}")
 
     if init_path:
+        # Raw data type = 1 (PCS), speed ratio = 1.0, blending radius = 0.0
         ret = cps.HRIF_InitPath(
-            box_id, robot_id, track_name, velocity, accel, jerk, ucs_name, tcp_name
+            box_id,
+            robot_id,
+            1,
+            track_name,
+            1.0,
+            0.0,
+            velocity,
+            accel,
+            jerk,
+            ucs_name,
+            tcp_name,
         )
         print("[Spiral][Init] ret =", ret)
         if ret != 0:
             return False, None
 
-    ret = cps.HRIF_PushPathPoints(box_id, robot_id, track_name, 1, count, all_points)
+    ret = cps.HRIF_PushPathPoints(box_id, robot_id, track_name, all_points)
     print("[Spiral][Push] ret =", ret)
     if ret != 0:
         return False, None
