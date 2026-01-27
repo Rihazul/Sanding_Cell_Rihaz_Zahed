@@ -2209,7 +2209,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             )
 
     def control_table(cps, tableState):
-        config["logger"].info("[controlTable] Reached! Table State", tableState)
+        config["logger"].info("[controlTable] Reached! Table State: %s", tableState)
         if tableState == "close":
             config["logger"].info("[controlTable] table closed")
             nRet = cps.HRIF_SetBoxDO(0, 1, 0)  # (0, digital output number, states)
@@ -2756,7 +2756,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
         robo7thPos = [
             config["table"][f"lengthx{i}"] for i in range(config["table"]["count"])
         ]
-        config["logger"].info("[scan] 7th axis positions robot will move: ", robo7thPos)
+        config["logger"].info("[scan] 7th axis positions robot will move: %s", robo7thPos)
 
         framePoints = []
         pocketPoints = []
