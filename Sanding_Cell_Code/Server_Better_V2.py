@@ -2779,14 +2779,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             connect_j7()
             state = get_j7_state()
             if state is None or state == "-1":
-                config["logger"].error(
-                    "[scan] J7 state unknown; aborting scan for safety."
+                config["logger"].warning(
+                    "[scan] J7 state unknown; proceeding with scan (manual positioning assumed)."
                 )
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
-                    message="Scan safety check failed: J7 state unknown. Please verify J7 and try again.",
+                    message="Scan safety check warning: J7 state unknown. Proceeding with scan (manual positioning assumed).",
                 )
-                exit(-1)
+                state = None
 
             if state == "1":
                 config["logger"].info("[scan] J7 moving; stopping before scan.")
