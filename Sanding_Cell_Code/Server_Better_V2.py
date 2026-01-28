@@ -2127,7 +2127,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
                 seventh=-1,
                 config=config,
                 speed=config["UI"]["robotSpeed"],
-                wait=False,
+                wait=True,
             )
 
         # go to that tool's home position (right above the tool)
@@ -2139,10 +2139,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             seventh=-1,
             config=config,
             speed=config["UI"]["robotSpeed"],
-            wait=False,
+            wait=True,
         )
         # drop (for safety, to open the valve)
-        waitForBlending(cps=cps, config=config)
         toolValve(cps, valveState="drop", config=config)
         # touch the tool (slowly)
         communicate(
@@ -2153,10 +2152,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             seventh=-1,
             config=config,
             speed=0.15,
-            wait=False,
+            wait=True,
         )
         # pick the tool
-        waitForBlending(cps=cps, config=config)
         toolValve(cps, valveState="pick", config=config)
         # come back to tool's home position
         communicate(
@@ -2201,7 +2199,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             seventh=-1,
             config=config,
             speed=config["UI"]["robotSpeed"],
-            wait=False,
+            wait=True,
         )
         # go to tool's home
         communicate(
@@ -2212,7 +2210,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             seventh=-1,
             config=config,
             speed=config["UI"]["robotSpeed"],
-            wait=False,
+            wait=True,
         )
         # touch the tool (slowly)
         communicate(
@@ -2223,10 +2221,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             seventh=-1,
             config=config,
             speed=0.15,
-            wait=False,
+            wait=True,
         )
         # drop the tool
-        waitForBlending(cps=cps, config=config)
         toolValve(cps, valveState="drop", config=config)
         # come back to tool's home
         communicate(

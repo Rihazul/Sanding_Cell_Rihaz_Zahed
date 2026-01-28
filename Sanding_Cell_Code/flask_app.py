@@ -995,6 +995,8 @@ def handle_action():
             CPS.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
         except Exception:
             pass
+        # Turn off vibration (DO4) on stop.
+        CPS.HRIF_SetBoxDO(0, 4, 0)
         laser(CPS, "off", config=config)
         return stop_process()
 
