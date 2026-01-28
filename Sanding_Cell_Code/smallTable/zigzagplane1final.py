@@ -114,7 +114,7 @@ def generate_spiral_between_points(
     turns: Optional[int] = 12,
     radius: Optional[float] = None,
     angle_step_deg: float = 120.0,
-    max_points: Optional[int] = 80,
+    max_points: Optional[int] = None,
     orientation: str = "horizontal",
 ):
     """
@@ -127,16 +127,16 @@ def generate_spiral_between_points(
     if radius is None:
         radius = DEFAULT_SPIRAL_RADIUS
     if y0 == y1 and orientation == "vertical":
-        turns = 2
+        turns = 1
     elif x0 == x1 and orientation == "horizontal":
-        turns = 2
+        turns = 1
     else:
         dist = max(abs(x1 - x0), abs(y1 - y0))
         # factor = 1.0
         # if orientation == "vertical":
         #     factor= 1.3
         # turns = int((4.0/260.0) * float(dist) * float(factor))
-        turns = math.floor(dist/(radius*3))
+        turns = math.ceil(dist/(radius*1.5))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -172,7 +172,7 @@ def run_spiral_between_points(
     turns: Optional[int] = 12,
     radius: Optional[float] = None,
     angle_step_deg: float = 120.0,
-    max_points: Optional[int] = 80,
+    max_points: Optional[int] = None,
     tcp: str = None,
     ucs: str = None,
     track_name: str = None,
@@ -919,7 +919,7 @@ def smalldoor1zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
@@ -1073,7 +1073,7 @@ def smalldoor1zizag(
                 seventh=tcx0,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
+                speed=0.8,
                 wait=True
             )
             communicate(
@@ -1083,9 +1083,20 @@ def smalldoor1zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
+                speed=0.8,
                 wait=True
             )
+            if edge_prepointp1:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=edge_prepointp1,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             communicate(
                 cps=cps,
                 config=config,
@@ -1093,7 +1104,7 @@ def smalldoor1zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
+                speed=0.8,
                 wait=True
             )
             perform_process_top(
@@ -1114,7 +1125,7 @@ def smalldoor1zizag(
                     seventh=seventh_pos,
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
-                    speed=0.2,
+                    speed=0.8,
                     wait=True
                 )
                 communicate(
@@ -1124,7 +1135,7 @@ def smalldoor1zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.2,
+                    speed=0.8,
                     wait=True
                 )
                 # # turn_vibration_on(cps)
@@ -1135,7 +1146,7 @@ def smalldoor1zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.2,
+                    speed=0.8,
                     wait=True
                 )
             # # turn_vibration_on(cps)
@@ -1155,7 +1166,7 @@ def smalldoor1zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
+                speed=0.8,
                 wait=True
             )
 
@@ -1258,7 +1269,7 @@ def smalldoor2zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
@@ -1425,6 +1436,17 @@ def smalldoor2zizag(
                 speed=0.8,
                 wait=True
             )
+            if edge_prepointp1:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=edge_prepointp1,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             communicate(
                 cps=cps,
                 config=config,
@@ -1598,7 +1620,7 @@ def smalldoor3zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
@@ -1765,6 +1787,17 @@ def smalldoor3zizag(
                 speed=0.8,
                 wait=True
             )
+            if edge_prepointp1:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=edge_prepointp1,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             communicate(
                 cps=cps,
                 config=config,
@@ -1937,7 +1970,7 @@ def smalldoor4zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
-        edge_coverage_pathp1, _, _ = generate_zigzag_path(
+        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
@@ -2104,6 +2137,17 @@ def smalldoor4zizag(
                 speed=0.8,
                 wait=True
             )
+            if edge_prepointp1:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=edge_prepointp1,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             communicate(
                 cps=cps,
                 config=config,
