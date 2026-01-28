@@ -349,7 +349,7 @@ def generate_zigzag_path(
     orientation="horizontal",
     movement="zigzag",
     innerSandingOffset=50,
-    edge_coverage=False,
+    edge_coverage=False
 ):
     """
     Generate a zigzag/spiral path for sanding.
@@ -928,7 +928,7 @@ def smalldoor1zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -939,7 +939,7 @@ def smalldoor1zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -976,7 +976,7 @@ def smalldoor1zizag(
                         seventh=-1,
                         speed=edge_speed,
                         speed_mode="linear",
-                        wait=False,
+                        wait=False
                     )
                     if point == edge_points[-1]:
                         communicate(
@@ -988,7 +988,7 @@ def smalldoor1zizag(
                             seventh=-1,
                             speed=edge_speed,
                             speed_mode="linear",
-                            wait=True,
+                            wait=True
                         )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
@@ -1013,7 +1013,7 @@ def smalldoor1zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
-                    wait=True,
+                    wait=True
                 )
 
                 for index, _ in enumerate(zigzag_points):
@@ -1035,7 +1035,7 @@ def smalldoor1zizag(
                         accel=500.0,
                         jerk=10000.0,
                         init_path=not path_initialized,
-                        orientation=orientation,
+                        orientation=orientation
                     )
                     if not success:
                         push_failed = True
@@ -1053,7 +1053,7 @@ def smalldoor1zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout,
+                        completion_timeout=timeout
                     )
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -1074,7 +1074,7 @@ def smalldoor1zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 speed=0.2,
-                wait=True,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -1084,7 +1084,7 @@ def smalldoor1zizag(
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.2,
-                wait=True,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -1094,7 +1094,7 @@ def smalldoor1zizag(
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.2,
-                wait=True,
+                wait=True
             )
             perform_process_top(
                 cps,
@@ -1102,50 +1102,42 @@ def smalldoor1zizag(
                 edge_points=edge_coverage_pathp1,
                 zigzag_points=[],
                 force=force,
-                run_edge_coverage=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
+                run_edge_coverage=True
             )
         
-        for seventh_pos in seventh_positions:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=seventh_pos,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps,
-                config=config,
-                point=prepointp1,  # Dynamic prepoint
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
+        for idx, seventh_pos in enumerate(seventh_positions):
+            first_split = split and idx == 0
+            if not first_split:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    seventh=seventh_pos,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.2,
+                    wait=True
+                )
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prehoming,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.2,
+                    wait=True
+                )
+                # # turn_vibration_on(cps)
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prepointp1,  # Dynamic prepoint
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.2,
+                    wait=True
+                )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -1153,7 +1145,7 @@ def smalldoor1zizag(
                 edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
-                run_edge_coverage=not split,
+                run_edge_coverage=not split
             )  # Edge coverage + zigzag path
             # # turn_vibration_off(cps)
             communicate(
@@ -1164,7 +1156,7 @@ def smalldoor1zizag(
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.2,
-                wait=True,
+                wait=True
             )
 
     pocket_size = get_pocket_size(1, default_on_error=True)
@@ -1275,7 +1267,7 @@ def smalldoor2zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -1286,7 +1278,7 @@ def smalldoor2zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -1303,7 +1295,7 @@ def smalldoor2zizag(
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                config=config,
+                config=config
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -1322,7 +1314,7 @@ def smalldoor2zizag(
                         seventh=-1,
                         speed=edge_speed,
                         speed_mode="linear",
-                        wait=False,
+                        wait=False
                     )
                     if point == edge_points[-1]:
                         communicate(
@@ -1334,7 +1326,7 @@ def smalldoor2zizag(
                             seventh=-1,
                             speed=edge_speed,
                             speed_mode="linear",
-                            wait=True,
+                            wait=True
                         )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
@@ -1359,7 +1351,7 @@ def smalldoor2zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
-                    wait=True,
+                    wait=True
                 )
 
                 for index, _ in enumerate(zigzag_points):
@@ -1381,7 +1373,7 @@ def smalldoor2zizag(
                         accel=500.0,
                         jerk=10000.0,
                         init_path=not path_initialized,
-                        orientation=orientation,
+                        orientation=orientation
                     )
                     if not success:
                         push_failed = True
@@ -1399,7 +1391,7 @@ def smalldoor2zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout,
+                        completion_timeout=timeout
                     )
 
             # Wait for blending and turn off vibration
@@ -1420,8 +1412,8 @@ def smalldoor2zizag(
                 seventh=tcx0,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -1430,8 +1422,8 @@ def smalldoor2zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -1440,8 +1432,8 @@ def smalldoor2zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             perform_process_top(
                 cps,
@@ -1449,50 +1441,42 @@ def smalldoor2zizag(
                 edge_points=edge_coverage_pathp1,
                 zigzag_points=[],
                 force=force,
-                run_edge_coverage=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
+                run_edge_coverage=True
             )
 
-        for seventh_pos in seventh_positions:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=seventh_pos,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps,
-                config=config,
-                point=prepointp1,  # Dynamic prepoint
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
+        for idx, seventh_pos in enumerate(seventh_positions):
+            first_split = split and idx == 0
+            if not first_split:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    seventh=seventh_pos,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.8,
+                    wait=True
+                )
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prehoming,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
+                # # turn_vibration_on(cps)
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prepointp1,  # Dynamic prepoint
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -1500,7 +1484,7 @@ def smalldoor2zizag(
                 edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
-                run_edge_coverage=not split,
+                run_edge_coverage=not split
             )
             # Edge coverage + zigzag path
             # turn_vibration_off(cps)
@@ -1511,8 +1495,8 @@ def smalldoor2zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
 
     pocket_size = get_pocket_size(2, default_on_error=True)
@@ -1623,7 +1607,7 @@ def smalldoor3zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -1634,7 +1618,7 @@ def smalldoor3zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -1651,7 +1635,7 @@ def smalldoor3zizag(
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                config=config,
+                config=config
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -1670,7 +1654,7 @@ def smalldoor3zizag(
                         seventh=-1,
                         speed=edge_speed,
                         speed_mode="linear",
-                        wait=False,
+                        wait=False
                     )
                     if point == edge_points[-1]:
                         communicate(
@@ -1682,7 +1666,7 @@ def smalldoor3zizag(
                             seventh=-1,
                             speed=edge_speed,
                             speed_mode="linear",
-                            wait=True,
+                            wait=True
                         )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
@@ -1707,7 +1691,7 @@ def smalldoor3zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
-                    wait=True,
+                    wait=True
                 )
 
                 for index, _ in enumerate(zigzag_points):
@@ -1729,7 +1713,7 @@ def smalldoor3zizag(
                         accel=500.0,
                         jerk=10000.0,
                         init_path=not path_initialized,
-                        orientation=orientation,
+                        orientation=orientation
                     )
                     if not success:
                         push_failed = True
@@ -1747,7 +1731,7 @@ def smalldoor3zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout,
+                        completion_timeout=timeout
                     )
 
             # Wait for blending and turn off vibration
@@ -1768,8 +1752,8 @@ def smalldoor3zizag(
                 seventh=tcx0,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -1778,8 +1762,8 @@ def smalldoor3zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -1788,8 +1772,8 @@ def smalldoor3zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             perform_process_top(
                 cps,
@@ -1797,50 +1781,42 @@ def smalldoor3zizag(
                 edge_points=edge_coverage_pathp1,
                 zigzag_points=[],
                 force=force,
-                run_edge_coverage=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
+                run_edge_coverage=True
             )
 
-        for seventh_pos in seventh_positions:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=seventh_pos,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps,
-                config=config,
-                point=prepointp1,  # Dynamic prepoint
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
+        for idx, seventh_pos in enumerate(seventh_positions):
+            first_split = split and idx == 0
+            if not first_split:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    seventh=seventh_pos,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.8,
+                    wait=True
+                )
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prehoming,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
+                # # turn_vibration_on(cps)
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prepointp1,  # Dynamic prepoint
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -1848,7 +1824,7 @@ def smalldoor3zizag(
                 edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=zigzag_pathp1,
                 force=force,
-                run_edge_coverage=not split,
+                run_edge_coverage=not split
             )  # Edge coverage + zigzag path
             # # turn_vibration_off(cps)
             communicate(
@@ -1858,8 +1834,8 @@ def smalldoor3zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
 
     pocket_size = get_pocket_size(3, default_on_error=True)
@@ -1970,7 +1946,7 @@ def smalldoor4zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -1981,7 +1957,7 @@ def smalldoor4zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -1998,7 +1974,7 @@ def smalldoor4zizag(
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                config=config,
+                config=config
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -2017,7 +1993,7 @@ def smalldoor4zizag(
                         seventh=-1,
                         speed=edge_speed,
                         speed_mode="linear",
-                        wait=False,
+                        wait=False
                     )
                     if point == edge_points[-1]:
                         communicate(
@@ -2029,7 +2005,7 @@ def smalldoor4zizag(
                             seventh=-1,
                             speed=edge_speed,
                             speed_mode="linear",
-                            wait=True,
+                            wait=True
                         )
                     turn_vibration_on(cps)
                 # Wait for edge coverage to complete before starting spiral
@@ -2054,7 +2030,7 @@ def smalldoor4zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
-                    wait=True,
+                    wait=True
                 )
 
                 for index, _ in enumerate(zigzag_points):
@@ -2076,7 +2052,7 @@ def smalldoor4zizag(
                         accel=500.0,
                         jerk=10000.0,
                         init_path=not path_initialized,
-                        orientation=orientation,
+                        orientation=orientation
                     )
                     if not success:
                         push_failed = True
@@ -2094,7 +2070,7 @@ def smalldoor4zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout,
+                        completion_timeout=timeout
                     )
 
             # Wait for blending and turn off vibration
@@ -2115,8 +2091,8 @@ def smalldoor4zizag(
                 seventh=tcx0,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -2125,8 +2101,8 @@ def smalldoor4zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             communicate(
                 cps=cps,
@@ -2135,8 +2111,8 @@ def smalldoor4zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
             perform_process_top(
                 cps,
@@ -2144,50 +2120,42 @@ def smalldoor4zizag(
                 edge_points=edge_coverage_pathp1,
                 zigzag_points=[],
                 force=force,
-                run_edge_coverage=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
+                run_edge_coverage=True
             )
 
-        for seventh_pos in seventh_positions:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=seventh_pos,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.2,
-                wait=True,
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
-            # # turn_vibration_on(cps)
-            communicate(
-                cps=cps,
-                config=config,
-                point=prepointp1,  # Dynamic prepoint
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.2,
-                wait=True,
-            )
+        for idx, seventh_pos in enumerate(seventh_positions):
+            first_split = split and idx == 0
+            if not first_split:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    seventh=seventh_pos,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.8,
+                    wait=True
+                )
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prehoming,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
+                # # turn_vibration_on(cps)
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=prepointp1,  # Dynamic prepoint
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.8,
+                    wait=True
+                )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2205,8 +2173,8 @@ def smalldoor4zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.2,
-                wait=True,
+                speed=0.8,
+                wait=True
             )
 
     pocket_size = get_pocket_size(4, default_on_error=True)
