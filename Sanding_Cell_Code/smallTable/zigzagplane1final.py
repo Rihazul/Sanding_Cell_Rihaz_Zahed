@@ -229,7 +229,7 @@ def run_spiral_between_points(
             accel,
             jerk,
             ucs_name,
-            tcp_name,
+            tcp_name
         )
         print("[Spiral][Init] ret =", ret)
         if ret != 0:

@@ -989,11 +989,12 @@ def handle_action():
         return jsonify({'status': 'success', 'message': 'Action tool received and executed'})
 
     elif action == "stop":
-        nRet = CPS.HRIF_GrpStop(0, 0)
-        CPS.HRIF_HRApp(0, 'MT_Kinco','MotorPowerOff', '1', result)
-        time.sleep(0.1)
-        CPS.HRIF_SetBoxDO(0, 4, 0)
-        time.sleep(0.1)
+        # Safe stop: stop motion only; do not toggle tool/valve outputs.
+        CPS.HRIF_GrpStop(0, 0)
+        try:
+            CPS.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
+        except Exception:
+            pass
         laser(CPS, "off", config=config)
         return stop_process()
 
