@@ -5112,7 +5112,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
             seventh=-1,
             config=config,
             speed=0.9,
-            wait=False,
+            wait=True,
         )
 
     # go to that tool's home position (right above the tool)
@@ -5124,10 +5124,9 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         seventh=-1,
         config=config,
         speed=0.9,
-        wait=False,
+        wait=True,
     )
     # drop (for safety, to open the valve)
-    waitForBlending(cps=cps, config=config)
     toolValve1(cps, valveState="drop", config=config)
     # touch the tool (slowly)
     communicate(
@@ -5141,7 +5140,6 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         wait=True,
     )
     # pick the tool
-    waitForBlending(cps=cps, config=config)
     toolValve1(cps, valveState="pick", config=config)
     # come back to tool's home position
     communicate(
@@ -5187,7 +5185,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=0.9,
-        wait=False,
+        wait=True,
     )
     # go to tool's home
     communicate(
@@ -5198,7 +5196,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=0.9,
-        wait=False,
+        wait=True,
     )
     # touch the tool (slowly)
     communicate(
@@ -5212,7 +5210,6 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         wait=True,
     )
     # drop the tool
-    waitForBlending(cps=cps, config=config)
     toolValve1(cps, valveState="drop", config=config)
     # come back to tool's home
     communicate(
