@@ -15,6 +15,8 @@ import sys
 import webview  # PyWebView for embedding Flask in a window
 from werkzeug.utils import secure_filename
 import logging
+import threading
+from contextlib import contextmanager
 
 # Reduce noisy werkzeug request logs.
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -118,6 +120,36 @@ port = 10003
 ret = CPS.HRIF_Connect(0, IP, port)
 Tpos = 0
 velocity = 0.1
+robot_lock = threading.Lock()
+
+
+def ensure_cps_connected():
+    """Ensure the global CPS client is connected before issuing commands."""
+    try:
+        if CPS.HRIF_IsConnected(0):
+            return 0
+    except Exception:
+        pass
+    return CPS.HRIF_Connect(0, IP, port)
+
+@contextmanager
+def locked_cps(timeout=0.2, allow_when_busy=False):
+    """Lock CPS access and ensure connection; yields True on success."""
+    if not allow_when_busy and process_state.get("status") == "in_progress":
+        yield False
+        return
+    acquired = robot_lock.acquire(timeout=timeout)
+    if not acquired:
+        yield False
+        return
+    ok = False
+    try:
+        ret = ensure_cps_connected()
+        ok = ret == 0
+        yield ok
+    finally:
+        if acquired:
+            robot_lock.release()
 
 ############################################################################################
 # Store modal data and process state globally
@@ -401,13 +433,8 @@ def tool_toggle():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    # 2) Create or reuse a CPS client if needed
-    cps = CPSClient()
-    IP = config_data_UI['server']['cpip']
-    port = config_data_UI['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
-    if ret != 0:
-        return jsonify({"error": "Failed to connect to CPS client"}), 500
+    # 2) Use the shared CPS client
+    cps = CPS
 
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
@@ -422,45 +449,50 @@ def tool_toggle():
 
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
-        # Validate Pick Conditions
-        pick_conditions = [
-            (cps.HRIF_ReadBoxCI, 0, 0, 0),
-            (cps.HRIF_ReadBoxCI, 0, 1, 0),
-            (cps.HRIF_ReadBoxCI, 0, 2, 0),
-            (cps.HRIF_ReadBoxDI, 0, 4, 1)
-        ]
-        if check_conditions(pick_conditions):
-            # Pick the tool
-            getTool11(cps, toolNumber=tool_num, config=config_data_UI)
-            socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
-        else:
-            socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"error": "Pick conditions not met"}), 400
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            # Validate Pick Conditions
+            pick_conditions = [
+                (cps.HRIF_ReadBoxCI, 0, 0, 0),
+                (cps.HRIF_ReadBoxCI, 0, 1, 0),
+                (cps.HRIF_ReadBoxCI, 0, 2, 0),
+                (cps.HRIF_ReadBoxDI, 0, 4, 1)
+            ]
+            if check_conditions(pick_conditions):
+                # Pick the tool
+                getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
+            else:
+                socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"error": "Pick conditions not met"}), 400
 
     elif action == "keep":
-        # Validate Drop Conditions
-        drop_conditions = [
-            (cps.HRIF_ReadBoxCI, 0, 0, 1),
-            (cps.HRIF_ReadBoxCI, 0, 1, 0),
-            (cps.HRIF_ReadBoxCI, 0, 2, 0),
-            (cps.HRIF_ReadBoxDI, 0, 4, 0)
-        ]
-        if check_conditions(drop_conditions):
-            # Keep the tool
-            keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
-            socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
-        else:
-            socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"error": "Drop conditions not met"}), 400
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            # Validate Drop Conditions
+            drop_conditions = [
+                (cps.HRIF_ReadBoxCI, 0, 0, 1),
+                (cps.HRIF_ReadBoxCI, 0, 1, 0),
+                (cps.HRIF_ReadBoxCI, 0, 2, 0),
+                (cps.HRIF_ReadBoxDI, 0, 4, 0)
+            ]
+            if check_conditions(drop_conditions):
+                # Keep the tool
+                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
+            else:
+                socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"error": "Drop conditions not met"}), 400
 
     else:
-        cps.HRIF_DisConnect(0)
         return jsonify({"error": "Invalid action. Must be 'pick' or 'keep'."}), 400
 
 
@@ -491,13 +523,8 @@ def tool_toggle2():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    # 2) Create or reuse a CPS client if needed
-    cps = CPSClient()
-    IP = config_data_UI['server']['cpip']
-    port = config_data_UI['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
-    if ret != 0:
-        return jsonify({"error": "Failed to connect to CPS client"}), 500
+    # 2) Use the shared CPS client
+    cps = CPS
 
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
@@ -512,44 +539,49 @@ def tool_toggle2():
 
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
-        # Validate Pick Conditions
-        pick_conditions = [
-            (cps.HRIF_ReadBoxCI, 0, 0, 0),
-            (cps.HRIF_ReadBoxCI, 0, 1, 0),
-            (cps.HRIF_ReadBoxCI, 0, 2, 0),
-            (cps.HRIF_ReadBoxDI, 0, 5, 1)
-        ]
-        if check_conditions(pick_conditions):
-            # Pick the tool
-            getTool11(cps, toolNumber=tool_num, config=config_data_UI)
-            socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
-        else:
-            socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"error": "Pick conditions not met"}), 400
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            # Validate Pick Conditions
+            pick_conditions = [
+                (cps.HRIF_ReadBoxCI, 0, 0, 0),
+                (cps.HRIF_ReadBoxCI, 0, 1, 0),
+                (cps.HRIF_ReadBoxCI, 0, 2, 0),
+                (cps.HRIF_ReadBoxDI, 0, 5, 1)
+            ]
+            if check_conditions(pick_conditions):
+                # Pick the tool
+                getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
+            else:
+                socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"error": "Pick conditions not met"}), 400
 
     elif action == "keep":
-        # Validate Drop Conditions
-        drop_conditions = [
-            (cps.HRIF_ReadBoxCI, 0, 0, 0),
-            (cps.HRIF_ReadBoxCI, 0, 1, 1),
-            (cps.HRIF_ReadBoxCI, 0, 2, 0),
-            (cps.HRIF_ReadBoxDI, 0, 5, 0)
-        ]
-        if check_conditions(drop_conditions):
-            # Keep the tool
-            keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
-            socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
-        else:
-            socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"error": "Drop conditions not met"}), 400
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            # Validate Drop Conditions
+            drop_conditions = [
+                (cps.HRIF_ReadBoxCI, 0, 0, 0),
+                (cps.HRIF_ReadBoxCI, 0, 1, 1),
+                (cps.HRIF_ReadBoxCI, 0, 2, 0),
+                (cps.HRIF_ReadBoxDI, 0, 5, 0)
+            ]
+            if check_conditions(drop_conditions):
+                # Keep the tool
+                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
+            else:
+                socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"error": "Drop conditions not met"}), 400
     else:
-        cps.HRIF_DisConnect(0)
         return jsonify({"error": "Invalid action. Must be 'pick' or 'keep'."}), 400
     
 
@@ -581,13 +613,8 @@ def tool_toggle1():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    # 2) Create or reuse a CPS client if needed
-    cps = CPSClient()
-    IP = config_data_UI['server']['cpip']
-    port = config_data_UI['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
-    if ret != 0:
-        return jsonify({"error": "Failed to connect to CPS client"}), 500
+    # 2) Use the shared CPS client
+    cps = CPS
 
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
@@ -602,44 +629,49 @@ def tool_toggle1():
 
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
-        # Validate Pick Conditions
-        pick_conditions = [
-            (cps.HRIF_ReadBoxCI, 0, 0, 0),
-            (cps.HRIF_ReadBoxCI, 0, 1, 0),
-            (cps.HRIF_ReadBoxCI, 0, 2, 0),
-            (cps.HRIF_ReadBoxDI, 0, 7, 1),
-        ]
-        if check_conditions(pick_conditions):
-            # Pick the tool
-            getTool11(cps, toolNumber=tool_num, config=config_data_UI)
-            socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
-        else:
-            socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"error": "Pick conditions not met"}), 400
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            # Validate Pick Conditions
+            pick_conditions = [
+                (cps.HRIF_ReadBoxCI, 0, 0, 0),
+                (cps.HRIF_ReadBoxCI, 0, 1, 0),
+                (cps.HRIF_ReadBoxCI, 0, 2, 0),
+                (cps.HRIF_ReadBoxDI, 0, 7, 1),
+            ]
+            if check_conditions(pick_conditions):
+                # Pick the tool
+                getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
+            else:
+                socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"error": "Pick conditions not met"}), 400
 
     elif action == "keep":
-        # Validate Drop Conditions
-        drop_conditions = [
-            (cps.HRIF_ReadBoxCI, 0, 0, 0),
-            (cps.HRIF_ReadBoxCI, 0, 1, 1),
-            (cps.HRIF_ReadBoxCI, 0, 2, 1),
-            (cps.HRIF_ReadBoxDI, 0, 7, 0)
-        ]
-        if check_conditions(drop_conditions):
-            # Keep the tool
-            keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
-            socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
-        else:
-            socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
-            # cps.HRIF_DisConnect(0)
-            return jsonify({"error": "Drop conditions not met"}), 400
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            # Validate Drop Conditions
+            drop_conditions = [
+                (cps.HRIF_ReadBoxCI, 0, 0, 0),
+                (cps.HRIF_ReadBoxCI, 0, 1, 1),
+                (cps.HRIF_ReadBoxCI, 0, 2, 1),
+                (cps.HRIF_ReadBoxDI, 0, 7, 0)
+            ]
+            if check_conditions(drop_conditions):
+                # Keep the tool
+                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
+            else:
+                socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
+                # cps.HRIF_DisConnect(0)
+                return jsonify({"error": "Drop conditions not met"}), 400
     else:
-        cps.HRIF_DisConnect(0)
         return jsonify({"error": "Invalid action. Must be 'pick' or 'keep'."}), 400
 
 ############################################################################################
@@ -683,7 +715,10 @@ def check_tool1_status():
     By calling this route, we ensure the server checks the condition 
     and emits the blink_circle_button event if needed.
     """
-    should_blink = check_tool1_attachment_condition(CPS)  # Emits if any WS clients exist.
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({"status": "busy", "shouldBlink": False})
+        should_blink = check_tool1_attachment_condition(CPS)  # Emits if any WS clients exist.
     return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 
 ############################################################################################
@@ -728,7 +763,10 @@ def check_tool2_status():
     By calling this route, we check the lines for tool2 
     and emit a 'blink_circle_button2' event with True or False.
     """
-    should_blink = check_tool2_attachment_condition(CPS)
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({"status": "busy", "shouldBlink": False})
+        should_blink = check_tool2_attachment_condition(CPS)
     return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 
 ############################################################################################
@@ -772,7 +810,10 @@ def check_tool3_status():
     By calling this route, we check the lines for tool3 
     and emit a 'blink_circle_button3' event with True or False.
     """
-    should_blink = check_tool3_attachment_condition(CPS)
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({"status": "busy", "shouldBlink": False})
+        should_blink = check_tool3_attachment_condition(CPS)
     return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 ############################################################################################
 # Toggle the Table A/B Open/Close button text depending upon table current state.Improved by rafat and working
@@ -781,59 +822,62 @@ def toggle_state(table_id):
     robot_state = []
     di_state_0 = []
     di_state_1 = []
-    if table_id == "tableAOpenClose": 
-        #nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
-        nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
-        nRet = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
-        if di_state_0[0] == '1' and di_state_1[0] == '0':
-            new_state = "Open"
-            nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
-            nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-            # socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
-        elif di_state_0[0] == '0' and di_state_1[0] == '1':
-            new_state = "Close"
-            nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
-            nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
-            socketio.emit('flash_message', {"message": f"Alert !!! Table A is in 45 degree working position so be carefull at the time of manually moving robot"})
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({'newState': 'Busy'}), 200
+        if table_id == "tableAOpenClose": 
+            #nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
+            nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+            nRet = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+            if di_state_0[0] == '1' and di_state_1[0] == '0':
+                new_state = "Open"
+                nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
+                nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
+                # socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
+            elif di_state_0[0] == '0' and di_state_1[0] == '1':
+                new_state = "Close"
+                nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
+                nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
+                socketio.emit('flash_message', {"message": f"Alert !!! Table A is in 45 degree working position so be carefull at the time of manually moving robot"})
+            else:
+                socketio.emit('flash_message', {"message": f"Warning !! Table is not working .Check your proximity Sensor and physical Wire Connectivity", "type":"warning"})
+
+            #if robot_state[0] == '1':
+            
+                #new_state = "Open"
+                #nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
+                #nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
+            #else:
+                #new_state = "Close"
+                #nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
+                #nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
+
+        elif table_id == "tableBOpenClose":
+            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
+            if robot_state[0] == '1':
+                new_state = "Open"
+                nRet = CPS.HRIF_SetBoxCO(0, 1, 0)  # (0, digital output number, states)
+                nRet = CPS.HRIF_SetBoxCO(0, 0, 1)
+                socketio.emit('flash_message', {"message": f"Table B is in horizontal position"})
+            else:
+                new_state = "Close"
+                nRet = CPS.HRIF_SetBoxCO(0, 0, 0)
+                nRet = CPS.HRIF_SetBoxCO(0, 1, 1)
+                socketio.emit('flash_message', {"message": f"Alert !!! Table B is in 45 degree working position so be carefull at the time of manually moving robot"})
+            ######
+            #ToDo: The project was not complete, so change the digital number in the CPS functions which can open or close the tableB.
+            #Syntax: HRIF_SetBoxDo(BoxID, DigitalNumber(Ask Nic What is the Digital Output for TableB), TableState(1or0)) 
+            ######
+            # nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
+            # if robot_state[0] == '1':
+            #     new_state = "Open"
+            #     nRet = CPS.HRIF_SetBoxDO(0, 1, 0)
+            # else:
+            #     new_state = "Close"
+            #     nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
+
         else:
-            socketio.emit('flash_message', {"message": f"Warning !! Table is not working .Check your proximity Sensor and physical Wire Connectivity", "type":"warning"})
-
-        #if robot_state[0] == '1':
-        
-            #new_state = "Open"
-            #nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
-            #nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-        #else:
-            #new_state = "Close"
-            #nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
-            #nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
-
-    elif table_id == "tableBOpenClose":
-        nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-        if robot_state[0] == '1':
-            new_state = "Open"
-            nRet = CPS.HRIF_SetBoxCO(0, 1, 0)  # (0, digital output number, states)
-            nRet = CPS.HRIF_SetBoxCO(0, 0, 1)
-            socketio.emit('flash_message', {"message": f"Table B is in horizontal position"})
-        else:
-            new_state = "Close"
-            nRet = CPS.HRIF_SetBoxCO(0, 0, 0)
-            nRet = CPS.HRIF_SetBoxCO(0, 1, 1)
-            socketio.emit('flash_message', {"message": f"Alert !!! Table B is in 45 degree working position so be carefull at the time of manually moving robot"})
-        ######
-        #ToDo: The project was not complete, so change the digital number in the CPS functions which can open or close the tableB.
-        #Syntax: HRIF_SetBoxDo(BoxID, DigitalNumber(Ask Nic What is the Digital Output for TableB), TableState(1or0)) 
-        ######
-        # nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
-        # if robot_state[0] == '1':
-        #     new_state = "Open"
-        #     nRet = CPS.HRIF_SetBoxDO(0, 1, 0)
-        # else:
-        #     new_state = "Close"
-        #     nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
-
-    else:
-        return jsonify({'newState': 'Invalid input. No state change.'})
+            return jsonify({'newState': 'Invalid input. No state change.'})
 
     return jsonify({'newState': f"{new_state}"})
 
@@ -843,24 +887,27 @@ def toggle_state(table_id):
 @app.route('/get_state/<table_id>', methods=['GET'])
 def get_state(table_id):
     robot_state = []
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({'newState': 'Busy'}), 200
 
-    if table_id == "tableAOpenClose":
-        nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
-        socketio.emit('flash_message', {"message": f"Table A is Set To {'Open' if robot_state[0] == '1' else 'Close'}. Please Wait Till The Process Finishes..."})
-        if robot_state[0] == '1':
-            new_state = "Close"
-        else:
-            new_state = "Open"
+        if table_id == "tableAOpenClose":
+            nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
+            socketio.emit('flash_message', {"message": f"Table A is Set To {'Open' if robot_state[0] == '1' else 'Close'}. Please Wait Till The Process Finishes..."})
+            if robot_state[0] == '1':
+                new_state = "Close"
+            else:
+                new_state = "Open"
 
-    elif table_id == "tableBOpenClose": 
-        nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-        socketio.emit('flash_message', {"message": f"Table B is Set To {'Open' if robot_state[0] == '1' else 'Close'}. Please Wait Till The Process Finishes..."})
-        if robot_state[0] == '1':
-            new_state = "Close"
+        elif table_id == "tableBOpenClose": 
+            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
+            socketio.emit('flash_message', {"message": f"Table B is Set To {'Open' if robot_state[0] == '1' else 'Close'}. Please Wait Till The Process Finishes..."})
+            if robot_state[0] == '1':
+                new_state = "Close"
+            else:
+                new_state = "Open"
         else:
-            new_state = "Open"
-    else:
-        return jsonify({'newState': 'Invalid input. No state change.'})
+            return jsonify({'newState': 'Invalid input. No state change.'})
 
     
     return jsonify({'newState': f"{new_state}"})
@@ -869,53 +916,62 @@ def get_state(table_id):
 # Send the Table A/B actual state to the frontend without emitting flash messages.
 @app.route('/table_state/<table_id>', methods=['GET'])
 def table_state(table_id):
-    if table_id == "tableAOpenClose":
-        di_state_0 = []
-        di_state_1 = []
-        nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
-        nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
-        if nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1:
-            if di_state_0[0] == '1' and di_state_1[0] == '0':
-                return jsonify({'state': 'Open'})
-            if di_state_0[0] == '0' and di_state_1[0] == '1':
-                return jsonify({'state': 'Close'})
-        return jsonify({'state': 'Unknown'})
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({'state': 'Unknown'})
+        if table_id == "tableAOpenClose":
+            di_state_0 = []
+            di_state_1 = []
+            nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+            nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+            if nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1:
+                if di_state_0[0] == '1' and di_state_1[0] == '0':
+                    return jsonify({'state': 'Open'})
+                if di_state_0[0] == '0' and di_state_1[0] == '1':
+                    return jsonify({'state': 'Close'})
+            return jsonify({'state': 'Unknown'})
 
-    if table_id == "tableBOpenClose":
-        robot_state = []
-        nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-        if nRet == 0 and robot_state:
-            return jsonify({'state': 'Open' if robot_state[0] == '1' else 'Close'})
-        return jsonify({'state': 'Unknown'})
+        if table_id == "tableBOpenClose":
+            robot_state = []
+            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
+            if nRet == 0 and robot_state:
+                return jsonify({'state': 'Open' if robot_state[0] == '1' else 'Close'})
+            return jsonify({'state': 'Unknown'})
 
-    return jsonify({'state': 'Invalid'})
+        return jsonify({'state': 'Invalid'})
 
 ############################################################################################
 # Send the Stopper A/B actual state to the frontend.
 @app.route('/stopper_state/<stopper_id>', methods=['GET'])
 def stopper_state(stopper_id):
-    if stopper_id == "A":
-        robot_state = []
-        nRet = CPS.HRIF_ReadBoxDO(0, 2, robot_state)
-        if nRet == 0 and robot_state:
-            return jsonify({'state': 'Up' if robot_state[0] == '1' else 'Down'})
-        return jsonify({'state': 'Unknown'})
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({'state': 'Unknown'})
+        if stopper_id == "A":
+            robot_state = []
+            nRet = CPS.HRIF_ReadBoxDO(0, 2, robot_state)
+            if nRet == 0 and robot_state:
+                return jsonify({'state': 'Up' if robot_state[0] == '1' else 'Down'})
+            return jsonify({'state': 'Unknown'})
 
-    if stopper_id == "B":
-        robot_state = []
-        nRet = CPS.HRIF_ReadBoxCO(0, 2, robot_state)
-        if nRet == 0 and robot_state:
-            return jsonify({'state': 'Up' if robot_state[0] == '1' else 'Down'})
-        return jsonify({'state': 'Unknown'})
+        if stopper_id == "B":
+            robot_state = []
+            nRet = CPS.HRIF_ReadBoxCO(0, 2, robot_state)
+            if nRet == 0 and robot_state:
+                return jsonify({'state': 'Up' if robot_state[0] == '1' else 'Down'})
+            return jsonify({'state': 'Unknown'})
 
-    return jsonify({'state': 'Invalid'})
+        return jsonify({'state': 'Invalid'})
 
 ############################################################################################
 # Send robot enable/power status to the frontend.
 @app.route('/robot_status', methods=['GET'])
 def robot_status():
     result = []
-    nRet = CPS.HRIF_ReadRobotState(0, 0, result)
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({'status': 'busy', 'flags': {}})
+        nRet = CPS.HRIF_ReadRobotState(0, 0, result)
     if nRet != 0 or len(result) < 13:
         return jsonify({'status': 'error', 'message': 'Failed to read robot state'}), 500
 
@@ -1024,15 +1080,13 @@ def handle_action():
     #     return start_process(config_data_UI)
     
     elif action == "scan":
-        cps = CPSClient()
-        IP = config['server']['cpip']
-        port = config['server']['cps']
-        ret = cps.HRIF_Connect(0, IP, port)
-        
         config_data_UI = fetch_and_combine_data()
-        if ret != 0:
-            print(f"Failed to connect, error code: {ret}")
-            exit()
+        with robot_lock:
+            ret = ensure_cps_connected()
+            if ret != 0:
+                print(f"Failed to connect, error code: {ret}")
+                exit()
+            cps = CPS
 
         def read_ci_bit(cps, bit_index):
             """Reads CI bit and returns its value (0 or 1)."""
@@ -1043,69 +1097,70 @@ def handle_action():
                 return None
             return int(result[0])
 
-        # Read CI values
-        ci0 = read_ci_bit(cps, 0)
-        ci1 = read_ci_bit(cps, 1)
-        ci2 = read_ci_bit(cps, 2)
+        with robot_lock:
+            # Read CI values
+            ci0 = read_ci_bit(cps, 0)
+            ci1 = read_ci_bit(cps, 1)
+            ci2 = read_ci_bit(cps, 2)
 
-        # Check Conditions
-        if ci0 is None or ci1 is None or ci2 is None:
-            print("Failed to read one or more CI bits.")
-        else:
-            if ci0 == 0 and ci1 == 0 and ci2 == 0:
-                print("No tool in hand")
-                stopper_statusmod(cps, state="up")
-                laser(cps, "on",config=config)
-                set_table_state(CPS, "tableAOpenClose", "Close")
-                set_table_state(CPS, "tableBOpenClose", "Close")
-                scanTableA()
-                laser(cps, "off",config=config)
-            
-
-            elif ci0 == 1 and ci1 == 0 and ci2 == 0:
-                print("Tool 3 detected → executing keepTool11()")
-                keepTool11(cps, toolNumber=3, config=config)
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-                stopper_statusmod(cps, state="up")
-                laser(cps, "on",config=config)
-                set_table_state(CPS, "tableAOpenClose", "Close")
-                set_table_state(CPS, "tableBOpenClose", "Close")
-                scanTableA()
-                laser(cps, "off",config=config)
-
-            elif ci0 == 0 and ci1 == 1 and ci2 == 0:
-                print("Tool 2 detected → executing keepTool11()")
-                keepTool11(cps, toolNumber=2, config=config)
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-                stopper_statusmod(cps, state="up")
-                laser(cps, "on",config=config)
-                set_table_state(CPS, "tableAOpenClose", "Close")
-                set_table_state(CPS, "tableBOpenClose", "Close")
-                scanTableA()
-                laser(cps, "off",config=config)
-
-            elif ci0 == 0 and ci1 == 1 and ci2 == 1:
-                print("Tool 1 detected → executing keepTool11()")
-                keepTool11(cps, toolNumber=1, config=config)
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-                stopper_statusmod(cps, state="up")
-                laser(cps, "on",config=config)
-                set_table_state(CPS, "tableAOpenClose", "Close")
-                set_table_state(CPS, "tableBOpenClose", "Close")
-                scanTableA()
-                laser(cps, "off",config=config)
-
+            # Check Conditions
+            if ci0 is None or ci1 is None or ci2 is None:
+                print("Failed to read one or more CI bits.")
             else:
-                print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
+                if ci0 == 0 and ci1 == 0 and ci2 == 0:
+                    print("No tool in hand")
+                    stopper_statusmod(cps, state="up")
+                    laser(cps, "on",config=config)
+                    set_table_state(CPS, "tableAOpenClose", "Close")
+                    set_table_state(CPS, "tableBOpenClose", "Close")
+                    scanTableA()
+                    laser(cps, "off",config=config)
+                
+
+                elif ci0 == 1 and ci1 == 0 and ci2 == 0:
+                    print("Tool 3 detected → executing keepTool11()")
+                    keepTool11(cps, toolNumber=3, config=config)
+                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
+                    stopper_statusmod(cps, state="up")
+                    laser(cps, "on",config=config)
+                    set_table_state(CPS, "tableAOpenClose", "Close")
+                    set_table_state(CPS, "tableBOpenClose", "Close")
+                    scanTableA()
+                    laser(cps, "off",config=config)
+
+                elif ci0 == 0 and ci1 == 1 and ci2 == 0:
+                    print("Tool 2 detected → executing keepTool11()")
+                    keepTool11(cps, toolNumber=2, config=config)
+                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
+                    stopper_statusmod(cps, state="up")
+                    laser(cps, "on",config=config)
+                    set_table_state(CPS, "tableAOpenClose", "Close")
+                    set_table_state(CPS, "tableBOpenClose", "Close")
+                    scanTableA()
+                    laser(cps, "off",config=config)
+
+                elif ci0 == 0 and ci1 == 1 and ci2 == 1:
+                    print("Tool 1 detected → executing keepTool11()")
+                    keepTool11(cps, toolNumber=1, config=config)
+                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
+                    stopper_statusmod(cps, state="up")
+                    laser(cps, "on",config=config)
+                    set_table_state(CPS, "tableAOpenClose", "Close")
+                    set_table_state(CPS, "tableBOpenClose", "Close")
+                    scanTableA()
+                    laser(cps, "off",config=config)
+
+                else:
+                    print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
+                # scanTableA() #Run the Table Scan
+                # scanhoming() #Run the homing after table scan
+                # # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
+                # return jsonify({'status': 'success', 'message':'Table scan started'})
+            scanhoming()
             # scanTableA() #Run the Table Scan
             # scanhoming() #Run the homing after table scan
-            # # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
-            # return jsonify({'status': 'success', 'message':'Table scan started'})
-        scanhoming()
-        # scanTableA() #Run the Table Scan
-        # scanhoming() #Run the homing after table scan
-        # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
-        return jsonify({'status': 'success', 'message':'Table scan started'})
+            # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
+            return jsonify({'status': 'success', 'message':'Table scan started'})
     
     return jsonify({'status': 'error', 'message': 'Invalid action provided'}), 400
 
