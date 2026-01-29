@@ -92,6 +92,24 @@ def msg_to_frontend(api_url, message):
         return None
 
 
+# Global stop flag shared by long-running operations.
+STOP_REQUESTED = False
+
+
+def request_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+
+
+def clear_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
+
+
+def stop_requested() -> bool:
+    return STOP_REQUESTED
+
+
 
 
 def setup_logger(
@@ -2868,6 +2886,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
 
             if robo7thPos:
+                if stop_requested():
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Scan stopped by user.",
+                    )
+                    return ([], [], [], [], [], [], [])
                 start_pos = robo7thPos[0]
                 config["logger"].info(
                     f"[scan] Pre-scan move to lengthx0: {start_pos}mm"
@@ -2883,6 +2907,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
 
             for tblCnt, roboPos in enumerate(robo7thPos):
+                if stop_requested():
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Scan stopped by user.",
+                    )
+                    return ([], [], [], [], [], [], [])
                 communicate(
                     cps=cps,
                     seventh=roboPos,
@@ -2994,10 +3024,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         allXMeasurements.reverse()
 
         # Define thresholds for each chunk
-        for xcnt, xmeasurements in enumerate(allXMeasurements):
-            ###############################
-            ####### point calcu x     #####
-            ###############################
+            for xcnt, xmeasurements in enumerate(allXMeasurements):
+                if stop_requested():
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Scan stopped by user.",
+                    )
+                    return ([], [], [], [], [], [], [])
+                ###############################
+                ####### point calcu x     #####
+                ###############################
 
             first_non_nan = next(
                 item for item in xmeasurements if not np.isnan(item["height"])
@@ -3041,6 +3077,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ymeasurements = []
 
             if config["settings"]["actualScan"]:
+                if stop_requested():
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Scan stopped by user.",
+                    )
+                    return ([], [], [], [], [], [], [])
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message=f"Moving to Door {len(allXMeasurements) - xcnt} to Scan Vertically...",
@@ -4791,6 +4833,8 @@ def communicate(
     wait=None,
     speed_mode="override",
 ):
+    if stop_requested():
+        return []
     def euclidean_distance(point1, point2):
         """
         Calculate the Euclidean distance between two points in 3D space.
@@ -4841,6 +4885,8 @@ def communicate(
                     * speed_value
                 )
 
+        if stop_requested():
+            return
         nRet = cps.HRIF_MoveL(
             0,
             0,
@@ -4863,6 +4909,8 @@ def communicate(
             robotRes = []
             while wait:
                 nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
+                if stop_requested():
+                    break
                 # config['logger'].info(robotRes)
 
                 #---- SAFETY CHECK ----
@@ -5048,6 +5096,8 @@ def communicate(
     # time.sleep(0.1)
 
     if seventh != -1:
+        if stop_requested():
+            return measurements
         ok = seventhGoToPos(
             cps=cps,
             position=seventh,
@@ -5061,6 +5111,8 @@ def communicate(
             return measurements
 
     if point:
+        if stop_requested():
+            return measurements
         customMoveL(
             cps,
             point=point,
@@ -5099,6 +5151,8 @@ def toolValve1(cps, valveState: str, config):  # Tool valve for grabbing or thro
         valveState (str): "pick" to grab the tool, "drop" to let the tool go.
         config (config): configuration file
     """
+    if stop_requested():
+        return
     # required sleep (for proper functioning)
     time.sleep(0.5)
     if valveState == "drop":

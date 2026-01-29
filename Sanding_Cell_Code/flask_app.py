@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from threading import Thread
-from Server_Better_V2 import handle_client
+from Server_Better_V2 import handle_client, request_stop, clear_stop
 from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
 from Server_Better_V2 import setup_logger
 import yaml, requests
@@ -1046,6 +1046,7 @@ def handle_action():
 
     elif action == "stop":
         # Safe stop: stop motion only; do not toggle tool/valve outputs.
+        request_stop()
         CPS.HRIF_GrpStop(0, 0)
         try:
             CPS.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
@@ -1057,6 +1058,7 @@ def handle_action():
         return stop_process()
 
     elif action == "homing":
+        clear_stop()
         # Call your homing function here
         config_data_UI = fetch_and_combine_data()
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
@@ -1080,6 +1082,7 @@ def handle_action():
     #     return start_process(config_data_UI)
     
     elif action == "scan":
+        clear_stop()
         config_data_UI = fetch_and_combine_data()
         with robot_lock:
             ret = ensure_cps_connected()
