@@ -92,6 +92,8 @@ def msg_to_frontend(api_url, message):
         return None
 
 
+
+
 def setup_logger(
     enable_console_logging: bool = False,
     enable_file_logging: bool = True,
@@ -1905,13 +1907,15 @@ def setUCS_TCP(cps, tcp, ucs, config):
     return
 
 
-def handle_client(config, homingState=False, startSanding=True, scan=False):
-    # Establish connection with robot
-    cps = CPSClient()
-    IP = config["server"]["cpip"]
-    port = config["server"]["cps"]
-    ret = cps.HRIF_Connect(0, IP, port)
-    config["logger"] = setup_logger(config["settings"]["debug"])
+def handle_client(config, homingState=False, startSanding=True, scan=False, cps=None):
+    # Establish connection with robot (unless caller provides an existing CPS client)
+    if cps is None:
+        cps = CPSClient()
+        IP = config["server"]["cpip"]
+        port = config["server"]["cps"]
+        ret = cps.HRIF_Connect(0, IP, port)
+    if "logger" not in config:
+        config["logger"] = setup_logger(config["settings"]["debug"])
 
     def homingFunction(cps, config):
         result = [-1, -1, -1, -1]
@@ -4960,6 +4964,16 @@ def communicate(
         nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
         time.sleep(0.2)
 
+        if nret != 0 or len(pluginRes) < 3:
+            config["logger"].error(
+                f"[7thAxisMove] Failed to read J7 state before move (ret={nret}, res={pluginRes})."
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="7th axis state read failed. Please verify J7 connection and try again.",
+            )
+            return False
+
         # if(config['settings']['debug']):
         #     config['logger'].info(f'motorList: {PosRes}')
         #     config['logger'].info(f'motorConnect: {result}')
@@ -4971,13 +4985,32 @@ def communicate(
         nret = cps.HRIF_HRApp(
             0, "HR_Motor", "MotorMovePositionSpeed", ["J7", position, speed], result
         )
+        if nret != 0:
+            config["logger"].error(
+                f"[7thAxisMove] MotorMovePositionSpeed failed (ret={nret}, res={result})."
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="7th axis move failed. Please verify J7 and try again.",
+            )
+            return False
         config["logger"].info(
             f"[7thAxisMove] Going to position: {position}mm with speed: {speed}mm/s"
         )
         time.sleep(0.0001)
 
         while wait:
+            pluginRes = []
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
+            if nret != 0 or len(pluginRes) < 3:
+                config["logger"].error(
+                    f"[7thAxisMove] MotorGetState failed (ret={nret}, res={pluginRes})."
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="7th axis state read failed during move. Please verify J7.",
+                )
+                return False
 
             # config['logger'].info(f"Trying: {pluginRes}")
             time.sleep(0.00001)
@@ -4986,6 +5019,7 @@ def communicate(
                 break
 
         config["logger"].info(f"[7thAxisMove] Reached position: {position}mm")
+        return True
 
     time.sleep(0.0001)
 
@@ -5014,7 +5048,7 @@ def communicate(
     # time.sleep(0.1)
 
     if seventh != -1:
-        seventhGoToPos(
+        ok = seventhGoToPos(
             cps=cps,
             position=seventh,
             speed=config["UI"]["seventhAxisSpeed"]
@@ -5023,6 +5057,8 @@ def communicate(
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
         )
+        if not ok:
+            return measurements
 
     if point:
         customMoveL(

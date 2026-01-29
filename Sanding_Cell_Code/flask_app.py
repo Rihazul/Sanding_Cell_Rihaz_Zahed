@@ -1113,7 +1113,7 @@ def handle_action():
                     laser(cps, "on",config=config)
                     set_table_state(CPS, "tableAOpenClose", "Close")
                     set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA()
+                    scanTableA(cps=CPS, config=config)
                     laser(cps, "off",config=config)
                 
 
@@ -1125,7 +1125,7 @@ def handle_action():
                     laser(cps, "on",config=config)
                     set_table_state(CPS, "tableAOpenClose", "Close")
                     set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA()
+                    scanTableA(cps=CPS, config=config)
                     laser(cps, "off",config=config)
 
                 elif ci0 == 0 and ci1 == 1 and ci2 == 0:
@@ -1136,7 +1136,7 @@ def handle_action():
                     laser(cps, "on",config=config)
                     set_table_state(CPS, "tableAOpenClose", "Close")
                     set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA()
+                    scanTableA(cps=CPS, config=config)
                     laser(cps, "off",config=config)
 
                 elif ci0 == 0 and ci1 == 1 and ci2 == 1:
@@ -1147,7 +1147,7 @@ def handle_action():
                     laser(cps, "on",config=config)
                     set_table_state(CPS, "tableAOpenClose", "Close")
                     set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA()
+                    scanTableA(cps=CPS, config=config)
                     laser(cps, "off",config=config)
 
                 else:

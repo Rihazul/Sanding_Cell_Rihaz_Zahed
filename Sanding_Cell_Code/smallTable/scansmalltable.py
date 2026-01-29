@@ -51,18 +51,14 @@ def save_scan_results_to_json(data, output_dir=None):
     print(f"Scan results saved to {output_file}")
     return output_file
 
-def scanTableA():
-    # Load configuration from YAML
-    config = load_config()
+def scanTableA(cps=None, config=None):
+    # Load configuration from YAML if not provided
+    if config is None:
+        config = load_config()
 
-    # Set up logger
-    config['logger'] = setup_logger(config['settings']['debug'])
-
-    # Establish connection with robot
-    cps = CPSClient()
-    IP = config['server']['cpip']
-    port = config['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
+    # Set up logger if needed
+    if 'logger' not in config:
+        config['logger'] = setup_logger(config['settings']['debug'])
 
     
 
@@ -77,7 +73,8 @@ def scanTableA():
             config=config,
             homingState=False,      # Set to True if homing is needed before scanning by handle_client
             startSanding=False ,     # Crucial to ensure only scanning occurs and results are returned
-            scan=True
+            scan=True,
+            cps=cps
         )
 
     print("\n--- Scan completed. Received data: ---")
