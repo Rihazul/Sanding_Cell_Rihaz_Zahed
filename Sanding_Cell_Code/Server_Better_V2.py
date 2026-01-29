@@ -1944,6 +1944,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             config=config,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing stopped by user.",
+            )
+            return
         # result = [ ] # Read the current actual location information
         nRet = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
         
@@ -1972,6 +1978,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 speed=config["door"]["homingSpeed"],
                 wait=False,
             )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing stopped by user.",
+            )
+            return
         communicate(
             cps=cps,
             point=config["point"]["safePoint"],
@@ -1983,6 +1995,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             wait=False,
         )
         waitForBlending(cps=cps, config=config)
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing stopped by user.",
+            )
+            return
         # connect the 7th axis motor
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
         time.sleep(0.2)
@@ -2009,6 +2027,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         result = [-1, -1, "-1"]
         # for waiting till the motor moves to the position
         while result[2] != "0":
+            if stop_requested():
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="Homing stopped by user.",
+                )
+                return
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
             print(f"****** result: {result}")
             time.sleep(0.5)
@@ -2079,6 +2103,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             # config['logger'].info(f"Robot thing: {robotRes}")
             time.sleep(0.2)
             check_return_value(ret)
+            if stop_requested():
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="Homing stopped by user.",
+                )
+                return
             if result[0] == "5" or result[0] == "6":
                 config["logger"].info(result)
                 break
@@ -3024,16 +3054,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         allXMeasurements.reverse()
 
         # Define thresholds for each chunk
-            for xcnt, xmeasurements in enumerate(allXMeasurements):
-                if stop_requested():
-                    msg_to_frontend(
+        for xcnt, xmeasurements in enumerate(allXMeasurements):
+            if stop_requested():
+                msg_to_frontend(
                         api_url=config["server"]["frontEnd_messaging_url"],
                         message="Scan stopped by user.",
-                    )
-                    return ([], [], [], [], [], [], [])
+                    )    
+                return ([], [], [], [], [], [], [])
                 ###############################
                 ####### point calcu x     #####
-                ###############################
+                ###############################        
 
             first_non_nan = next(
                 item for item in xmeasurements if not np.isnan(item["height"])

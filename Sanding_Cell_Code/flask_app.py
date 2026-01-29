@@ -1062,8 +1062,8 @@ def handle_action():
         # Call your homing function here
         config_data_UI = fetch_and_combine_data()
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
-        handle_client(config_data_UI, homingState=True, startSanding=False)
-        homingtotal()
+        handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
+        homingtotal(cps=CPS, config=config_data_UI)
         return jsonify({'status': 'success', 'message': 'Action homing received and executed'})
 
     elif action == "enable":
