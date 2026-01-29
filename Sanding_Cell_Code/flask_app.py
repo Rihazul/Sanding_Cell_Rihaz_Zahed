@@ -165,6 +165,11 @@ def _track_process(proc: Process) -> None:
         global client_process
         process_state['status'] = 'completed'
         client_process = None
+        # Reconnect global CPS after child process finishes (it may have used the socket exclusively).
+        try:
+            ensure_cps_connected()
+        except Exception:
+            pass
         socketio.emit('flash_message', {"message": "Process finished"})
 
 ############################################################################################
@@ -248,6 +253,11 @@ def start_TableB_process():
     nRet = CPS.HRIF_SetBoxCO(0, 2, 0)
     print("stopper Test")
 
+    # Disconnect global CPS before starting a child process that will open its own CPS connection.
+    try:
+        CPS.HRIF_DisConnect(0)
+    except Exception:
+        pass
     client_process = Process(target=modelMethodmap[tableData['model']], args=())
     process_state['status'] = 'in_progress'
     client_process.start()
@@ -301,6 +311,11 @@ def start_TableA_process():
     set_table_state(CPS, "tableBOpenClose", "Close")
     stopper_statusmod(CPS, state="up")
 
+    # Disconnect global CPS before starting a child process that will open its own CPS connection.
+    try:
+        CPS.HRIF_DisConnect(0)
+    except Exception:
+        pass
     client_process = Process(target=modelMethodMapTableA[tableData['model']], args=())
     process_state['status'] = 'in_progress'
     client_process.start()
@@ -1159,7 +1174,7 @@ def handle_action():
                 # scanhoming() #Run the homing after table scan
                 # # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
                 # return jsonify({'status': 'success', 'message':'Table scan started'})
-            scanhoming()
+            scanhoming(cps=CPS, config=config)
             # scanTableA() #Run the Table Scan
             # scanhoming() #Run the homing after table scan
             # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)

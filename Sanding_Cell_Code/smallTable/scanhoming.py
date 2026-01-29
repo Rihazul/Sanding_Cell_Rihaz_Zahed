@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 import threading
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,stop_requested
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -29,18 +29,22 @@ def load_config():
     return config
 
 
-def scanhoming():
-    # Load configuration from YAML
-    config = load_config()
+def scanhoming(cps=None, config=None):
+    # Load configuration from YAML if not provided
+    if config is None:
+        config = load_config()
 
     #Set up logger
     config['logger'] = setup_logger(config['settings']['debug'])
 
-    #Establish connection with robot
-    cps = CPSClient()
-    IP = config['server']['cpip']
-    port = config['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
+    if stop_requested():
+        return
+    #Establish connection with robot unless provided
+    if cps is None:
+        cps = CPSClient()
+        IP = config['server']['cpip']
+        port = config['server']['cps']
+        ret = cps.HRIF_Connect(0, IP, port)
 
     #Main Points
     b00 = get_outer_corner_point(1, 0)
