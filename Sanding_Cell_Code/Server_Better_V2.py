@@ -2801,6 +2801,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
         robo7thPos = [
             config["table"][f"lengthx{i}"] for i in range(config["table"]["count"])
         ]
+        # Optional offset to map homing position to origin when J7 state is unknown.
+        j7_zero_offset = float(config.get("offset", {}).get("seventhAxisHomeToOrigin", 0) or 0)
+        apply_j7_offset = False
         config["logger"].info("[scan] 7th axis positions robot will move: %s", robo7thPos)
 
         framePoints = []
@@ -2824,14 +2827,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
             connect_j7()
             state = get_j7_state()
             if state is None or state == "-1":
+                apply_j7_offset = True
                 config["logger"].warning(
-                    "[scan] J7 state unknown; proceeding with scan (manual positioning assumed)."
+                    "[scan] J7 state unknown; assuming current position is homing. Applying offset if configured."
                 )
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
-                    message="Scan safety check warning: J7 state unknown. Proceeding with scan (manual positioning assumed).",
+                    message="Scan safety check warning: J7 state unknown. Assuming homing position and applying offset.",
                 )
-                state = None
 
             if state == "1":
                 config["logger"].info("[scan] J7 moving; stopping before scan.")
@@ -2851,6 +2854,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False):
                         message="Scan safety check failed: J7 did not stop. Please verify J7 and try again.",
                     )
                     exit(-1)
+
+            if apply_j7_offset and j7_zero_offset:
+                robo7thPos = [pos + j7_zero_offset for pos in robo7thPos]
+                config["logger"].info(
+                    "[scan] J7 offset applied (%s mm). New positions: %s",
+                    j7_zero_offset,
+                    robo7thPos,
+                )
 
             if robo7thPos:
                 start_pos = robo7thPos[0]
