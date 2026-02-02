@@ -1952,14 +1952,35 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             return
         # result = [ ] # Read the current actual location information
         nRet = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
-        
-        # ---- SAFETY CHECK ----
-        if result is None:
-            raise ValueError("homingFunction: result is None")
-        if not isinstance(result,(list,tuple)):
-            raise TypeError(f"homingFunction: result is not list/tuple: {result}")
-        if len(result)< 7:
-            raise IndexError(f"homingFunction: result too short ({len(result)}): {result}")
+
+        # ---- SAFETY CHECK / RETRY ----
+        if result is None or not isinstance(result, (list, tuple)):
+            config["logger"].error(f"[HomingFunc] Invalid result type: {result}")
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing failed: controller returned invalid position data.",
+            )
+            return
+        if nRet != 0 or len(result) < 7:
+            config["logger"].error(
+                f"[HomingFunc] HRIF_ReadActPos failed ret={nRet}, len={len(result)} data={result}"
+            )
+            # Try one reconnect + retry before aborting
+            try:
+                cps.HRIF_DisConnect(0)
+                time.sleep(0.2)
+                cps.HRIF_Connect(0, config["server"]["cpip"], config["server"]["cps"])
+                result = [-1, -1, -1, -1]
+                nRet = cps.HRIF_ReadActPos(0, 0, result)
+            except Exception as exc:
+                config["logger"].error(f"[HomingFunc] Reconnect failed: {exc}")
+
+            if nRet != 0 or len(result) < 7:
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="Homing failed: controller did not return full position data.",
+                )
+                return
         
         dX = float(result[6])
         # config['logger'].info(f"[homing] current position: {result}")
