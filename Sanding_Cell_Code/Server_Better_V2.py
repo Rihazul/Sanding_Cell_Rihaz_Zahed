@@ -2854,7 +2854,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             config["table"][f"lengthx{i}"] for i in range(config["table"]["count"])
         ]
         # Optional offset to map homing position to origin when J7 state is unknown.
-        j7_zero_offset = float(config.get("offset", {}).get("seventhAxisHomeToOrigin", 0) or 0)
+        j7_zero_offset = float(
+            config.get("offset", {}).get(
+                "seventhAxisHomeToOrigin",
+                config.get("offset", {}).get("seventhAxis", 0),
+            )
+            or 0
+        )
         apply_j7_offset = False
         config["logger"].info("[scan] 7th axis positions robot will move: %s", robo7thPos)
 
@@ -2883,6 +2889,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].warning(
                     "[scan] J7 state unknown; assuming current position is homing. Applying offset if configured."
                 )
+                if not j7_zero_offset:
+                    config["logger"].warning(
+                        "[scan] J7 offset not configured; scan will use current J7 position as origin."
+                    )
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message="Scan safety check warning: J7 state unknown. Assuming homing position and applying offset.",
@@ -2926,7 +2936,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].info(
                     f"[scan] Pre-scan move to lengthx0: {start_pos}mm"
                 )
-                communicate(
+                pre_scan_ok = communicate(
                     cps=cps,
                     seventh=start_pos,
                     tcp=config["coords"]["tcpLaserPlane1"],
@@ -2934,7 +2944,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     config=config,
                     speed=config["UI"]["robotSpeed"],
                     wait=True,
+                    require_seventh_ok=True,
                 )
+                if pre_scan_ok is None:
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Scan aborted: failed to move J7 to starting position.",
+                    )
+                    return ([], [], [], [], [], [], [])
 
             for tblCnt, roboPos in enumerate(robo7thPos):
                 if stop_requested():
@@ -2943,14 +2960,21 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         message="Scan stopped by user.",
                     )
                     return ([], [], [], [], [], [], [])
-                communicate(
+                move_ok = communicate(
                     cps=cps,
                     seventh=roboPos,
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     speed=config["UI"]["robotSpeed"],
+                    require_seventh_ok=True,
                 )
+                if move_ok is None:
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message=f"Scan aborted: failed to move J7 to table section {tblCnt + 1}.",
+                    )
+                    return ([], [], [], [], [], [], [])
                 config["logger"].info(
                     f"[scan-x] success to move 7th to go to position for table: {tblCnt + 1}, position: {roboPos}"
                 )
@@ -3119,14 +3143,21 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
                 # It gets stuck here and returns code 20018
                 # Adjust timer in IsBlendingDone at the top
-                communicate(
+                move_ok = communicate(
                     cps=cps,
                     seventh=xpos,
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsDefault"],
                     config=config,
                     speed=config["UI"]["robotSpeed"],
+                    require_seventh_ok=True,
                 )
+                if move_ok is None:
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message=f"Scan aborted: failed to move J7 to door position {len(allXMeasurements) - xcnt}.",
+                    )
+                    return ([], [], [], [], [], [], [])
                 config["logger"].info(
                     f"[scan-y] success to move 7th to go to position for table: {tblCnt + 1}, position: {xpos}"
                 )
@@ -4862,6 +4893,7 @@ def communicate(
     stopWhenNan=False,
     wait=None,
     speed_mode="override",
+    require_seventh_ok=False,
 ):
     if stop_requested():
         return []
@@ -5028,6 +5060,10 @@ def communicate(
                 keepgoing = False
 
     def seventhGoToPos(cps, position, speed, config, wait=True):
+        def move_ok(nret, result):
+            if nret is None:
+                return bool(result) and str(result[0]) == "0"
+            return nret == 0
         pluginRes = []
         robotRes = []
         PosRes = []
@@ -5063,7 +5099,7 @@ def communicate(
         nret = cps.HRIF_HRApp(
             0, "HR_Motor", "MotorMovePositionSpeed", ["J7", position, speed], result
         )
-        if nret != 0:
+        if not move_ok(nret, result):
             config["logger"].error(
                 f"[7thAxisMove] MotorMovePositionSpeed failed (ret={nret}, res={result})."
             )
@@ -5138,7 +5174,7 @@ def communicate(
             wait=wait if wait is not None else bool(1 - doMeasure),
         )
         if not ok:
-            return measurements
+            return None if require_seventh_ok else measurements
 
     if point:
         if stop_requested():
