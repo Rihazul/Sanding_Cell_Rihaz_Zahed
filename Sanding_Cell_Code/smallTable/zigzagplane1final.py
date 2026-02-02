@@ -367,9 +367,44 @@ def _ik_pose_to_joint(
     box_id: int = 0,
     robot_id: int = 0,
 ):
+    def _resolve_frame_pose(frame, *, kind: str):
+        if frame is None:
+            print(f"[MoveJS] {kind} frame is None")
+            return None
+        if isinstance(frame, (list, tuple)):
+            if len(frame) < 6:
+                print(f"[MoveJS] {kind} frame too short: {frame}")
+                return None
+            try:
+                return [float(v) for v in frame[:6]]
+            except (TypeError, ValueError) as exc:
+                print(f"[MoveJS] {kind} frame parse error: {exc} data={frame}")
+                return None
+        if isinstance(frame, str):
+            result = []
+            if kind == "tcp":
+                ret = cps.HRIF_ReadTCPByName(box_id, robot_id, frame, result)
+            else:
+                ret = cps.HRIF_ReadUCSByName(box_id, robot_id, frame, result)
+            if ret != 0 or len(result) < 6:
+                print(f"[MoveJS] Failed to read {kind} by name: {frame}, ret={ret}, data={result}")
+                return None
+            try:
+                return [float(v) for v in result[:6]]
+            except (TypeError, ValueError) as exc:
+                print(f"[MoveJS] {kind} frame parse error: {exc} data={result}")
+                return None
+        print(f"[MoveJS] Unsupported {kind} frame type: {type(frame)}")
+        return None
+
+    tcp_pose = _resolve_frame_pose(tcp_frame, kind="tcp")
+    ucs_pose = _resolve_frame_pose(ucs_frame, kind="ucs")
+    if tcp_pose is None or ucs_pose is None:
+        return None
+
     result = []
     ret = cps.HRIF_GetInverseKin(
-        box_id, robot_id, pose, joint_seed, tcp_frame, ucs_frame, result
+        box_id, robot_id, pose, joint_seed, tcp_pose, ucs_pose, result
     )
     if ret != 0 or len(result) < 6:
         print(f"[MoveJS] IK failed ret={ret}, pose={pose}, result={result}")
