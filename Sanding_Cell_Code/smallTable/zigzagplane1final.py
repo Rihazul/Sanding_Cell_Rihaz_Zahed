@@ -416,6 +416,15 @@ def _ik_pose_to_joint(
         return None
 
 
+def _is_valid_joint(joint):
+    if not isinstance(joint, (list, tuple)) or len(joint) < 6:
+        return False
+    try:
+        return all(math.isfinite(float(v)) for v in joint[:6])
+    except (TypeError, ValueError):
+        return False
+
+
 def _send_movejs_chunk(
     cps: CPSClient,
     joint_points,
@@ -542,29 +551,34 @@ def movejs_between_points(
             box_id=box_id,
             robot_id=robot_id,
         )
-        if joint is None:
-            return None, total_points, False
+        if joint is None or not _is_valid_joint(joint):
+            continue
 
         joint_seed = joint
         chunk.append(joint)
 
         if len(chunk) >= max_points:
-            if not _send_movejs_chunk(
-                cps,
-                chunk,
-                velocity=velocity,
-                accel=accel,
-                jerk_ratio=jerk_ratio,
-                transition_deg=transition_deg,
-                box_id=box_id,
-                robot_id=robot_id,
-            ):
-                return None, total_points, False
-            total_points += len(chunk)
-            chunk = []
-            time.sleep(0.01)
+            if len(chunk) >= 2:
+                if not _send_movejs_chunk(
+                    cps,
+                    chunk,
+                    velocity=velocity,
+                    accel=accel,
+                    jerk_ratio=jerk_ratio,
+                    transition_deg=transition_deg,
+                    box_id=box_id,
+                    robot_id=robot_id,
+                ):
+                    return None, total_points, False
+                total_points += len(chunk)
+                chunk = []
+                time.sleep(0.01)
+            else:
+                chunk = []
 
     if chunk:
+        if len(chunk) < 2:
+            return joint_seed, total_points, False
         if not _send_movejs_chunk(
             cps,
             chunk,
@@ -577,6 +591,9 @@ def movejs_between_points(
         ):
             return None, total_points, False
         total_points += len(chunk)
+
+    if total_points < 2:
+        return joint_seed, total_points, False
 
     return joint_seed, total_points, True
 
@@ -633,8 +650,21 @@ def run_spiral_movejs_path(
                 box_id=box_id,
                 robot_id=robot_id,
             )
-            if not ok:
-                return False
+            if not ok or sent < 2:
+                print("[MoveJS] Not enough valid joints; fallback to MoveL for this segment.")
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=point_B,
+                    tcp=tcp,
+                    ucs=ucs,
+                    seventh=-1,
+                    speed=float(config["UI"]["sandSpeed"]),
+                    speed_mode="linear",
+                    wait=True,
+                )
+                joint_seed = _read_cmd_joint_seed(cps, box_id=box_id, robot_id=robot_id)
+                continue
 
             total_points += sent
             if sent > 0 and not vibration_on:
