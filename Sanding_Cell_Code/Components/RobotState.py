@@ -413,7 +413,7 @@ class RobotState(RobotInteractions):
         """Prints a single status line that gets overwritten every call."""
         print(self.format_status_line(), end="", flush=True)
 
-    def _read_robot_fsm(cps: CPSClient, box_id: int = 0, robot_id: int = 0):
+    def _read_robot_fsm(self,cps: CPSClient, box_id: int = 0, robot_id: int = 0):
         result = []
         ret = cps.HRIF_ReadCurFSM(box_id, robot_id, result)
         if ret != 0 or not result:
@@ -424,7 +424,7 @@ class RobotState(RobotInteractions):
             return None, result
 
 
-    def wait_for_standby(
+    def wait_for_standby(self,
         cps: CPSClient,
         *,
         timeout: float = 5.0,
