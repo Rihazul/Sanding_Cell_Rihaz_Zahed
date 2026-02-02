@@ -1318,22 +1318,26 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                ok = run_spiral_movejs_path(
-                    cps=cps,
-                    config=config,
-                    zigzag_points=zigzag_points,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    velocity=30.0,
-                    accel=50.0,
-                    orientation=orientation,
-                    box_id=0,
-                    robot_id=0,
-                )
-                if not ok:
-                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
+                waitForBlending(cps=cps, config=config)
+                if not _wait_for_standby(cps, timeout=2.0):
+                    print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
+                else:
+                    ok = run_spiral_movejs_path(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        velocity=30.0,
+                        accel=50.0,
+                        orientation=orientation,
+                        box_id=0,
+                        robot_id=0,
+                    )
+                    if not ok:
+                        print("[MoveJS] Spiral path failed; aborting zigzag segment.")
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
@@ -1638,22 +1642,26 @@ def smalldoor2zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                ok = run_spiral_movejs_path(
-                    cps=cps,
-                    config=config,
-                    zigzag_points=zigzag_points,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    velocity=300.0,
-                    accel=500.0,
-                    orientation=orientation,
-                    box_id=0,
-                    robot_id=0,
-                )
-                if not ok:
-                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
+                waitForBlending(cps=cps, config=config)
+                if not _wait_for_standby(cps, timeout=2.0):
+                    print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
+                else:
+                    ok = run_spiral_movejs_path(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        velocity=300.0,
+                        accel=500.0,
+                        orientation=orientation,
+                        box_id=0,
+                        robot_id=0,
+                    )
+                    if not ok:
+                        print("[MoveJS] Spiral path failed; aborting zigzag segment.")
 
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -1960,22 +1968,26 @@ def smalldoor3zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                ok = run_spiral_movejs_path(
-                    cps=cps,
-                    config=config,
-                    zigzag_points=zigzag_points,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    velocity=300.0,
-                    accel=500.0,
-                    orientation=orientation,
-                    box_id=0,
-                    robot_id=0,
-                )
-                if not ok:
-                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
+                waitForBlending(cps=cps, config=config)
+                if not _wait_for_standby(cps, timeout=2.0):
+                    print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
+                else:
+                    ok = run_spiral_movejs_path(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        velocity=300.0,
+                        accel=500.0,
+                        orientation=orientation,
+                        box_id=0,
+                        robot_id=0,
+                    )
+                    if not ok:
+                        print("[MoveJS] Spiral path failed; aborting zigzag segment.")
 
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -2281,22 +2293,26 @@ def smalldoor4zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                ok = run_spiral_movejs_path(
-                    cps=cps,
-                    config=config,
-                    zigzag_points=zigzag_points,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    velocity=300.0,
-                    accel=500.0,
-                    orientation=orientation,
-                    box_id=0,
-                    robot_id=0,
-                )
-                if not ok:
-                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
+                waitForBlending(cps=cps, config=config)
+                if not _wait_for_standby(cps, timeout=2.0):
+                    print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
+                else:
+                    ok = run_spiral_movejs_path(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        velocity=300.0,
+                        accel=500.0,
+                        orientation=orientation,
+                        box_id=0,
+                        robot_id=0,
+                    )
+                    if not ok:
+                        print("[MoveJS] Spiral path failed; aborting zigzag segment.")
 
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
