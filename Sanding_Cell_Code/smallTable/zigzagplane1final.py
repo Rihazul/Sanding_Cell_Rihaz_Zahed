@@ -347,7 +347,7 @@ def finalize_spiral_path(
 
 def _read_cmd_joint_seed(cps: CPSClient, box_id: int = 0, robot_id: int = 0):
     seed = []
-    ret = cps.HRIF_ReadCmdJointCur(box_id, robot_id, seed)
+    ret = cps.HRIF_ReadActJointPos(box_id, robot_id, seed)
     if ret != 0 or len(seed) < 6:
         print(f"[MoveJS] Failed to read joint seed: ret={ret}, data={seed}")
         return None
@@ -578,8 +578,8 @@ def run_spiral_movejs_path(
                 start_pose=point_A,
                 end_pose=point_B,
                 joint_seed=joint_seed,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
+                tcp_frame=config["coords"]["tcptool1plane1"],
+                ucs_frame=config["coords"]["ucsTable1"],
                 radius=radius,
                 angle_step_deg=angle_step_deg,
                 velocity=velocity,
