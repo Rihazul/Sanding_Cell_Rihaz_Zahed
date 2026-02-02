@@ -413,37 +413,37 @@ class RobotState(RobotInteractions):
         """Prints a single status line that gets overwritten every call."""
         print(self.format_status_line(), end="", flush=True)
 
-def _read_robot_fsm(cps: CPSClient, box_id: int = 0, robot_id: int = 0):
-    result = []
-    ret = cps.HRIF_ReadCurFSM(box_id, robot_id, result)
-    if ret != 0 or not result:
-        return None, result
-    try:
-        return int(float(result[0])), result
-    except (TypeError, ValueError):
-        return None, result
+    def _read_robot_fsm(cps: CPSClient, box_id: int = 0, robot_id: int = 0):
+        result = []
+        ret = cps.HRIF_ReadCurFSM(box_id, robot_id, result)
+        if ret != 0 or not result:
+            return None, result
+        try:
+            return int(float(result[0])), result
+        except (TypeError, ValueError):
+            return None, result
 
 
-def wait_for_standby(
-    cps: CPSClient,
-    *,
-    timeout: float = 5.0,
-    poll_seconds: float = 0.1,
-    box_id: int = 0,
-    robot_id: int = 0,
-) -> bool:
-    start = time.time()
-    last_raw = []
-    last_fsm = None
-    while time.time() - start <= timeout:
-        fsm, raw = _read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
-        last_fsm = fsm
-        last_raw = raw
-        if fsm == 33:  # StandBy
-            return True
-        time.sleep(poll_seconds)
-    print(f"[MoveJS] Robot not standby (fsm={last_fsm}, raw={last_raw})")
-    return False
+    def wait_for_standby(
+        cps: CPSClient,
+        *,
+        timeout: float = 5.0,
+        poll_seconds: float = 0.1,
+        box_id: int = 0,
+        robot_id: int = 0,
+    ) -> bool:
+        start = time.time()
+        last_raw = []
+        last_fsm = None
+        while time.time() - start <= timeout:
+            fsm, raw = _read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
+            last_fsm = fsm
+            last_raw = raw
+            if fsm == 33:  # StandBy
+                return True
+            time.sleep(poll_seconds)
+        print(f"[MoveJS] Robot not standby (fsm={last_fsm}, raw={last_raw})")
+        return False
 
 
 
