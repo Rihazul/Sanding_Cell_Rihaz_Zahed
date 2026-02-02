@@ -1319,7 +1319,7 @@ def smalldoor1zizag(
                     wait=True
                 )
                 waitForBlending(cps=cps, config=config)
-                if not _wait_for_standby(cps, timeout=2.0):
+                if not RobotState.wait_for_standby(cps, timeout=2.0,box_id=0, robot_id=0):
                     print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
                 else:
                     ok = run_spiral_movejs_path(
@@ -1643,7 +1643,7 @@ def smalldoor2zizag(
                     wait=True
                 )
                 waitForBlending(cps=cps, config=config)
-                if not _wait_for_standby(cps, timeout=2.0):
+                if not RobotState.wait_for_standby(cps, timeout=2.0,box_id=0, robot_id=0):
                     print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
                 else:
                     ok = run_spiral_movejs_path(
@@ -1969,7 +1969,7 @@ def smalldoor3zizag(
                     wait=True
                 )
                 waitForBlending(cps=cps, config=config)
-                if not _wait_for_standby(cps, timeout=2.0):
+                if not RobotState.wait_for_standby(cps, timeout=2.0,box_id=0, robot_id=0):
                     print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
                 else:
                     ok = run_spiral_movejs_path(
@@ -2294,7 +2294,7 @@ def smalldoor4zizag(
                     wait=True
                 )
                 waitForBlending(cps=cps, config=config)
-                if not _wait_for_standby(cps, timeout=2.0):
+                if not RobotState.wait_for_standby(cps, timeout=2.0,box_id=0, robot_id=0):
                     print("[MoveJS] Robot not standby after MoveL; skipping spiral segment.")
                 else:
                     ok = run_spiral_movejs_path(
