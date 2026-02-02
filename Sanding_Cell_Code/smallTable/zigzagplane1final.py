@@ -66,6 +66,10 @@ def compute_timeout(
 
 DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
+DEFAULT_MOVEJS_JERK_RATIO = 100
+DEFAULT_MOVEJS_TRANSITION_DEG = 25
+MOVEJS_MAX_POINTS = 50
+
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -338,6 +342,275 @@ def finalize_spiral_path(
             turn_vibration_off(cps)
 
     return ok
+
+
+
+def _read_cmd_joint_seed(cps: CPSClient, box_id: int = 0, robot_id: int = 0):
+    seed = []
+    ret = cps.HRIF_ReadCmdJointCur(box_id, robot_id, seed)
+    if ret != 0 or len(seed) < 6:
+        print(f"[MoveJS] Failed to read joint seed: ret={ret}, data={seed}")
+        return None
+    try:
+        return [float(v) for v in seed[:6]]
+    except (TypeError, ValueError) as exc:
+        print(f"[MoveJS] Failed to parse joint seed: {exc} data={seed}")
+        return None
+
+
+def _ik_pose_to_joint(
+    cps: CPSClient,
+    pose,
+    joint_seed,
+    tcp_frame,
+    ucs_frame,
+    box_id: int = 0,
+    robot_id: int = 0,
+):
+    result = []
+    ret = cps.HRIF_GetInverseKin(
+        box_id, robot_id, pose, joint_seed, tcp_frame, ucs_frame, result
+    )
+    if ret != 0 or len(result) < 6:
+        print(f"[MoveJS] IK failed ret={ret}, pose={pose}, result={result}")
+        return None
+    try:
+        return [float(v) for v in result[:6]]
+    except (TypeError, ValueError) as exc:
+        print(f"[MoveJS] Failed to parse IK result: {exc} data={result}")
+        return None
+
+
+def _send_movejs_chunk(
+    cps: CPSClient,
+    joint_points,
+    *,
+    velocity: float,
+    accel: float,
+    jerk_ratio: float,
+    transition_deg: float,
+    box_id: int = 0,
+    robot_id: int = 0,
+) -> bool:
+    if not joint_points:
+        return True
+    ret = cps.HRIF_MoveJS(
+        box_id,
+        robot_id,
+        velocity,
+        accel,
+        jerk_ratio,
+        transition_deg,
+        len(joint_points),
+        joint_points,
+    )
+    print(f"[MoveJS] Sent {len(joint_points)} points, ret={ret}")
+    return ret == 0
+
+
+def _wait_for_motion_complete(
+    cps: CPSClient,
+    timeout: float,
+    *,
+    still_seconds: float = 1.0,
+    poll_seconds: float = 0.05,
+    box_id: int = 0,
+    robot_id: int = 0,
+) -> bool:
+    start = time.time()
+    last_cart = None
+    last_change = time.time()
+    failures = 0
+
+    while True:
+        if time.time() - start > timeout:
+            print(f"[MoveJS] Timeout waiting for motion completion ({timeout:.1f}s).")
+            return False
+
+        result = []
+        ret = cps.HRIF_ReadActPos(box_id, robot_id, result)
+        if ret != 0 or len(result) < 12:
+            failures += 1
+            if failures >= 5:
+                print(f"[MoveJS] HRIF_ReadActPos failed ret={ret}, data={result}")
+                return False
+            time.sleep(poll_seconds)
+            continue
+
+        failures = 0
+        try:
+            curr_cart = [float(v) for v in result[6:12]]
+        except (TypeError, ValueError):
+            time.sleep(poll_seconds)
+            continue
+
+        if last_cart is None:
+            last_cart = curr_cart
+            last_change = time.time()
+        else:
+            if any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6])):
+                last_cart = curr_cart
+                last_change = time.time()
+
+        if time.time() - last_change >= still_seconds:
+            return True
+
+        time.sleep(poll_seconds)
+
+
+def movejs_between_points(
+    cps: CPSClient,
+    start_pose,
+    end_pose,
+    *,
+    joint_seed,
+    tcp_frame,
+    ucs_frame,
+    radius: float,
+    angle_step_deg: float,
+    velocity: float,
+    accel: float,
+    jerk_ratio: float,
+    transition_deg: float,
+    max_points: int,
+    orientation: str,
+    skip_first: bool = False,
+    box_id: int = 0,
+    robot_id: int = 0,
+):
+    cart_points = generate_spiral_between_points(
+        start_pose=start_pose,
+        end_pose=end_pose,
+        radius=radius,
+        angle_step_deg=angle_step_deg,
+        orientation=orientation,
+    )
+
+    chunk = []
+    total_points = 0
+    start_index = 6 if skip_first else 0
+
+    for i in range(start_index, len(cart_points), 6):
+        pose = cart_points[i : i + 6]
+        joint = _ik_pose_to_joint(
+            cps,
+            pose,
+            joint_seed,
+            tcp_frame,
+            ucs_frame,
+            box_id=box_id,
+            robot_id=robot_id,
+        )
+        if joint is None:
+            return None, total_points, False
+
+        joint_seed = joint
+        chunk.append(joint)
+
+        if len(chunk) >= max_points:
+            if not _send_movejs_chunk(
+                cps,
+                chunk,
+                velocity=velocity,
+                accel=accel,
+                jerk_ratio=jerk_ratio,
+                transition_deg=transition_deg,
+                box_id=box_id,
+                robot_id=robot_id,
+            ):
+                return None, total_points, False
+            total_points += len(chunk)
+            chunk = []
+            time.sleep(0.01)
+
+    if chunk:
+        if not _send_movejs_chunk(
+            cps,
+            chunk,
+            velocity=velocity,
+            accel=accel,
+            jerk_ratio=jerk_ratio,
+            transition_deg=transition_deg,
+            box_id=box_id,
+            robot_id=robot_id,
+        ):
+            return None, total_points, False
+        total_points += len(chunk)
+
+    return joint_seed, total_points, True
+
+
+def run_spiral_movejs_path(
+    cps: CPSClient,
+    config: dict,
+    zigzag_points,
+    *,
+    tcp: str,
+    ucs: str,
+    radius: float,
+    angle_step_deg: float,
+    velocity: float,
+    accel: float,
+    jerk_ratio: float = DEFAULT_MOVEJS_JERK_RATIO,
+    transition_deg: float = DEFAULT_MOVEJS_TRANSITION_DEG,
+    max_points: int = MOVEJS_MAX_POINTS,
+    orientation: str = "horizontal",
+    box_id: int = 0,
+    robot_id: int = 0,
+) -> bool:
+    if not zigzag_points or len(zigzag_points) < 2:
+        return True
+
+    # Read once after reaching the surface; then reuse the IK result as the next seed.
+    joint_seed = _read_cmd_joint_seed(cps, box_id=box_id, robot_id=robot_id)
+    if joint_seed is None:
+        return False
+
+    total_points = 0
+    vibration_on = False
+
+    try:
+        for index in range(len(zigzag_points) - 1):
+            point_A = zigzag_points[index]
+            point_B = zigzag_points[index + 1]
+            joint_seed, sent, ok = movejs_between_points(
+                cps,
+                start_pose=point_A,
+                end_pose=point_B,
+                joint_seed=joint_seed,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                radius=radius,
+                angle_step_deg=angle_step_deg,
+                velocity=velocity,
+                accel=accel,
+                jerk_ratio=jerk_ratio,
+                transition_deg=transition_deg,
+                max_points=max_points,
+                orientation=orientation,
+                skip_first=index > 0,
+                box_id=box_id,
+                robot_id=robot_id,
+            )
+            if not ok:
+                return False
+
+            total_points += sent
+            if sent > 0 and not vibration_on:
+                turn_vibration_on(cps)
+                vibration_on = True
+
+        velocity_factor = 10.0 / float(angle_step_deg or 1.0)
+        timeout = compute_timeout(
+            total_points=total_points, velocity=velocity * velocity_factor
+        )
+        timeout = max(5.0, timeout)
+        return _wait_for_motion_complete(
+            cps, timeout, box_id=box_id, robot_id=robot_id
+        )
+    finally:
+        if vibration_on:
+            turn_vibration_off(cps)
 
 
 def generate_zigzag_path(
@@ -998,13 +1271,8 @@ def smalldoor1zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small"
-                path_initialized = False
-                push_failed = False
-                total_count = 0
-
                 # Move to first zigzag point to ensure proper transition from edge coverage
-                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                print("[MoveJS] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
                     config=config,
@@ -1015,46 +1283,22 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-
-                for index, _ in enumerate(zigzag_points):
-                    point_A = zigzag_points[index]
-                    if index + 1 >= len(zigzag_points):
-                        break
-                    point_B = zigzag_points[index + 1]
-
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
-
-                    path_initialized = True
-                    total_count += count
-
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout
-                    )
+                ok = run_spiral_movejs_path(
+                    cps=cps,
+                    config=config,
+                    zigzag_points=zigzag_points,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    velocity=300.0,
+                    accel=500.0,
+                    orientation=orientation,
+                    box_id=0,
+                    robot_id=0,
+                )
+                if not ok:
+                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
@@ -1347,13 +1591,8 @@ def smalldoor2zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small_door_tab2"
-                path_initialized = False
-                push_failed = False
-                total_count = 0
-
                 # Move to first zigzag point to ensure proper transition from edge coverage
-                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                print("[MoveJS] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
                     config=config,
@@ -1364,46 +1603,22 @@ def smalldoor2zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-
-                for index, _ in enumerate(zigzag_points):
-                    point_A = zigzag_points[index]
-                    if index + 1 >= len(zigzag_points):
-                        break
-                    point_B = zigzag_points[index + 1]
-
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
-
-                    path_initialized = True
-                    total_count += count
-
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout
-                    )
+                ok = run_spiral_movejs_path(
+                    cps=cps,
+                    config=config,
+                    zigzag_points=zigzag_points,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    velocity=300.0,
+                    accel=500.0,
+                    orientation=orientation,
+                    box_id=0,
+                    robot_id=0,
+                )
+                if not ok:
+                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
 
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -1698,13 +1913,8 @@ def smalldoor3zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small_door_tab3"
-                path_initialized = False
-                push_failed = False
-                total_count = 0
-
                 # Move to first zigzag point to ensure proper transition from edge coverage
-                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                print("[MoveJS] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
                     config=config,
@@ -1715,46 +1925,22 @@ def smalldoor3zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-
-                for index, _ in enumerate(zigzag_points):
-                    point_A = zigzag_points[index]
-                    if index + 1 >= len(zigzag_points):
-                        break
-                    point_B = zigzag_points[index + 1]
-
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
-
-                    path_initialized = True
-                    total_count += count
-
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout
-                    )
+                ok = run_spiral_movejs_path(
+                    cps=cps,
+                    config=config,
+                    zigzag_points=zigzag_points,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    velocity=300.0,
+                    accel=500.0,
+                    orientation=orientation,
+                    box_id=0,
+                    robot_id=0,
+                )
+                if not ok:
+                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
 
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
@@ -2048,13 +2234,8 @@ def smalldoor4zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small_door_tab4"
-                path_initialized = False
-                push_failed = False
-                total_count = 0
-
                 # Move to first zigzag point to ensure proper transition from edge coverage
-                print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+                print("[MoveJS] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
                     config=config,
@@ -2065,46 +2246,22 @@ def smalldoor4zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-
-                for index, _ in enumerate(zigzag_points):
-                    point_A = zigzag_points[index]
-                    if index + 1 >= len(zigzag_points):
-                        break
-                    point_B = zigzag_points[index + 1]
-
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
-
-                    path_initialized = True
-                    total_count += count
-
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout
-                    )
+                ok = run_spiral_movejs_path(
+                    cps=cps,
+                    config=config,
+                    zigzag_points=zigzag_points,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    velocity=300.0,
+                    accel=500.0,
+                    orientation=orientation,
+                    box_id=0,
+                    robot_id=0,
+                )
+                if not ok:
+                    print("[MoveJS] Spiral path failed; aborting zigzag segment.")
 
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
