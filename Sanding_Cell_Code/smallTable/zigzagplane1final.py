@@ -520,11 +520,17 @@ def movejs_between_points(
         angle_step_deg=angle_step_deg,
         orientation=orientation,
     )
+    
+    start_index = 6 if skip_first else 0
+    remaining_pts = (len(cart_points) - start_index) // 6
+    if remaining_pts < 2:
+        # Not enough points after skipping; do not skip for this segment
+        start_index = 0
 
     chunk = []
     total_points = 0
-    start_index = 6 if skip_first else 0
-
+    
+    
     for i in range(start_index, len(cart_points), 6):
         pose = cart_points[i : i + 6]
         joint = _ik_pose_to_joint(
