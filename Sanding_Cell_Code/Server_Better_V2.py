@@ -2845,7 +2845,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         def get_j7_state():
             result = []
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
-            if nret == 0 and len(result) > 2:
+            if (nret == 0 or nret is None) and len(result) > 2 and str(result[0]) == "0":
                 return result[2]
             return None
 
@@ -5116,7 +5116,7 @@ def communicate(
         while wait:
             pluginRes = []
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-            if nret != 0 or len(pluginRes) < 3:
+            if (nret not in (0, None)) or len(pluginRes) < 3 or str(pluginRes[0]) != "0":
                 config["logger"].error(
                     f"[7thAxisMove] MotorGetState failed (ret={nret}, res={pluginRes})."
                 )
