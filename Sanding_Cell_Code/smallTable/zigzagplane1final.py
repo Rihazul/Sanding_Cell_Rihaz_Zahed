@@ -226,8 +226,8 @@ def run_spiral_between_points(
             robot_id,
             1,
             track_name,
-            1.00,
-            2.0,
+            0.50,
+            0.0,
             velocity,
             accel,
             jerk,
@@ -1366,9 +1366,9 @@ def smalldoor1zizag(
                         radius=12.0,
                         angle_step_deg=45.0,
                         track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
+                        velocity=150.0,
+                        accel=300.0,
+                        jerk=3000.0,
                         init_path=not path_initialized,
                         orientation=orientation
                     )
