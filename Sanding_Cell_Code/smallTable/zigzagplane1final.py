@@ -194,7 +194,6 @@ def run_spiral_between_points(
     with `init_path`) and execution must be triggered separately via
     `finalize_spiral_path`. Set `finalize=True` to push and execute immediately.
     """
-    base_name = track_name or "spiral_path"
     track_name = track_name
     print(f"[Spiral] Using track name: {track_name}")
     tcp_name = tcp or config["coords"].get("tcptool1plane1")
@@ -254,8 +253,8 @@ def finalize_spiral_path(
     box_id: int = 0,
     robot_id: int = 0,
     completion_timeout=76.0,
-    force: float | None = None,
-    config: dict | None = None,
+    force: Optional[float] = None,
+    config: Optional[dict] = None,
     force_settle_s: float = 0.2,
 ) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
@@ -265,7 +264,8 @@ def finalize_spiral_path(
         return False
 
     # Create a lightweight state helper for motion monitoring.
-    robot_state = RobotState(config=load_config(), cps_client=cps)
+    # Reuse the existing config/cps to avoid reinitializing connections.
+    robot_state = RobotState(config=config or load_config(), cps_client=cps)
 
     # Wait for PATH_READY
     start = time.time()
@@ -1334,7 +1334,7 @@ def smalldoor1zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small"
+                spiral_track_name = f"small_{uuid.uuid4().hex[:6]}"
                 path_initialized = False
                 push_failed = False
                 total_count = 0
@@ -1686,7 +1686,7 @@ def smalldoor2zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small_door_tab2"
+                spiral_track_name = f"small_{uuid.uuid4().hex[:6]}"
                 path_initialized = False
                 push_failed = False
                 total_count = 0
@@ -2039,7 +2039,7 @@ def smalldoor3zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small_door_tab3"
+                spiral_track_name = f"small_{uuid.uuid4().hex[:6]}"
                 path_initialized = False
                 push_failed = False
                 total_count = 0
@@ -2391,7 +2391,7 @@ def smalldoor4zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = "small_door_tab4"
+                spiral_track_name = f"small_{uuid.uuid4().hex[:6]}"
                 path_initialized = False
                 push_failed = False
                 total_count = 0
