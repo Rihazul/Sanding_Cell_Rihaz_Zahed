@@ -438,7 +438,7 @@ class RobotState(RobotInteractions):
         last_raw = []
         last_fsm = None
         while time.time() - start <= timeout:
-            fsm, raw = _read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
+            fsm, raw = RobotState._read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
             last_fsm = fsm
             last_raw = raw
             if fsm == 33:  # StandBy

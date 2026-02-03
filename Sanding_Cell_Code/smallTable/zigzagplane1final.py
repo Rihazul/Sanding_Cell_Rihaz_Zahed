@@ -265,7 +265,7 @@ def finalize_spiral_path(
 
     # Create a lightweight state helper for motion monitoring.
     # Reuse the existing config/cps to avoid reinitializing connections.
-    robot_state = RobotState(config=config or load_config(), cps_client=cps)
+    robot_state = RobotState(config=config , cps_client=cps)
 
     # Wait for PATH_READY
     start = time.time()
