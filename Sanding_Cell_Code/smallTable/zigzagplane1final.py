@@ -254,6 +254,9 @@ def finalize_spiral_path(
     box_id: int = 0,
     robot_id: int = 0,
     completion_timeout=76.0,
+    force: float | None = None,
+    config: dict | None = None,
+    force_settle_s: float = 0.2,
 ) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
@@ -278,29 +281,45 @@ def finalize_spiral_path(
             return False
         time.sleep(0.1)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
-
-    # Wait briefly for motion to start, then turn vibration on.
-    motion_wait_start = time.time()
-    while time.time() - motion_wait_start < 1.0:
-        if robot_state.fetch_and_update_flags():
-            if robot_state.state["flags"].get("in_motion"):
-                break
-        time.sleep(0.02)
-
-    ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-    print(f"[Spiral] Robot returned {ret} after MovePathL,")
-    if ret != 0:
-        return False
     
-    turn_vibration_on(cps)
-    vibration_on = True
+    vibration_on = False
+    force_applied = False
+    ok = False
 
-    # Wait for completion (track path state + robot flags)
-    ok = True
-    start = time.time()
-    motion_seen = False
-    last_cart = None
     try:
+        if force is not None and config is not None:
+            # Apply force *after* path is ready
+            putForceZminus(
+                cps=cps,
+                force=force,
+                tcp=config["coords"]["tcptool1plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                config=config,
+            )
+            force_applied = True
+            time.sleep(force_settle_s)
+    
+        ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+        print(f"[Spiral] Robot returned {ret} after MovePathL,")
+        if ret != 0:
+            return False
+    
+        # Wait briefly for motion to start, then turn vibration on.
+        motion_wait_start = time.time()
+        while time.time() - motion_wait_start < 1.0:
+            if robot_state.fetch_and_update_flags():
+                if robot_state.state["flags"].get("in_motion"):
+                    break
+            time.sleep(0.02)
+        
+        turn_vibration_on(cps)
+        vibration_on = True
+
+        # Wait for completion (track path state + robot flags)
+        ok = True
+        start = time.time()
+        motion_seen = False
+        last_cart = None
         while True:
             pstate = []
             pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
@@ -338,6 +357,8 @@ def finalize_spiral_path(
             time.sleep(0.1)
 
     finally:
+        if force_applied:
+            releaseForce(cps=cps, config=config)
         if vibration_on:
             turn_vibration_off(cps)
 
@@ -1308,6 +1329,7 @@ def smalldoor1zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            releaseForce(cps=cps, config=config)
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
@@ -1366,14 +1388,16 @@ def smalldoor1zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout
+                        completion_timeout=timeout,
+                        force= force,
+                        config= config
                     )
                     
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            #turn_vibration_off(cps)
             # Release force
-            releaseForce(cps=cps, config=config)
+            #releaseForce(cps=cps, config=config)
 
         if split and edge_coverage_pathp1:
             edge_start = edge_coverage_pathp1[0]
@@ -1657,6 +1681,7 @@ def smalldoor2zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            releaseForce(cps=cps, config=config)
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
@@ -1715,14 +1740,16 @@ def smalldoor2zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout
+                        completion_timeout=timeout,
+                        force=force,
+                        config=config
                     )
 
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            #turn_vibration_off(cps)
             # Release force
-            releaseForce(cps=cps, config=config)
+            #releaseForce(cps=cps, config=config)
 
         if split and edge_coverage_pathp1:
             edge_start = edge_coverage_pathp1[0]
@@ -2007,6 +2034,7 @@ def smalldoor3zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            releaseForce(cps=cps, config=config)
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
@@ -2065,14 +2093,16 @@ def smalldoor3zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout
+                        completion_timeout=timeout,
+                        force = force,
+                        config= config
                     )
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            #waitForBlending(cps=cps, config=config)
+            #turn_vibration_off(cps)
             # Release force
-            releaseForce(cps=cps, config=config)
+            #releaseForce(cps=cps, config=config)
 
         if split and edge_coverage_pathp1:
             edge_start = edge_coverage_pathp1[0]
@@ -2356,6 +2386,7 @@ def smalldoor4zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
+            releaseForce(cps=cps, config=config)
             turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
@@ -2414,14 +2445,16 @@ def smalldoor4zizag(
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
-                        completion_timeout=timeout
+                        completion_timeout=timeout,
+                        force=force,
+                        config=config
                     )
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            #waitForBlending(cps=cps, config=config)
+            #turn_vibration_off(cps)
             # Release force
-            releaseForce(cps=cps, config=config)
+            #releaseForce(cps=cps, config=config)
         
         if split and edge_coverage_pathp1:
             edge_start = edge_coverage_pathp1[0]
