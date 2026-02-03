@@ -140,7 +140,7 @@ def generate_spiral_between_points(
         # if orientation == "vertical":
         #     factor= 1.3
         # turns = int((4.0/260.0) * float(dist) * float(factor))
-        turns = math.ceil(dist/(radius*1.5))
+        turns = math.ceil(dist/(radius*2.0))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -227,7 +227,7 @@ def run_spiral_between_points(
             1,
             track_name,
             0.50,
-            0.0,
+            1.00,
             velocity,
             accel,
             jerk,
@@ -1414,16 +1414,6 @@ def smalldoor1zizag(
                 speed=0.8,
                 wait=True
             )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.8,
-                wait=True
-            )
             if edge_prepointp1:
                 communicate(
                     cps=cps,
@@ -1432,7 +1422,7 @@ def smalldoor1zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             communicate(
@@ -1442,7 +1432,7 @@ def smalldoor1zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.8,
+                speed=1.0,
                 wait=True
             )
             perform_process_top(
@@ -1463,16 +1453,6 @@ def smalldoor1zizag(
                     seventh=seventh_pos,
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
-                    speed=0.8,
-                    wait=True
-                )
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prehoming,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
                     speed=0.8,
                     wait=True
                 )
@@ -1718,9 +1698,9 @@ def smalldoor2zizag(
                         radius=12.0,
                         angle_step_deg=45.0,
                         track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
+                        velocity=150.0,
+                        accel=300.0,
+                        jerk=3000.0,
                         init_path=not path_initialized,
                         orientation=orientation
                     )
@@ -1766,16 +1746,6 @@ def smalldoor2zizag(
                 speed=0.8,
                 wait=True
             )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.8,
-                wait=True
-            )
             if edge_prepointp1:
                 communicate(
                     cps=cps,
@@ -1784,7 +1754,7 @@ def smalldoor2zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed = 1.0,
                     wait=True
                 )
             communicate(
@@ -1794,7 +1764,7 @@ def smalldoor2zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.8,
+                speed= 1.0,
                 wait=True
             )
             perform_process_top(
@@ -1815,16 +1785,6 @@ def smalldoor2zizag(
                     seventh=seventh_pos,
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
-                    speed=0.8,
-                    wait=True
-                )
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prehoming,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
                     speed=0.8,
                     wait=True
                 )
@@ -2071,9 +2031,9 @@ def smalldoor3zizag(
                         radius=12.0,
                         angle_step_deg=45.0,
                         track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
+                        velocity=150.0,
+                        accel=300.0,
+                        jerk=3000.0,
                         init_path=not path_initialized,
                         orientation=orientation
                     )
@@ -2119,16 +2079,6 @@ def smalldoor3zizag(
                 speed=0.8,
                 wait=True
             )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.8,
-                wait=True
-            )
             if edge_prepointp1:
                 communicate(
                     cps=cps,
@@ -2137,7 +2087,7 @@ def smalldoor3zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             communicate(
@@ -2147,7 +2097,7 @@ def smalldoor3zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.8,
+                speed=1.0,
                 wait=True
             )
             perform_process_top(
@@ -2168,16 +2118,6 @@ def smalldoor3zizag(
                     seventh=seventh_pos,
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
-                    speed=0.8,
-                    wait=True
-                )
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prehoming,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
                     speed=0.8,
                     wait=True
                 )
@@ -2423,9 +2363,9 @@ def smalldoor4zizag(
                         radius=12.0,
                         angle_step_deg=45.0,
                         track_name=spiral_track_name,
-                        velocity=300.0,
-                        accel=500.0,
-                        jerk=10000.0,
+                        velocity=150.0,
+                        accel=300.0,
+                        jerk=3000.0,
                         init_path=not path_initialized,
                         orientation=orientation
                     )
@@ -2471,16 +2411,6 @@ def smalldoor4zizag(
                 speed=0.8,
                 wait=True
             )
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=0.8,
-                wait=True
-            )
             if edge_prepointp1:
                 communicate(
                     cps=cps,
@@ -2489,7 +2419,7 @@ def smalldoor4zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             communicate(
@@ -2499,7 +2429,7 @@ def smalldoor4zizag(
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=0.8,
+                speed=1.0,
                 wait=True
             )
             perform_process_top(
@@ -2520,16 +2450,6 @@ def smalldoor4zizag(
                     seventh=seventh_pos,
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
-                    speed=0.8,
-                    wait=True
-                )
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prehoming,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
                     speed=0.8,
                     wait=True
                 )

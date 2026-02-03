@@ -127,13 +127,17 @@ def ensure_cps_connected():
     """Ensure the global CPS client is connected before issuing commands."""
     try:
         if CPS.HRIF_IsConnected(0):
-            return 0
+            # Probe the connection with a lightweight read to avoid stale sockets.
+            probe = []
+            ret = CPS.HRIF_ReadRobotState(0, 0, probe)
+            if ret == 0 and isinstance(probe, (list, tuple)) and len(probe) > 0:
+                return 0
     except Exception:
         pass
     return CPS.HRIF_Connect(0, IP, port)
 
 @contextmanager
-def locked_cps(timeout=0.2, allow_when_busy=False):
+def locked_cps(timeout=1.0, allow_when_busy=False):
     """Lock CPS access and ensure connection; yields True on success."""
     if not allow_when_busy and process_state.get("status") == "in_progress":
         yield False
@@ -408,18 +412,48 @@ def fetch_and_combine_data():
 
 @app.route("/stop", methods=["POST"])
 def stop_process():
-    if client_process and client_process.is_alive():
+    had_process = bool(client_process and client_process.is_alive())
+    if had_process:
         client_process.terminate()  # Immediately terminate the process
         # client_process.join()  # Wait for the process to finish
         print("Client process terminated.")
         process_state['status'] = 'completed'
         globals()['client_process'] = None
-        socketio.emit('flash_message', {"message": f"Stopped All Running Process!"})
-        return jsonify({'status': 'success', 'message': 'Process terminated successfully'})
     else:
         print("No active client process to terminate.")
-        socketio.emit('flash_message', {"message": f"No Process to Stop"})
-        return jsonify({'status': 'error', 'message': 'No active process to terminate'})
+
+    # Reconnect CPS after stopping the child process so UI actions (e.g., homing) work.
+    try:
+        config = load_config()
+        config['logger'] = setup_logger(config['settings']['debug'])
+    except Exception:
+        config = None
+
+    with robot_lock:
+        ret = ensure_cps_connected()
+        if ret == 0:
+            try:
+                CPS.HRIF_GrpStop(0, 0)
+                result = []
+                CPS.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
+            except Exception:
+                pass
+            try:
+                CPS.HRIF_SetBoxDO(0, 4, 0)  # vibration off
+            except Exception:
+                pass
+            if config is not None:
+                try:
+                    laser(CPS, "off", config=config)
+                except Exception:
+                    pass
+
+    if had_process:
+        socketio.emit('flash_message', {"message": f"Stopped All Running Process!"})
+        return jsonify({'status': 'success', 'message': 'Process terminated successfully'})
+
+    socketio.emit('flash_message', {"message": f"No Process to Stop"})
+    return jsonify({'status': 'error', 'message': 'No active process to terminate'})
 
 ############################################################################################
 #Tool3_pick_and_drop integration by rafat
@@ -983,10 +1017,11 @@ def stopper_state(stopper_id):
 @app.route('/robot_status', methods=['GET'])
 def robot_status():
     result = []
-    with locked_cps() as ok:
+    with locked_cps(allow_when_busy=True) as ok:
         if not ok:
             return jsonify({'status': 'busy', 'flags': {}})
-        nRet = CPS.HRIF_ReadRobotState(0, 0, result)
+        if ok:
+            nRet = CPS.HRIF_ReadRobotState(0, 0, result)
     if nRet != 0 or len(result) < 13:
         return jsonify({'status': 'error', 'message': 'Failed to read robot state'}), 500
 
@@ -1027,68 +1062,87 @@ def handle_action():
     action = request.json.get('action')  # Get action from frontend
     print('the action is :',action)
     result = []  # Define the return value as an empty list
-    nRet = CPS.HRIF_ReadRobotState(0, 0, result)
 
     if action == "stopperUp":
-        nRet = CPS.HRIF_SetBoxDO(0, 2, 1) #Table Digital Output is 2
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_SetBoxDO(0, 2, 1) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperA Put Up"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
     
     if action == "stopperDown":
-        nRet = CPS.HRIF_SetBoxDO(0, 2, 0) #Table Digital Output is 2
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_SetBoxDO(0, 2, 0) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperA Pulled Down"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
     
     elif action == "stopperUpB":
-        nRet = CPS.HRIF_SetBoxCO(0, 2, 1) #Table Digital Output is 2
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_SetBoxCO(0, 2, 1) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperB Put Up"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
     
     elif action == "stopperDownB":
-        nRet = CPS.HRIF_SetBoxCO(0, 2, 0) #Table Digital Output is 2
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_SetBoxCO(0, 2, 0) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperBS Pulled Down"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
 
     elif action == "toolLift":
-        nRet = CPS.HRIF_SetBoxDO(0, 5, 0)
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_SetBoxDO(0, 5, 0)
         socketio.emit('flash_message', {"message": f"Grabbing the Tool In Hand"})
         return jsonify({'status': 'success', 'message': 'Action tool received and executed'})
     
     elif action == "toolDrop":
-        nRet = CPS.HRIF_SetBoxDO(0, 5, 1)
+        with locked_cps() as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_SetBoxDO(0, 5, 1)
         socketio.emit('flash_message', {"message": f"Dropping the Tool In Hand"})
         return jsonify({'status': 'success', 'message': 'Action tool received and executed'})
 
     elif action == "stop":
-        # Safe stop: stop motion only; do not toggle tool/valve outputs.
         request_stop()
-        CPS.HRIF_GrpStop(0, 0)
-        try:
-            CPS.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-        except Exception:
-            pass
-        # Turn off vibration (DO4) on stop.
-        CPS.HRIF_SetBoxDO(0, 4, 0)
-        laser(CPS, "off", config=config)
         return stop_process()
 
     elif action == "homing":
         clear_stop()
         # Call your homing function here
         config_data_UI = fetch_and_combine_data()
+        # Ensure CPS is connected before homing
+        with robot_lock:
+            ret = ensure_cps_connected()
+            if ret != 0:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
         handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
         homingtotal(cps=CPS, config=config_data_UI)
         return jsonify({'status': 'success', 'message': 'Action homing received and executed'})
 
     elif action == "enable":
-        nRet = CPS.HRIF_GrpReset(0, 0)
-        nRet = CPS.HRIF_GrpEnable(0, 0)
+        with locked_cps(allow_when_busy=True) as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_GrpReset(0, 0)
+            CPS.HRIF_GrpEnable(0, 0)
         socketio.emit('flash_message', {"message": f"Cobot Enabled"})
         return jsonify({'status': 'success', 'message': 'Action enable received and executed'})
     
     elif action == "disable":
-        nRet = CPS.HRIF_GrpDisable(0, 0)
+        with locked_cps(allow_when_busy=True) as ok:
+            if not ok:
+                return jsonify({"error": "Failed to connect to CPS client"}), 500
+            CPS.HRIF_GrpDisable(0, 0)
         socketio.emit('flash_message', {"message": f"Cobot Disabled"})
         return jsonify({'status': 'success', 'message': 'Action enable received and executed'})
     
