@@ -54,7 +54,7 @@ export function RobotControlPanel({
   addActivity,
 }: RobotControlPanelProps) {
   return (
-    <Card className="shadow-lg border-0">
+    <Card className="shadow-lg border-0 ">
       <CardHeader className="bg-gradient-to-r from-red-50 to-pink-50">
         <CardTitle className="flex items-center justify-between">
           Robot Control

@@ -23,7 +23,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [sandingSpeed, setSandingSpeed] = useState([75]);
   const [spiralSpeed, setSpiralSpeed] = useState([150]); // mm/s
   const [spiralRadius, setSpiralRadius] = useState([12]); // mm
-  const [spiralLinearSpeed, setSpiralLinearSpeed] = useState([150]); // mm/s
+  const [spiralLinearSpeed] = useState([150]); // mm/s
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
   const [isOperating, setIsOperating] = useState(false);
@@ -298,8 +298,6 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
               setSpiralSpeed={setSpiralSpeed}
               spiralRadius={spiralRadius}
               setSpiralRadius={setSpiralRadius}
-              spiralLinearSpeed={spiralLinearSpeed}
-              setSpiralLinearSpeed={setSpiralLinearSpeed}
               spiralSettingsEnabled={isSpiralSettingsEnabled()}
             />
 

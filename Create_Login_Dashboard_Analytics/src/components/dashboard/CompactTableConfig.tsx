@@ -289,6 +289,7 @@ export function CompactTableConfig({
 
   const toggleRowDoor = (label: string, doorNumber: number) => {
     const rowIndex = rows.findIndex(r => r.label === label);
+    const sourceDoorNumber = selectedDoor;
     const currentSelection = rowDoorSelections[label] || [];
     const wasSelected = currentSelection.includes(doorNumber);
 
@@ -299,6 +300,29 @@ export function CompactTableConfig({
       return { ...prev, [label]: next };
     });
     setSelectedDoor(doorNumber);
+
+    if (!wasSelected && tableName === 'A' && doorConfigs && setDoorConfigs && rowIndex >= 0) {
+      setDoorConfigs(prev =>
+        prev.map(dc => {
+          if (dc.doorNumber !== doorNumber) return dc;
+          const newRows = [...dc.rows];
+          const targetRow = newRows[rowIndex];
+          if (!targetRow) return dc;
+          const hasValues =
+            targetRow.force > 0 ||
+            targetRow.cycle > 0 ||
+            !!targetRow.verticalSpiral ||
+            !!targetRow.horizontalSpiral ||
+            !!targetRow.edgeCoverage;
+          if (hasValues) return dc;
+          const sourceDoor = prev.find(d => d.doorNumber === sourceDoorNumber);
+          const sourceRow = sourceDoor?.rows[rowIndex];
+          if (!sourceRow) return dc;
+          newRows[rowIndex] = { ...targetRow, ...sourceRow };
+          return { ...dc, rows: newRows };
+        })
+      );
+    }
 
     if (wasSelected && tableName === 'A' && doorConfigs && setDoorConfigs && rowIndex >= 0) {
       setDoorConfigs(prev =>
@@ -362,7 +386,7 @@ export function CompactTableConfig({
   };
 
   return (
-    <Card className="shadow-lg border-0">
+    <Card className="shadow-lg border-0 bg-slate-50/90">
       <CardHeader className="bg-gradient-to-r from-indigo-50 to-cyan-50">
         <CardTitle className="flex items-center justify-between">
           Table {tableName} Configuration
@@ -522,20 +546,6 @@ export function CompactTableConfig({
                               />
                               <span className="text-sm font-medium">↔ Horizontal</span>
                             </label>
-                            <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                              row.edgeCoverage 
-                                ? 'bg-blue-500 border-blue-500 text-white' 
-                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                            }`}>
-                              <input
-                                type="checkbox"
-                                checked={row.edgeCoverage || false}
-                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'edgeCoverage', e.target.checked)}
-                                disabled={isOperating}
-                                className="sr-only"
-                              />
-                              <span className="text-sm font-medium">◇ Edge</span>
-                            </label>
                           </div>
                         </div>
                       )}
@@ -661,20 +671,6 @@ export function CompactTableConfig({
                             />
                             <span className="text-sm font-medium">↔ Horizontal</span>
                           </label>
-                          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                            row.edgeCoverage 
-                              ? 'bg-blue-500 border-blue-500 text-white' 
-                              : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={row.edgeCoverage || false}
-                              onChange={(e) => handlePocketZigZagOptionChange(idx, 'edgeCoverage', e.target.checked)}
-                              disabled={isOperating}
-                              className="sr-only"
-                            />
-                            <span className="text-sm font-medium">◇ Edge</span>
-                          </label>
                         </div>
                       </div>
                     )}
@@ -690,14 +686,14 @@ export function CompactTableConfig({
                 <Button 
                   onClick={handleStartScan} 
                   disabled={isOperating}
-                  className="bg-gray-300 text-gray-600 cursor-not-allowed"
+                  className="bg-green-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {isOperating ? 'Scanning...' : 'Scan'}
                 </Button>
                 <Button 
                   onClick={handleStartTask} 
                   disabled={isOperating}
-                  className="bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {isOperating ? 'Operating...' : 'Start Task'}
                 </Button>

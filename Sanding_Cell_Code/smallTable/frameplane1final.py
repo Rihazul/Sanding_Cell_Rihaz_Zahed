@@ -95,7 +95,7 @@ def generate_spiral_between_points(
     turns: Optional[int] = 12,
     radius: Optional[float] = None,
     angle_step_deg: float = 120.0,
-    max_points: Optional[int] = 80,
+    max_points: Optional[int] = None,
 ):
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
@@ -147,7 +147,7 @@ def run_spiral_between_points(
     turns: Optional[int] = 12,
     radius: Optional[float] = None,
     angle_step_deg: float = 120.0,
-    max_points: Optional[int] = 80,
+    max_points: Optional[int] = None,
     tcp: str = None,
     ucs: str = None,
     track_name: str = None,

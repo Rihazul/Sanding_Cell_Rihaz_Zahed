@@ -91,6 +91,16 @@ export async function startTableAProcess(data: {
   const inferredModel =
     data.doorConfigs.find(d => d.model && d.model !== '')?.model || '';
 
+  const rowKeyMap: Record<string, string> = {
+    'Frame': 'frame',
+    'Pocket ZigZag': 'pocketzigzag',
+    'Pocket Square': 'pocketsquare',
+    '3D': '3D',
+    'Edge Inside': 'edgeInside',
+    'Edge Outside': 'edgeOutside',
+    'Side': 'side',
+  };
+
   const getDoorsForRow = (label: string) =>
     data.doorConfigs
       .filter(door => {
@@ -141,6 +151,39 @@ export async function startTableAProcess(data: {
     return { orientation: 'vertical' as const, edge: false };
   };
 
+  const buildDoorTasks = (door: DoorConfig) => {
+    const tasks: Record<string, any> = {};
+    for (const row of door.rows) {
+      const key = rowKeyMap[row.label];
+      if (!key) continue;
+      const base = { cycle: row.cycle || 0, force: row.force || 0 };
+      if (row.label === 'Pocket ZigZag') {
+        const verticalSpiral = !!row.verticalSpiral;
+        const horizontalSpiral = !!row.horizontalSpiral;
+        const orientation: 'vertical' | 'horizontal' =
+          horizontalSpiral && !verticalSpiral ? 'horizontal' : 'vertical';
+        const edgeCoverage = !!row.edgeCoverage;
+        tasks[key] = {
+          ...base,
+          verticalSpiral,
+          horizontalSpiral,
+          edgeCoverage,
+          orientation,
+          edge: edgeCoverage,
+        };
+      } else {
+        tasks[key] = base;
+      }
+    }
+    return tasks;
+  };
+
+  const doorsPayload = data.doorConfigs.map(door => ({
+    doorNumber: door.doorNumber,
+    model: door.model,
+    tasks: buildDoorTasks(door),
+  }));
+
   // Build the payload matching the Flask backend format
   const payload = {
     TableA: {
@@ -153,10 +196,13 @@ export async function startTableAProcess(data: {
       edgeInside: buildRowPayload('Edge Inside'),
       edgeOutside: buildRowPayload('Edge Outside'),
       side: buildRowPayload('Side'),
+      // New per-door format (supports unique settings per door)
+      doors: doorsPayload,
     },
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,
     inverseOverlapping: data.inverseOverlapping,
+    spiralSettings: data.spiralSettings,
   };
 
   return apiCall('/start_TableA_process', 'POST', payload);
