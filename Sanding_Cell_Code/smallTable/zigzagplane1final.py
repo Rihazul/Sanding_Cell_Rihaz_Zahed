@@ -253,6 +253,7 @@ def finalize_spiral_path(
     box_id: int = 0,
     robot_id: int = 0,
     completion_timeout=76.0,
+    min_runtime_s: float = 0.0,
     force: Optional[float] = None,
     config: Optional[dict] = None,
     force_settle_s: float = 0.2,
@@ -304,6 +305,7 @@ def finalize_spiral_path(
         print(f"[Spiral] Robot returned {ret} after MovePathL,")
         if ret != 0:
             return False
+        move_start = time.time()
     
         # Wait briefly for motion to start, then turn vibration on.
         motion_wait_start = time.time()
@@ -344,6 +346,7 @@ def finalize_spiral_path(
                     and not flags.get("in_motion", True)
                     and flags.get("point_motion_done", False)
                     and flags.get("in_position", False)
+                    and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
                 ):
                     print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
                     break
@@ -360,7 +363,12 @@ def finalize_spiral_path(
                 last_cart = curr_cart
 
             # Fallback completion check once motion has started.
-            if motion_seen and (time.time() - motion_last_change) >= 0.15:
+            if (
+                motion_seen
+                and (time.time() - motion_last_change) >= 0.15
+                and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+                and not flags.get("in_motion", True)
+            ):
                 print("[Spiral] Cartesian position settled for 0.15s; exiting wait loop.")
                 break
 
@@ -1397,12 +1405,14 @@ def smalldoor1zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
+                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
                     finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
                         completion_timeout=timeout,
+                        min_runtime_s=min_runtime_s,
                         force= force,
                         config= config
                     )
@@ -1729,12 +1739,14 @@ def smalldoor2zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
+                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
                     finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
                         completion_timeout=timeout,
+                        min_runtime_s=min_runtime_s,
                         force=force,
                         config=config
                     )
@@ -2062,12 +2074,14 @@ def smalldoor3zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
+                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
                     finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
                         completion_timeout=timeout,
+                        min_runtime_s=min_runtime_s,
                         force = force,
                         config= config
                     )
@@ -2394,12 +2408,14 @@ def smalldoor4zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
+                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
                     finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
                         robot_id=0,
                         completion_timeout=timeout,
+                        min_runtime_s=min_runtime_s,
                         force=force,
                         config=config
                     )
