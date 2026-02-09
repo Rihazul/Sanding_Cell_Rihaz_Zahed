@@ -148,9 +148,32 @@ def ensure_cps_connected(force=False):
     except Exception:
         pass
     ret = CPS.HRIF_Connect(0, IP, port)
-    if ret == 0:
+    if ret != 0:
+        return ret
+    # Verify that a fresh connect is actually usable before reporting success.
+    probe = []
+    ret = CPS.HRIF_ReadRobotState(0, 0, probe)
+    if ret == 0 and isinstance(probe, (list, tuple)) and len(probe) > 0:
         _cps_last_connect_attempt = 0.0
+        return 0
+    # Treat empty success payloads as transient/unhealthy and retry at caller level.
+    if ret == 0:
+        return None
     return ret
+
+
+def ensure_cps_connected_retry(max_attempts=6, retry_delay_seconds=0.5, force=True):
+    """Retry CPS reconnection and return the latest robot error code."""
+    last_ret = None
+    last_robot_error = None
+    for _ in range(max_attempts):
+        last_ret = ensure_cps_connected(force=force)
+        if last_ret == 0:
+            return 0
+        if last_ret is not None:
+            last_robot_error = last_ret
+        time.sleep(retry_delay_seconds)
+    return last_robot_error if last_robot_error is not None else last_ret
 
 @contextmanager
 def locked_cps(timeout=1.0, allow_when_busy=False):
@@ -425,13 +448,16 @@ def fetch_and_combine_data():
 
 @app.route("/stop", methods=["POST"])
 def stop_process():
+    global _cps_reconnect_grace_until
     had_process = bool(client_process and client_process.is_alive())
     if had_process:
-        client_process.terminate()  # Immediately terminate the process
-        # client_process.join()  # Wait for the process to finish
+        proc = client_process
+        proc.terminate()  # Immediately terminate the process
+        proc.join(timeout=2.0)  # Ensure child releases CPS resources first.
         print("Client process terminated.")
         process_state['status'] = 'completed'
         globals()['client_process'] = None
+        _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
     else:
         print("No active client process to terminate.")
 
@@ -443,7 +469,7 @@ def stop_process():
         config = None
 
     with robot_lock:
-        ret = ensure_cps_connected()
+        ret = ensure_cps_connected_retry(max_attempts=4, retry_delay_seconds=0.4, force=True)
         if ret == 0:
             try:
                 CPS.HRIF_GrpStop(0, 0)
@@ -1132,14 +1158,22 @@ def handle_action():
         clear_stop()
         # Call your homing function here
         config_data_UI = fetch_and_combine_data()
-        # Ensure CPS is connected before homing
+        process_state['status'] = 'in_progress'
+        # Ensure CPS is connected and stable before homing.
         with robot_lock:
-            ret = ensure_cps_connected()
+            ret = ensure_cps_connected_retry(max_attempts=8, retry_delay_seconds=0.5, force=True)
             if ret != 0:
-                return jsonify({"error": "Failed to connect to CPS client"}), 500
+                process_state['status'] = 'completed'
+                return jsonify({"error": f"Failed to connect to CPS client (ret={ret})"}), 500
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
-        handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
-        homingtotal(cps=CPS, config=config_data_UI)
+        try:
+            with robot_lock:
+                handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
+                homingtotal(cps=CPS, config=config_data_UI)
+        except Exception as e:
+            process_state['status'] = 'completed'
+            return jsonify({"error": f"Homing failed: {str(e)}"}), 500
+        process_state['status'] = 'completed'
         return jsonify({'status': 'success', 'message': 'Action homing received and executed'})
 
     elif action == "enable":
