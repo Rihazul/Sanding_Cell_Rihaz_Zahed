@@ -1873,6 +1873,30 @@ def releaseForce(cps, config):
 
 
 def setUCS_TCP(cps, tcp, ucs, config):
+    def coord_matches(current, by_name, target_name):
+        """Compare coordinate identities robustly across SDK response formats."""
+        if not isinstance(current, (list, tuple)) or len(current) == 0:
+            return False
+
+        target = str(target_name).strip().lower()
+
+        # Some SDK variants return the current coordinate name directly.
+        first = str(current[0]).strip().lower()
+        if first == target:
+            return True
+
+        # If both APIs return vectors/records, compare element-wise with tolerance.
+        if isinstance(by_name, (list, tuple)) and len(by_name) == len(current) and len(by_name) > 0:
+            for a, b in zip(current, by_name):
+                try:
+                    if abs(float(a) - float(b)) > 1e-6:
+                        return False
+                except Exception:
+                    if str(a).strip().lower() != str(b).strip().lower():
+                        return False
+            return True
+        return False
+
     def wait_coord_applied(read_fn, expected, label, timeout_s=0.25, poll_s=0.02):
         """Poll current coordinate name briefly instead of fixed long sleeps."""
         end_t = time.monotonic() + timeout_s
@@ -1895,7 +1919,7 @@ def setUCS_TCP(cps, tcp, ucs, config):
     ucsByName = []
     nRet = cps.HRIF_ReadUCSByName(0, 0, ucs, ucsByName)
 
-    if ucsByCurrent != ucsByName:
+    if not coord_matches(ucsByCurrent, ucsByName, ucs):
         waitForBlending(cps, config)
         nRet = cps.HRIF_SetUCSByName(0, 0, ucs)
         if nRet == 0:
@@ -1920,7 +1944,7 @@ def setUCS_TCP(cps, tcp, ucs, config):
     tcpByName = []
     nRet = cps.HRIF_ReadTCPByName(0, 0, tcp, tcpByName)
 
-    if tcpByCurrent != tcpByName:
+    if not coord_matches(tcpByCurrent, tcpByName, tcp):
         waitForBlending(cps, config)
         nRet = cps.HRIF_SetTCPByName(0, 0, tcp)
 

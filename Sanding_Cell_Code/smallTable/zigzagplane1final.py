@@ -1464,7 +1464,7 @@ def smalldoor1zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             # # turn_vibration_on(cps)
@@ -1796,7 +1796,7 @@ def smalldoor2zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             # turn_vibration_on(cps)
@@ -2129,7 +2129,7 @@ def smalldoor3zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             # # turn_vibration_on(cps)
@@ -2461,7 +2461,7 @@ def smalldoor4zizag(
                     tcp=config["coords"]["tcptool1plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=0.8,
+                    speed=1.0,
                     wait=True
                 )
             # # turn_vibration_on(cps)
