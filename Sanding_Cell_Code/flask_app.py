@@ -121,20 +121,36 @@ ret = CPS.HRIF_Connect(0, IP, port)
 Tpos = 0
 velocity = 0.1
 robot_lock = threading.Lock()
+CPS_RECONNECT_GRACE_SECONDS = 3.0
+CPS_RECONNECT_MIN_INTERVAL_SECONDS = 1.0
+_cps_reconnect_grace_until = 0.0
+_cps_last_connect_attempt = 0.0
 
 
-def ensure_cps_connected():
+def ensure_cps_connected(force=False):
     """Ensure the global CPS client is connected before issuing commands."""
+    global _cps_last_connect_attempt
+    now = time.monotonic()
+    if not force:
+        if now < _cps_reconnect_grace_until:
+            return None
+        if (now - _cps_last_connect_attempt) < CPS_RECONNECT_MIN_INTERVAL_SECONDS:
+            return None
+    _cps_last_connect_attempt = now
     try:
         if CPS.HRIF_IsConnected(0):
             # Probe the connection with a lightweight read to avoid stale sockets.
             probe = []
             ret = CPS.HRIF_ReadRobotState(0, 0, probe)
             if ret == 0 and isinstance(probe, (list, tuple)) and len(probe) > 0:
+                _cps_last_connect_attempt = 0.0
                 return 0
     except Exception:
         pass
-    return CPS.HRIF_Connect(0, IP, port)
+    ret = CPS.HRIF_Connect(0, IP, port)
+    if ret == 0:
+        _cps_last_connect_attempt = 0.0
+    return ret
 
 @contextmanager
 def locked_cps(timeout=1.0, allow_when_busy=False):
@@ -166,14 +182,11 @@ def _track_process(proc: Process) -> None:
     try:
         proc.join()
     finally:
-        global client_process
+        global client_process, _cps_reconnect_grace_until
         process_state['status'] = 'completed'
         client_process = None
-        # Reconnect global CPS after child process finishes (it may have used the socket exclusively).
-        try:
-            ensure_cps_connected()
-        except Exception:
-            pass
+        # Brief cooldown after child process exit to avoid hitting stale CPS sockets.
+        _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
         socketio.emit('flash_message', {"message": "Process finished"})
 
 ############################################################################################
