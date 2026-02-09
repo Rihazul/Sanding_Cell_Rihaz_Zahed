@@ -285,6 +285,7 @@ def finalize_spiral_path(
     vibration_on = False
     force_applied = False
     ok = False
+    motion_last_change = time.time()
 
     try:
         if force is not None and config is not None:
@@ -332,35 +333,48 @@ def finalize_spiral_path(
                 ok = False
                 break
 
-            if not motion_seen:
-                if robot_state.fetch_and_update_flags():
-                    if robot_state.state["flags"].get("in_motion"):
-                        motion_seen = True
-                if not motion_seen and robot_state.fetch_and_update_pos():
-                    curr_cart = list(robot_state.state.get("cartesian_position", []))
-                    if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
-                        if any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6])):
-                            motion_seen = True
-                    last_cart = curr_cart
+            flags = {}
+            if robot_state.fetch_and_update_flags():
+                flags = robot_state.state.get("flags", {})
+                if flags.get("in_motion"):
+                    motion_seen = True
+                # Fast-path completion check: controller confirms motion done and in-position.
+                if (
+                    motion_seen
+                    and not flags.get("in_motion", True)
+                    and flags.get("point_motion_done", False)
+                    and flags.get("in_position", False)
+                ):
+                    print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
+                    break
 
-            # Only allow early exit after motion has started.
-            if motion_seen and robot_state.wait_until_still(
-                still_seconds=1.0, poll_seconds=0.05
-            ):
-                print("[Spiral] No motion detected for 1.0s; exiting wait loop.")
+            if robot_state.fetch_and_update_pos():
+                curr_cart = list(robot_state.state.get("cartesian_position", []))
+                if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
+                    moved = any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6]))
+                    if moved:
+                        motion_seen = True
+                        motion_last_change = time.time()
+                else:
+                    motion_last_change = time.time()
+                last_cart = curr_cart
+
+            # Fallback completion check once motion has started.
+            if motion_seen and (time.time() - motion_last_change) >= 0.15:
+                print("[Spiral] Cartesian position settled for 0.15s; exiting wait loop.")
                 break
 
             if time.time() - start > completion_timeout:
                 print("Timeout waiting for idle. Path state:", pstate)
                 ok = False
                 break
-            time.sleep(0.1)
+            time.sleep(0.02)
 
     finally:
-        if force_applied:
-            releaseForce(cps=cps, config=config)
         if vibration_on:
             turn_vibration_off(cps)
+        if force_applied:
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
     return ok
 

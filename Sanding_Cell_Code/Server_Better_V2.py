@@ -1940,7 +1940,7 @@ def putForceYminus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def releaseForce(cps, config):
+def releaseForce(cps, config, wait_for_blending=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1949,7 +1949,8 @@ def releaseForce(cps, config):
     config["logger"].info(f"[forceControl] Turned off vibration")
     cps.HRIF_SetForceControlState(boxID, rbtID, 0)
     config["logger"].info(f"[forceControl] releasing force: 0N")
-    waitForBlending(cps, config)
+    if wait_for_blending:
+        waitForBlending(cps, config)
     setSpeed(cps, speed=config["UI"]["robotSpeed"], config=config)
 
 
