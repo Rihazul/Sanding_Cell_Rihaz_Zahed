@@ -5060,6 +5060,12 @@ def communicate(
 ):
     if stop_requested():
         return []
+    # Cache active TCP/UCS inside the process config to avoid repeated
+    # coordinate re-application on every nearby point transition.
+    coord_cache = None
+    if isinstance(config, dict):
+        coord_cache = config.setdefault("_coord_cache", {})
+
     def euclidean_distance(point1, point2):
         """
         Calculate the Euclidean distance between two points in 3D space.
@@ -5092,8 +5098,24 @@ def communicate(
         nIOState = 0  # Defining Road Point ID
         stdCmdID = "0"  # Perform road point movement
 
-        if not setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config):
-            return
+        need_apply_coords = True
+        if isinstance(coord_cache, dict):
+            same_coords = (
+                coord_cache.get("tcp") == tcp and coord_cache.get("ucs") == ucs
+            )
+            verify_budget = int(coord_cache.get("verify_budget", 0) or 0)
+            # Re-verify occasionally for safety, but skip repeated checks most of the time.
+            if same_coords and verify_budget > 0:
+                need_apply_coords = False
+                coord_cache["verify_budget"] = verify_budget - 1
+
+        if need_apply_coords:
+            if not setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config):
+                return
+            if isinstance(coord_cache, dict):
+                coord_cache["tcp"] = tcp
+                coord_cache["ucs"] = ucs
+                coord_cache["verify_budget"] = 25
 
         # input("Is this fine?")
 
@@ -5326,8 +5348,8 @@ def communicate(
                 )
                 return False
 
-            # config['logger'].info(f"Trying: {pluginRes}")
-            time.sleep(0.01)
+            # Faster state polling reduces visible handoff latency.
+            time.sleep(0.005)
             if pluginRes[2] == "0":
                 # means that the robot has reached the position
                 break
