@@ -499,6 +499,49 @@ def fetch_and_combine_data():
     combined_data = {**config_data, **api_data['tableA']}  # YAML data is combined with API data
     return combined_data
 
+
+def _halt_robot_motion_best_effort():
+    """Send physical stop commands via a fresh CPS client after hard-stop."""
+    try:
+        config = load_config()
+        config["logger"] = setup_logger(config["settings"]["debug"])
+    except Exception:
+        return
+
+    cps_tmp = CPSClient()
+    try:
+        ret = cps_tmp.HRIF_Connect(0, config["server"]["cpip"], config["server"]["cps"])
+        if ret != 0:
+            return
+
+        # Stop robot/axis motion and disable force mode if active.
+        try:
+            cps_tmp.HRIF_GrpStop(0, 0)
+        except Exception:
+            pass
+        try:
+            result = []
+            cps_tmp.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
+        except Exception:
+            pass
+        try:
+            cps_tmp.HRIF_SetForceControlState(0, 0, 0)
+        except Exception:
+            pass
+        try:
+            cps_tmp.HRIF_SetBoxDO(0, 4, 0)  # vibration off
+        except Exception:
+            pass
+        try:
+            laser(cps_tmp, "off", config=config)
+        except Exception:
+            pass
+    finally:
+        try:
+            cps_tmp.HRIF_DisConnect(0)
+        except Exception:
+            pass
+
 ############################################################################################
 # Start the handle_client process threads
 # def start_process(config):
@@ -521,6 +564,7 @@ def stop_process():
     if had_process:
         proc = client_process
         proc.terminate()  # Immediately terminate the process
+        _halt_robot_motion_best_effort()
         proc.join(timeout=2.0)  # Ensure child releases CPS resources first.
         print("Client process terminated.")
         process_state['status'] = 'completed'
@@ -530,6 +574,8 @@ def stop_process():
         print("No active client process to terminate.")
 
     _last_stop_ts = time.monotonic()
+    # Always send hardware stop commands through a fresh CPS connection.
+    _halt_robot_motion_best_effort()
     # After force-stop, avoid immediate CPS traffic and reset runtime handles.
     with robot_lock:
         _hard_reset_cps_runtime()

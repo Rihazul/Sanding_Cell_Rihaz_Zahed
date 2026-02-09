@@ -15,9 +15,11 @@ import json
 # from smallTable.scansmalltable import scanTableA
 
 
-def waitForBlending(cps, config):
+def waitForBlending(cps, config, timeout_s=7):
     start_time = time.time()
     while True:
+        if stop_requested():
+            return
         result = []
         nret = cps.HRIF_IsBlendingDone(0, 0, result)
         done = False
@@ -37,14 +39,16 @@ def waitForBlending(cps, config):
                 done = str(last).strip().lower() in ("1", "true", "ok")
         if done:
             break
-        if time.time() - start_time >= 7:
+        if time.time() - start_time >= timeout_s:
             # Avoid blocking forever if the controller never reports done.
             if isinstance(config, dict) and config.get("logger"):
                 config["logger"].warning(
-                    "[waitForBlending] Timed out after 7s; continuing."
+                    f"[waitForBlending] Timed out after {timeout_s}s; continuing."
                 )
             break
-    time.sleep(0.1)
+    # Keep a minimal settle delay; larger fixed sleeps add visible latency
+    # between chained point-to-point moves.
+    time.sleep(0.02)
     return
     # result = [False]
     # start_time = time.time()
@@ -501,6 +505,13 @@ def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -600,6 +611,13 @@ def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         # config['logger'].info(f"[forceControl] Force that is coming is: {result}")
@@ -731,6 +749,13 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -862,6 +887,13 @@ def putForceZminus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -992,6 +1024,13 @@ def putForce3Direction(cps, force, tcp, ucs, config, goal=[1, 1, 1]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1188,6 +1227,13 @@ def putForceYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         # config['logger'].info(f"[forceControl] Force that is coming is: {result}")
@@ -1319,6 +1365,13 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1449,6 +1502,13 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1579,6 +1639,13 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1709,6 +1776,13 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1839,6 +1913,13 @@ def putForceYminus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
 
     notFound = True
     while notFound:
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+            except Exception:
+                pass
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1885,11 +1966,16 @@ def setUCS_TCP(cps, tcp, ucs, config):
         if first == target:
             return True
 
+        # Other variants include the coordinate name in another field.
+        for item in current:
+            if str(item).strip().lower() == target:
+                return True
+
         # If both APIs return vectors/records, compare element-wise with tolerance.
         if isinstance(by_name, (list, tuple)) and len(by_name) == len(current) and len(by_name) > 0:
             for a, b in zip(current, by_name):
                 try:
-                    if abs(float(a) - float(b)) > 1e-6:
+                    if abs(float(a) - float(b)) > 1e-4:
                         return False
                 except Exception:
                     if str(a).strip().lower() != str(b).strip().lower():
@@ -1897,13 +1983,13 @@ def setUCS_TCP(cps, tcp, ucs, config):
             return True
         return False
 
-    def wait_coord_applied(read_fn, expected, label, timeout_s=0.25, poll_s=0.02):
+    def wait_coord_applied(read_fn, expected, label, target_name, timeout_s=0.12, poll_s=0.01):
         """Poll current coordinate name briefly instead of fixed long sleeps."""
         end_t = time.monotonic() + timeout_s
         while time.monotonic() < end_t:
             current = []
             nret_local = read_fn(0, 0, current)
-            if nret_local == 0 and current == expected:
+            if nret_local == 0 and coord_matches(current, expected, target_name):
                 return True
             time.sleep(poll_s)
         if isinstance(config, dict) and config.get("logger"):
@@ -1912,28 +1998,48 @@ def setUCS_TCP(cps, tcp, ucs, config):
             )
         return False
 
+    def set_coord_with_retry(setter_fn, reader_fn, by_name, label, target):
+        """Retry set when controller returns transient state errors like 20018."""
+        last_ret = None
+        for attempt in range(3):
+            if stop_requested():
+                return False
+            last_ret = setter_fn(0, 0, target)
+            if last_ret == 0:
+                wait_coord_applied(reader_fn, by_name, label, target)
+                config["logger"].info(f"[setUCS_TCP] Success in setting {label} to: {target}")
+                return True
+            if last_ret == 20018:
+                try:
+                    cps.HRIF_GrpStop(0, 0)
+                except Exception:
+                    pass
+                time.sleep(0.05)
+                continue
+            break
+
+        config["logger"].error(
+            f"[setUCS_TCP] Failure in setting {label} to: {target}, nret = {last_ret}"
+        )
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process...",
+        )
+        return False
+
     # Step 1: Set the UCS
     ucsByCurrent = []  # Read User coordinates
     nRet = cps.HRIF_ReadCurUCS(0, 0, ucsByCurrent)
 
-    ucsByName = []
-    nRet = cps.HRIF_ReadUCSByName(0, 0, ucs, ucsByName)
-
-    if not coord_matches(ucsByCurrent, ucsByName, ucs):
-        waitForBlending(cps, config)
-        nRet = cps.HRIF_SetUCSByName(0, 0, ucs)
-        if nRet == 0:
-            wait_coord_applied(cps.HRIF_ReadCurUCS, ucsByName, "UCS")
-            config["logger"].info(f"[setUCS_TCP] Success in setting UCS to: {ucs}")
-        else:
-            config["logger"].error(
-                f"[setUCS_TCP] Failure in setting UCS to: {ucs}, nret = {nRet}"
-            )
-            msg_to_frontend(
-                api_url=config["server"]["frontEnd_messaging_url"],
-                message="Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process...",
-            )
-            exit(-1)
+    if not coord_matches(ucsByCurrent, None, ucs):
+        ucsByName = []
+        nRet = cps.HRIF_ReadUCSByName(0, 0, ucs, ucsByName)
+        if not coord_matches(ucsByCurrent, ucsByName, ucs):
+            waitForBlending(cps, config, timeout_s=0.4)
+            if not set_coord_with_retry(
+                cps.HRIF_SetUCSByName, cps.HRIF_ReadCurUCS, ucsByName, "UCS", ucs
+            ):
+                return False
     # else:
     #     config['logger'].info(f'[setUCS_TCP] Used previous UCS: {ucs}')
 
@@ -1941,27 +2047,19 @@ def setUCS_TCP(cps, tcp, ucs, config):
     tcpByCurrent = []  # Read User coordinates
     nRet = cps.HRIF_ReadCurTCP(0, 0, tcpByCurrent)
 
-    tcpByName = []
-    nRet = cps.HRIF_ReadTCPByName(0, 0, tcp, tcpByName)
-
-    if not coord_matches(tcpByCurrent, tcpByName, tcp):
-        waitForBlending(cps, config)
-        nRet = cps.HRIF_SetTCPByName(0, 0, tcp)
-
-        if nRet == 0:
-            wait_coord_applied(cps.HRIF_ReadCurTCP, tcpByName, "TCP")
-            config["logger"].info(f"[setUCS_TCP] Success in setting TCP to: {tcp}")
-        else:
-            config["logger"].error(f"[setUCS_TCP] Failure in setting TCP to: {tcp}")
-            msg_to_frontend(
-                api_url=config["server"]["frontEnd_messaging_url"],
-                message="Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process...",
-            )
-            exit(-1)
+    if not coord_matches(tcpByCurrent, None, tcp):
+        tcpByName = []
+        nRet = cps.HRIF_ReadTCPByName(0, 0, tcp, tcpByName)
+        if not coord_matches(tcpByCurrent, tcpByName, tcp):
+            waitForBlending(cps, config, timeout_s=0.4)
+            if not set_coord_with_retry(
+                cps.HRIF_SetTCPByName, cps.HRIF_ReadCurTCP, tcpByName, "TCP", tcp
+            ):
+                return False
     # else:
     #     config['logger'].info(f'[setUCS_TCP] Used previous TCP: {tcp}')
 
-    return
+    return True
 
 
 def handle_client(config, homingState=False, startSanding=True, scan=False, cps=None):
@@ -1977,12 +2075,17 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
     def homingFunction(cps, config):
         result = [-1, -1, -1, -1]
 
-        setUCS_TCP(
+        if not setUCS_TCP(
             cps,
             tcp=config["coords"]["tcpDefault"],
             ucs=config["coords"]["ucsDefault"],
             config=config,
-        )
+        ):
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing failed: unable to set UCS/TCP.",
+            )
+            return
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -4989,7 +5092,8 @@ def communicate(
         nIOState = 0  # Defining Road Point ID
         stdCmdID = "0"  # Perform road point movement
 
-        setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
+        if not setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config):
+            return
 
         # input("Is this fine?")
 
@@ -5204,6 +5308,12 @@ def communicate(
         time.sleep(0.0001)
 
         while wait:
+            if stop_requested():
+                try:
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                except Exception:
+                    pass
+                return False
             pluginRes = []
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
             if (nret not in (0, None)) or len(pluginRes) < 3 or str(pluginRes[0]) != "0":
