@@ -1017,7 +1017,7 @@ def stopper_state(stopper_id):
 @app.route('/robot_status', methods=['GET'])
 def robot_status():
     result = []
-    with locked_cps(allow_when_busy=True) as ok:
+    with locked_cps() as ok:
         if not ok:
             return jsonify({'status': 'busy', 'flags': {}})
         if ok:
@@ -1157,7 +1157,7 @@ def handle_action():
             ret = ensure_cps_connected()
             if ret != 0:
                 print(f"Failed to connect, error code: {ret}")
-                exit()
+                return jsonify({"error": f"Failed to connect to CPS client (ret={ret})"}), 500
             cps = CPS
 
         def read_ci_bit(cps, bit_index):

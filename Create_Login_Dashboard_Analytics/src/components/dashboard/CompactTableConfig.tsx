@@ -109,10 +109,58 @@ export function CompactTableConfig({
       const modelName = formatModelName(model);
       
       try {
-        const effectiveDoorConfigs = doorConfigs.map(dc => ({
+        const selectedDoorsByRow = Object.fromEntries(
+          Object.entries(rowDoorSelections).map(([label, doors]) => [label, [...new Set(doors)].sort()])
+        ) as Record<string, number[]>;
+
+        const normalizedDoorConfigs = doorConfigs.map(dc => ({
+          ...dc,
+          rows: dc.rows.map(r => ({ ...r })),
+        }));
+
+        // Ensure all selected doors for a row share the same task values unless explicitly set.
+        // This prevents partial payloads like only one selected door being serialized with cycle/force.
+        for (const [label, selectedDoors] of Object.entries(selectedDoorsByRow)) {
+          if (!selectedDoors.length) continue;
+          const rowIndex = rows.findIndex(r => r.label === label);
+          if (rowIndex < 0) continue;
+
+          const rowsForSelectedDoors = selectedDoors
+            .map(doorNumber => normalizedDoorConfigs.find(dc => dc.doorNumber === doorNumber)?.rows[rowIndex])
+            .filter((row): row is RowConfig => !!row);
+
+          const templateRow =
+            rowsForSelectedDoors.find(r =>
+              r.force > 0 ||
+              r.cycle > 0 ||
+              !!r.verticalSpiral ||
+              !!r.horizontalSpiral ||
+              !!r.edgeCoverage
+            ) || rowsForSelectedDoors[0];
+
+          if (!templateRow) continue;
+
+          normalizedDoorConfigs.forEach(dc => {
+            if (!selectedDoors.includes(dc.doorNumber)) return;
+            const currentRow = dc.rows[rowIndex];
+            if (!currentRow) return;
+            const shouldPopulateValues = currentRow.force <= 0 && currentRow.cycle <= 0;
+            if (!shouldPopulateValues) return;
+            dc.rows[rowIndex] = {
+              ...currentRow,
+              force: templateRow.force,
+              cycle: templateRow.cycle,
+              verticalSpiral: templateRow.verticalSpiral,
+              horizontalSpiral: templateRow.horizontalSpiral,
+              edgeCoverage: templateRow.edgeCoverage,
+            };
+          });
+        }
+
+        const effectiveDoorConfigs = normalizedDoorConfigs.map(dc => ({
           ...dc,
           rows: dc.rows.map(r => {
-            const allowed = rowDoorSelections[r.label] || [];
+            const allowed = selectedDoorsByRow[r.label] || [];
             if (allowed.includes(dc.doorNumber)) return r;
             return { ...r, force: 0, cycle: 0 };
           })
@@ -293,10 +341,16 @@ export function CompactTableConfig({
     const currentSelection = rowDoorSelections[label] || [];
     const wasSelected = currentSelection.includes(doorNumber);
 
+    if (wasSelected) {
+      // Clicking a selected door should focus that door, not deselect it.
+      setSelectedDoor(doorNumber);
+      return;
+    }
+
     setRowDoorSelections(prev => {
       const current = prev[label] || [];
       const exists = current.includes(doorNumber);
-      const next = exists ? current.filter(d => d !== doorNumber) : [...current, doorNumber].sort();
+      const next = exists ? current : [...current, doorNumber].sort();
       return { ...prev, [label]: next };
     });
     setSelectedDoor(doorNumber);
@@ -324,22 +378,6 @@ export function CompactTableConfig({
       );
     }
 
-    if (wasSelected && tableName === 'A' && doorConfigs && setDoorConfigs && rowIndex >= 0) {
-      setDoorConfigs(prev =>
-        prev.map(dc => {
-          if (dc.doorNumber !== doorNumber) return dc;
-          const newRows = [...dc.rows];
-          const currentRow = newRows[rowIndex];
-          if (!currentRow) return dc;
-          const resetRow =
-            label === 'Pocket ZigZag'
-              ? { ...currentRow, force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false }
-              : { ...currentRow, force: 0, cycle: 0 };
-          newRows[rowIndex] = resetRow;
-          return { ...dc, rows: newRows };
-        })
-      );
-    }
   };
 
   const handlePocketZigZagOptionChange = (idx: number, option: 'verticalSpiral' | 'horizontalSpiral' | 'edgeCoverage', checked: boolean) => {
