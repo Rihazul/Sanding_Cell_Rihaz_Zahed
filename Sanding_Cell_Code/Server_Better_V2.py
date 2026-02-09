@@ -1873,6 +1873,21 @@ def releaseForce(cps, config):
 
 
 def setUCS_TCP(cps, tcp, ucs, config):
+    def wait_coord_applied(read_fn, expected, label, timeout_s=0.25, poll_s=0.02):
+        """Poll current coordinate name briefly instead of fixed long sleeps."""
+        end_t = time.monotonic() + timeout_s
+        while time.monotonic() < end_t:
+            current = []
+            nret_local = read_fn(0, 0, current)
+            if nret_local == 0 and current == expected:
+                return True
+            time.sleep(poll_s)
+        if isinstance(config, dict) and config.get("logger"):
+            config["logger"].warning(
+                f"[setUCS_TCP] Timed out waiting for {label} apply; continuing."
+            )
+        return False
+
     # Step 1: Set the UCS
     ucsByCurrent = []  # Read User coordinates
     nRet = cps.HRIF_ReadCurUCS(0, 0, ucsByCurrent)
@@ -1883,8 +1898,8 @@ def setUCS_TCP(cps, tcp, ucs, config):
     if ucsByCurrent != ucsByName:
         waitForBlending(cps, config)
         nRet = cps.HRIF_SetUCSByName(0, 0, ucs)
-        time.sleep(0.5)
         if nRet == 0:
+            wait_coord_applied(cps.HRIF_ReadCurUCS, ucsByName, "UCS")
             config["logger"].info(f"[setUCS_TCP] Success in setting UCS to: {ucs}")
         else:
             config["logger"].error(
@@ -1908,9 +1923,9 @@ def setUCS_TCP(cps, tcp, ucs, config):
     if tcpByCurrent != tcpByName:
         waitForBlending(cps, config)
         nRet = cps.HRIF_SetTCPByName(0, 0, tcp)
-        time.sleep(0.5)
 
         if nRet == 0:
+            wait_coord_applied(cps.HRIF_ReadCurTCP, tcpByName, "TCP")
             config["logger"].info(f"[setUCS_TCP] Success in setting TCP to: {tcp}")
         else:
             config["logger"].error(f"[setUCS_TCP] Failure in setting TCP to: {tcp}")
@@ -5085,21 +5100,51 @@ def communicate(
             if nret is None:
                 return bool(result) and str(result[0]) == "0"
             return nret == 0
+
+        def state_ok(state):
+            return (
+                isinstance(state, (list, tuple))
+                and len(state) >= 3
+                and str(state[0]) == "0"
+            )
+
         pluginRes = []
-        robotRes = []
-        PosRes = []
         result = []
 
-        nret = cps.HRIF_HRApp(0, "HR_Motor", "GetMotorList", [], PosRes)
-        time.sleep(0.2)
-        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
-        time.sleep(0.2)
+        # Read state first; only reconnect J7 if state read is unavailable.
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-        time.sleep(0.2)
-        nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
-        time.sleep(0.2)
+        if (nret not in (0, None)) or not state_ok(pluginRes):
+            result = []
+            nret_conn = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
+            if not move_ok(nret_conn, result):
+                config["logger"].error(
+                    f"[7thAxisMove] MotorConnect failed (ret={nret_conn}, res={result})."
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="7th axis connection failed. Please verify J7 and try again.",
+                )
+                return False
+            # Short readiness poll (faster than fixed 0.2s x N sleeps).
+            ready = False
+            for _ in range(8):
+                pluginRes = []
+                nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
+                if (nret in (0, None)) and state_ok(pluginRes):
+                    ready = True
+                    break
+                time.sleep(0.02)
+            if not ready:
+                config["logger"].error(
+                    f"[7thAxisMove] Failed to read J7 state before move (ret={nret}, res={pluginRes})."
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="7th axis state read failed. Please verify J7 connection and try again.",
+                )
+                return False
 
-        if nret != 0 or len(pluginRes) < 3:
+        if not state_ok(pluginRes):
             config["logger"].error(
                 f"[7thAxisMove] Failed to read J7 state before move (ret={nret}, res={pluginRes})."
             )
@@ -5148,7 +5193,7 @@ def communicate(
                 return False
 
             # config['logger'].info(f"Trying: {pluginRes}")
-            time.sleep(0.00001)
+            time.sleep(0.01)
             if pluginRes[2] == "0":
                 # means that the robot has reached the position
                 break
@@ -5178,7 +5223,8 @@ def communicate(
                 linear_speed = speed_value
 
     # setting the speed of the client (ratio override only)
-    if override_speed is not None:
+    # Avoid extra override calls when doing seventh-axis-only repositioning.
+    if override_speed is not None and not (point is None and seventh != -1):
         setSpeed(cps, override_speed, config=config)
     # time.sleep(0.1)
 
