@@ -5,7 +5,7 @@ from Server_Better_V2 import handle_client, request_stop, clear_stop
 from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
 from Server_Better_V2 import setup_logger
 import yaml, requests
-from modules.CPS import CPSClient
+from modules.CPS import CPSClient, RbtClient, PluginClient
 from multiprocessing import Process, Event
 import time
 from flask_socketio import SocketIO
@@ -125,6 +125,47 @@ CPS_RECONNECT_GRACE_SECONDS = 3.0
 CPS_RECONNECT_MIN_INTERVAL_SECONDS = 1.0
 _cps_reconnect_grace_until = 0.0
 _cps_last_connect_attempt = 0.0
+_last_stop_ts = 0.0
+
+
+def _sanitize_cps_runtime():
+    """Keep CPS runtime internals coherent when transport sockets are stale."""
+    try:
+        client = CPS.g_clients[0]
+    except Exception:
+        return
+
+    # If fast socket is gone but fast command cache remains, force standard socket path.
+    try:
+        if getattr(client, "tcp_fast", None) is None and isinstance(client.fast_cmd_list, list):
+            client.fast_cmd_list.clear()
+    except Exception:
+        pass
+
+
+def _hard_reset_cps_runtime():
+    """Reset CPS runtime objects without changing CPS.py implementation."""
+    global CPS, _cps_last_connect_attempt
+    try:
+        CPS.HRIF_DisConnect(0)
+    except Exception:
+        pass
+    try:
+        CPS.g_clients[0] = RbtClient()
+        CPS.g_plugin_clients[0] = PluginClient()
+        CPS.g_client_state[0] = False
+        CPS.g_plugin_client_state[0] = False
+    except Exception:
+        # Fallback: rebuild wrapper object if direct reset is unavailable.
+        CPS = CPSClient()
+        try:
+            CPS.g_clients[0] = RbtClient()
+            CPS.g_plugin_clients[0] = PluginClient()
+            CPS.g_client_state[0] = False
+            CPS.g_plugin_client_state[0] = False
+        except Exception:
+            pass
+    _cps_last_connect_attempt = 0.0
 
 
 def ensure_cps_connected(force=False):
@@ -137,19 +178,23 @@ def ensure_cps_connected(force=False):
         if (now - _cps_last_connect_attempt) < CPS_RECONNECT_MIN_INTERVAL_SECONDS:
             return None
     _cps_last_connect_attempt = now
+    _sanitize_cps_runtime()
     try:
         if CPS.HRIF_IsConnected(0):
-            # Probe the connection with a lightweight read to avoid stale sockets.
-            probe = []
-            ret = CPS.HRIF_ReadRobotState(0, 0, probe)
-            if ret == 0 and isinstance(probe, (list, tuple)) and len(probe) > 0:
-                _cps_last_connect_attempt = 0.0
-                return 0
+            client = CPS.g_clients[0]
+            if getattr(client, "tcp", None) is not None:
+                # Probe the connection with a lightweight read to avoid stale sockets.
+                probe = []
+                ret = CPS.HRIF_ReadRobotState(0, 0, probe)
+                if ret == 0 and isinstance(probe, (list, tuple)) and len(probe) > 0:
+                    _cps_last_connect_attempt = 0.0
+                    return 0
     except Exception:
         pass
     ret = CPS.HRIF_Connect(0, IP, port)
     if ret != 0:
         return ret
+    _sanitize_cps_runtime()
     # Verify that a fresh connect is actually usable before reporting success.
     probe = []
     ret = CPS.HRIF_ReadRobotState(0, 0, probe)
@@ -166,12 +211,16 @@ def ensure_cps_connected_retry(max_attempts=6, retry_delay_seconds=0.5, force=Tr
     """Retry CPS reconnection and return the latest robot error code."""
     last_ret = None
     last_robot_error = None
+    hard_reset_done = False
     for _ in range(max_attempts):
         last_ret = ensure_cps_connected(force=force)
         if last_ret == 0:
             return 0
         if last_ret is not None:
             last_robot_error = last_ret
+        if force and not hard_reset_done:
+            _hard_reset_cps_runtime()
+            hard_reset_done = True
         time.sleep(retry_delay_seconds)
     return last_robot_error if last_robot_error is not None else last_ret
 
@@ -211,6 +260,25 @@ def _track_process(proc: Process) -> None:
         # Brief cooldown after child process exit to avoid hitting stale CPS sockets.
         _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
         socketio.emit('flash_message', {"message": "Process finished"})
+
+
+def _run_homing_child(config_data_UI):
+    """Run homing in a fresh child process to avoid stale CPS sockets."""
+    try:
+        if "logger" not in config_data_UI:
+            config_data_UI["logger"] = setup_logger(config_data_UI["settings"]["debug"])
+        cps = CPSClient()
+        ret = cps.HRIF_Connect(0, config_data_UI["server"]["cpip"], config_data_UI["server"]["cps"])
+        if ret != 0:
+            config_data_UI["logger"].error(f"[homing child] HRIF_Connect failed (ret={ret})")
+            return
+        handle_client(config_data_UI, homingState=True, startSanding=False, cps=cps)
+        homingtotal(cps=cps, config=config_data_UI)
+    except Exception as e:
+        try:
+            config_data_UI["logger"].error(f"[homing child] Exception: {e}")
+        except Exception:
+            print(f"[homing child] Exception: {e}")
 
 ############################################################################################
 # Home route to render the frontend interface. Add more routes if necessary!
@@ -448,7 +516,7 @@ def fetch_and_combine_data():
 
 @app.route("/stop", methods=["POST"])
 def stop_process():
-    global _cps_reconnect_grace_until
+    global _cps_reconnect_grace_until, _last_stop_ts
     had_process = bool(client_process and client_process.is_alive())
     if had_process:
         proc = client_process
@@ -461,31 +529,11 @@ def stop_process():
     else:
         print("No active client process to terminate.")
 
-    # Reconnect CPS after stopping the child process so UI actions (e.g., homing) work.
-    try:
-        config = load_config()
-        config['logger'] = setup_logger(config['settings']['debug'])
-    except Exception:
-        config = None
-
+    _last_stop_ts = time.monotonic()
+    # After force-stop, avoid immediate CPS traffic and reset runtime handles.
     with robot_lock:
-        ret = ensure_cps_connected_retry(max_attempts=4, retry_delay_seconds=0.4, force=True)
-        if ret == 0:
-            try:
-                CPS.HRIF_GrpStop(0, 0)
-                result = []
-                CPS.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-            except Exception:
-                pass
-            try:
-                CPS.HRIF_SetBoxDO(0, 4, 0)  # vibration off
-            except Exception:
-                pass
-            if config is not None:
-                try:
-                    laser(CPS, "off", config=config)
-                except Exception:
-                    pass
+        _hard_reset_cps_runtime()
+        _cps_reconnect_grace_until = time.monotonic() + max(CPS_RECONNECT_GRACE_SECONDS, 5.0)
 
     if had_process:
         socketio.emit('flash_message', {"message": f"Stopped All Running Process!"})
@@ -1155,25 +1203,25 @@ def handle_action():
         return stop_process()
 
     elif action == "homing":
+        global client_process
+        if client_process and client_process.is_alive():
+            return jsonify({"error": "Process already running"}), 409
         clear_stop()
         # Call your homing function here
         config_data_UI = fetch_and_combine_data()
         process_state['status'] = 'in_progress'
-        # Ensure CPS is connected and stable before homing.
+        # Let CPS settle briefly after stop/kill before reconnecting.
+        settle_wait = max(0.0, 2.0 - (time.monotonic() - _last_stop_ts))
+        if settle_wait > 0:
+            time.sleep(settle_wait)
+        # Hard reset parent CPS runtime to avoid stale sockets before spawning homing child.
         with robot_lock:
-            ret = ensure_cps_connected_retry(max_attempts=8, retry_delay_seconds=0.5, force=True)
-            if ret != 0:
-                process_state['status'] = 'completed'
-                return jsonify({"error": f"Failed to connect to CPS client (ret={ret})"}), 500
+            _hard_reset_cps_runtime()
+            _cps_reconnect_grace_until = time.monotonic() + max(CPS_RECONNECT_GRACE_SECONDS, 5.0)
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
-        try:
-            with robot_lock:
-                handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
-                homingtotal(cps=CPS, config=config_data_UI)
-        except Exception as e:
-            process_state['status'] = 'completed'
-            return jsonify({"error": f"Homing failed: {str(e)}"}), 500
-        process_state['status'] = 'completed'
+        client_process = Process(target=_run_homing_child, args=(config_data_UI,))
+        client_process.start()
+        Thread(target=_track_process, args=(client_process,), daemon=True).start()
         return jsonify({'status': 'success', 'message': 'Action homing received and executed'})
 
     elif action == "enable":
