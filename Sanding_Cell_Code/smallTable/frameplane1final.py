@@ -319,6 +319,8 @@ def finalize_spiral_path(
     safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
     timeout_notice_logged = False
     timeout_stall_start = None
+    done_flag_streak = 0
+    motion_done_streak = 0
     # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
     position_noise_mm = 0.6
     orientation_noise_deg = 0.8
@@ -342,20 +344,30 @@ def finalize_spiral_path(
             ok = False
             break
         elapsed_move = time.time() - move_start
+        near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
 
         flags = {}
         if robot_state.fetch_and_update_flags():
             flags = robot_state.state.get("flags", {})
             if flags.get("in_motion"):
                 motion_seen = True
-            # Fast-path completion check: controller confirms motion done and in-position.
-            if (
+                # Keep progress marker fresh while controller reports motion.
+                motion_last_change = time.time()
+            done_by_flags = (
                 motion_seen
                 and not flags.get("in_motion", True)
                 and flags.get("point_motion_done", False)
                 and flags.get("in_position", False)
                 and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+            )
+            # Fast-path completion check: require stable done flags, not a transient sample.
+            if done_by_flags and (
+                near_expected_end or (time.time() - motion_last_change) >= settle_window_s
             ):
+                done_flag_streak += 1
+            else:
+                done_flag_streak = 0
+            if done_flag_streak >= 2:
                 print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
                 break
 
@@ -369,7 +381,16 @@ def finalize_spiral_path(
                 (isinstance(last_done, bool) and last_done)
                 or str(last_done).strip().lower() in ("1", "true", "ok")
             )
-            if done and motion_seen and elapsed_move >= max(0.0, float(min_runtime_s)):
+            if (
+                done
+                and motion_seen
+                and elapsed_move >= max(0.0, float(min_runtime_s))
+                and (near_expected_end or (time.time() - motion_last_change) >= settle_window_s)
+            ):
+                motion_done_streak += 1
+            else:
+                motion_done_streak = 0
+            if motion_done_streak >= 2:
                 print("[Spiral] IsMotionDone=1; exiting wait loop.")
                 break
 
@@ -408,7 +429,6 @@ def finalize_spiral_path(
             last_cart = curr_cart
 
         # Fallback completion check once motion has started.
-        near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
         progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
         if (
             motion_seen
