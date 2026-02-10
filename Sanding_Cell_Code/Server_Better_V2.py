@@ -776,7 +776,16 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceZminus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
+def putForceZminus(
+    cps,
+    force,
+    tcp,
+    ucs,
+    config,
+    goal=[0, 0, 1],
+    search_linear_velocity=5.0,
+    search_angular_velocity=1.0,
+):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -816,13 +825,15 @@ def putForceZminus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    linear_velocity = 5  # 100 mm/s
-    angular_velocity = 1  # 10 °/s
+    linear_velocity = max(1.0, float(search_linear_velocity))
+    angular_velocity = max(0.1, float(search_angular_velocity))
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
     )
     time.sleep(0.0001)
-    config["logger"].info(f"search velocities: {nret}")
+    config["logger"].info(
+        f"search velocities: {nret} (linear={linear_velocity}, angular={angular_velocity})"
+    )
     if nret != 0:
         config["logger"].error(f"Failed to set max search velocities: {nret}")
         return

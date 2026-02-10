@@ -1405,12 +1405,16 @@ def smalldoor1zizag(
             # Vibration on
 
             # Force Control Activated
+            force_seek_linear = 5.0
+            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
+                force_seek_linear = 12.0
             putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 config=config,
+                search_linear_velocity=force_seek_linear,
             )
             print("Turned Vibration On")
 
@@ -1744,12 +1748,16 @@ def smalldoor2zizag(
             # Vibration on
 
             # Force Control Activated
+            force_seek_linear = 5.0
+            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
+                force_seek_linear = 12.0
             putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                config=config
+                config=config,
+                search_linear_velocity=force_seek_linear,
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -2083,12 +2091,16 @@ def smalldoor3zizag(
             # Vibration on
 
             # Force Control Activated
+            force_seek_linear = 5.0
+            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
+                force_seek_linear = 12.0
             putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                config=config
+                config=config,
+                search_linear_velocity=force_seek_linear,
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -2421,12 +2433,16 @@ def smalldoor4zizag(
             # Vibration on
 
             # Force Control Activated
+            force_seek_linear = 5.0
+            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
+                force_seek_linear = 12.0
             putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool1plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                config=config
+                config=config,
+                search_linear_velocity=force_seek_linear,
             )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
