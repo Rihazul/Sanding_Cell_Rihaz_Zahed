@@ -328,10 +328,11 @@ def finalize_spiral_path(
         safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
         timeout_notice_logged = False
         timeout_stall_start = None
-        position_noise_mm = 0.25
-        orientation_noise_deg = 0.35
-        settle_window_s = 0.6
-        near_end_ratio = 0.85
+        # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
+        position_noise_mm = 0.6
+        orientation_noise_deg = 0.8
+        settle_window_s = 0.15
+        near_end_ratio = 0.93
         motion_seen = motion_started
         last_cart = None
         pre_move_cart = None
@@ -417,12 +418,12 @@ def finalize_spiral_path(
             # Fallback completion check once motion has started.
             in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
             near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
+            progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
             if (
                 motion_seen
                 and near_expected_end
                 and (time.time() - motion_last_change) >= settle_window_s
                 and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
-                and in_motion_flag is not True
             ):
                 print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
                 break
@@ -436,9 +437,13 @@ def finalize_spiral_path(
                     )
                     timeout_notice_logged = True
 
-                in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
-                progress_recent = motion_seen and ((time.time() - motion_last_change) < 0.8)
-                if in_motion_flag is True or progress_recent:
+                # If motion updates have stopped near the expected end, finish immediately
+                # even when controller in-motion flag is stale.
+                if motion_seen and near_expected_end and not progress_recent:
+                    print("[Spiral] Motion progress stopped near end; exiting wait loop.")
+                    break
+
+                if progress_recent:
                     timeout_stall_start = None
                 else:
                     if timeout_stall_start is None:
@@ -455,7 +460,6 @@ def finalize_spiral_path(
                         motion_seen
                         and near_expected_end
                         and (time.time() - motion_last_change) >= settle_window_s
-                        and in_motion_flag is not True
                     ):
                         print(
                             f"[Spiral] Safety timeout reached but pose is settled for "
