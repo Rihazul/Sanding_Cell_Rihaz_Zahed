@@ -9,6 +9,7 @@ from typing import Optional
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from Components.RobotState import RobotState
 import yaml
 import threading
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
@@ -246,6 +247,7 @@ def finalize_spiral_path(
     tcp: Optional[str] = None,
     ucs: Optional[str] = None,
     completion_timeout=45.0,
+    min_runtime_s: float = 0.0,
 ) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
@@ -286,32 +288,48 @@ def finalize_spiral_path(
             )
             print(f"Force control ret code: {ret}")
             force_active = True
-    print("[Spiral][Move] Starting MovePathL...")
+    # Create a lightweight state helper for motion monitoring.
+    # Reuse the existing config/cps to avoid reinitializing connections.
+    robot_state = RobotState(config=config if config is not None else load_config(), cps_client=cps)
+
     ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-    print("[Spiral][Move] ret =", ret)
+    print(f"[Spiral] Robot returned {ret} after MovePathL,")
     if ret != 0:
         return False
-    vibration_active = False
-    
+    move_start = time.time()
+
+    # Wait briefly for motion to start, then turn vibration on.
+    motion_started = False
+    motion_wait_start = time.time()
+    while time.time() - motion_wait_start < 1.0:
+        if robot_state.fetch_and_update_flags():
+            if robot_state.state["flags"].get("in_motion"):
+                motion_started = True
+                break
+        time.sleep(0.02)
+
     if vibration:
         turn_vibration_on(cps)
-        vibration_active = True
 
-    # Wait for completion using real motion/pose settle detection.
-    # This avoids long hangs on stale "done" flags while still ensuring MovePathL
-    # actually executes before cleanup starts.
+    # Wait for completion (track path state + robot flags)
     ok = True
-    move_start = time.time()
-    start_motion_deadline = move_start + 0.25
-    motion_started = False
-    last_motion_change = move_start
+    start = time.time()
+    estimate_timeout = float(completion_timeout)
+    # Safety watchdog is only for abnormal hangs; estimate itself remains the target.
+    safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
+    timeout_notice_logged = False
+    timeout_stall_start = None
+    # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
+    position_noise_mm = 0.6
+    orientation_noise_deg = 0.8
+    settle_window_s = 0.15
+    near_end_ratio = 0.93
+    motion_seen = motion_started
+    motion_last_change = time.time()
     last_cart = None
-    position_noise_mm = 1.5
-    orientation_noise_deg = 1.5
-    settle_window_s = 0.05
-    min_runtime_s = 0.05
-    near_end_ratio = 0.95
-
+    pre_move_cart = None
+    if robot_state.fetch_and_update_pos():
+        pre_move_cart = list(robot_state.state.get("cartesian_position", []))
     while True:
         pstate = []
         pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
@@ -323,80 +341,129 @@ def finalize_spiral_path(
             print(f"[Spiral] Path reported error: {pstate}")
             ok = False
             break
+        elapsed_move = time.time() - move_start
 
-        now = time.time()
-
-        # Motion flag
-        state = []
-        sret = cps.HRIF_ReadRobotState(box_id, robot_id, state)
-        if sret == 0 and state:
-            in_motion = str(state[0]).strip() == "1"
-            if in_motion:
-                motion_started = True
-                last_motion_change = now
-
-        # Cartesian pose delta
-        act = []
-        aret = cps.HRIF_ReadActPos(box_id, robot_id, act)
-        if aret == 0 and len(act) >= 12:
-            try:
-                curr_cart = [float(v) for v in act[6:12]]
-            except (TypeError, ValueError):
-                curr_cart = None
-
-            if curr_cart is not None:
-                if last_cart is not None:
-                    moved = (
-                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
-                        or any(
-                            abs(a - b) > orientation_noise_deg
-                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
-                        )
-                    )
-                    if moved:
-                        motion_started = True
-                        last_motion_change = now
-                last_cart = curr_cart
-
-        # Normal completion: once motion has started and then settles at last point.
-        if (
-            motion_started
-            and (now - move_start) >= min_runtime_s
-            and (now - last_motion_change) >= settle_window_s
-        ):
-            print(f"[Spiral] Motion settled for {settle_window_s:.2f}s; exiting wait loop.")
-            break
-
-        # Hard cutoff near estimated runtime to avoid waiting on stale controller flags.
-        if motion_started and (now - move_start) >= max(min_runtime_s, completion_timeout * near_end_ratio):
-            print(
-                f"[Spiral] Reached {near_end_ratio:.2f} of estimated runtime; "
-                "exiting wait loop to avoid end-of-path lag."
-            )
-            break
-
-        # Fallback for very short paths where movement is too quick to observe.
-        if not motion_started and now >= start_motion_deadline:
-            motion_done = []
-            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
-            if mret == 0 and motion_done:
-                last_done = motion_done[-1]
-                done = (
-                    (isinstance(last_done, bool) and last_done)
-                    or str(last_done).strip().lower() in ("1", "true", "ok")
-                )
-                if done:
-                    print("[Spiral] Motion done detected on short-path fallback.")
-                    break
-
-        if now - move_start > completion_timeout:
-            if motion_started and (now - last_motion_change) >= 0.05:
-                print("[Spiral] Timeout reached but pose settled; treating as complete.")
+        flags = {}
+        if robot_state.fetch_and_update_flags():
+            flags = robot_state.state.get("flags", {})
+            if flags.get("in_motion"):
+                motion_seen = True
+            # Fast-path completion check: controller confirms motion done and in-position.
+            if (
+                motion_seen
+                and not flags.get("in_motion", True)
+                and flags.get("point_motion_done", False)
+                and flags.get("in_position", False)
+                and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+            ):
+                print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
                 break
-            print(f"[Spiral] Timeout waiting for completion. Path state: {pstate}")
-            ok = False
+
+        # Controller-level motion completion can become true slightly earlier than
+        # state-flags convergence, which helps reduce end-point dwell.
+        motion_done = []
+        mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
+        if mret == 0 and motion_done:
+            last_done = motion_done[-1]
+            done = (
+                (isinstance(last_done, bool) and last_done)
+                or str(last_done).strip().lower() in ("1", "true", "ok")
+            )
+            if done and motion_seen and elapsed_move >= max(0.0, float(min_runtime_s)):
+                print("[Spiral] IsMotionDone=1; exiting wait loop.")
+                break
+
+        if robot_state.fetch_and_update_pos():
+            curr_cart = list(robot_state.state.get("cartesian_position", []))
+            if (
+                not motion_seen
+                and pre_move_cart
+                and len(curr_cart) >= 6
+                and len(pre_move_cart) >= 6
+                and (
+                    any(
+                        abs(a - b) > position_noise_mm
+                        for a, b in zip(curr_cart[:3], pre_move_cart[:3])
+                    )
+                    or any(
+                        abs(a - b) > orientation_noise_deg
+                        for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
+                    )
+                )
+            ):
+                motion_seen = True
+            if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
+                moved = (
+                    any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                    or any(
+                        abs(a - b) > orientation_noise_deg
+                        for a, b in zip(curr_cart[3:6], last_cart[3:6])
+                    )
+                )
+                if moved:
+                    motion_seen = True
+                    motion_last_change = time.time()
+            else:
+                motion_last_change = time.time()
+            last_cart = curr_cart
+
+        # Fallback completion check once motion has started.
+        near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
+        progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
+        if (
+            motion_seen
+            and near_expected_end
+            and (time.time() - motion_last_change) >= settle_window_s
+            and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+        ):
+            print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
             break
 
+        elapsed = time.time() - start
+        if elapsed > estimate_timeout:
+            if not timeout_notice_logged:
+                print(
+                    f"[Spiral] Estimated runtime reached: elapsed={elapsed:.1f}s, "
+                    f"estimate={estimate_timeout:.1f}s; waiting for true completion."
+                )
+                timeout_notice_logged = True
+
+            # If motion updates have stopped near the expected end, finish immediately
+            # even when controller in-motion flag is stale.
+            if motion_seen and near_expected_end and not progress_recent:
+                print("[Spiral] Motion progress stopped near end; exiting wait loop.")
+                break
+
+            if progress_recent:
+                timeout_stall_start = None
+            else:
+                if timeout_stall_start is None:
+                    timeout_stall_start = time.time()
+
+            stalled_too_long = (
+                timeout_stall_start is not None
+                and (time.time() - timeout_stall_start) >= 3.0
+            )
+            if elapsed > safety_timeout or stalled_too_long:
+                # Controller states can lag after path completion; if cartesian pose is settled
+                # and we're past the expected end, treat it as completed instead of failing.
+                if (
+                    motion_seen
+                    and near_expected_end
+                    and (time.time() - motion_last_change) >= settle_window_s
+                ):
+                    print(
+                        f"[Spiral] Safety timeout reached but pose is settled for "
+                        f"{settle_window_s:.2f}s; treating as complete."
+                    )
+                    break
+                print(
+                    f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
+                    f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
+                    f"stalled={stalled_too_long}, Path state: {pstate}"
+                )
+                ok = False
+                break
         time.sleep(0.02)
 
     return ok
