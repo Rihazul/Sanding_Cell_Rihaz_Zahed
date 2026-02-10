@@ -9,7 +9,6 @@ from typing import Optional
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from Components.RobotState import RobotState
 import yaml
 import threading
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
@@ -45,7 +44,7 @@ def compute_timeout(
     # time_factor_max = float(total_points / vmax)
     time_factor = float(total_points * distance_per_point / (velocity))
 
-    timeout = float(time_factor)
+    timeout = min(cap, max(1.0, float(time_factor)))
     print(
         f"[Timeout] total_points={total_points}, est={time_factor:.1f}s timeout={timeout:.1f}s"
     )
@@ -254,9 +253,6 @@ def finalize_spiral_path(
     if ret != 0:
         return False
 
-    # Create a lightweight state helper for motion monitoring.
-    robot_state = RobotState(config=load_config(), cps_client=cps)
-
     # Wait for PATH_READY
     start = time.time()
     state = []
@@ -301,159 +297,16 @@ def finalize_spiral_path(
         turn_vibration_on(cps)
         vibration_active = True
 
-    # Wait for completion (track path state + robot flags)
-    ok = True
-    start = time.time()
-    move_start = time.time()
-    motion_seen = False
-    min_runtime_s = 0.05
-    estimate_timeout = float(completion_timeout)
-    safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
-    timeout_notice_logged = False
-    timeout_stall_start = None
-    # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
-    position_noise_mm = 0.6
-    orientation_noise_deg = 0.8
-    settle_window_s = 0.15
-    near_end_ratio = 0.93
-    motion_last_change = time.time()
-    last_cart = None
-    pre_move_cart = None
-    if robot_state.fetch_and_update_pos():
-        pre_move_cart = list(robot_state.state.get("cartesian_position", []))
-    try:
-        while True:
-            pstate = []
-            pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
-            if pret != 0:
-                print("HRIF_ReadPathState failed:", pret)
-                ok = False
-                break
-            if len(pstate) > 3 and pstate[3] != "0":
-                print(f"[Spiral] Path reported error: {pstate}")
-                ok = False
-                break
+    # Pocket-style completion: avoid long waits on stale motion-state flags.
+    # We keep a bounded blending wait and let caller cleanup force/vibration.
+    if config is not None:
+        blend_timeout = max(0.25, min(0.8, float(completion_timeout) * 0.05))
+        waitForBlending(cps=cps, config=config, timeout_s=blend_timeout)
+        return True
 
-            elapsed_move = time.time() - move_start
-
-            flags = {}
-            if robot_state.fetch_and_update_flags():
-                flags = robot_state.state.get("flags", {})
-                if flags.get("in_motion", False):
-                    motion_seen = True
-                # Fast-path: end as soon as controller confirms completion.
-                if (
-                    motion_seen
-                    and not flags.get("in_motion", True)
-                    and flags.get("point_motion_done", False)
-                    and flags.get("in_position", False)
-                    and elapsed_move >= min_runtime_s
-                ):
-                    print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
-                    break
-
-            motion_done = []
-            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
-            if mret == 0 and motion_done:
-                last_done = motion_done[-1]
-                done = (
-                    (isinstance(last_done, bool) and last_done)
-                    or str(last_done).strip().lower() in ("1", "true", "ok")
-                )
-                if done and motion_seen and elapsed_move >= min_runtime_s:
-                    print("[Spiral] IsMotionDone=1; exiting wait loop.")
-                    break
-
-            if robot_state.fetch_and_update_pos():
-                curr_cart = list(robot_state.state.get("cartesian_position", []))
-                if (
-                    not motion_seen
-                    and pre_move_cart
-                    and len(curr_cart) >= 6
-                    and len(pre_move_cart) >= 6
-                    and (
-                        any(
-                            abs(a - b) > position_noise_mm
-                            for a, b in zip(curr_cart[:3], pre_move_cart[:3])
-                        )
-                        or any(
-                            abs(a - b) > orientation_noise_deg
-                            for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
-                        )
-                    )
-                ):
-                    motion_seen = True
-
-                if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
-                    moved = (
-                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
-                        or any(
-                            abs(a - b) > orientation_noise_deg
-                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
-                        )
-                    )
-                    if moved:
-                        motion_seen = True
-                        motion_last_change = time.time()
-                else:
-                    motion_last_change = time.time()
-                last_cart = curr_cart
-
-            near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
-            progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
-            if (
-                motion_seen
-                and near_expected_end
-                and not progress_recent
-                and elapsed_move >= min_runtime_s
-            ):
-                print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
-                break
-
-            elapsed = time.time() - start
-            if elapsed > estimate_timeout:
-                if not timeout_notice_logged:
-                    print(
-                        f"[Spiral] Estimated runtime reached: elapsed={elapsed:.1f}s, "
-                        f"estimate={estimate_timeout:.1f}s; waiting for true completion."
-                    )
-                    timeout_notice_logged = True
-
-                if motion_seen and near_expected_end and not progress_recent:
-                    print("[Spiral] Motion progress stopped near end; exiting wait loop.")
-                    break
-
-                if progress_recent:
-                    timeout_stall_start = None
-                else:
-                    if timeout_stall_start is None:
-                        timeout_stall_start = time.time()
-
-                stalled_too_long = (
-                    timeout_stall_start is not None
-                    and (time.time() - timeout_stall_start) >= 3.0
-                )
-                if elapsed > safety_timeout or stalled_too_long:
-                    if motion_seen and near_expected_end and not progress_recent:
-                        print(
-                            f"[Spiral] Safety timeout reached but pose is settled for "
-                            f"{settle_window_s:.2f}s; treating as complete."
-                        )
-                        break
-                    print(
-                        f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
-                        f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
-                        f"stalled={stalled_too_long}, Path state: {pstate}"
-                    )
-                    ok = False
-                    break
-            time.sleep(0.02)
-
-    finally:
-        # Caller-level flow handles vibration/force cleanup to keep frame timing
-        # consistent with pocket cycles (single cleanup point).
-        pass
-    return ok
+    # Fallback when config is unavailable.
+    time.sleep(0.05)
+    return True
 
 
 def load_config():
