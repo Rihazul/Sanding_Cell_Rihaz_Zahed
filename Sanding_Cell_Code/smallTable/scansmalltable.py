@@ -77,6 +77,22 @@ def scanTableA(cps=None, config=None):
             cps=cps
         )
 
+    scan_failed = not any(
+        [
+            own7thpos,
+            framePoints,
+            pocketPoints,
+            outerCornerPoints,
+            innerCornerPoints,
+            xVals,
+            yVals,
+        ]
+    )
+    if scan_failed:
+        raise RuntimeError(
+            "Scan did not collect any door data. Check J7 readiness and scan path, then retry."
+        )
+
     print("\n--- Scan completed. Received data: ---")
     print(f"Robo 7th Pos: {own7thpos}")
     print(f"Frame Points: {framePoints}")
@@ -99,6 +115,7 @@ def scanTableA(cps=None, config=None):
     }
     json_file_path = save_scan_results_to_json(scan_data)
     print(f"Scan results saved to JSON file: {json_file_path}")
+    return json_file_path
     
     
     

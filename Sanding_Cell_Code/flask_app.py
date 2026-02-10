@@ -1351,7 +1351,6 @@ def handle_action():
     
     elif action == "scan":
         clear_stop()
-        config_data_UI = fetch_and_combine_data()
         with robot_lock:
             ret = ensure_cps_connected()
             if ret != 0:
@@ -1373,65 +1372,41 @@ def handle_action():
             ci0 = read_ci_bit(cps, 0)
             ci1 = read_ci_bit(cps, 1)
             ci2 = read_ci_bit(cps, 2)
-
-            # Check Conditions
             if ci0 is None or ci1 is None or ci2 is None:
-                print("Failed to read one or more CI bits.")
-            else:
+                return jsonify({'status': 'error', 'message': 'Failed to read tool sensor inputs (CI).'}), 500
+
+            try:
                 if ci0 == 0 and ci1 == 0 and ci2 == 0:
                     print("No tool in hand")
-                    stopper_statusmod(cps, state="up")
-                    laser(cps, "on",config=config)
-                    set_table_state(CPS, "tableAOpenClose", "Close")
-                    set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA(cps=CPS, config=config)
-                    laser(cps, "off",config=config)
-                
-
                 elif ci0 == 1 and ci1 == 0 and ci2 == 0:
-                    print("Tool 3 detected → executing keepTool11()")
+                    print("Tool 3 detected -> executing keepTool11()")
                     keepTool11(cps, toolNumber=3, config=config)
                     communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-                    stopper_statusmod(cps, state="up")
-                    laser(cps, "on",config=config)
-                    set_table_state(CPS, "tableAOpenClose", "Close")
-                    set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA(cps=CPS, config=config)
-                    laser(cps, "off",config=config)
-
                 elif ci0 == 0 and ci1 == 1 and ci2 == 0:
-                    print("Tool 2 detected → executing keepTool11()")
+                    print("Tool 2 detected -> executing keepTool11()")
                     keepTool11(cps, toolNumber=2, config=config)
                     communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-                    stopper_statusmod(cps, state="up")
-                    laser(cps, "on",config=config)
-                    set_table_state(CPS, "tableAOpenClose", "Close")
-                    set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA(cps=CPS, config=config)
-                    laser(cps, "off",config=config)
-
                 elif ci0 == 0 and ci1 == 1 and ci2 == 1:
-                    print("Tool 1 detected → executing keepTool11()")
+                    print("Tool 1 detected -> executing keepTool11()")
                     keepTool11(cps, toolNumber=1, config=config)
                     communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
-                    stopper_statusmod(cps, state="up")
-                    laser(cps, "on",config=config)
-                    set_table_state(CPS, "tableAOpenClose", "Close")
-                    set_table_state(CPS, "tableBOpenClose", "Close")
-                    scanTableA(cps=CPS, config=config)
-                    laser(cps, "off",config=config)
-
                 else:
-                    print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
-                # scanTableA() #Run the Table Scan
-                # scanhoming() #Run the homing after table scan
-                # # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
-                # return jsonify({'status': 'success', 'message':'Table scan started'})
-            scanhoming(cps=CPS, config=config)
-            # scanTableA() #Run the Table Scan
-            # scanhoming() #Run the homing after table scan
-            # handle_client(config_data_UI, homingState=False, startSanding=False, scan=True)
-            return jsonify({'status': 'success', 'message':'Table scan started'})
+                    return jsonify({'status': 'error', 'message': f'Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}'}), 400
+
+                stopper_statusmod(cps, state="up")
+                laser(cps, "on", config=config)
+                try:
+                    set_table_state(cps, "tableAOpenClose", "Close")
+                    set_table_state(cps, "tableBOpenClose", "Close")
+                    scanTableA(cps=cps, config=config)
+                finally:
+                    laser(cps, "off", config=config)
+
+                scanhoming(cps=cps, config=config)
+                return jsonify({'status': 'success', 'message': 'Table scan completed'})
+            except Exception as exc:
+                config['logger'].exception("[scan] Scan action failed: %s", exc)
+                return jsonify({'status': 'error', 'message': f'Scan failed: {exc}'}), 500
     
     return jsonify({'status': 'error', 'message': 'Invalid action provided'}), 400
 

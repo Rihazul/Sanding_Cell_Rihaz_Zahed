@@ -5313,9 +5313,33 @@ def communicate(
 
         # input("ok?")
 
-        nret = cps.HRIF_HRApp(
-            0, "HR_Motor", "MotorMovePositionSpeed", ["J7", position, speed], result
-        )
+        max_move_retries = 8
+        nret = None
+        for move_attempt in range(1, max_move_retries + 1):
+            result = []
+            nret = cps.HRIF_HRApp(
+                0, "HR_Motor", "MotorMovePositionSpeed", ["J7", position, speed], result
+            )
+            if move_ok(nret, result):
+                break
+
+            result_text = " ".join(str(item) for item in result).lower()
+            motor_not_ready = str(result[0]) == "60006" if result else False
+            motor_not_ready = motor_not_ready or ("not ready" in result_text)
+            if not motor_not_ready:
+                break
+
+            # Transient J7 readiness race: brief reconnect/readback and retry.
+            config["logger"].warning(
+                "[7thAxisMove] J7 not ready on move attempt %s/%s (ret=%s, res=%s). Retrying...",
+                move_attempt,
+                max_move_retries,
+                nret,
+                result,
+            )
+            cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
+            time.sleep(0.08 * move_attempt)
+
         if not move_ok(nret, result):
             config["logger"].error(
                 f"[7thAxisMove] MotorMovePositionSpeed failed (ret={nret}, res={result})."
