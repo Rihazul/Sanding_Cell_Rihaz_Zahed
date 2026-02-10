@@ -328,6 +328,10 @@ def finalize_spiral_path(
         safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
         timeout_notice_logged = False
         timeout_stall_start = None
+        position_noise_mm = 0.25
+        orientation_noise_deg = 0.35
+        settle_window_s = 0.6
+        near_end_ratio = 0.85
         motion_seen = motion_started
         last_cart = None
         pre_move_cart = None
@@ -383,11 +387,26 @@ def finalize_spiral_path(
                     and pre_move_cart
                     and len(curr_cart) >= 6
                     and len(pre_move_cart) >= 6
-                    and any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], pre_move_cart[:6]))
+                    and (
+                        any(
+                            abs(a - b) > position_noise_mm
+                            for a, b in zip(curr_cart[:3], pre_move_cart[:3])
+                        )
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
+                        )
+                    )
                 ):
                     motion_seen = True
                 if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
-                    moved = any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6]))
+                    moved = (
+                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
+                        )
+                    )
                     if moved:
                         motion_seen = True
                         motion_last_change = time.time()
@@ -396,13 +415,16 @@ def finalize_spiral_path(
                 last_cart = curr_cart
 
             # Fallback completion check once motion has started.
+            in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
+            near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
             if (
                 motion_seen
-                and (time.time() - motion_last_change) >= 0.15
+                and near_expected_end
+                and (time.time() - motion_last_change) >= settle_window_s
                 and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
-                and not flags.get("in_motion", True)
+                and in_motion_flag is not True
             ):
-                print("[Spiral] Cartesian position settled for 0.15s; exiting wait loop.")
+                print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
                 break
 
             elapsed = time.time() - start
@@ -414,9 +436,9 @@ def finalize_spiral_path(
                     )
                     timeout_notice_logged = True
 
-                in_motion_flag = bool(flags.get("in_motion", False))
+                in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
                 progress_recent = motion_seen and ((time.time() - motion_last_change) < 0.8)
-                if in_motion_flag or progress_recent:
+                if in_motion_flag is True or progress_recent:
                     timeout_stall_start = None
                 else:
                     if timeout_stall_start is None:
@@ -427,6 +449,19 @@ def finalize_spiral_path(
                     and (time.time() - timeout_stall_start) >= 3.0
                 )
                 if elapsed > safety_timeout or stalled_too_long:
+                    # Controller states can lag after path completion; if cartesian pose is settled
+                    # and we're past the expected end, treat it as completed instead of failing.
+                    if (
+                        motion_seen
+                        and near_expected_end
+                        and (time.time() - motion_last_change) >= settle_window_s
+                        and in_motion_flag is not True
+                    ):
+                        print(
+                            f"[Spiral] Safety timeout reached but pose is settled for "
+                            f"{settle_window_s:.2f}s; treating as complete."
+                        )
+                        break
                     print(
                         f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
                         f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
