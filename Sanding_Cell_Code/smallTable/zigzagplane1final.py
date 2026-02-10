@@ -40,7 +40,7 @@ from smallTable.scancord import (
 def compute_timeout(
     *,
     total_points: Optional[int] = None,
-    cap: float = 72.0,
+    cap: float = 180.0,
     velocity: float = 300.0,
 ) -> float:
     """
@@ -56,8 +56,9 @@ def compute_timeout(
     # vmax = 300.0
     # time_factor_max = float(total_points / vmax)
     time_factor = float(total_points * distance_per_point / (velocity))
-
-    timeout = float(time_factor)
+    # Add safety margin for controller overhead, force-control settling,
+    # and runtime variance under real load.
+    timeout = min(cap, (time_factor * 1.35) + 6.0)
     print(
         f"[Timeout] total_points={total_points}, est={time_factor:.1f}s timeout={timeout:.1f}s"
     )
@@ -321,6 +322,7 @@ def finalize_spiral_path(
         # Wait for completion (track path state + robot flags)
         ok = True
         start = time.time()
+        hard_timeout = max(float(completion_timeout) + 12.0, float(completion_timeout) * 1.3)
         motion_seen = False
         last_cart = None
         while True:
@@ -372,8 +374,20 @@ def finalize_spiral_path(
                 print("[Spiral] Cartesian position settled for 0.15s; exiting wait loop.")
                 break
 
-            if time.time() - start > completion_timeout:
-                print("Timeout waiting for idle. Path state:", pstate)
+            elapsed = time.time() - start
+            if elapsed > completion_timeout:
+                # Soft-timeout: keep waiting while motion is still progressing.
+                if elapsed < hard_timeout and (
+                    flags.get("in_motion", False)
+                    or (motion_seen and (time.time() - motion_last_change) < 1.0)
+                ):
+                    time.sleep(0.02)
+                    continue
+
+                print(
+                    f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
+                    f"soft={completion_timeout:.1f}s, hard={hard_timeout:.1f}s, Path state: {pstate}"
+                )
                 ok = False
                 break
             time.sleep(0.02)
@@ -1406,7 +1420,7 @@ def smalldoor1zizag(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
                     min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
-                    finalize_spiral_path(
+                    finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
@@ -1416,6 +1430,8 @@ def smalldoor1zizag(
                         force= force,
                         config= config
                     )
+                    if not finalized:
+                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -1740,7 +1756,7 @@ def smalldoor2zizag(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
                     min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
-                    finalize_spiral_path(
+                    finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
@@ -1750,6 +1766,8 @@ def smalldoor2zizag(
                         force=force,
                         config=config
                     )
+                    if not finalized:
+                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 2.")
 
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -2075,7 +2093,7 @@ def smalldoor3zizag(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
                     min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
-                    finalize_spiral_path(
+                    finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
@@ -2085,6 +2103,8 @@ def smalldoor3zizag(
                         force = force,
                         config= config
                     )
+                    if not finalized:
+                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 3.")
 
             # Wait for blending and turn off vibration
             #waitForBlending(cps=cps, config=config)
@@ -2409,7 +2429,7 @@ def smalldoor4zizag(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
                     min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
-                    finalize_spiral_path(
+                    finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
                         box_id=0,
@@ -2419,6 +2439,8 @@ def smalldoor4zizag(
                         force=force,
                         config=config
                     )
+                    if not finalized:
+                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 4.")
 
             # Wait for blending and turn off vibration
             #waitForBlending(cps=cps, config=config)
