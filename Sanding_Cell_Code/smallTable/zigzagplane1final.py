@@ -56,9 +56,8 @@ def compute_timeout(
     # vmax = 300.0
     # time_factor_max = float(total_points / vmax)
     time_factor = float(total_points * distance_per_point / (velocity))
-    # Add safety margin for controller overhead, force-control settling,
-    # and runtime variance under real load.
-    timeout = min(cap, (time_factor * 1.35) + 6.0)
+    # Keep timeout aligned to the estimated runtime from points/speed.
+    timeout = min(cap, max(1.0, time_factor))
     print(
         f"[Timeout] total_points={total_points}, est={time_factor:.1f}s timeout={timeout:.1f}s"
     )
@@ -309,10 +308,12 @@ def finalize_spiral_path(
         move_start = time.time()
     
         # Wait briefly for motion to start, then turn vibration on.
+        motion_started = False
         motion_wait_start = time.time()
         while time.time() - motion_wait_start < 1.0:
             if robot_state.fetch_and_update_flags():
                 if robot_state.state["flags"].get("in_motion"):
+                    motion_started = True
                     break
             time.sleep(0.02)
         
@@ -322,9 +323,11 @@ def finalize_spiral_path(
         # Wait for completion (track path state + robot flags)
         ok = True
         start = time.time()
-        hard_timeout = max(float(completion_timeout) + 12.0, float(completion_timeout) * 1.3)
-        motion_seen = False
+        motion_seen = motion_started
         last_cart = None
+        pre_move_cart = None
+        if robot_state.fetch_and_update_pos():
+            pre_move_cart = list(robot_state.state.get("cartesian_position", []))
         while True:
             pstate = []
             pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
@@ -337,17 +340,6 @@ def finalize_spiral_path(
                 ok = False
                 break
             elapsed_move = time.time() - move_start
-            path_phase = str(pstate[0]) if len(pstate) > 0 else ""
-            # Prefer controller path terminal state to avoid lingering on the last point.
-            if (
-                path_phase in ("4", "5")
-                and (
-                    motion_seen
-                    or elapsed_move >= max(0.0, float(min_runtime_s))
-                )
-            ):
-                print(f"[Spiral] Path state terminal ({path_phase}); exiting wait loop.")
-                break
 
             flags = {}
             if robot_state.fetch_and_update_flags():
@@ -375,12 +367,20 @@ def finalize_spiral_path(
                     (isinstance(last_done, bool) and last_done)
                     or str(last_done).strip().lower() in ("1", "true", "ok")
                 )
-                if done and elapsed_move >= max(0.0, float(min_runtime_s)):
+                if done and motion_seen and elapsed_move >= max(0.0, float(min_runtime_s)):
                     print("[Spiral] IsMotionDone=1; exiting wait loop.")
                     break
 
             if robot_state.fetch_and_update_pos():
                 curr_cart = list(robot_state.state.get("cartesian_position", []))
+                if (
+                    not motion_seen
+                    and pre_move_cart
+                    and len(curr_cart) >= 6
+                    and len(pre_move_cart) >= 6
+                    and any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], pre_move_cart[:6]))
+                ):
+                    motion_seen = True
                 if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
                     moved = any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6]))
                     if moved:
@@ -402,17 +402,9 @@ def finalize_spiral_path(
 
             elapsed = time.time() - start
             if elapsed > completion_timeout:
-                # Soft-timeout: keep waiting while motion is still progressing.
-                if elapsed < hard_timeout and (
-                    flags.get("in_motion", False)
-                    or (motion_seen and (time.time() - motion_last_change) < 1.0)
-                ):
-                    time.sleep(0.02)
-                    continue
-
                 print(
                     f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
-                    f"soft={completion_timeout:.1f}s, hard={hard_timeout:.1f}s, Path state: {pstate}"
+                    f"timeout={completion_timeout:.1f}s, Path state: {pstate}"
                 )
                 ok = False
                 break
