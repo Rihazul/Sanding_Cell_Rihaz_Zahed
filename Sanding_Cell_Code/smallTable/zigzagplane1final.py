@@ -1405,8 +1405,9 @@ def smalldoor1zizag(
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
-                if split and (orientation or "").lower() == "horizontal":
-                    force_seek_linear = 12.0
+                force_blending_timeout = 7.0
+                if split:
+                    force_blending_timeout = 0.4
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -1414,6 +1415,7 @@ def smalldoor1zizag(
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
                 )
                 print("Turned Vibration On")
 
@@ -1747,8 +1749,9 @@ def smalldoor2zizag(
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
-                if split and (orientation or "").lower() == "horizontal":
-                    force_seek_linear = 12.0
+                force_blending_timeout = 7.0
+                if split:
+                    force_blending_timeout = 0.4
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -1756,6 +1759,7 @@ def smalldoor2zizag(
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
                 )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -2089,8 +2093,9 @@ def smalldoor3zizag(
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
-                if split and (orientation or "").lower() == "horizontal":
-                    force_seek_linear = 12.0
+                force_blending_timeout = 7.0
+                if split:
+                    force_blending_timeout = 0.4
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -2098,6 +2103,7 @@ def smalldoor3zizag(
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
                 )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
@@ -2430,8 +2436,9 @@ def smalldoor4zizag(
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
-                if split and (orientation or "").lower() == "horizontal":
-                    force_seek_linear = 12.0
+                force_blending_timeout = 7.0
+                if split:
+                    force_blending_timeout = 0.4
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -2439,6 +2446,7 @@ def smalldoor4zizag(
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
                 )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)

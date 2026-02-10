@@ -785,6 +785,7 @@ def putForceZminus(
     goal=[0, 0, 1],
     search_linear_velocity=5.0,
     search_angular_velocity=1.0,
+    blending_timeout_s=7.0,
 ):
     # Initialize parameters
     boxID = 0  # Control box ID
@@ -793,7 +794,7 @@ def putForceZminus(
     result = []
     nret = 0
 
-    waitForBlending(cps, config)
+    waitForBlending(cps, config, timeout_s=blending_timeout_s)
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
