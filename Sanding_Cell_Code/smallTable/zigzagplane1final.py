@@ -1402,24 +1402,23 @@ def smalldoor1zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
-            # Vibration on
-
-            # Force Control Activated
-            force_seek_linear = 5.0
-            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
-                force_seek_linear = 12.0
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                config=config,
-                search_linear_velocity=force_seek_linear,
-            )
-            print("Turned Vibration On")
+            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if has_edge:
+                force_seek_linear = 5.0
+                if split and (orientation or "").lower() == "horizontal":
+                    force_seek_linear = 12.0
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                )
+                print("Turned Vibration On")
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if run_edge_coverage and edge_points and len(edge_points) > 0:
+            if has_edge:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -1452,8 +1451,8 @@ def smalldoor1zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
-            releaseForce(cps=cps, config=config)
-            turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
+                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -1585,17 +1584,17 @@ def smalldoor1zizag(
                     speed=0.8,
                     wait=True
                 )
-                # # turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prepointp1,  # Dynamic prepoint
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -1745,23 +1744,22 @@ def smalldoor2zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
-            # Vibration on
-
-            # Force Control Activated
-            force_seek_linear = 5.0
-            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
-                force_seek_linear = 12.0
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                config=config,
-                search_linear_velocity=force_seek_linear,
-            )
+            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if has_edge:
+                force_seek_linear = 5.0
+                if split and (orientation or "").lower() == "horizontal":
+                    force_seek_linear = 12.0
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if run_edge_coverage and edge_points and len(edge_points) > 0:
+            if has_edge:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -1794,8 +1792,8 @@ def smalldoor2zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
-            releaseForce(cps=cps, config=config)
-            turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
+                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -1927,17 +1925,17 @@ def smalldoor2zizag(
                     speed=0.8,
                     wait=True
                 )
-                # # turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prepointp1,  # Dynamic prepoint
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2088,23 +2086,22 @@ def smalldoor3zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
-            # Vibration on
-
-            # Force Control Activated
-            force_seek_linear = 5.0
-            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
-                force_seek_linear = 12.0
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                config=config,
-                search_linear_velocity=force_seek_linear,
-            )
+            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if has_edge:
+                force_seek_linear = 5.0
+                if split and (orientation or "").lower() == "horizontal":
+                    force_seek_linear = 12.0
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if run_edge_coverage and edge_points and len(edge_points) > 0:
+            if has_edge:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -2137,8 +2134,8 @@ def smalldoor3zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
-            releaseForce(cps=cps, config=config)
-            turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
+                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -2270,17 +2267,17 @@ def smalldoor3zizag(
                     speed=0.8,
                     wait=True
                 )
-                # # turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prepointp1,  # Dynamic prepoint
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2430,23 +2427,22 @@ def smalldoor4zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
-            # Vibration on
-
-            # Force Control Activated
-            force_seek_linear = 5.0
-            if split and (orientation or "").lower() == "horizontal" and run_edge_coverage:
-                force_seek_linear = 12.0
-            putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                config=config,
-                search_linear_velocity=force_seek_linear,
-            )
+            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if has_edge:
+                force_seek_linear = 5.0
+                if split and (orientation or "").lower() == "horizontal":
+                    force_seek_linear = 12.0
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                )
 
             # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if run_edge_coverage and edge_points and len(edge_points) > 0:
+            if has_edge:
                 print(
                     f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
                 )
@@ -2479,8 +2475,8 @@ def smalldoor4zizag(
                 # Wait for edge coverage to complete before starting spiral
                 waitForBlending(cps=cps, config=config)
                 print("[Edge Coverage] Completed linear edge path")
-            releaseForce(cps=cps, config=config)
-            turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
+                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -2612,17 +2608,17 @@ def smalldoor4zizag(
                     speed=0.8,
                     wait=True
                 )
-                # # turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=prepointp1,  # Dynamic prepoint
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
