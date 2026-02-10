@@ -336,6 +336,18 @@ def finalize_spiral_path(
                 print(f"[Spiral] Path reported error: {pstate}")
                 ok = False
                 break
+            elapsed_move = time.time() - move_start
+            path_phase = str(pstate[0]) if len(pstate) > 0 else ""
+            # Prefer controller path terminal state to avoid lingering on the last point.
+            if (
+                path_phase in ("4", "5")
+                and (
+                    motion_seen
+                    or elapsed_move >= max(0.0, float(min_runtime_s))
+                )
+            ):
+                print(f"[Spiral] Path state terminal ({path_phase}); exiting wait loop.")
+                break
 
             flags = {}
             if robot_state.fetch_and_update_flags():
@@ -351,6 +363,20 @@ def finalize_spiral_path(
                     and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
                 ):
                     print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
+                    break
+
+            # Controller-level motion completion can become true slightly earlier than
+            # state-flags convergence, which helps reduce end-point dwell.
+            motion_done = []
+            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
+            if mret == 0 and motion_done:
+                last_done = motion_done[-1]
+                done = (
+                    (isinstance(last_done, bool) and last_done)
+                    or str(last_done).strip().lower() in ("1", "true", "ok")
+                )
+                if done and elapsed_move >= max(0.0, float(min_runtime_s)):
+                    print("[Spiral] IsMotionDone=1; exiting wait loop.")
                     break
 
             if robot_state.fetch_and_update_pos():
@@ -1419,7 +1445,9 @@ def smalldoor1zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
-                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
+                    # Keep a short anti-false-positive runtime guard without
+                    # adding visible delay at the final point.
+                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
                     finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
@@ -1755,7 +1783,9 @@ def smalldoor2zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
-                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
+                    # Keep a short anti-false-positive runtime guard without
+                    # adding visible delay at the final point.
+                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
                     finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
@@ -2092,7 +2122,9 @@ def smalldoor3zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
-                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
+                    # Keep a short anti-false-positive runtime guard without
+                    # adding visible delay at the final point.
+                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
                     finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
@@ -2428,7 +2460,9 @@ def smalldoor4zizag(
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
-                    min_runtime_s = max(0.2, min(2.0, timeout * 0.3))
+                    # Keep a short anti-false-positive runtime guard without
+                    # adding visible delay at the final point.
+                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
                     finalized = finalize_spiral_path(
                         cps,
                         spiral_track_name,
