@@ -317,6 +317,8 @@ def sandingModelATableA():
     z, z1, z2 = 0, 0, -10
     # Speed
     speeed = float(json_config["robotSpeed"])
+    # Keep the mounted tool after the final completed task unless explicitly disabled.
+    keep_tool_after_task = bool(config.get("settings", {}).get("keepToolAfterTask", True))
 
     # side_cycles1  = 1  # 0 to 10
     # side_cycles2   = 0
@@ -530,7 +532,7 @@ def sandingModelATableA():
                     cps,
                 )
 
-            # Keep Tool 3
+            # Leave the working area before any optional tool-change/drop action.
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -541,35 +543,47 @@ def sandingModelATableA():
                 speed=speeed,
                 wait=True,
             )
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=0,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.3,
-                wait=True,
-            )
-            # keepTool11(cps, toolNumber=3, config=config)
-
-            if (
+            has_followup_after_tool3 = (
                 any_cycles(tool2edge_by_door)
                 or any_cycles(tool2side_by_door)
                 or any_cycles(tool3_by_door)
-            ):
-                keepToolupdated(cps, toolNumber=3, config=config)
-            else:
-                keepTool11(cps, toolNumber=3, config=config)
+            )
+
+            if has_followup_after_tool3:
                 communicate(
                     cps=cps,
-                    point=config["point"]["safePoint"],
-                    tcp=config["coords"]["tcpDefault"],
-                    ucs=config["coords"]["ucsDefault"],
-                    seventh=-1,
                     config=config,
-                    speed=speeed,
+                    seventh=0,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.3,
                     wait=True,
                 )
+                keepToolupdated(cps, toolNumber=3, config=config)
+            else:
+                if keep_tool_after_task:
+                    print("Task completed: keeping Tool 3 mounted.")
+                else:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        seventh=0,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        speed=0.3,
+                        wait=True,
+                    )
+                    keepTool11(cps, toolNumber=3, config=config)
+                    communicate(
+                        cps=cps,
+                        point=config["point"]["safePoint"],
+                        tcp=config["coords"]["tcpDefault"],
+                        ucs=config["coords"]["ucsDefault"],
+                        seventh=-1,
+                        config=config,
+                        speed=speeed,
+                        wait=True,
+                    )
 
             print("\nAll operations completed for Tool1 successfully!")
 
@@ -645,7 +659,7 @@ def sandingModelATableA():
             # run_tool2side_edgecycles(tl2sideedge_cycle3, tl2sideedge_force3, tl2sideedge_door3)
             # run_tool2side_edgecycles(tl2sideedge_cycle4, tl2sideedge_force4, tl2sideedge_door4)
 
-            # Drop Tool 2
+            # Leave the working area before any optional tool-change/drop action.
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
             # keepTool11(cps, toolNumber=2, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
@@ -659,29 +673,42 @@ def sandingModelATableA():
                 speed=speeed,
                 wait=True,
             )
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=0,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.3,
-                wait=True,
-            )
-            if any_cycles(tool3_by_door):
-                keepToolupdated(cps, toolNumber=2, config=config)
-            else:
-                keepTool11(cps, toolNumber=2, config=config)
+            has_followup_after_tool2 = any_cycles(tool3_by_door)
+            if has_followup_after_tool2:
                 communicate(
                     cps=cps,
-                    point=config["point"]["safePoint"],
-                    tcp=config["coords"]["tcpDefault"],
-                    ucs=config["coords"]["ucsDefault"],
-                    seventh=-1,
                     config=config,
-                    speed=speeed,
+                    seventh=0,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.3,
                     wait=True,
                 )
+                keepToolupdated(cps, toolNumber=2, config=config)
+            else:
+                if keep_tool_after_task:
+                    print("Task completed: keeping Tool 2 mounted.")
+                else:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        seventh=0,
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        speed=0.3,
+                        wait=True,
+                    )
+                    keepTool11(cps, toolNumber=2, config=config)
+                    communicate(
+                        cps=cps,
+                        point=config["point"]["safePoint"],
+                        tcp=config["coords"]["tcpDefault"],
+                        ucs=config["coords"]["ucsDefault"],
+                        seventh=-1,
+                        config=config,
+                        speed=speeed,
+                        wait=True,
+                    )
 
         if is_door_available(tl3sideedge_door) and any_cycles(tool3_by_door):
             has_tool1 = check_tool(
@@ -730,7 +757,7 @@ def sandingModelATableA():
                 cfg = tool3_by_door.get(int(door_number), {})
                 run_tool3_cycles(int(cfg.get("cycle", 0)), int(door_number), z2, cps)
 
-            # Drop Tool 2
+            # Leave the working area before any optional final tool drop.
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -741,26 +768,29 @@ def sandingModelATableA():
                 speed=speeed,
                 wait=True,
             )
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=0,
-                tcp=config["coords"]["tcptool1plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.3,
-                wait=True,
-            )
-            keepTool11(cps, toolNumber=1, config=config)
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
+            if keep_tool_after_task:
+                print("Task completed: keeping Tool 1 mounted.")
+            else:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    seventh=0,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    speed=0.3,
+                    wait=True,
+                )
+                keepTool11(cps, toolNumber=1, config=config)
+                communicate(
+                    cps=cps,
+                    point=config["point"]["safePoint"],
+                    tcp=config["coords"]["tcpDefault"],
+                    ucs=config["coords"]["ucsDefault"],
+                    seventh=-1,
+                    config=config,
+                    speed=speeed,
+                    wait=True,
+                )
 
     except Exception as e:
         print(f"\nExecution error: {str(e)}")
