@@ -297,16 +297,100 @@ def finalize_spiral_path(
         turn_vibration_on(cps)
         vibration_active = True
 
-    # Pocket-style completion: avoid long waits on stale motion-state flags.
-    # We keep a bounded blending wait and let caller cleanup force/vibration.
-    if config is not None:
-        blend_timeout = max(0.25, min(0.8, float(completion_timeout) * 0.05))
-        waitForBlending(cps=cps, config=config, timeout_s=blend_timeout)
-        return True
+    # Wait for completion using real motion/pose settle detection.
+    # This avoids long hangs on stale "done" flags while still ensuring MovePathL
+    # actually executes before cleanup starts.
+    ok = True
+    move_start = time.time()
+    start_motion_deadline = move_start + 1.5
+    motion_started = False
+    last_motion_change = move_start
+    last_cart = None
+    position_noise_mm = 0.6
+    orientation_noise_deg = 0.8
+    settle_window_s = 0.12
+    min_runtime_s = 0.2
 
-    # Fallback when config is unavailable.
-    time.sleep(0.05)
-    return True
+    while True:
+        pstate = []
+        pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
+        if pret != 0:
+            print("HRIF_ReadPathState failed:", pret)
+            ok = False
+            break
+        if len(pstate) > 3 and pstate[3] != "0":
+            print(f"[Spiral] Path reported error: {pstate}")
+            ok = False
+            break
+
+        now = time.time()
+
+        # Motion flag
+        state = []
+        sret = cps.HRIF_ReadRobotState(box_id, robot_id, state)
+        if sret == 0 and state:
+            in_motion = str(state[0]).strip() == "1"
+            if in_motion:
+                motion_started = True
+                last_motion_change = now
+
+        # Cartesian pose delta
+        act = []
+        aret = cps.HRIF_ReadActPos(box_id, robot_id, act)
+        if aret == 0 and len(act) >= 12:
+            try:
+                curr_cart = [float(v) for v in act[6:12]]
+            except (TypeError, ValueError):
+                curr_cart = None
+
+            if curr_cart is not None:
+                if last_cart is not None:
+                    moved = (
+                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
+                        )
+                    )
+                    if moved:
+                        motion_started = True
+                        last_motion_change = now
+                last_cart = curr_cart
+
+        # Normal completion: once motion has started and then settles at last point.
+        if (
+            motion_started
+            and (now - move_start) >= min_runtime_s
+            and (now - last_motion_change) >= settle_window_s
+        ):
+            print(f"[Spiral] Motion settled for {settle_window_s:.2f}s; exiting wait loop.")
+            break
+
+        # Fallback for very short paths where movement is too quick to observe.
+        if not motion_started and now >= start_motion_deadline:
+            motion_done = []
+            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
+            if mret == 0 and motion_done:
+                last_done = motion_done[-1]
+                done = (
+                    (isinstance(last_done, bool) and last_done)
+                    or str(last_done).strip().lower() in ("1", "true", "ok")
+                )
+                if done:
+                    print("[Spiral] Motion done detected on short-path fallback.")
+                    break
+
+        if now - move_start > completion_timeout:
+            if motion_started and (now - last_motion_change) >= 0.05:
+                print("[Spiral] Timeout reached but pose settled; treating as complete.")
+                break
+            print(f"[Spiral] Timeout waiting for completion. Path state: {pstate}")
+            ok = False
+            break
+
+        time.sleep(0.02)
+
+    return ok
 
 
 def load_config():
