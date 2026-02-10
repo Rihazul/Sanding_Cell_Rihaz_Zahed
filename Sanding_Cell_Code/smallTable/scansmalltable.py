@@ -32,6 +32,26 @@ def save_scan_results_to_json(data, output_dir=None):
     # Get current timestamp for the data
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     
+    x_vals = data.get('xVals', [])
+    y_vals = data.get('yVals', [])
+    door_profiles = []
+    total_doors = max(len(x_vals), len(y_vals))
+    for idx in range(total_doors):
+        x_entry = x_vals[idx] if idx < len(x_vals) else {}
+        y_entry = y_vals[idx] if idx < len(y_vals) else {}
+        door_profiles.append(
+            {
+                'doorNumber': idx + 1,
+                'profile': y_entry.get('doorProfile')
+                or x_entry.get('doorProfile')
+                or 'unknown',
+                'xProfileType': x_entry.get('xProfileType', 'unknown'),
+                'yProfileType': y_entry.get('yProfileType', 'unknown'),
+                'xPocketDetected': bool(x_entry.get('xPocketDetected', False)),
+                'yPocketDetected': bool(y_entry.get('yPocketDetected', False)),
+            }
+        )
+
     # Convert data to a format suitable for JSON serialization
     json_data = {
         'timestamp': timestamp,
@@ -40,8 +60,9 @@ def save_scan_results_to_json(data, output_dir=None):
         'pocketPoints': [{str(k): v for k, v in points.items()} for points in data['pocketPoints']],
         'outerCornerPoints': [{str(k): v for k, v in points.items()} for points in data['outerCornerPoints']],
         'innerCornerPoints': [{str(k): v for k, v in points.items()} for points in data['innerCornerPoints']],
-        'xVals': data['xVals'],
-        'yVals': data['yVals']
+        'xVals': x_vals,
+        'yVals': y_vals,
+        'doorProfiles': door_profiles,
     }
     
     # Save to JSON file, overwriting any existing content

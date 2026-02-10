@@ -2823,7 +2823,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         return result
 
     def identify_gradient_change_points_dynamic(
-        chunks, threshold, min_stable_distance, model, config
+        chunks, threshold, min_stable_distance, three_d_compensation, config
     ):
         """
         Identifies stable regions where the change in height is below a specified threshold for a minimum distance.
@@ -2832,6 +2832,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         - chunks (list of dicts): Each dict contains 'dist' and 'height'.
         - threshold (float): The threshold for detecting stable regions based on height change.
         - min_stable_distance (float): Minimum distance required for a region to be considered stable.
+        - three_d_compensation (float): fixed 3D compensation for scan geometry.
         - config (dict): configuration file
         Returns:
         - stable_regions (list of dicts): Each dict contains the start and end distances of a stable region.
@@ -2839,10 +2840,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # Filter out NaN values in height data
         chunks = [item for item in chunks if not math.isnan(item["height"])]
         compensation = 0
+        if len(chunks) < 2:
+            raise ValueError(
+                "Insufficient scan points to classify depth profile (need at least 2 points)."
+            )
+
         # Extract distances and heights
         distances = [item["dist"] for item in chunks]
         heights = [item["height"] for item in chunks]
-        print(chunks, distances, heights)
         stable_start_idx = None  # Track start of stable region
         stable_regions = []
 
@@ -2868,7 +2873,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     stable_start_idx = None  # Reset stable start index
 
         # Check the final region if the data ends in a stable region
-        print("stable_start_idx", stable_start_idx)
         if stable_start_idx is not None:
             start_dist = distances[stable_start_idx]
             end_dist = distances[-1]
@@ -2876,8 +2880,29 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 stable_regions.append(
                     {"start_distance": start_dist, "end_distance": end_dist}
                 )
-        print("stable_regions", stable_regions)
         config["logger"].info("Debug: %s", stable_regions)
+
+        total_length = max(float(chunks[-1]["dist"]) - float(chunks[0]["dist"]), 0.0)
+        height_range = max(heights) - min(heights)
+
+        def uniform_depth_result(reason):
+            return {
+                "frame_1": 0.0,
+                "threeD_1": 0.0,
+                "pocket": total_length,
+                "threeD_2": 0.0,
+                "frame_2": 0.0,
+                "profileType": "uniform_depth_no_pocket",
+                "pocketDetected": False,
+                "stableRegionCount": len(stable_regions),
+                "heightRange": height_range,
+                "reason": reason,
+            }
+
+        # If we cannot find two stable bands, we treat the door as uniform depth.
+        if len(stable_regions) < 2:
+            return uniform_depth_result("stable_regions_lt_2")
+
         frame1_point1 = float(chunks[0]["dist"])
         frame1_point2 = stable_regions[0]["end_distance"]
         pocket_point1 = stable_regions[0]["end_distance"]
@@ -2900,13 +2925,21 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         threeD1 = pocket_point1 - frame1_point2
         threeD2 = frame2_point1 - pocket_point2
         frame2 = frame2_point2 - frame2_point1 + compensation
-        print("model is:", model)
+
+        if frame1 < 0 or frame2 < 0 or pocket <= 0:
+            return uniform_depth_result("non_positive_segment")
+
         result = {
             "frame_1": frame1,
-            "threeD_1": config["model3D"][str(model)],
+            "threeD_1": three_d_compensation,
             "pocket": pocket,
-            "threeD_2": config["model3D"][str(model)],
+            "threeD_2": three_d_compensation,
             "frame_2": frame2,
+            "profileType": "frame_and_pocket",
+            "pocketDetected": True,
+            "stableRegionCount": len(stable_regions),
+            "heightRange": height_range,
+            "reason": "stable_regions_detected",
         }
 
         return result
@@ -3048,6 +3081,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         xVals = []
         yVals = []
         allXMeasurements = []
+        scan_threshold = float(
+            config.get("scanThresholdDefault", config.get("scanThreshold", {}).get("T1", 1))
+        )
+        scan_min_stable_distance = float(
+            config.get(
+                "scanThresholdMinDDefault",
+                config.get("scanThresholdMinD", {}).get("T1", 0),
+            )
+        )
+        scan_three_d_compensation = float(
+            config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
+        )
+        config["logger"].info(
+            "[scan] Using model-agnostic scan profile: threshold=%s, min_stable_distance=%s, three_d=%s",
+            scan_threshold,
+            scan_min_stable_distance,
+            scan_three_d_compensation,
+        )
 
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -3280,11 +3331,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             # results = identify_gradient_change_points_dynamic(xmeasurements, thresholds=[0.15, 0.1])
             results = identify_gradient_change_points_dynamic(
                 xmeasurements,
-                threshold=config["scanThreshold"][f"T{config['UI']['model']}"],
-                min_stable_distance=config["scanThresholdMinD"][
-                    f"T{config['UI']['model']}"
-                ],
-                model=config["UI"]["model"],
+                threshold=scan_threshold,
+                min_stable_distance=scan_min_stable_distance,
+                three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
 
@@ -3301,7 +3350,19 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             xlen = xframe_1 + x_pocket + xframe_2
             xframe_1 = xframe_1 + x_td1
             xframe_2 = xframe_2 + x_td2
-            xVals.append({"xlen": xlen, "xframe_1": xframe_1, "xframe_2": xframe_2})
+            x_profile_type = results.get("profileType", "unknown")
+            x_pocket_detected = bool(results.get("pocketDetected", False))
+            xVals.append(
+                {
+                    "xlen": xlen,
+                    "xframe_1": xframe_1,
+                    "xframe_2": xframe_2,
+                    "xProfileType": x_profile_type,
+                    "xPocketDetected": x_pocket_detected,
+                    "xHeightRange": results.get("heightRange", 0),
+                    "xClassificationReason": results.get("reason", ""),
+                }
+            )
 
             own7thpos.append(xpos)
             ymeasurements = []
@@ -3416,9 +3477,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             # ylen, yframe_1, yframe_2 = find_constant_height_periods(ymeasurements, threshold=2)
             results = identify_gradient_change_points_dynamic(
                 ymeasurements,
-                threshold=config["scanThreshold"][f"T{config['UI']['model']}"],
+                threshold=scan_threshold,
                 min_stable_distance=0,
-                model=config["UI"]["model"],
+                three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
             # results = identify_gradient_change_points_dynamic(ymeasurements, thresholds=[0.2, 0.1])
@@ -3433,7 +3494,34 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ylen = yframe_1 + y_pocket + yframe_2
             yframe_1 = yframe_1 + y_td1
             yframe_2 = yframe_2 + y_td2
-            yVals.append({"ylen": ylen, "yframe_1": yframe_1, "yframe_2": yframe_2})
+            y_profile_type = results.get("profileType", "unknown")
+            y_pocket_detected = bool(results.get("pocketDetected", False))
+            if (
+                x_profile_type == "uniform_depth_no_pocket"
+                and y_profile_type == "uniform_depth_no_pocket"
+            ):
+                door_profile = "uniform_depth_no_pocket"
+            elif (
+                x_profile_type == "frame_and_pocket"
+                and y_profile_type == "frame_and_pocket"
+            ):
+                door_profile = "frame_and_pocket"
+            else:
+                door_profile = "mixed_or_uncertain"
+
+            xVals[-1]["doorProfile"] = door_profile
+            yVals.append(
+                {
+                    "ylen": ylen,
+                    "yframe_1": yframe_1,
+                    "yframe_2": yframe_2,
+                    "yProfileType": y_profile_type,
+                    "yPocketDetected": y_pocket_detected,
+                    "yHeightRange": results.get("heightRange", 0),
+                    "yClassificationReason": results.get("reason", ""),
+                    "doorProfile": door_profile,
+                }
+            )
 
             config["logger"].info(
                 f"[scan] x stuffs: <total length>: {xlen} mm, <left frame>: {xframe_1} mm, <right frame>: {xframe_2} mm"

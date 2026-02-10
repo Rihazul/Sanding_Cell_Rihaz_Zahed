@@ -246,7 +246,7 @@ def finalize_spiral_path(
     config: Optional[dict] = None,
     tcp: Optional[str] = None,
     ucs: Optional[str] = None,
-    completion_timeout=76.0,
+    completion_timeout=45.0,
 ) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
@@ -269,7 +269,7 @@ def finalize_spiral_path(
         if elapsed > 120.0:
             print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s:", st)
             return False
-        time.sleep(0.1)
+        time.sleep(0.02)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
 
     pass  # vibration handled in finalize
@@ -304,8 +304,9 @@ def finalize_spiral_path(
     # Wait for completion (track path state + robot flags)
     ok = True
     start = time.time()
+    move_start = time.time()
     motion_seen = False
-    last_cart = None
+    min_runtime_s = 0.05
     try:
         while True:
             pstate = []
@@ -319,35 +320,46 @@ def finalize_spiral_path(
                 ok = False
                 break
 
-            if not motion_seen:
-                if robot_state.fetch_and_update_flags():
-                    if robot_state.state["flags"].get("in_motion"):
-                        motion_seen = True
-                if not motion_seen and robot_state.fetch_and_update_pos():
-                    curr_cart = list(robot_state.state.get("cartesian_position", []))
-                    if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
-                        if any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6])):
-                            motion_seen = True
-                    last_cart = curr_cart
+            elapsed_move = time.time() - move_start
 
-            # Only allow early exit after motion has started.
-            if motion_seen and robot_state.wait_until_still(
-                still_seconds=1.0, poll_seconds=0.05
-            ):
-                print("[Spiral] No motion detected for 1.0s; exiting wait loop.")
-                break
+            flags = {}
+            if robot_state.fetch_and_update_flags():
+                flags = robot_state.state.get("flags", {})
+                if flags.get("in_motion", False):
+                    motion_seen = True
+                # Fast-path: end as soon as controller confirms completion.
+                if (
+                    motion_seen
+                    and not flags.get("in_motion", True)
+                    and flags.get("point_motion_done", False)
+                    and flags.get("in_position", False)
+                    and elapsed_move >= min_runtime_s
+                ):
+                    print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
+                    break
+
+            motion_done = []
+            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
+            if mret == 0 and motion_done:
+                last_done = motion_done[-1]
+                done = (
+                    (isinstance(last_done, bool) and last_done)
+                    or str(last_done).strip().lower() in ("1", "true", "ok")
+                )
+                if done and motion_seen and elapsed_move >= min_runtime_s:
+                    print("[Spiral] IsMotionDone=1; exiting wait loop.")
+                    break
 
             if time.time() - start > completion_timeout:
                 print("Timeout waiting for idle. Path state:", pstate)
                 ok = False
                 break
-            time.sleep(0.1)
+            time.sleep(0.02)
 
     finally:
-        if vibration_active:
-            turn_vibration_off(cps)
-        if force_active and config is not None:
-            releaseForce(cps=cps, config=config)
+        # Caller-level flow handles vibration/force cleanup to keep frame timing
+        # consistent with pocket cycles (single cleanup point).
+        pass
     return ok
 
 
@@ -424,7 +436,7 @@ def smalldoor1side(force,cps):
             total_count = 0
             enable_force = True
 
-             # Filter only sanding points (skip prepoints like Z=10)
+            # Filter only sanding points (skip prepoints like Z=10)
             sanding_points = []
             for p in points1:
                 try:
@@ -479,9 +491,9 @@ def smalldoor1side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -492,7 +504,7 @@ def smalldoor1side(force,cps):
             
             if path_initialized and not push_failed:
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -702,9 +714,9 @@ def smalldoor1side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -719,7 +731,7 @@ def smalldoor1side(force,cps):
                 if enable_vibration:
                     pass  # vibration handled in finalize
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -799,9 +811,9 @@ def smalldoor1side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -816,7 +828,7 @@ def smalldoor1side(force,cps):
                 if enable_vibration:
                     pass  # vibration handled in finalize
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -1021,9 +1033,9 @@ def smalldoor2side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -1039,7 +1051,7 @@ def smalldoor2side(force,cps):
                     pass  # vibration handled in finalize
                     
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -1216,9 +1228,9 @@ def smalldoor2side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -1234,7 +1246,7 @@ def smalldoor2side(force,cps):
                     pass  # vibration handled in finalize
 
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -1307,9 +1319,9 @@ def smalldoor2side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -1325,7 +1337,7 @@ def smalldoor2side(force,cps):
                     pass  # vibration handled in finalize
                 
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -1529,9 +1541,9 @@ def smalldoor3side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -1547,7 +1559,7 @@ def smalldoor3side(force,cps):
                     pass  # vibration handled in finalize
                 
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -1722,9 +1734,9 @@ def smalldoor3side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -1740,7 +1752,7 @@ def smalldoor3side(force,cps):
                     pass  # vibration handled in finalize
                     
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -1812,9 +1824,9 @@ def smalldoor3side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -1829,7 +1841,7 @@ def smalldoor3side(force,cps):
                 if enable_vibration:
                     pass  # vibration handled in finalize
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -2031,9 +2043,9 @@ def smalldoor4side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -2048,7 +2060,7 @@ def smalldoor4side(force,cps):
                 if enable_vibration:
                     pass  # vibration handled in finalize
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -2225,9 +2237,9 @@ def smalldoor4side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -2242,7 +2254,7 @@ def smalldoor4side(force,cps):
                 if enable_vibration:
                     pass  # vibration handled in finalize
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -2313,9 +2325,9 @@ def smalldoor4side(force,cps):
                     radius=12.0,
                     angle_step_deg=45.0,
                     track_name=spiral_track_name,
-                    velocity=300.0,
-                    accel=500.0,
-                    jerk=10000.0,
+                    velocity=150.0,
+                    accel=300.0,
+                    jerk=3000.0,
                     init_path=not path_initialized,
                 )
                 if not success:
@@ -2331,7 +2343,7 @@ def smalldoor4side(force,cps):
                     pass  # vibration handled in finalize
                     
                 timeout = compute_timeout(
-                    total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    total_points=total_count, velocity=150.0 * 10.0 / 45.0
                 )
                 finalize_spiral_path(
                     cps,
@@ -2437,5 +2449,6 @@ if __name__ == "__main__":
     smalldoor3side(force=5)
     #smalldoor4side(force=5)
     
+
 
 

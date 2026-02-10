@@ -85,6 +85,11 @@ scanThresholdMinD:
   T4: 8 # Increased from 8 to 10 by rafat
   T5: 8 # Increased from 8 to 10 by rafat
 
+# Model-agnostic scan profile used before task deployment.
+scanThresholdDefault: 1
+scanThresholdMinDDefault: 0
+scanThreeDDefault: 0
+
 door:
   frame: 60
   sandSpeed: 0.02 #0.02 real
