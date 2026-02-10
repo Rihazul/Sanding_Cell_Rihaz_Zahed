@@ -80,6 +80,7 @@ export function TableConfiguration({
                 <option value="modelC">Model C</option>
                 <option value="modelD">Model D</option>
                 <option value="modelE">Model E</option>
+                <option value="modelF">Model F</option>
               </select>
 
               <div className="mt-4 space-y-3">
@@ -221,6 +222,7 @@ export function TableConfiguration({
                 <option value="modelC">Model C</option>
                 <option value="modelD">Model D</option>
                 <option value="modelE">Model E</option>
+                <option value="modelF">Model F</option>
               </select>
 
               <div className="mt-4 space-y-3">

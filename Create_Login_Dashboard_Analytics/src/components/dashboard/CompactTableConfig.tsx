@@ -80,6 +80,7 @@ export function CompactTableConfig({
     if (value === 'modelC') return 'Model C';
     if (value === 'modelD') return 'Model D';
     if (value === 'modelE') return 'Model E';
+    if (value === 'modelF') return 'Model F';
     return value || 'No model selected';
   };
   
@@ -342,8 +343,13 @@ export function CompactTableConfig({
     const wasSelected = currentSelection.includes(doorNumber);
 
     if (wasSelected) {
-      // Clicking a selected door should focus that door, not deselect it.
-      setSelectedDoor(doorNumber);
+      // Allow door deselection without page refresh.
+      const nextSelection = currentSelection.filter(d => d !== doorNumber);
+      setRowDoorSelections(prev => ({ ...prev, [label]: nextSelection }));
+      if (selectedDoor === doorNumber) {
+        // Keep editing context on another selected door when possible.
+        setSelectedDoor(nextSelection[0] ?? 1);
+      }
       return;
     }
 
@@ -424,7 +430,7 @@ export function CompactTableConfig({
   };
 
   return (
-    <Card className="shadow-lg border-0 bg-slate-50/90">
+    <Card className="shadow-xl border border-slate-300 bg-white/95 backdrop-blur-sm">
       <CardHeader className="bg-gradient-to-r from-indigo-50 to-cyan-50">
         <CardTitle className="flex items-center justify-between">
           Table {tableName} Configuration
@@ -433,8 +439,8 @@ export function CompactTableConfig({
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-6">
-        <div className="border-2 border-indigo-300 rounded-lg p-5">
+      <CardContent className="pt-6 bg-white rounded-b-lg">
+        <div className="border-2 border-indigo-300 rounded-xl p-5 bg-white shadow-[0_8px_24px_rgba(30,64,175,0.08)]">
           {tableName === 'A' && doorConfigs ? (
             <>
               {/* Door Selection Tabs */}
@@ -455,6 +461,7 @@ export function CompactTableConfig({
                   <option value="modelC">Model C</option>
                   <option value="modelD">Model D</option>
                   <option value="modelE">Model E</option>
+                  <option value="modelF">Model F</option>
                 </select>
               </div>
 
@@ -610,6 +617,7 @@ export function CompactTableConfig({
                 <option value="modelC">Model C</option>
                 <option value="modelD">Model D</option>
                 <option value="modelE">Model E</option>
+                <option value="modelF">Model F</option>
               </select>
 
               <div className="mt-6 space-y-3">
@@ -718,33 +726,35 @@ export function CompactTableConfig({
             </div>
           )}
 
-          <div className={`grid gap-3 mt-4 ${tableName === 'A' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-            {tableName === 'A' ? (
-              <>
+          <div className="mt-5 border-2 border-slate-200 pt-4 bg-white rounded-xl px-4 pb-4 shadow-sm">
+            <div className={`grid gap-3 ${tableName === 'A' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {tableName === 'A' ? (
+                <>
+                  <Button 
+                    onClick={handleStartScan} 
+                    disabled={isOperating}
+                    className="bg-green-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isOperating ? 'Scanning...' : 'Scan'}
+                  </Button>
+                  <Button 
+                    onClick={handleStartTask} 
+                    disabled={isOperating}
+                    className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isOperating ? 'Operating...' : 'Start Task'}
+                  </Button>
+                </>
+              ) : (
                 <Button 
-                  onClick={handleStartScan} 
+                  onClick={handleUpload3DFile} 
                   disabled={isOperating}
-                  className="bg-green-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isOperating ? 'Scanning...' : 'Scan'}
+                  {isOperating ? 'Operating...' : 'Upload 3D File'}
                 </Button>
-                <Button 
-                  onClick={handleStartTask} 
-                  disabled={isOperating}
-                  className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isOperating ? 'Operating...' : 'Start Task'}
-                </Button>
-              </>
-            ) : (
-              <Button 
-                onClick={handleUpload3DFile} 
-                disabled={isOperating}
-                className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isOperating ? 'Operating...' : 'Upload 3D File'}
-              </Button>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </CardContent>
