@@ -307,6 +307,20 @@ def finalize_spiral_path(
     move_start = time.time()
     motion_seen = False
     min_runtime_s = 0.05
+    estimate_timeout = float(completion_timeout)
+    safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
+    timeout_notice_logged = False
+    timeout_stall_start = None
+    # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
+    position_noise_mm = 0.6
+    orientation_noise_deg = 0.8
+    settle_window_s = 0.15
+    near_end_ratio = 0.93
+    motion_last_change = time.time()
+    last_cart = None
+    pre_move_cart = None
+    if robot_state.fetch_and_update_pos():
+        pre_move_cart = list(robot_state.state.get("cartesian_position", []))
     try:
         while True:
             pstate = []
@@ -350,10 +364,89 @@ def finalize_spiral_path(
                     print("[Spiral] IsMotionDone=1; exiting wait loop.")
                     break
 
-            if time.time() - start > completion_timeout:
-                print("Timeout waiting for idle. Path state:", pstate)
-                ok = False
+            if robot_state.fetch_and_update_pos():
+                curr_cart = list(robot_state.state.get("cartesian_position", []))
+                if (
+                    not motion_seen
+                    and pre_move_cart
+                    and len(curr_cart) >= 6
+                    and len(pre_move_cart) >= 6
+                    and (
+                        any(
+                            abs(a - b) > position_noise_mm
+                            for a, b in zip(curr_cart[:3], pre_move_cart[:3])
+                        )
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
+                        )
+                    )
+                ):
+                    motion_seen = True
+
+                if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
+                    moved = (
+                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
+                        )
+                    )
+                    if moved:
+                        motion_seen = True
+                        motion_last_change = time.time()
+                else:
+                    motion_last_change = time.time()
+                last_cart = curr_cart
+
+            near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
+            progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
+            if (
+                motion_seen
+                and near_expected_end
+                and not progress_recent
+                and elapsed_move >= min_runtime_s
+            ):
+                print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
                 break
+
+            elapsed = time.time() - start
+            if elapsed > estimate_timeout:
+                if not timeout_notice_logged:
+                    print(
+                        f"[Spiral] Estimated runtime reached: elapsed={elapsed:.1f}s, "
+                        f"estimate={estimate_timeout:.1f}s; waiting for true completion."
+                    )
+                    timeout_notice_logged = True
+
+                if motion_seen and near_expected_end and not progress_recent:
+                    print("[Spiral] Motion progress stopped near end; exiting wait loop.")
+                    break
+
+                if progress_recent:
+                    timeout_stall_start = None
+                else:
+                    if timeout_stall_start is None:
+                        timeout_stall_start = time.time()
+
+                stalled_too_long = (
+                    timeout_stall_start is not None
+                    and (time.time() - timeout_stall_start) >= 3.0
+                )
+                if elapsed > safety_timeout or stalled_too_long:
+                    if motion_seen and near_expected_end and not progress_recent:
+                        print(
+                            f"[Spiral] Safety timeout reached but pose is settled for "
+                            f"{settle_window_s:.2f}s; treating as complete."
+                        )
+                        break
+                    print(
+                        f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
+                        f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
+                        f"stalled={stalled_too_long}, Path state: {pstate}"
+                    )
+                    ok = False
+                    break
             time.sleep(0.02)
 
     finally:
@@ -521,7 +614,7 @@ def smalldoor1side(force,cps):
             #waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
@@ -749,7 +842,7 @@ def smalldoor1side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         def perform_process_top(cps, config, points1, force):
             # Step 2: Zigzag/Spiral motion
@@ -846,7 +939,7 @@ def smalldoor1side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         def run_single_movement(robot_point, seventh_axis_point, cps, config):
             """
@@ -1069,7 +1162,7 @@ def smalldoor2side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
@@ -1265,7 +1358,7 @@ def smalldoor2side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         def perform_process_top(cps, config, points1, force):
             # Step 2: Zigzag/Spiral motion
@@ -1355,7 +1448,7 @@ def smalldoor2side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
             
         def run_single_movement(robot_point, seventh_axis_point, cps, config):
             """
@@ -1576,7 +1669,7 @@ def smalldoor3side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
@@ -1771,7 +1864,7 @@ def smalldoor3side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         def perform_process_top(cps, config, points1, force):
             # Step 2: Zigzag/Spiral motion
@@ -1859,7 +1952,7 @@ def smalldoor3side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
             
         def run_single_movement(robot_point, seventh_axis_point, cps, config):
             """
@@ -2078,7 +2171,7 @@ def smalldoor4side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
@@ -2272,7 +2365,7 @@ def smalldoor4side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
 
         def perform_process_top(cps, config, points1, force):
             # Step 2: Zigzag/Spiral motion
@@ -2361,7 +2454,7 @@ def smalldoor4side(force,cps):
             turn_vibration_off(cps)
             
             # Release Force Control
-            releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config, wait_for_blending=False)
         
         def run_single_movement(robot_point, seventh_axis_point, cps, config):
             """
@@ -2449,6 +2542,7 @@ if __name__ == "__main__":
     smalldoor3side(force=5)
     #smalldoor4side(force=5)
     
+
 
 
 
