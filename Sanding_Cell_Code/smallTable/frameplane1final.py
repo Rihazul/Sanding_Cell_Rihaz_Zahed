@@ -319,10 +319,12 @@ def finalize_spiral_path(
     safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
     timeout_notice_logged = False
     timeout_stall_start = None
+    safety_extensions = 0
     done_flag_streak = 0
     motion_done_streak = 0
     # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
     position_noise_mm = 0.6
+    planar_noise_mm = 0.35
     orientation_noise_deg = 0.8
     settle_window_s = 0.15
     near_end_ratio = 0.93
@@ -403,19 +405,15 @@ def finalize_spiral_path(
                 and len(pre_move_cart) >= 6
                 and (
                     any(
-                        abs(a - b) > position_noise_mm
-                        for a, b in zip(curr_cart[:3], pre_move_cart[:3])
-                    )
-                    or any(
-                        abs(a - b) > orientation_noise_deg
-                        for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
+                        abs(a - b) > planar_noise_mm
+                        for a, b in zip(curr_cart[:2], pre_move_cart[:2])
                     )
                 )
             ):
                 motion_seen = True
             if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
                 moved = (
-                    any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                    any(abs(a - b) > planar_noise_mm for a, b in zip(curr_cart[:2], last_cart[:2]))
                     or any(
                         abs(a - b) > orientation_noise_deg
                         for a, b in zip(curr_cart[3:6], last_cart[3:6])
@@ -465,6 +463,18 @@ def finalize_spiral_path(
                 and (time.time() - timeout_stall_start) >= 3.0
             )
             if elapsed > safety_timeout or stalled_too_long:
+                # If we still see progress, extend the safety timeout instead of failing
+                # mid-motion (which can cause the next cycle to collide and error 49622).
+                if progress_recent and elapsed > safety_timeout:
+                    safety_extensions += 1
+                    safety_timeout = elapsed + max(3.0, min(12.0, estimate_timeout * 0.25))
+                    if safety_extensions <= 3:
+                        print(
+                            f"[Spiral] Extending safety timeout to {safety_timeout:.1f}s "
+                            "because motion progress is still active."
+                        )
+                    time.sleep(0.02)
+                    continue
                 # Controller states can lag after path completion; if cartesian pose is settled
                 # and we're past the expected end, treat it as completed instead of failing.
                 if (
