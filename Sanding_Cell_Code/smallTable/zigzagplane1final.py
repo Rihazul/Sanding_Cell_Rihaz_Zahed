@@ -323,6 +323,11 @@ def finalize_spiral_path(
         # Wait for completion (track path state + robot flags)
         ok = True
         start = time.time()
+        estimate_timeout = float(completion_timeout)
+        # Safety watchdog is only for abnormal hangs; estimate itself remains the target.
+        safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
+        timeout_notice_logged = False
+        timeout_stall_start = None
         motion_seen = motion_started
         last_cart = None
         pre_move_cart = None
@@ -401,13 +406,34 @@ def finalize_spiral_path(
                 break
 
             elapsed = time.time() - start
-            if elapsed > completion_timeout:
-                print(
-                    f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
-                    f"timeout={completion_timeout:.1f}s, Path state: {pstate}"
+            if elapsed > estimate_timeout:
+                if not timeout_notice_logged:
+                    print(
+                        f"[Spiral] Estimated runtime reached: elapsed={elapsed:.1f}s, "
+                        f"estimate={estimate_timeout:.1f}s; waiting for true completion."
+                    )
+                    timeout_notice_logged = True
+
+                in_motion_flag = bool(flags.get("in_motion", False))
+                progress_recent = motion_seen and ((time.time() - motion_last_change) < 0.8)
+                if in_motion_flag or progress_recent:
+                    timeout_stall_start = None
+                else:
+                    if timeout_stall_start is None:
+                        timeout_stall_start = time.time()
+
+                stalled_too_long = (
+                    timeout_stall_start is not None
+                    and (time.time() - timeout_stall_start) >= 3.0
                 )
-                ok = False
-                break
+                if elapsed > safety_timeout or stalled_too_long:
+                    print(
+                        f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
+                        f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
+                        f"stalled={stalled_too_long}, Path state: {pstate}"
+                    )
+                    ok = False
+                    break
             time.sleep(0.02)
 
     finally:
