@@ -302,14 +302,15 @@ def finalize_spiral_path(
     # actually executes before cleanup starts.
     ok = True
     move_start = time.time()
-    start_motion_deadline = move_start + 1.5
+    start_motion_deadline = move_start + 0.25
     motion_started = False
     last_motion_change = move_start
     last_cart = None
-    position_noise_mm = 0.6
-    orientation_noise_deg = 0.8
-    settle_window_s = 0.12
-    min_runtime_s = 0.2
+    position_noise_mm = 1.5
+    orientation_noise_deg = 1.5
+    settle_window_s = 0.05
+    min_runtime_s = 0.05
+    near_end_ratio = 0.95
 
     while True:
         pstate = []
@@ -364,6 +365,14 @@ def finalize_spiral_path(
             and (now - last_motion_change) >= settle_window_s
         ):
             print(f"[Spiral] Motion settled for {settle_window_s:.2f}s; exiting wait loop.")
+            break
+
+        # Hard cutoff near estimated runtime to avoid waiting on stale controller flags.
+        if motion_started and (now - move_start) >= max(min_runtime_s, completion_timeout * near_end_ratio):
+            print(
+                f"[Spiral] Reached {near_end_ratio:.2f} of estimated runtime; "
+                "exiting wait loop to avoid end-of-path lag."
+            )
             break
 
         # Fallback for very short paths where movement is too quick to observe.
