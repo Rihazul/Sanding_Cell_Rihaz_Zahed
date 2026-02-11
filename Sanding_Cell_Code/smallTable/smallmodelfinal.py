@@ -435,10 +435,12 @@ def sandingModelATableA():
             return None
         return int(result[0])
 
-    # Read CI values
-    ci0 = read_ci_bit(cps, 0)
-    ci1 = read_ci_bit(cps, 1)
-    ci2 = read_ci_bit(cps, 2)
+    def read_ci_triplet(cps):
+        """Read tool-detection CI bits (CI0/CI1/CI2) at the current stage."""
+        ci0_local = read_ci_bit(cps, 0)
+        ci1_local = read_ci_bit(cps, 1)
+        ci2_local = read_ci_bit(cps, 2)
+        return ci0_local, ci1_local, ci2_local
 
     """Main control function"""
     try:
@@ -451,6 +453,7 @@ def sandingModelATableA():
             or any_cycles(zigzag_by_door)
             or any_cycles(pocket_by_door)
         ):
+            ci0, ci1, ci2 = read_ci_triplet(cps)
             has_tool3 = check_tool(
                 cps=cps, config=config, tool_num=3, ci0=ci0, ci1=ci1, ci2=ci2
             )
@@ -591,6 +594,7 @@ def sandingModelATableA():
             is_door_available(tool2side_cycle_doors)
             or is_door_available(tool2sideedge_cycle_doors)
         ) and (any_cycles(tool2edge_by_door) or any_cycles(tool2side_by_door)):
+            ci0, ci1, ci2 = read_ci_triplet(cps)
             has_tool2 = check_tool(
                 cps=cps, config=config, tool_num=2, ci0=ci0, ci1=ci1, ci2=ci2
             )
@@ -711,6 +715,7 @@ def sandingModelATableA():
                     )
 
         if is_door_available(tl3sideedge_door) and any_cycles(tool3_by_door):
+            ci0, ci1, ci2 = read_ci_triplet(cps)
             has_tool1 = check_tool(
                 cps=cps, config=config, tool_num=1, ci0=ci0, ci1=ci1, ci2=ci2
             )
