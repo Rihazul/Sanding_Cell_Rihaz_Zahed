@@ -7,7 +7,17 @@ import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
-from Server_Better_V2 import setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,handle_client
+from Server_Better_V2 import (
+    setup_logger,
+    waitForBlending,
+    turn_vibration_on,
+    turn_vibration_off,
+    putForce,
+    releaseForce,
+    putForceZplus,
+    handle_client,
+    stop_requested,
+)
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 
 def load_config():
@@ -110,6 +120,8 @@ def scanTableA(cps=None, config=None):
         ]
     )
     if scan_failed:
+        if stop_requested():
+            raise InterruptedError("Scan cancelled by stop request.")
         raise RuntimeError(
             "Scan did not collect any door data. Check J7 readiness and scan path, then retry."
         )

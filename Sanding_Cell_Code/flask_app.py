@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
 from threading import Thread
-from Server_Better_V2 import handle_client, request_stop, clear_stop
+from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
 from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
 from Server_Better_V2 import setup_logger
 import yaml, requests
@@ -131,6 +131,7 @@ STOP_TO_HOMING_PROBE_TIMEOUT_SECONDS = 1.2
 _cps_reconnect_grace_until = 0.0
 _cps_last_connect_attempt = 0.0
 _last_stop_ts = 0.0
+_inline_scan_active = threading.Event()
 
 
 def _sanitize_cps_runtime():
@@ -597,6 +598,7 @@ def _wait_cps_ready_after_stop(config, max_wait_s=STOP_TO_HOMING_PROBE_TIMEOUT_S
 def stop_process():
     global _cps_reconnect_grace_until, _last_stop_ts, client_process
     had_process = bool(client_process and client_process.is_alive())
+    scan_active = _inline_scan_active.is_set()
     if had_process:
         proc = client_process
         request_stop()
@@ -616,6 +618,18 @@ def stop_process():
         process_state['status'] = 'completed'
         client_process = None
         _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
+    elif scan_active:
+        # Scan runs inline in /action and shares the global CPS socket.
+        # Do not hard-reset CPS here; let scan exit cooperatively on stop flag.
+        print("Inline scan is active; requesting cooperative stop.")
+        request_stop()
+        _halt_robot_motion_best_effort()
+        _last_stop_ts = time.monotonic()
+        _cps_reconnect_grace_until = time.monotonic() + max(
+            CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS
+        )
+        socketio.emit('flash_message', {"message": "Stop requested for active scan"})
+        return jsonify({'status': 'success', 'message': 'Stop requested for active scan'})
     else:
         print("No active client process to terminate.")
         _halt_robot_motion_best_effort()
@@ -1351,10 +1365,14 @@ def handle_action():
     
     elif action == "scan":
         clear_stop()
+        if _inline_scan_active.is_set():
+            return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409
+        _inline_scan_active.set()
         with robot_lock:
             ret = ensure_cps_connected()
             if ret != 0:
                 print(f"Failed to connect, error code: {ret}")
+                _inline_scan_active.clear()
                 return jsonify({"error": f"Failed to connect to CPS client (ret={ret})"}), 500
             cps = CPS
 
@@ -1367,15 +1385,15 @@ def handle_action():
                 return None
             return int(result[0])
 
-        with robot_lock:
-            # Read CI values
-            ci0 = read_ci_bit(cps, 0)
-            ci1 = read_ci_bit(cps, 1)
-            ci2 = read_ci_bit(cps, 2)
-            if ci0 is None or ci1 is None or ci2 is None:
-                return jsonify({'status': 'error', 'message': 'Failed to read tool sensor inputs (CI).'}), 500
+        try:
+            with robot_lock:
+                # Read CI values
+                ci0 = read_ci_bit(cps, 0)
+                ci1 = read_ci_bit(cps, 1)
+                ci2 = read_ci_bit(cps, 2)
+                if ci0 is None or ci1 is None or ci2 is None:
+                    return jsonify({'status': 'error', 'message': 'Failed to read tool sensor inputs (CI).'}), 500
 
-            try:
                 if ci0 == 0 and ci1 == 0 and ci2 == 0:
                     print("No tool in hand")
                 elif ci0 == 1 and ci1 == 0 and ci2 == 0:
@@ -1404,9 +1422,14 @@ def handle_action():
 
                 scanhoming(cps=cps, config=config)
                 return jsonify({'status': 'success', 'message': 'Table scan completed'})
-            except Exception as exc:
-                config['logger'].exception("[scan] Scan action failed: %s", exc)
-                return jsonify({'status': 'error', 'message': f'Scan failed: {exc}'}), 500
+        except Exception as exc:
+            if stop_requested():
+                config['logger'].info("[scan] Scan cancelled by stop request: %s", exc)
+                return jsonify({'status': 'cancelled', 'message': 'Scan stopped'}), 200
+            config['logger'].exception("[scan] Scan action failed: %s", exc)
+            return jsonify({'status': 'error', 'message': f'Scan failed: {exc}'}), 500
+        finally:
+            _inline_scan_active.clear()
     
     return jsonify({'status': 'error', 'message': 'Invalid action provided'}), 400
 
