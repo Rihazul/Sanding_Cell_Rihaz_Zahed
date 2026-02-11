@@ -6,7 +6,7 @@ from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_sta
 from Server_Better_V2 import setup_logger
 import yaml, requests
 from modules.CPS import CPSClient, RbtClient, PluginClient
-from multiprocessing import Process, Event
+from multiprocessing import Process, Event, current_process
 import time
 from flask_socketio import SocketIO
 # Get the absolute path to flask_app.py (important when running as an executable)
@@ -117,7 +117,14 @@ default_data["tableB"] = default_data["tableA"]
 CPS = CPSClient()
 IP = "192.168.0.10"
 port = 10003
-ret = CPS.HRIF_Connect(0, IP, port)
+# Avoid eager CPS connect in spawned child processes (e.g., homing child).
+# Child workers should create/connect their own local CPS clients.
+ret = None
+if current_process().name == "MainProcess":
+    try:
+        ret = CPS.HRIF_Connect(0, IP, port)
+    except Exception:
+        ret = None
 Tpos = 0
 velocity = 0.1
 robot_lock = threading.Lock()
@@ -132,6 +139,8 @@ _cps_reconnect_grace_until = 0.0
 _cps_last_connect_attempt = 0.0
 _last_stop_ts = 0.0
 _inline_scan_active = threading.Event()
+_last_child_exit_ts = 0.0
+CHILD_EXIT_SETTLE_SECONDS = 1.2
 
 
 def _sanitize_cps_runtime():
@@ -260,16 +269,26 @@ def _track_process(proc: Process) -> None:
     try:
         proc.join()
     finally:
-        global client_process, _cps_reconnect_grace_until
-        process_state['status'] = 'completed'
-        client_process = None
+        global client_process, _cps_reconnect_grace_until, _last_child_exit_ts
+        now = time.monotonic()
+        _last_child_exit_ts = now
         # Brief cooldown after child process exit to avoid hitting stale CPS sockets.
-        _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
-        socketio.emit('flash_message', {"message": "Process finished"})
+        _cps_reconnect_grace_until = now + max(CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS)
+
+        # Only clear process_state/client_process if this watcher belongs to the current process slot.
+        if client_process is proc:
+            process_state['status'] = 'completed'
+            client_process = None
+            socketio.emit('flash_message', {"message": "Process finished"})
+
+        # Parent keeps a global CPS wrapper; reset it after child exits to avoid stale handles.
+        with robot_lock:
+            _hard_reset_cps_runtime()
 
 
 def _run_homing_child(config_data_UI):
     """Run homing in a fresh child process to avoid stale CPS sockets."""
+    cps = None
     try:
         if "logger" not in config_data_UI:
             config_data_UI["logger"] = setup_logger(config_data_UI["settings"]["debug"])
@@ -279,12 +298,21 @@ def _run_homing_child(config_data_UI):
             config_data_UI["logger"].error(f"[homing child] HRIF_Connect failed (ret={ret})")
             return
         handle_client(config_data_UI, homingState=True, startSanding=False, cps=cps)
-        homingtotal(cps=cps, config=config_data_UI)
+        # Optional legacy follow-up; disabled by default because handle_client(homingState=True)
+        # already performs homing, and the extra move can cause unsafe transitions.
+        if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
+            homingtotal(cps=cps, config=config_data_UI)
     except Exception as e:
         try:
             config_data_UI["logger"].error(f"[homing child] Exception: {e}")
         except Exception:
             print(f"[homing child] Exception: {e}")
+    finally:
+        if cps is not None:
+            try:
+                cps.HRIF_DisConnect(0)
+            except Exception:
+                pass
 
 ############################################################################################
 # Home route to render the frontend interface. Add more routes if necessary!
@@ -362,16 +390,18 @@ def start_TableB_process():
             "status": "Process is cancelled"
         })   
     
-    set_table_state(CPS, "tableAOpenClose", "Close")
-    set_table_state(CPS, "tableBOpenClose", "Close")
-    nRet = CPS.HRIF_SetBoxCO(0, 2, 0)
+    clear_stop()
+    with robot_lock:
+        conn_ret = ensure_cps_connected(force=True)
+        if conn_ret != 0:
+            return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
+        set_table_state(CPS, "tableAOpenClose", "Close")
+        set_table_state(CPS, "tableBOpenClose", "Close")
+        nRet = CPS.HRIF_SetBoxCO(0, 2, 0)
     print("stopper Test")
 
-    # Disconnect global CPS before starting a child process that will open its own CPS connection.
-    try:
-        CPS.HRIF_DisConnect(0)
-    except Exception:
-        pass
+    # Disconnect/reset parent CPS before child opens its own CPS session.
+    _disconnect_global_cps_for_child_start()
     client_process = Process(target=modelMethodmap[tableData['model']], args=())
     process_state['status'] = 'in_progress'
     client_process.start()
@@ -421,15 +451,17 @@ def start_TableA_process():
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
 
-    set_table_state(CPS, "tableAOpenClose", "Close")
-    set_table_state(CPS, "tableBOpenClose", "Close")
-    stopper_statusmod(CPS, state="up")
+    clear_stop()
+    with robot_lock:
+        conn_ret = ensure_cps_connected(force=True)
+        if conn_ret != 0:
+            return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
+        set_table_state(CPS, "tableAOpenClose", "Close")
+        set_table_state(CPS, "tableBOpenClose", "Close")
+        stopper_statusmod(CPS, state="up")
 
-    # Disconnect global CPS before starting a child process that will open its own CPS connection.
-    try:
-        CPS.HRIF_DisConnect(0)
-    except Exception:
-        pass
+    # Disconnect/reset parent CPS before child opens its own CPS session.
+    _disconnect_global_cps_for_child_start()
     client_process = Process(target=modelMethodMapTableA[tableData['model']], args=())
     process_state['status'] = 'in_progress'
     client_process.start()
@@ -579,6 +611,16 @@ def _wait_cps_ready_after_stop(config, max_wait_s=STOP_TO_HOMING_PROBE_TIMEOUT_S
         time.sleep(poll_s)
     return False
 
+
+def _disconnect_global_cps_for_child_start():
+    """Atomically disconnect/reset parent CPS before spawning a child worker."""
+    with robot_lock:
+        try:
+            CPS.HRIF_DisConnect(0)
+        except Exception:
+            pass
+        _hard_reset_cps_runtime()
+
 ############################################################################################
 # Start the handle_client process threads
 # def start_process(config):
@@ -602,9 +644,15 @@ def stop_process():
     if had_process:
         proc = client_process
         request_stop()
-        proc.terminate()  # Immediately terminate the process
         _halt_robot_motion_best_effort()
+        # Give the worker a brief chance to exit cooperatively on stop flag.
         proc.join(timeout=STOP_JOIN_TIMEOUT_SECONDS)
+        if proc.is_alive():
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+            proc.join(timeout=STOP_KILL_JOIN_TIMEOUT_SECONDS)
         if proc.is_alive():
             try:
                 proc.kill()
@@ -674,9 +722,6 @@ def tool_toggle():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    # 2) Use the shared CPS client
-    cps = CPS
-
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
         for func, box_id, nBit, expected in condition_list:
@@ -693,6 +738,7 @@ def tool_toggle():
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
+            cps = CPS
             # Validate Pick Conditions
             pick_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 0),
@@ -715,6 +761,7 @@ def tool_toggle():
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
+            cps = CPS
             # Validate Drop Conditions
             drop_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 1),
@@ -764,9 +811,6 @@ def tool_toggle2():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    # 2) Use the shared CPS client
-    cps = CPS
-
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
         for func, box_id, nBit, expected in condition_list:
@@ -783,6 +827,7 @@ def tool_toggle2():
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
+            cps = CPS
             # Validate Pick Conditions
             pick_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 0),
@@ -805,6 +850,7 @@ def tool_toggle2():
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
+            cps = CPS
             # Validate Drop Conditions
             drop_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 0),
@@ -854,9 +900,6 @@ def tool_toggle1():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    # 2) Use the shared CPS client
-    cps = CPS
-
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
         print(condition_list)
@@ -873,6 +916,7 @@ def tool_toggle1():
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
+            cps = CPS
             # Validate Pick Conditions
             pick_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 0),
@@ -895,6 +939,7 @@ def tool_toggle1():
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
+            cps = CPS
             # Validate Drop Conditions
             drop_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 0),
@@ -1308,7 +1353,7 @@ def handle_action():
         return stop_process()
 
     elif action == "homing":
-        global client_process
+        global client_process, _last_child_exit_ts
         if client_process and client_process.is_alive():
             return jsonify({"error": "Process already running"}), 409
         clear_stop()
@@ -1317,6 +1362,11 @@ def handle_action():
             return jsonify({"error": "Invalid homing config payload"}), 500
         if config_data_UI.get("status") in ("incomplete", "error"):
             return jsonify({"error": config_data_UI.get("message", "Homing config is incomplete")}), 400
+
+        # After any child-process completion, give CPS transport a short release window.
+        since_child_exit = time.monotonic() - _last_child_exit_ts
+        if 0 <= since_child_exit < CHILD_EXIT_SETTLE_SECONDS:
+            time.sleep(CHILD_EXIT_SETTLE_SECONDS - since_child_exit)
 
         # Recent hard-stop path: short minimum gap + readiness probe, no fixed 2s sleep.
         elapsed_since_stop = time.monotonic() - _last_stop_ts
@@ -1329,7 +1379,7 @@ def handle_action():
             _hard_reset_cps_runtime()
             _cps_reconnect_grace_until = time.monotonic() + max(CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS)
 
-        if elapsed_since_stop < 5.0 and not _wait_cps_ready_after_stop(config_data_UI):
+        if (elapsed_since_stop < 5.0 or since_child_exit < CHILD_EXIT_SETTLE_SECONDS) and not _wait_cps_ready_after_stop(config_data_UI):
             process_state['status'] = 'completed'
             return jsonify({
                 "error": "Robot controller is still releasing previous CPS session after stop. Try homing again."
