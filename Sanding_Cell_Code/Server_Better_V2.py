@@ -2341,6 +2341,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         """
         if not config["settings"]["useTool"]:
             return
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool collection stopped by user.",
+            )
+            return
+        # Ensure prior blended motion is fully settled before speed/approach changes.
+        waitForBlending(cps=cps, config=config)
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Tool {toolNumber} Collection Started...",
@@ -2357,6 +2365,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 speed=config["UI"]["robotSpeed"],
                 wait=True,
             )
+            if stop_requested():
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="Tool collection stopped by user.",
+                )
+                return
 
         # go to that tool's home position (right above the tool)
         communicate(
@@ -2369,8 +2383,20 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=config["UI"]["robotSpeed"],
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool collection stopped by user.",
+            )
+            return
         # drop (for safety, to open the valve)
         toolValve(cps, valveState="drop", config=config)
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool collection stopped by user.",
+            )
+            return
         # touch the tool (slowly)
         communicate(
             cps=cps,
@@ -2382,8 +2408,20 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=0.15,
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool collection stopped by user.",
+            )
+            return
         # pick the tool
         toolValve(cps, valveState="pick", config=config)
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool collection stopped by user.",
+            )
+            return
         # come back to tool's home position
         communicate(
             cps=cps,
@@ -2395,6 +2433,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=0.15,
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool collection stopped by user.",
+            )
+            return
         # come back to safe tool picking position
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -2414,6 +2458,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
     def keepTool(cps, toolNumber, config, goToSafe=True):
         if not config["settings"]["useTool"]:
             return
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool keeping stopped by user.",
+            )
+            return
+        # Wait for previous trajectory to settle so override/speed is applied reliably.
+        waitForBlending(cps=cps, config=config)
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Tool {toolNumber} Keeping Started...",
@@ -2429,6 +2481,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=config["UI"]["robotSpeed"],
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool keeping stopped by user.",
+            )
+            return
         # go to tool's home
         communicate(
             cps=cps,
@@ -2440,6 +2498,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=config["UI"]["robotSpeed"],
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool keeping stopped by user.",
+            )
+            return
         # touch the tool (slowly)
         communicate(
             cps=cps,
@@ -2451,8 +2515,20 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=0.15,
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool keeping stopped by user.",
+            )
+            return
         # drop the tool
         toolValve(cps, valveState="drop", config=config)
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool keeping stopped by user.",
+            )
+            return
         # come back to tool's home
         communicate(
             cps=cps,
@@ -2464,6 +2540,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=0.15,
             wait=True,
         )
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Tool keeping stopped by user.",
+            )
+            return
         # if don't need to pick another tool just after dropping this one, then come to safe picking position
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -2511,6 +2593,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             valveState (str): "pick" to grab the tool, "drop" to let the tool go.
             config (config): configuration file
         """
+        if stop_requested():
+            config["logger"].warning(
+                f"[toolValve] Ignored valve '{valveState}' due to stop request."
+            )
+            return
         # required sleep (for proper functioning)
         time.sleep(0.5)
         if valveState == "drop":
