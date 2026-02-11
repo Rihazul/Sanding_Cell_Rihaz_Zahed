@@ -51,8 +51,6 @@ from Server_Better_V2 import (
     setup_logger,
     getTool11,
     communicate,
-    keepToolupdated,
-    getToolUpdated,
 )
 from modules.CPS import CPSClient
 import time
@@ -553,7 +551,7 @@ def sandingModelATableA():
             )
 
             if has_followup_after_tool3:
-                communicate(
+                seventh_result = communicate(
                     cps=cps,
                     config=config,
                     seventh=0,
@@ -561,8 +559,12 @@ def sandingModelATableA():
                     ucs=config["coords"]["ucsTable1"],
                     speed=0.3,
                     wait=True,
+                    require_seventh_ok=True,
                 )
-                keepToolupdated(cps, toolNumber=3, config=config)
+                if seventh_result is None:
+                    raise RuntimeError("Failed to move 7th axis to tool station before dropping tool 3.")
+                # Use blocking tool-drop path to prevent mid-motion valve release.
+                keepTool11(cps, toolNumber=3, config=config, goToSafe=True)
             else:
                 if keep_tool_after_task:
                     print("Task completed: keeping Tool 3 mounted.")
@@ -601,15 +603,12 @@ def sandingModelATableA():
             # Pick Tool 2
             # getTool11(cps, toolNumber=2, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            if (
+            previous_tool3_work_done = (
                 any_cycles(frame_by_door)
                 or any_cycles(zigzag_by_door)
                 or any_cycles(pocket_by_door)
-            ):
-                print("At least one cycle > 0 → running getToolUpdated()")
-                if not has_tool2:
-                    getToolUpdated(cps, toolNumber=2, config=config)
-            else:
+            )
+            if not has_tool2:
                 communicate(
                     cps=cps,
                     point=config["point"]["safePoint"],
@@ -620,8 +619,13 @@ def sandingModelATableA():
                     speed=speeed,
                     wait=True,
                 )
-                if not has_tool2:
-                    getTool11(cps, toolNumber=2, config=config)
+                # If we just dropped tool 3, we are already at the safe tool station.
+                getTool11(
+                    cps,
+                    toolNumber=2,
+                    config=config,
+                    startFromSafe=not previous_tool3_work_done,
+                )
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -679,7 +683,7 @@ def sandingModelATableA():
             )
             has_followup_after_tool2 = any_cycles(tool3_by_door)
             if has_followup_after_tool2:
-                communicate(
+                seventh_result = communicate(
                     cps=cps,
                     config=config,
                     seventh=0,
@@ -687,8 +691,12 @@ def sandingModelATableA():
                     ucs=config["coords"]["ucsTable1"],
                     speed=0.3,
                     wait=True,
+                    require_seventh_ok=True,
                 )
-                keepToolupdated(cps, toolNumber=2, config=config)
+                if seventh_result is None:
+                    raise RuntimeError("Failed to move 7th axis to tool station before dropping tool 2.")
+                # Use blocking tool-drop path to prevent mid-motion valve release.
+                keepTool11(cps, toolNumber=2, config=config, goToSafe=True)
             else:
                 if keep_tool_after_task:
                     print("Task completed: keeping Tool 2 mounted.")
@@ -723,16 +731,13 @@ def sandingModelATableA():
             print("taking tool 1")
             # getTool11(cps, toolNumber=1, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            if (
+            previous_tool2_or_tool3_work_done = (
                 any_cycles(tool2edge_by_door)
                 or any_cycles(tool2side_by_door)
                 or any_cycles(frame_by_door)
                 or any_cycles(zigzag_by_door)
-            ):
-                print("At least one cycle > 0 → running getToolUpdated()")
-                if not has_tool1:
-                    getToolUpdated(cps, toolNumber=1, config=config)
-            else:
+            )
+            if not has_tool1:
                 communicate(
                     cps=cps,
                     point=config["point"]["safePoint"],
@@ -743,8 +748,12 @@ def sandingModelATableA():
                     speed=speeed,
                     wait=True,
                 )
-                if not has_tool1:
-                    getTool11(cps, toolNumber=1, config=config)
+                getTool11(
+                    cps,
+                    toolNumber=1,
+                    config=config,
+                    startFromSafe=not previous_tool2_or_tool3_work_done,
+                )
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
