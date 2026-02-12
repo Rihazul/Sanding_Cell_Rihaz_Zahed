@@ -72,6 +72,11 @@ MOVEJS_MAX_POINTS = 50
 USE_WAYPOINT2_ARC = False
 WAYPOINT2_ARC_MIN_AREA = 1.0
 WAYPOINT2_ARC_MIN_SEGMENT = 0.5
+WAYPOINT2_MAX_POSES = 180
+WAYPOINT2_BLEND_RADIUS = 2.0
+WAYPOINT2_FORCE_SETTLE_S = 0.6
+WAYPOINT2_START_DELAY_S = 0.35
+WAYPOINT2_CMD_DELAY_S = 0.003
 
 
 
@@ -508,6 +513,16 @@ def _arc_is_valid(p0, p1, p2, *, min_area=WAYPOINT2_ARC_MIN_AREA, min_seg=WAYPOI
     return area2 >= min_area
 
 
+def _downsample_poses(poses, max_count):
+    if not poses or len(poses) <= max_count:
+        return poses
+    stride = max(2, int(math.ceil(len(poses) / float(max_count))))
+    down = poses[::stride]
+    if down[-1] != poses[-1]:
+        down.append(poses[-1])
+    return down
+
+
 def run_waypoint2_path(
     cps: CPSClient,
     config: dict,
@@ -544,6 +559,7 @@ def run_waypoint2_path(
 
     cmd_index = 0
     idx = 0
+    last_pos = poses[0]
     while idx + 2 < len(poses):
         p0 = poses[idx]
         p1 = poses[idx + 1]
@@ -562,6 +578,13 @@ def run_waypoint2_path(
             idx += 1
 
         cmd_id = str((cmd_index % 3) + 1)
+        seg_len = _distance_xyz(last_pos, end_pos)
+        local_radius = radius
+        if seg_len <= 0.8:
+            local_radius = 0.0
+        else:
+            local_radius = min(radius, seg_len * 0.4)
+
         ret = cps.HRIF_WayPoint2(
             box_id,
             robot_id,
@@ -573,7 +596,7 @@ def run_waypoint2_path(
             ucs_name,
             velocity,
             accel,
-            radius,
+            local_radius,
             is_joint,
             is_seek,
             bit,
@@ -585,10 +608,20 @@ def run_waypoint2_path(
             print(f"[WayPoint2] Move failed ret={ret} cmd={cmd_prefix}-{cmd_index}")
             return False
         cmd_index += 1
+        last_pos = end_pos
+        if WAYPOINT2_CMD_DELAY_S > 0:
+            time.sleep(WAYPOINT2_CMD_DELAY_S)
 
     if idx + 1 < len(poses):
         end_pos = poses[idx + 1]
         cmd_id = str((cmd_index % 3) + 1)
+        seg_len = _distance_xyz(last_pos, end_pos)
+        local_radius = radius
+        if seg_len <= 0.8:
+            local_radius = 0.0
+        else:
+            local_radius = min(radius, seg_len * 0.4)
+
         ret = cps.HRIF_WayPoint2(
             box_id,
             robot_id,
@@ -600,7 +633,7 @@ def run_waypoint2_path(
             ucs_name,
             velocity,
             accel,
-            radius,
+            local_radius,
             is_joint,
             is_seek,
             bit,
@@ -611,6 +644,8 @@ def run_waypoint2_path(
         if ret != 0:
             print(f"[WayPoint2] Final linear move failed ret={ret} cmd={cmd_prefix}-tail")
             return False
+        if WAYPOINT2_CMD_DELAY_S > 0:
+            time.sleep(WAYPOINT2_CMD_DELAY_S)
 
     return True
 
@@ -625,8 +660,9 @@ def run_waypoint2_spiral_for_zigzag(
     orientation: str,
     velocity: float,
     accel: float,
+    blend_radius: float = WAYPOINT2_BLEND_RADIUS,
     force: Optional[float] = None,
-    force_settle_s: float = 0.2,
+    force_settle_s: float = WAYPOINT2_FORCE_SETTLE_S,
     box_id: int = 0,
     robot_id: int = 0,
 ):
@@ -657,6 +693,11 @@ def run_waypoint2_spiral_for_zigzag(
         print("[WayPoint2] No spiral poses generated; skipping WayPoint2 path.")
         return False
 
+    before = len(spiral_poses)
+    spiral_poses = _downsample_poses(spiral_poses, WAYPOINT2_MAX_POSES)
+    after = len(spiral_poses)
+    if after != before:
+        print(f"[WayPoint2] Downsampled spiral poses: {before} -> {after}")
     print(f"[WayPoint2] Total spiral poses: {len(spiral_poses)}")
 
     if force is not None and config is not None:
@@ -668,6 +709,8 @@ def run_waypoint2_spiral_for_zigzag(
             config=config,
         )
         time.sleep(force_settle_s)
+        if WAYPOINT2_START_DELAY_S > 0:
+            time.sleep(WAYPOINT2_START_DELAY_S)
 
     turn_vibration_on(cps)
     ok = run_waypoint2_path(
@@ -676,7 +719,7 @@ def run_waypoint2_spiral_for_zigzag(
         poses=spiral_poses,
         velocity=velocity,
         accel=accel,
-        radius=radius,
+        radius=blend_radius,
         use_arc=True,
         box_id=box_id,
         robot_id=robot_id,
