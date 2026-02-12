@@ -528,7 +528,15 @@ def run_waypoint2_path(
 
     tcp_name = tcp or config["coords"].get("tcptool1plane1")
     ucs_name = ucs or config["coords"].get("ucsTable1")
+    # Use current joint pose as IK seed if available; fallback to zeros.
     acs_pos = [0, 0, 0, 0, 0, 0]
+    try:
+        joint_seed = []
+        jret = cps.HRIF_ReadActPos(box_id, robot_id, joint_seed)
+        if jret == 0 and isinstance(joint_seed, (list, tuple)) and len(joint_seed) >= 6:
+            acs_pos = [float(v) for v in joint_seed[:6]]
+    except Exception:
+        pass
     is_joint = 0
     is_seek = 0
     bit = 0
@@ -572,6 +580,7 @@ def run_waypoint2_path(
             state,
             cmd_id,
         )
+        print(f"[WayPoint2] ret={ret} type={move_type} cmd={cmd_prefix}-{cmd_index}")
         if ret != 0:
             print(f"[WayPoint2] Move failed ret={ret} cmd={cmd_prefix}-{cmd_index}")
             return False
@@ -598,6 +607,7 @@ def run_waypoint2_path(
             state,
             cmd_id,
         )
+        print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-tail")
         if ret != 0:
             print(f"[WayPoint2] Final linear move failed ret={ret} cmd={cmd_prefix}-tail")
             return False
@@ -642,6 +652,12 @@ def run_waypoint2_spiral_for_zigzag(
                 spiral_poses.extend(poses[1:])
             else:
                 spiral_poses.extend(poses)
+
+    if not spiral_poses:
+        print("[WayPoint2] No spiral poses generated; skipping WayPoint2 path.")
+        return False
+
+    print(f"[WayPoint2] Total spiral poses: {len(spiral_poses)}")
 
     if force is not None and config is not None:
         putForceZminus(
