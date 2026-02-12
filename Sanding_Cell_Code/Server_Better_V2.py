@@ -2223,14 +2223,17 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         config["logger"].info(
             f"[HomingFunc] Reached J7 origin; moving to home position {home_j7}mm"
         )
-        ok = seventhGoToPos(
+        ok = communicate(
             cps=cps,
-            position=home_j7,
-            speed=0.5,
             config=config,
+            seventh=home_j7,
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            speed=config["door"]["homingSpeed"],
             wait=True,
+            require_seventh_ok=True,
         )
-        if not ok:
+        if ok is None:
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: could not move J7 to home position.",
