@@ -69,6 +69,9 @@ DEFAULT_SPIRAL_RADIUS = 12.0
 DEFAULT_MOVEJS_JERK_RATIO = 100
 DEFAULT_MOVEJS_TRANSITION_DEG = 25
 MOVEJS_MAX_POINTS = 50
+USE_WAYPOINT2_ARC = False
+WAYPOINT2_ARC_MIN_AREA = 1.0
+WAYPOINT2_ARC_MIN_SEGMENT = 0.5
 
 
 
@@ -484,314 +487,191 @@ def finalize_spiral_path(
     return ok
 
 
-
-def _read_cmd_joint_seed(cps: CPSClient, box_id: int = 0, robot_id: int = 0):
-    seed = []
-    ret = cps.HRIF_ReadActJointPos(box_id, robot_id, seed)
-    if ret != 0 or len(seed) < 6:
-        print(f"[MoveJS] Failed to read joint seed: ret={ret}, data={seed}")
-        return None
-    try:
-        return [float(v) for v in seed[:6]]
-    except (TypeError, ValueError) as exc:
-        print(f"[MoveJS] Failed to parse joint seed: {exc} data={seed}")
-        return None
+def _poses_from_flat_points(points_flat):
+    if not points_flat or len(points_flat) % 6 != 0:
+        return []
+    return [points_flat[i : i + 6] for i in range(0, len(points_flat), 6)]
 
 
-def _ik_pose_to_joint(
-    cps: CPSClient,
-    pose,
-    joint_seed,
-    tcp_frame,
-    ucs_frame,
-    box_id: int = 0,
-    robot_id: int = 0,
-):
-    def _resolve_frame_pose(frame, *, kind: str):
-        if frame is None:
-            print(f"[MoveJS] {kind} frame is None")
-            return None
-        if isinstance(frame, (list, tuple)):
-            if len(frame) < 6:
-                print(f"[MoveJS] {kind} frame too short: {frame}")
-                return None
-            try:
-                return [float(v) for v in frame[:6]]
-            except (TypeError, ValueError) as exc:
-                print(f"[MoveJS] {kind} frame parse error: {exc} data={frame}")
-                return None
-        if isinstance(frame, str):
-            result = []
-            if kind == "tcp":
-                ret = cps.HRIF_ReadTCPByName(box_id, robot_id, frame, result)
-            else:
-                ret = cps.HRIF_ReadUCSByName(box_id, robot_id, frame, result)
-            if ret != 0 or len(result) < 6:
-                print(f"[MoveJS] Failed to read {kind} by name: {frame}, ret={ret}, data={result}")
-                return None
-            try:
-                return [float(v) for v in result[:6]]
-            except (TypeError, ValueError) as exc:
-                print(f"[MoveJS] {kind} frame parse error: {exc} data={result}")
-                return None
-        print(f"[MoveJS] Unsupported {kind} frame type: {type(frame)}")
-        return None
-
-    tcp_pose = _resolve_frame_pose(tcp_frame, kind="tcp")
-    ucs_pose = _resolve_frame_pose(ucs_frame, kind="ucs")
-    if tcp_pose is None or ucs_pose is None:
-        return None
-
-    result = []
-    ret = cps.HRIF_GetInverseKin(
-        box_id, robot_id, pose, joint_seed, tcp_pose, ucs_pose, result
+def _distance_xyz(a, b):
+    return math.sqrt(
+        (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
     )
-    if ret != 0 or len(result) < 6:
-        print(f"[MoveJS] IK failed ret={ret}, pose={pose}, result={result}")
-        return None
-    try:
-        return [float(v) for v in result[:6]]
-    except (TypeError, ValueError) as exc:
-        print(f"[MoveJS] Failed to parse IK result: {exc} data={result}")
-        return None
 
 
-def _send_movejs_chunk(
+def _arc_is_valid(p0, p1, p2, *, min_area=WAYPOINT2_ARC_MIN_AREA, min_seg=WAYPOINT2_ARC_MIN_SEGMENT):
+    if _distance_xyz(p0, p1) < min_seg or _distance_xyz(p1, p2) < min_seg:
+        return False
+    area2 = abs(
+        (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0])
+    )
+    return area2 >= min_area
+
+
+def run_waypoint2_path(
     cps: CPSClient,
-    joint_points,
+    config: dict,
+    poses,
     *,
     velocity: float,
     accel: float,
-    jerk_ratio: float,
-    transition_deg: float,
+    radius: float,
+    use_arc: bool = True,
     box_id: int = 0,
     robot_id: int = 0,
-) -> bool:
-    if not joint_points:
+    tcp: str = None,
+    ucs: str = None,
+    cmd_prefix: str = "wp2",
+):
+    if not poses or len(poses) < 2:
         return True
-    ret = cps.HRIF_MoveJS(
-        box_id,
-        robot_id,
-        velocity,
-        accel,
-        jerk_ratio,
-        transition_deg,
-        len(joint_points),
-        joint_points,
-    )
-    print(f"[MoveJS] Sent {len(joint_points)} points, ret={ret}")
-    return ret == 0
 
+    tcp_name = tcp or config["coords"].get("tcptool1plane1")
+    ucs_name = ucs or config["coords"].get("ucsTable1")
+    acs_pos = [0, 0, 0, 0, 0, 0]
+    is_joint = 0
+    is_seek = 0
+    bit = 0
+    state = 0
 
-def _wait_for_motion_complete(
-    cps: CPSClient,
-    timeout: float,
-    *,
-    still_seconds: float = 1.0,
-    poll_seconds: float = 0.05,
-    box_id: int = 0,
-    robot_id: int = 0,
-) -> bool:
-    start = time.time()
-    last_cart = None
-    last_change = time.time()
-    failures = 0
+    cmd_index = 0
+    idx = 0
+    while idx + 2 < len(poses):
+        p0 = poses[idx]
+        p1 = poses[idx + 1]
+        p2 = poses[idx + 2]
 
-    while True:
-        if time.time() - start > timeout:
-            print(f"[MoveJS] Timeout waiting for motion completion ({timeout:.1f}s).")
+        use_arc_seg = use_arc and _arc_is_valid(p0, p1, p2)
+        if use_arc_seg:
+            move_type = 2
+            end_pos = p2
+            aux_pos = p1
+            idx += 2
+        else:
+            move_type = 1
+            end_pos = p1
+            aux_pos = p1
+            idx += 1
+
+        cmd_id = str((cmd_index % 3) + 1)
+        ret = cps.HRIF_WayPoint2(
+            box_id,
+            robot_id,
+            move_type,
+            end_pos,
+            aux_pos,
+            acs_pos,
+            tcp_name,
+            ucs_name,
+            velocity,
+            accel,
+            radius,
+            is_joint,
+            is_seek,
+            bit,
+            state,
+            cmd_id,
+        )
+        if ret != 0:
+            print(f"[WayPoint2] Move failed ret={ret} cmd={cmd_prefix}-{cmd_index}")
+            return False
+        cmd_index += 1
+
+    if idx + 1 < len(poses):
+        end_pos = poses[idx + 1]
+        cmd_id = str((cmd_index % 3) + 1)
+        ret = cps.HRIF_WayPoint2(
+            box_id,
+            robot_id,
+            1,
+            end_pos,
+            end_pos,
+            acs_pos,
+            tcp_name,
+            ucs_name,
+            velocity,
+            accel,
+            radius,
+            is_joint,
+            is_seek,
+            bit,
+            state,
+            cmd_id,
+        )
+        if ret != 0:
+            print(f"[WayPoint2] Final linear move failed ret={ret} cmd={cmd_prefix}-tail")
             return False
 
-        result = []
-        ret = cps.HRIF_ReadActPos(box_id, robot_id, result)
-        if ret != 0 or len(result) < 12:
-            failures += 1
-            if failures >= 5:
-                print(f"[MoveJS] HRIF_ReadActPos failed ret={ret}, data={result}")
-                return False
-            time.sleep(poll_seconds)
-            continue
-
-        failures = 0
-        try:
-            curr_cart = [float(v) for v in result[6:12]]
-        except (TypeError, ValueError):
-            time.sleep(poll_seconds)
-            continue
-
-        if last_cart is None:
-            last_cart = curr_cart
-            last_change = time.time()
-        else:
-            if any(abs(a - b) > 1e-1 for a, b in zip(curr_cart[:6], last_cart[:6])):
-                last_cart = curr_cart
-                last_change = time.time()
-
-        if time.time() - last_change >= still_seconds:
-            return True
-
-        time.sleep(poll_seconds)
+    return True
 
 
-def movejs_between_points(
-    cps: CPSClient,
-    start_pose,
-    end_pose,
-    *,
-    joint_seed,
-    tcp_frame,
-    ucs_frame,
-    radius: float,
-    angle_step_deg: float,
-    velocity: float,
-    accel: float,
-    jerk_ratio: float,
-    transition_deg: float,
-    max_points: int,
-    orientation: str,
-    skip_first: bool = False,
-    box_id: int = 0,
-    robot_id: int = 0,
-):
-    cart_points = generate_spiral_between_points(
-        start_pose=start_pose,
-        end_pose=end_pose,
-        radius=radius,
-        angle_step_deg=angle_step_deg,
-        orientation=orientation,
-    )
-    
-    start_index = 6 if skip_first else 0
-    remaining_pts = (len(cart_points) - start_index) // 6
-    if remaining_pts < 2:
-        # Not enough points after skipping; do not skip for this segment
-        start_index = 0
-
-    chunk = []
-    total_points = 0
-    
-    
-    for i in range(start_index, len(cart_points), 6):
-        pose = cart_points[i : i + 6]
-        joint = _ik_pose_to_joint(
-            cps,
-            pose,
-            joint_seed,
-            tcp_frame,
-            ucs_frame,
-            box_id=box_id,
-            robot_id=robot_id,
-        )
-        if joint is None:
-            return None, total_points, False
-
-        joint_seed = joint
-        chunk.append(joint)
-
-        if len(chunk) >= max_points:
-            if not _send_movejs_chunk(
-                cps,
-                chunk,
-                velocity=velocity,
-                accel=accel,
-                jerk_ratio=jerk_ratio,
-                transition_deg=transition_deg,
-                box_id=box_id,
-                robot_id=robot_id,
-            ):
-                return None, total_points, False
-            total_points += len(chunk)
-            chunk = []
-            time.sleep(0.01)
-
-    if chunk:
-        if not _send_movejs_chunk(
-            cps,
-            chunk,
-            velocity=velocity,
-            accel=accel,
-            jerk_ratio=jerk_ratio,
-            transition_deg=transition_deg,
-            box_id=box_id,
-            robot_id=robot_id,
-        ):
-            return None, total_points, False
-        total_points += len(chunk)
-
-    return joint_seed, total_points, True
-
-
-def run_spiral_movejs_path(
+def run_waypoint2_spiral_for_zigzag(
     cps: CPSClient,
     config: dict,
     zigzag_points,
     *,
-    tcp: str,
-    ucs: str,
     radius: float,
     angle_step_deg: float,
+    orientation: str,
     velocity: float,
     accel: float,
-    jerk_ratio: float = DEFAULT_MOVEJS_JERK_RATIO,
-    transition_deg: float = DEFAULT_MOVEJS_TRANSITION_DEG,
-    max_points: int = MOVEJS_MAX_POINTS,
-    orientation: str = "horizontal",
+    force: Optional[float] = None,
+    force_settle_s: float = 0.2,
     box_id: int = 0,
     robot_id: int = 0,
-) -> bool:
-    if not zigzag_points or len(zigzag_points) < 2:
+):
+    if not zigzag_points:
         return True
 
-    # Read once after reaching the surface; then reuse the IK result as the next seed.
-    joint_seed = _read_cmd_joint_seed(cps, box_id=box_id, robot_id=robot_id)
-    if joint_seed is None:
-        return False
-
-    total_points = 0
-    vibration_on = False
-
-    try:
-        for index in range(len(zigzag_points) - 1):
-            point_A = zigzag_points[index]
-            point_B = zigzag_points[index + 1]
-            joint_seed, sent, ok = movejs_between_points(
-                cps,
-                start_pose=point_A,
-                end_pose=point_B,
-                joint_seed=joint_seed,
-                tcp_frame=config["coords"]["tcptool1plane1"],
-                ucs_frame=config["coords"]["ucsTable1"],
-                radius=radius,
-                angle_step_deg=angle_step_deg,
-                velocity=velocity,
-                accel=accel,
-                jerk_ratio=jerk_ratio,
-                transition_deg=transition_deg,
-                max_points=max_points,
-                orientation=orientation,
-                skip_first=index > 0,
-                box_id=box_id,
-                robot_id=robot_id,
-            )
-            if not ok:
-                return False
-
-            total_points += sent
-            if sent > 0 and not vibration_on:
-                turn_vibration_on(cps)
-                vibration_on = True
-
-        velocity_factor = 10.0 / float(angle_step_deg or 1.0)
-        timeout = compute_timeout(
-            total_points=total_points, velocity=velocity * velocity_factor
+    spiral_poses = []
+    for index, _ in enumerate(zigzag_points):
+        if index + 1 >= len(zigzag_points):
+            break
+        point_a = zigzag_points[index]
+        point_b = zigzag_points[index + 1]
+        flat_points = generate_spiral_between_points(
+            start_pose=point_a,
+            end_pose=point_b,
+            radius=radius,
+            angle_step_deg=angle_step_deg,
+            orientation=orientation,
         )
-        timeout = max(5.0, timeout)
-        return _wait_for_motion_complete(
-            cps, timeout, box_id=box_id, robot_id=robot_id
+        poses = _poses_from_flat_points(flat_points)
+        if poses:
+            if spiral_poses:
+                spiral_poses.extend(poses[1:])
+            else:
+                spiral_poses.extend(poses)
+
+    if force is not None and config is not None:
+        putForceZminus(
+            cps=cps,
+            force=force,
+            tcp=config["coords"]["tcptool1plane1"],
+            ucs=config["coords"]["ucsTable1"],
+            config=config,
         )
-    finally:
-        if vibration_on:
-            turn_vibration_off(cps)
+        time.sleep(force_settle_s)
+
+    turn_vibration_on(cps)
+    ok = run_waypoint2_path(
+        cps=cps,
+        config=config,
+        poses=spiral_poses,
+        velocity=velocity,
+        accel=accel,
+        radius=radius,
+        use_arc=True,
+        box_id=box_id,
+        robot_id=robot_id,
+    )
+
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    if force is not None and config is not None:
+        releaseForce(cps=cps, config=config)
+
+    return ok
 
 
 def generate_zigzag_path(
@@ -1475,53 +1355,68 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                for index, _ in enumerate(zigzag_points):
-                    point_A = zigzag_points[index]
-                    if index + 1 >= len(zigzag_points):
-                        break
-                    point_B = zigzag_points[index + 1]
-
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
+                if USE_WAYPOINT2_ARC:
+                    ok = run_waypoint2_spiral_for_zigzag(
                         cps=cps,
                         config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
+                        zigzag_points=zigzag_points,
                         radius=12.0,
                         angle_step_deg=45.0,
-                        track_name=spiral_track_name,
+                        orientation=orientation,
                         velocity=150.0,
                         accel=300.0,
-                        jerk=3000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
+                        force=force,
                     )
-                    if not success:
-                        push_failed = True
-                        break
+                    if not ok:
+                        raise RuntimeError("[WayPoint2] Spiral path failed for door 1.")
+                    return
+                # for index, _ in enumerate(zigzag_points):
+                #     point_A = zigzag_points[index]
+                #     if index + 1 >= len(zigzag_points):
+                #         break
+                #     point_B = zigzag_points[index + 1]
 
-                    path_initialized = True
-                    total_count += count
+                #     print("Spiral move from A to B:", point_A, "->", point_B)
+                #     success, count = run_spiral_between_points(
+                #         cps=cps,
+                #         config=config,
+                #         start_pose=point_A,
+                #         end_pose=point_B,
+                #         radius=12.0,
+                #         angle_step_deg=45.0,
+                #         track_name=spiral_track_name,
+                #         velocity=150.0,
+                #         accel=300.0,
+                #         jerk=3000.0,
+                #         init_path=not path_initialized,
+                #         orientation=orientation
+                #     )
+                #     if not success:
+                #         push_failed = True
+                #         break
 
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    # Keep a short anti-false-positive runtime guard without
-                    # adding visible delay at the final point.
-                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    finalized = finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout,
-                        min_runtime_s=min_runtime_s,
-                        force= force,
-                        config= config
-                    )
-                    if not finalized:
-                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
+                #     path_initialized = True
+                #     total_count += count
+
+                # if path_initialized and not push_failed:
+                #     timeout = compute_timeout(
+                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                #     )
+                #     # Keep a short anti-false-positive runtime guard without
+                #     # adding visible delay at the final point.
+                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                #     finalized = finalize_spiral_path(
+                #         cps,
+                #         spiral_track_name,
+                #         box_id=0,
+                #         robot_id=0,
+                #         completion_timeout=timeout,
+                #         min_runtime_s=min_runtime_s,
+                #         force= force,
+                #         config= config
+                #     )
+                #     if not finalized:
+                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -1817,6 +1712,21 @@ def smalldoor2zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                if USE_WAYPOINT2_ARC:
+                    ok = run_waypoint2_spiral_for_zigzag(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        orientation=orientation,
+                        velocity=150.0,
+                        accel=300.0,
+                        force=force,
+                    )
+                    if not ok:
+                        raise RuntimeError("[WayPoint2] Spiral path failed for door 2.")
+                    return
                 
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
@@ -2162,6 +2072,21 @@ def smalldoor3zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                if USE_WAYPOINT2_ARC:
+                    ok = run_waypoint2_spiral_for_zigzag(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        orientation=orientation,
+                        velocity=150.0,
+                        accel=300.0,
+                        force=force,
+                    )
+                    if not ok:
+                        raise RuntimeError("[WayPoint2] Spiral path failed for door 3.")
+                    return
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
@@ -2505,6 +2430,21 @@ def smalldoor4zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                if USE_WAYPOINT2_ARC:
+                    ok = run_waypoint2_spiral_for_zigzag(
+                        cps=cps,
+                        config=config,
+                        zigzag_points=zigzag_points,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        orientation=orientation,
+                        velocity=150.0,
+                        accel=300.0,
+                        force=force,
+                    )
+                    if not ok:
+                        raise RuntimeError("[WayPoint2] Spiral path failed for door 4.")
+                    return
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
