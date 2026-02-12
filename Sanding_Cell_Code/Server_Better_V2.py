@@ -2212,8 +2212,31 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
             print(f"****** result: {result}")
             time.sleep(0.5)
-        # seventhGoToPos(cps, position=0, speed=UISettings['control']['linearAxisSpeed'] * config['7thAxis']['speed'], config=config)
-        config["logger"].info("[HomingFunc] DONE! Success to reach 0th position")
+        # Move to the configured J7 home position after origin.
+        if stop_requested():
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing stopped by user.",
+            )
+            return
+        home_j7 = float(config.get("UI", {}).get("seventhAxisHome", -65))
+        config["logger"].info(
+            f"[HomingFunc] Reached J7 origin; moving to home position {home_j7}mm"
+        )
+        ok = seventhGoToPos(
+            cps=cps,
+            position=home_j7,
+            speed=0.5,
+            config=config,
+            wait=True,
+        )
+        if not ok:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing failed: could not move J7 to home position.",
+            )
+            return
+        config["logger"].info("[HomingFunc] DONE! Success to reach J7 home position")
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message="Homing Completed Successfully!",
