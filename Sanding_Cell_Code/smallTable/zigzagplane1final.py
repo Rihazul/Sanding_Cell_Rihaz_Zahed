@@ -69,14 +69,17 @@ DEFAULT_SPIRAL_RADIUS = 12.0
 DEFAULT_MOVEJS_JERK_RATIO = 100
 DEFAULT_MOVEJS_TRANSITION_DEG = 25
 MOVEJS_MAX_POINTS = 50
-USE_WAYPOINT2_ARC = False
+USE_WAYPOINT2_ARC = True
 WAYPOINT2_ARC_MIN_AREA = 1.0
 WAYPOINT2_ARC_MIN_SEGMENT = 0.5
-WAYPOINT2_MAX_POSES = 180
+WAYPOINT2_MAX_POSES = 360
 WAYPOINT2_BLEND_RADIUS = 2.0
 WAYPOINT2_FORCE_SETTLE_S = 0.6
 WAYPOINT2_START_DELAY_S = 0.35
-WAYPOINT2_CMD_DELAY_S = 0.003
+WAYPOINT2_CMD_DELAY_S = 0.004
+WAYPOINT2_BATCH_SIZE = 60
+WAYPOINT2_BATCH_PAUSE_S = 0.08
+WAYPOINT2_WAIT_TIMEOUT_S = 120.0
 
 
 
@@ -523,6 +526,26 @@ def _downsample_poses(poses, max_count):
     return down
 
 
+def wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S):
+    start = time.time()
+    while True:
+        result = []
+        ret = cps.HRIF_IsMotionDone(0, 0, result)
+        done = False
+        if ret == 0 and result:
+            last = result[-1]
+            if isinstance(last, bool):
+                done = last
+            else:
+                done = str(last).strip().lower() in ("1", "true", "ok")
+        if done:
+            return True
+        if time.time() - start >= float(timeout_s):
+            print(f"[WayPoint2] Motion wait timed out after {timeout_s:.1f}s.")
+            return False
+        time.sleep(0.05)
+
+
 def run_waypoint2_path(
     cps: CPSClient,
     config: dict,
@@ -531,7 +554,7 @@ def run_waypoint2_path(
     velocity: float,
     accel: float,
     radius: float,
-    use_arc: bool = True,
+    use_arc: bool = False,
     box_id: int = 0,
     robot_id: int = 0,
     tcp: str = None,
@@ -611,6 +634,9 @@ def run_waypoint2_path(
         last_pos = end_pos
         if WAYPOINT2_CMD_DELAY_S > 0:
             time.sleep(WAYPOINT2_CMD_DELAY_S)
+        if WAYPOINT2_BATCH_SIZE and cmd_index % int(WAYPOINT2_BATCH_SIZE) == 0:
+            if WAYPOINT2_BATCH_PAUSE_S > 0:
+                time.sleep(WAYPOINT2_BATCH_PAUSE_S)
 
     if idx + 1 < len(poses):
         end_pos = poses[idx + 1]
@@ -720,12 +746,12 @@ def run_waypoint2_spiral_for_zigzag(
         velocity=velocity,
         accel=accel,
         radius=blend_radius,
-        use_arc=True,
+        use_arc=False,
         box_id=box_id,
         robot_id=robot_id,
     )
 
-    waitForBlending(cps=cps, config=config)
+    wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S)
     turn_vibration_off(cps)
     if force is not None and config is not None:
         releaseForce(cps=cps, config=config)
