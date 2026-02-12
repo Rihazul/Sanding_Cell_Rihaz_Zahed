@@ -72,13 +72,15 @@ MOVEJS_MAX_POINTS = 50
 USE_WAYPOINT2_ARC = True
 WAYPOINT2_ARC_MIN_AREA = 1.0
 WAYPOINT2_ARC_MIN_SEGMENT = 0.5
-WAYPOINT2_MAX_POSES = 360
+WAYPOINT2_MAX_POSES = 0  # 0 disables downsampling (use all points)
+WAYPOINT2_ANGLE_STEP_DEG = 10.0
 WAYPOINT2_BLEND_RADIUS = 2.0
 WAYPOINT2_FORCE_SETTLE_S = 0.6
 WAYPOINT2_START_DELAY_S = 0.35
 WAYPOINT2_CMD_DELAY_S = 0.004
 WAYPOINT2_BATCH_SIZE = 60
 WAYPOINT2_BATCH_PAUSE_S = 0.08
+WAYPOINT2_CHUNK_SIZE = 120
 WAYPOINT2_WAIT_TIMEOUT_S = 120.0
 
 
@@ -517,7 +519,7 @@ def _arc_is_valid(p0, p1, p2, *, min_area=WAYPOINT2_ARC_MIN_AREA, min_seg=WAYPOI
 
 
 def _downsample_poses(poses, max_count):
-    if not poses or len(poses) <= max_count:
+    if not poses or max_count is None or max_count <= 0 or len(poses) <= max_count:
         return poses
     stride = max(2, int(math.ceil(len(poses) / float(max_count))))
     down = poses[::stride]
@@ -739,19 +741,47 @@ def run_waypoint2_spiral_for_zigzag(
             time.sleep(WAYPOINT2_START_DELAY_S)
 
     turn_vibration_on(cps)
-    ok = run_waypoint2_path(
-        cps=cps,
-        config=config,
-        poses=spiral_poses,
-        velocity=velocity,
-        accel=accel,
-        radius=blend_radius,
-        use_arc=False,
-        box_id=box_id,
-        robot_id=robot_id,
-    )
-
-    wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S)
+    ok = True
+    chunk_size = int(WAYPOINT2_CHUNK_SIZE) if WAYPOINT2_CHUNK_SIZE else 0
+    if chunk_size <= 0:
+        ok = run_waypoint2_path(
+            cps=cps,
+            config=config,
+            poses=spiral_poses,
+            velocity=velocity,
+            accel=accel,
+            radius=blend_radius,
+            use_arc=False,
+            box_id=box_id,
+            robot_id=robot_id,
+        )
+        wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S)
+    else:
+        prev = None
+        total = len(spiral_poses)
+        idx = 0
+        while idx < total:
+            chunk = spiral_poses[idx : idx + chunk_size]
+            if prev is not None:
+                if not chunk or chunk[0] != prev:
+                    chunk = [prev] + chunk
+            ok = run_waypoint2_path(
+                cps=cps,
+                config=config,
+                poses=chunk,
+                velocity=velocity,
+                accel=accel,
+                radius=blend_radius,
+                use_arc=False,
+                box_id=box_id,
+                robot_id=robot_id,
+                cmd_prefix=f"wp2-{idx}",
+            )
+            if not ok:
+                break
+            wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S)
+            prev = chunk[-1] if chunk else prev
+            idx += chunk_size
     turn_vibration_off(cps)
     if force is not None and config is not None:
         releaseForce(cps=cps, config=config)
@@ -1446,7 +1476,7 @@ def smalldoor1zizag(
                         config=config,
                         zigzag_points=zigzag_points,
                         radius=12.0,
-                        angle_step_deg=45.0,
+                        angle_step_deg=WAYPOINT2_ANGLE_STEP_DEG,
                         orientation=orientation,
                         velocity=150.0,
                         accel=300.0,
@@ -1803,7 +1833,7 @@ def smalldoor2zizag(
                         config=config,
                         zigzag_points=zigzag_points,
                         radius=12.0,
-                        angle_step_deg=45.0,
+                        angle_step_deg=WAYPOINT2_ANGLE_STEP_DEG,
                         orientation=orientation,
                         velocity=150.0,
                         accel=300.0,
@@ -1826,7 +1856,7 @@ def smalldoor2zizag(
                         start_pose=point_A,
                         end_pose=point_B,
                         radius=12.0,
-                        angle_step_deg=45.0,
+                        angle_step_deg=WAYPOINT2_ANGLE_STEP_DEG,
                         track_name=spiral_track_name,
                         velocity=150.0,
                         accel=300.0,
@@ -2163,7 +2193,7 @@ def smalldoor3zizag(
                         config=config,
                         zigzag_points=zigzag_points,
                         radius=12.0,
-                        angle_step_deg=45.0,
+                        angle_step_deg=WAYPOINT2_ANGLE_STEP_DEG,
                         orientation=orientation,
                         velocity=150.0,
                         accel=300.0,
