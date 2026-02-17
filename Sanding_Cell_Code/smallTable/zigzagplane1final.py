@@ -92,7 +92,7 @@ WAYPOINT2_DETECT_FRAME = False
 WAYPOINT2_ARC_LEADIN_TYPE1 = True
 WAYPOINT2_MAX_START_GAP_MM = 120.0
 WAYPOINT2_REQUIRE_PLANE1_FRAME = True
-WAYPOINT2_SKIP_EDGE_COVERAGE = True
+WAYPOINT2_SKIP_EDGE_COVERAGE = False
 WAYPOINT2_SNAP_XY = False
 WAYPOINT2_SNAP_Z = True
 WAYPOINT2_USE_GLOBAL_SPIRAL = True
@@ -1673,7 +1673,7 @@ def smalldoor1zizag(
             movement=movement,
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=False,
+            preserve_frame_sign=USE_WAYPOINT2_ARC,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2036,7 +2036,7 @@ def smalldoor2zizag(
             movement=movement,
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=False,
+            preserve_frame_sign=USE_WAYPOINT2_ARC,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2399,7 +2399,7 @@ def smalldoor3zizag(
             movement=movement,
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=False,
+            preserve_frame_sign=USE_WAYPOINT2_ARC,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2761,7 +2761,7 @@ def smalldoor4zizag(
             movement=movement,
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=False,
+            preserve_frame_sign=USE_WAYPOINT2_ARC,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
