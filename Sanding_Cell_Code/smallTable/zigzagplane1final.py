@@ -92,6 +92,9 @@ WAYPOINT2_DETECT_FRAME = True
 WAYPOINT2_ARC_LEADIN_TYPE1 = True
 WAYPOINT2_MAX_START_GAP_MM = 120.0
 WAYPOINT2_REQUIRE_PLANE1_FRAME = True
+WAYPOINT2_SKIP_EDGE_COVERAGE = True
+WAYPOINT2_SNAP_XY = False
+WAYPOINT2_SNAP_Z = True
 
 
 
@@ -924,13 +927,19 @@ def run_waypoint2_spiral_for_zigzag(
         dx = act_pose[0] - spiral_poses[0][0]
         dy = act_pose[1] - spiral_poses[0][1]
         dz = act_pose[2] - spiral_poses[0][2]
-        if abs(dx) > 1e-4 or abs(dy) > 1e-4 or abs(dz) > 1e-4:
+        sx = dx if WAYPOINT2_SNAP_XY else 0.0
+        sy = dy if WAYPOINT2_SNAP_XY else 0.0
+        sz = dz if WAYPOINT2_SNAP_Z else 0.0
+        if abs(sx) > 1e-4 or abs(sy) > 1e-4 or abs(sz) > 1e-4:
             spiral_poses = [
-                [p[0] + dx, p[1] + dy, p[2] + dz, p[3], p[4], p[5]]
+                [p[0] + sx, p[1] + sy, p[2] + sz, p[3], p[4], p[5]]
                 for p in spiral_poses
             ]
         if WAYPOINT2_DEBUG_ARC:
-            print(f"[WayPoint2] Start offset dx={dx:.4f} dy={dy:.4f} dz={dz:.4f}")
+            print(
+                f"[WayPoint2] Start offset raw(dx={dx:.4f}, dy={dy:.4f}, dz={dz:.4f}) "
+                f"applied(dx={sx:.4f}, dy={sy:.4f}, dz={sz:.4f})"
+            )
     # Lock orientation using controller-consistent frame after conversion/snap.
     # If points were converted from Base->UCS, using pose0 orientation avoids
     # safety-space failures from forcing an incompatible Euler representation.
@@ -1606,6 +1615,8 @@ def smalldoor1zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
+                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -1804,7 +1815,7 @@ def smalldoor1zizag(
                     speed=0.8,
                     wait=True
                 )
-                if not split:
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
                     communicate(
                         cps=cps,
                         config=config,
@@ -1967,6 +1978,8 @@ def smalldoor2zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
+                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -2164,7 +2177,7 @@ def smalldoor2zizag(
                     speed=0.8,
                     wait=True
                 )
-                if not split:
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
                     communicate(
                         cps=cps,
                         config=config,
@@ -2328,6 +2341,8 @@ def smalldoor3zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
+                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -2525,7 +2540,7 @@ def smalldoor3zizag(
                     speed=0.8,
                     wait=True
                 )
-                if not split:
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
                     communicate(
                         cps=cps,
                         config=config,
@@ -2688,6 +2703,8 @@ def smalldoor4zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
+            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
+                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -2885,7 +2902,7 @@ def smalldoor4zizag(
                     speed=0.8,
                     wait=True
                 )
-                if not split:
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
                     communicate(
                         cps=cps,
                         config=config,
