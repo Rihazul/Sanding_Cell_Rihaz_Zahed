@@ -867,22 +867,15 @@ def run_waypoint2_spiral_for_zigzag(
         if WAYPOINT2_START_DELAY_S > 0:
             time.sleep(WAYPOINT2_START_DELAY_S)
 
-    # Use UCS orientation (preferred) or fallback to zigzag orientation.
-    rxyz = None
+    # Capture preferred UCS orientation for diagnostics/fallback only.
+    preferred_ucs_rxyz = None
     ucs_name = config["coords"].get("ucsTable1") if config else None
     if WAYPOINT2_USE_UCS_ORI and ucs_name:
         ucs_pose = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
         if ucs_pose:
-            rxyz = list(ucs_pose[3:6])
+            preferred_ucs_rxyz = list(ucs_pose[3:6])
             if WAYPOINT2_DEBUG_ARC:
-                print(f"[WayPoint2] UCS orientation: {rxyz} (ucs={ucs_name})")
-    if rxyz is None and zigzag_points and len(zigzag_points[0]) >= 6:
-        rxyz = list(zigzag_points[0][3:6])
-    if rxyz is None:
-        rxyz = [0.0, 0.0, 0.0]
-    if WAYPOINT2_FORCE_UCS_TILT:
-        rxyz[0] = float(WAYPOINT2_UCS_RX)
-        rxyz[1] = float(WAYPOINT2_UCS_RY)
+                print(f"[WayPoint2] UCS orientation: {preferred_ucs_rxyz} (ucs={ucs_name})")
 
     tcp_name = config["coords"].get("tcptool1plane1") if config else None
     ucs_name = config["coords"].get("ucsTable1") if config else None
@@ -929,7 +922,21 @@ def run_waypoint2_spiral_for_zigzag(
             ]
         if WAYPOINT2_DEBUG_ARC:
             print(f"[WayPoint2] Start offset dx={dx:.4f} dy={dy:.4f} dz={dz:.4f}")
-    # Ensure arc orientation is consistent after any frame conversion or snapping.
+    # Lock orientation using controller-consistent frame after conversion/snap.
+    # If points were converted from Base->UCS, using pose0 orientation avoids
+    # safety-space failures from forcing an incompatible Euler representation.
+    rxyz = None
+    if spiral_poses and len(spiral_poses[0]) >= 6:
+        rxyz = list(spiral_poses[0][3:6])
+    if (not points_in_base) and preferred_ucs_rxyz is not None:
+        rxyz = list(preferred_ucs_rxyz)
+    if rxyz is None and zigzag_points and len(zigzag_points[0]) >= 6:
+        rxyz = list(zigzag_points[0][3:6])
+    if rxyz is None:
+        rxyz = [0.0, 0.0, 0.0]
+    if WAYPOINT2_FORCE_UCS_TILT:
+        rxyz[0] = float(WAYPOINT2_UCS_RX)
+        rxyz[1] = float(WAYPOINT2_UCS_RY)
     spiral_poses = _override_orientation(spiral_poses, rxyz)
     if act_pose and rxyz:
         if any(abs(act_pose[i + 3] - rxyz[i]) > WAYPOINT2_ORI_TOL for i in range(3)):
