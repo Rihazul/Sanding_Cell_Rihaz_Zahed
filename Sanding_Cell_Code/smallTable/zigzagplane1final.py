@@ -85,6 +85,8 @@ WAYPOINT2_FORCE_UCS_TILT = True
 WAYPOINT2_UCS_RX = 0.0
 WAYPOINT2_UCS_RY = 0.0
 WAYPOINT2_DEBUG_ARC = True
+WAYPOINT2_SNAP_TO_ACTUAL = True
+WAYPOINT2_ORI_TOL = 0.05
 
 
 
@@ -530,6 +532,22 @@ def _read_current_tcp_rxyz(cps, box_id=0, robot_id=0):
     return [float(act[9]), float(act[10]), float(act[11])]
 
 
+def _read_current_tcp_pose(cps, box_id=0, robot_id=0):
+    act = []
+    ret = cps.HRIF_ReadActPos(box_id, robot_id, act)
+    if ret != 0 or len(act) < 12:
+        print("[WayPoint2] Failed to read TCP pose from controller.")
+        return None
+    return [
+        float(act[6]),
+        float(act[7]),
+        float(act[8]),
+        float(act[9]),
+        float(act[10]),
+        float(act[11]),
+    ]
+
+
 def _override_orientation(poses, rxyz):
     if not rxyz:
         return poses
@@ -777,6 +795,24 @@ def run_waypoint2_spiral_for_zigzag(
         rxyz[0] = float(WAYPOINT2_UCS_RX)
         rxyz[1] = float(WAYPOINT2_UCS_RY)
     spiral_poses = _override_orientation(spiral_poses, rxyz)
+    act_pose = _read_current_tcp_pose(cps, box_id=box_id, robot_id=robot_id)
+    if act_pose and WAYPOINT2_SNAP_TO_ACTUAL:
+        dx = act_pose[0] - spiral_poses[0][0]
+        dy = act_pose[1] - spiral_poses[0][1]
+        dz = act_pose[2] - spiral_poses[0][2]
+        if abs(dx) > 1e-4 or abs(dy) > 1e-4 or abs(dz) > 1e-4:
+            spiral_poses = [
+                [p[0] + dx, p[1] + dy, p[2] + dz, p[3], p[4], p[5]]
+                for p in spiral_poses
+            ]
+        if WAYPOINT2_DEBUG_ARC:
+            print(f"[WayPoint2] Start offset dx={dx:.4f} dy={dy:.4f} dz={dz:.4f}")
+    if act_pose and rxyz:
+        if any(abs(act_pose[i + 3] - rxyz[i]) > WAYPOINT2_ORI_TOL for i in range(3)):
+            print(
+                "[WayPoint2] Warning: Live orientation differs from arc orientation; "
+                "arc may fail under force control."
+            )
     if WAYPOINT2_DEBUG_ARC:
         print(f"[WayPoint2] Arc orientation: {rxyz}")
         if len(spiral_poses) >= 3:
