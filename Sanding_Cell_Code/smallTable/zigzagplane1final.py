@@ -89,6 +89,7 @@ WAYPOINT2_DEBUG_ARC = True
 WAYPOINT2_SNAP_TO_ACTUAL = True
 WAYPOINT2_ORI_TOL = 0.05
 WAYPOINT2_DETECT_FRAME = True
+WAYPOINT2_ARC_LEADIN_TYPE1 = True
 
 
 
@@ -666,6 +667,43 @@ def run_waypoint2_path(
     cmd_index = 0
     idx = 0
     last_pos = poses[0]
+
+    # Arc mode may fail if current live orientation (after force contact) does not
+    # match the intended arc orientation. A lead-in WayPoint2 type=1 aligns the
+    # controller state before the first type=2 segment.
+    if use_arc and WAYPOINT2_ARC_LEADIN_TYPE1 and len(poses) >= 3:
+        lead_end = poses[1]
+        cmd_id = str((cmd_index % 3) + 1)
+        seg_len = _distance_xyz(last_pos, lead_end)
+        local_radius = 0.0 if seg_len <= 0.8 else min(radius, seg_len * 0.4)
+        ret = cps.HRIF_WayPoint2(
+            box_id,
+            robot_id,
+            1,
+            lead_end,
+            lead_end,
+            acs_pos,
+            tcp_name,
+            ucs_name,
+            velocity,
+            accel,
+            local_radius,
+            is_joint,
+            is_seek,
+            bit,
+            state,
+            cmd_id,
+        )
+        print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-lead")
+        if ret != 0:
+            print(f"[WayPoint2] Lead-in move failed ret={ret} cmd={cmd_prefix}-lead")
+            return False
+        cmd_index += 1
+        idx = 1
+        last_pos = lead_end
+        if WAYPOINT2_CMD_DELAY_S > 0:
+            time.sleep(WAYPOINT2_CMD_DELAY_S)
+
     while idx + 2 < len(poses):
         p0 = poses[idx]
         p1 = poses[idx + 1]
