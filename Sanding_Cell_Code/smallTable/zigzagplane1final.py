@@ -88,13 +88,17 @@ WAYPOINT2_UCS_RY = 0.0
 WAYPOINT2_DEBUG_ARC = True
 WAYPOINT2_SNAP_TO_ACTUAL = True
 WAYPOINT2_ORI_TOL = 0.05
-WAYPOINT2_DETECT_FRAME = True
+WAYPOINT2_DETECT_FRAME = False
 WAYPOINT2_ARC_LEADIN_TYPE1 = True
 WAYPOINT2_MAX_START_GAP_MM = 120.0
 WAYPOINT2_REQUIRE_PLANE1_FRAME = True
 WAYPOINT2_SKIP_EDGE_COVERAGE = True
 WAYPOINT2_SNAP_XY = False
 WAYPOINT2_SNAP_Z = True
+WAYPOINT2_USE_GLOBAL_SPIRAL = True
+WAYPOINT2_GLOBAL_MARGIN_MM = 2.0
+WAYPOINT2_GLOBAL_MIN_AXIS_MM = 8.0
+WAYPOINT2_GLOBAL_MIN_POINTS = 40
 
 
 
@@ -615,6 +619,68 @@ def _downsample_poses(poses, max_count):
     return down
 
 
+def _build_global_spiral_poses(zigzag_points, radius, angle_step_deg):
+    """
+    Build one continuous inward ellipse-spiral for the full pocket envelope.
+    Keeps the old per-segment method available for fallback/reference.
+    """
+    if not zigzag_points:
+        return []
+    if len(zigzag_points[0]) < 6:
+        return []
+
+    xs = [float(p[0]) for p in zigzag_points]
+    ys = [float(p[1]) for p in zigzag_points]
+    z = float(zigzag_points[0][2])
+    rx, ry, rz = [float(v) for v in zigzag_points[0][3:6]]
+
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    cx = (xmin + xmax) * 0.5
+    cy = (ymin + ymax) * 0.5
+
+    margin = max(0.0, float(WAYPOINT2_GLOBAL_MARGIN_MM))
+    a0 = max(
+        float(WAYPOINT2_GLOBAL_MIN_AXIS_MM),
+        ((xmax - xmin) * 0.5) - margin,
+    )
+    b0 = max(
+        float(WAYPOINT2_GLOBAL_MIN_AXIS_MM),
+        ((ymax - ymin) * 0.5) - margin,
+    )
+
+    start = zigzag_points[0]
+    dx = float(start[0]) - cx
+    dy = float(start[1]) - cy
+    nx = dx / max(a0, 1e-6)
+    ny = dy / max(b0, 1e-6)
+    theta0 = math.atan2(ny, nx)
+
+    pitch_mm = max(4.0, float(radius) * 0.8)
+    max_axis = max(a0, b0)
+    turns = max(1.0, max_axis / max(pitch_mm, 1e-6))
+    step_deg = max(3.0, float(angle_step_deg))
+    total_steps = max(
+        int(float(WAYPOINT2_GLOBAL_MIN_POINTS)),
+        int(math.ceil((turns * 360.0) / step_deg)),
+    )
+
+    poses = [[float(start[0]), float(start[1]), z, rx, ry, rz]]
+    for k in range(1, total_steps + 1):
+        t = k / float(total_steps)
+        scale = max(0.0, 1.0 - t)
+        theta = theta0 + (2.0 * math.pi * turns * t)
+        x = cx + (a0 * scale) * math.cos(theta)
+        y = cy + (b0 * scale) * math.sin(theta)
+        poses.append([x, y, z, rx, ry, rz])
+
+    # Arc chain in run_waypoint2_path expects an even pose count (with lead-in).
+    if len(poses) >= 4 and (len(poses) % 2) != 0:
+        poses.pop()
+
+    return poses
+
+
 def wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S):
     start = time.time()
     while True:
@@ -827,27 +893,43 @@ def run_waypoint2_spiral_for_zigzag(
     if not zigzag_points:
         return True
 
-    spiral_poses = []
-    for index, _ in enumerate(zigzag_points):
-        if index + 1 >= len(zigzag_points):
-            break
-        point_a = zigzag_points[index]
-        point_b = zigzag_points[index + 1]
-        micro_arc_deg = max(1.0, float(WAYPOINT2_MICRO_ARC_DEG))
-        half_step_deg = micro_arc_deg / 2.0
-        flat_points = generate_spiral_between_points(
-            start_pose=point_a,
-            end_pose=point_b,
+    if WAYPOINT2_USE_GLOBAL_SPIRAL:
+        spiral_poses = _build_global_spiral_poses(
+            zigzag_points=zigzag_points,
             radius=radius,
-            angle_step_deg=half_step_deg,
-            orientation=orientation,
+            angle_step_deg=angle_step_deg,
         )
-        poses = _poses_from_flat_points(flat_points)
-        if poses:
-            if spiral_poses:
-                spiral_poses.extend(poses[1:])
-            else:
-                spiral_poses.extend(poses)
+        if WAYPOINT2_DEBUG_ARC and spiral_poses:
+            xs = [p[0] for p in spiral_poses]
+            ys = [p[1] for p in spiral_poses]
+            print(
+                "[WayPoint2] Global spiral mode: "
+                f"points={len(spiral_poses)} x=[{min(xs):.3f},{max(xs):.3f}] "
+                f"y=[{min(ys):.3f},{max(ys):.3f}]"
+            )
+    else:
+        # Legacy/reference mode: build a local spiral between each zigzag segment.
+        spiral_poses = []
+        for index, _ in enumerate(zigzag_points):
+            if index + 1 >= len(zigzag_points):
+                break
+            point_a = zigzag_points[index]
+            point_b = zigzag_points[index + 1]
+            micro_arc_deg = max(1.0, float(WAYPOINT2_MICRO_ARC_DEG))
+            half_step_deg = micro_arc_deg / 2.0
+            flat_points = generate_spiral_between_points(
+                start_pose=point_a,
+                end_pose=point_b,
+                radius=radius,
+                angle_step_deg=half_step_deg,
+                orientation=orientation,
+            )
+            poses = _poses_from_flat_points(flat_points)
+            if poses:
+                if spiral_poses:
+                    spiral_poses.extend(poses[1:])
+                else:
+                    spiral_poses.extend(poses)
 
     if not spiral_poses:
         print("[WayPoint2] No spiral poses generated; skipping WayPoint2 path.")
@@ -884,22 +966,20 @@ def run_waypoint2_spiral_for_zigzag(
 
     tcp_name = config["coords"].get("tcptool1plane1") if config else None
     ucs_name = config["coords"].get("ucsTable1") if config else None
-    tcp_pose = _read_tcp_pose(cps, tcp_name, box_id=box_id, robot_id=robot_id)
-    ucs_pose = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
+    _ = _read_tcp_pose(cps, tcp_name, box_id=box_id, robot_id=robot_id)
+    _ = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
     act_pose_base = _read_current_tcp_pose(cps, box_id=box_id, robot_id=robot_id)
-    act_pose_ucs = _convert_base_to_ucs(
-        cps, act_pose_base, tcp_pose, ucs_pose, box_id=box_id
-    )
+    act_pose_ucs = None
+    if WAYPOINT2_DEBUG_ARC:
+        print("[WayPoint2] Base2UcsTcp disabled; assuming points are already in UCS.")
 
     points_in_base = False
-    if WAYPOINT2_DETECT_FRAME and act_pose_ucs and act_pose_base and zigzag_points:
-        dist_ucs = _distance_xyz(act_pose_ucs, zigzag_points[0])
+    if WAYPOINT2_DETECT_FRAME and act_pose_base and zigzag_points:
         dist_base = _distance_xyz(act_pose_base, zigzag_points[0])
-        points_in_base = dist_base + 1e-3 < dist_ucs
         if WAYPOINT2_DEBUG_ARC:
             print(
-                f"[WayPoint2] Frame check dist_ucs={dist_ucs:.3f} dist_base={dist_base:.3f} "
-                f"points_in_base={points_in_base}"
+                f"[WayPoint2] Frame check dist_base={dist_base:.3f} "
+                "points_in_base=UNKNOWN"
             )
 
     if points_in_base and WAYPOINT2_REQUIRE_PLANE1_FRAME:
@@ -914,7 +994,7 @@ def run_waypoint2_spiral_for_zigzag(
     if WAYPOINT2_DEBUG_ARC:
         print(f"[WayPoint2] Path UCS: {path_ucs_name}")
 
-    act_pose = act_pose_ucs or act_pose_base
+    act_pose = act_pose_base if points_in_base else None
     if act_pose and spiral_poses:
         start_gap = _distance_xyz(act_pose, spiral_poses[0])
         if start_gap > float(WAYPOINT2_MAX_START_GAP_MM):
