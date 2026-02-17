@@ -70,9 +70,10 @@ DEFAULT_MOVEJS_JERK_RATIO = 100
 DEFAULT_MOVEJS_TRANSITION_DEG = 25
 MOVEJS_MAX_POINTS = 50
 USE_WAYPOINT2_ARC = True
-WAYPOINT2_ARC_MIN_AREA = 1.0
+WAYPOINT2_ARC_MIN_AREA = 0.2
 WAYPOINT2_ARC_MIN_SEGMENT = 0.5
-WAYPOINT2_MAX_POSES = 360
+WAYPOINT2_MICRO_ARC_DEG = 10.0
+WAYPOINT2_MAX_POSES = 0  # 0 disables downsampling for micro-arc chains
 WAYPOINT2_BLEND_RADIUS = 2.0
 WAYPOINT2_FORCE_SETTLE_S = 0.6
 WAYPOINT2_START_DELAY_S = 0.35
@@ -533,7 +534,7 @@ def _override_orientation(poses, rxyz):
 
 
 def _downsample_poses(poses, max_count):
-    if not poses or len(poses) <= max_count:
+    if not poses or max_count is None or max_count <= 0 or len(poses) <= max_count:
         return poses
     stride = max(2, int(math.ceil(len(poses) / float(max_count))))
     down = poses[::stride]
@@ -605,6 +606,9 @@ def run_waypoint2_path(
         p2 = poses[idx + 2]
 
         use_arc_seg = use_arc and _arc_is_valid(p0, p1, p2)
+        if use_arc and not use_arc_seg:
+            print(f"[WayPoint2] Invalid arc geometry at cmd={cmd_prefix}-{cmd_index}")
+            return False
         if use_arc_seg:
             move_type = 2
             end_pos = p2
@@ -655,6 +659,9 @@ def run_waypoint2_path(
                 time.sleep(WAYPOINT2_BATCH_PAUSE_S)
 
     if idx + 1 < len(poses):
+        if use_arc:
+            print(f"[WayPoint2] Arc chain ended mid-segment at cmd={cmd_prefix}-{cmd_index}")
+            return False
         end_pos = poses[idx + 1]
         cmd_id = str((cmd_index % 3) + 1)
         seg_len = _distance_xyz(last_pos, end_pos)
@@ -717,11 +724,13 @@ def run_waypoint2_spiral_for_zigzag(
             break
         point_a = zigzag_points[index]
         point_b = zigzag_points[index + 1]
+        micro_arc_deg = max(1.0, float(WAYPOINT2_MICRO_ARC_DEG))
+        half_step_deg = micro_arc_deg / 2.0
         flat_points = generate_spiral_between_points(
             start_pose=point_a,
             end_pose=point_b,
             radius=radius,
-            angle_step_deg=angle_step_deg,
+            angle_step_deg=half_step_deg,
             orientation=orientation,
         )
         poses = _poses_from_flat_points(flat_points)
