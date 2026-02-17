@@ -81,7 +81,8 @@ WAYPOINT2_CMD_DELAY_S = 0.004
 WAYPOINT2_BATCH_SIZE = 60
 WAYPOINT2_BATCH_PAUSE_S = 0.08
 WAYPOINT2_WAIT_TIMEOUT_S = 120.0
-WAYPOINT2_FORCE_UCS_TILT = True
+WAYPOINT2_USE_UCS_ORI = True
+WAYPOINT2_FORCE_UCS_TILT = False
 WAYPOINT2_UCS_RX = 0.0
 WAYPOINT2_UCS_RY = 0.0
 WAYPOINT2_DEBUG_ARC = True
@@ -536,7 +537,7 @@ def _read_current_tcp_pose(cps, box_id=0, robot_id=0):
     act = []
     ret = cps.HRIF_ReadActPos(box_id, robot_id, act)
     if ret != 0 or len(act) < 12:
-        print("[WayPoint2] Failed to read TCP pose from controller.")
+        print(f"[WayPoint2] Failed to read TCP pose from controller (ret={ret}).")
         return None
     return [
         float(act[6]),
@@ -546,6 +547,20 @@ def _read_current_tcp_pose(cps, box_id=0, robot_id=0):
         float(act[10]),
         float(act[11]),
     ]
+
+
+def _read_ucs_pose(cps, ucs_name, box_id=0, robot_id=0):
+    if not ucs_name:
+        return None
+    result = []
+    ret = cps.HRIF_ReadUCSByName(box_id, robot_id, ucs_name, result)
+    if ret != 0 or len(result) < 6:
+        print(f"[WayPoint2] Failed to read UCS '{ucs_name}' (ret={ret}).")
+        return None
+    try:
+        return [float(v) for v in list(result)[:6]]
+    except Exception:
+        return None
 
 
 def _override_orientation(poses, rxyz):
@@ -785,9 +800,16 @@ def run_waypoint2_spiral_for_zigzag(
         if WAYPOINT2_START_DELAY_S > 0:
             time.sleep(WAYPOINT2_START_DELAY_S)
 
-    # Use fixed UCS-aligned orientation from the first zigzag point.
+    # Use UCS orientation (preferred) or fallback to zigzag orientation.
     rxyz = None
-    if zigzag_points and len(zigzag_points[0]) >= 6:
+    ucs_name = config["coords"].get("ucsTable1") if config else None
+    if WAYPOINT2_USE_UCS_ORI and ucs_name:
+        ucs_pose = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
+        if ucs_pose:
+            rxyz = list(ucs_pose[3:6])
+            if WAYPOINT2_DEBUG_ARC:
+                print(f"[WayPoint2] UCS orientation: {rxyz} (ucs={ucs_name})")
+    if rxyz is None and zigzag_points and len(zigzag_points[0]) >= 6:
         rxyz = list(zigzag_points[0][3:6])
     if rxyz is None:
         rxyz = [0.0, 0.0, 0.0]
