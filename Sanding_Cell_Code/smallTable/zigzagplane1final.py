@@ -81,6 +81,10 @@ WAYPOINT2_CMD_DELAY_S = 0.004
 WAYPOINT2_BATCH_SIZE = 60
 WAYPOINT2_BATCH_PAUSE_S = 0.08
 WAYPOINT2_WAIT_TIMEOUT_S = 120.0
+WAYPOINT2_FORCE_UCS_TILT = True
+WAYPOINT2_UCS_RX = 0.0
+WAYPOINT2_UCS_RY = 0.0
+WAYPOINT2_DEBUG_ARC = True
 
 
 
@@ -767,8 +771,18 @@ def run_waypoint2_spiral_for_zigzag(
     rxyz = None
     if zigzag_points and len(zigzag_points[0]) >= 6:
         rxyz = list(zigzag_points[0][3:6])
-    if rxyz:
-        spiral_poses = _override_orientation(spiral_poses, rxyz)
+    if rxyz is None:
+        rxyz = [0.0, 0.0, 0.0]
+    if WAYPOINT2_FORCE_UCS_TILT:
+        rxyz[0] = float(WAYPOINT2_UCS_RX)
+        rxyz[1] = float(WAYPOINT2_UCS_RY)
+    spiral_poses = _override_orientation(spiral_poses, rxyz)
+    if WAYPOINT2_DEBUG_ARC:
+        print(f"[WayPoint2] Arc orientation: {rxyz}")
+        if len(spiral_poses) >= 3:
+            print(f"[WayPoint2] Arc p0={spiral_poses[0]}")
+            print(f"[WayPoint2] Arc p1={spiral_poses[1]}")
+            print(f"[WayPoint2] Arc p2={spiral_poses[2]}")
 
     turn_vibration_on(cps)
     ok = run_waypoint2_path(
