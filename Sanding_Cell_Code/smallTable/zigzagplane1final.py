@@ -578,16 +578,16 @@ def _read_tcp_pose(cps, tcp_name, box_id=0, robot_id=0):
         return None
 
 
-def _read_act_coord(cps, tcp_name, ucs_name, box_id=0, robot_id=0):
-    if not tcp_name or not ucs_name:
+def _convert_base_to_ucs(cps, base_pose, tcp_pose, ucs_pose, box_id=0):
+    if not base_pose or not tcp_pose or not ucs_pose:
         return None
-    result = []
-    ret = cps.HRIF_ReadActCoord(box_id, robot_id, tcp_name, ucs_name, result)
-    if ret != 0 or len(result) < 6:
-        print(f"[WayPoint2] Failed to read ActCoord (tcp={tcp_name}, ucs={ucs_name}, ret={ret}).")
+    out = []
+    ret = cps.HRIF_Base2UcsTcp(box_id, base_pose, tcp_pose, ucs_pose, out)
+    if ret != 0 or len(out) < 6:
+        print(f"[WayPoint2] Base2UcsTcp failed ret={ret}")
         return None
     try:
-        return [float(v) for v in list(result)[:6]]
+        return [float(v) for v in list(out)[:6]]
     except Exception:
         return None
 
@@ -849,8 +849,12 @@ def run_waypoint2_spiral_for_zigzag(
 
     tcp_name = config["coords"].get("tcptool1plane1") if config else None
     ucs_name = config["coords"].get("ucsTable1") if config else None
-    act_pose_ucs = _read_act_coord(cps, tcp_name, ucs_name, box_id=box_id, robot_id=robot_id)
-    act_pose_base = _read_act_coord(cps, tcp_name, "Base", box_id=box_id, robot_id=robot_id)
+    tcp_pose = _read_tcp_pose(cps, tcp_name, box_id=box_id, robot_id=robot_id)
+    ucs_pose = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
+    act_pose_base = _read_current_tcp_pose(cps, box_id=box_id, robot_id=robot_id)
+    act_pose_ucs = _convert_base_to_ucs(
+        cps, act_pose_base, tcp_pose, ucs_pose, box_id=box_id
+    )
 
     points_in_base = False
     if WAYPOINT2_DETECT_FRAME and act_pose_ucs and act_pose_base and zigzag_points:
@@ -863,25 +867,20 @@ def run_waypoint2_spiral_for_zigzag(
                 f"points_in_base={points_in_base}"
             )
 
-    if points_in_base and tcp_name and ucs_name:
-        tcp_pose = _read_tcp_pose(cps, tcp_name, box_id=box_id, robot_id=robot_id)
-        ucs_pose = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
-        if tcp_pose and ucs_pose:
-            converted = []
-            for pose in spiral_poses:
-                out = []
-                ret = cps.HRIF_Base2UcsTcp(box_id, pose, tcp_pose, ucs_pose, out)
-                if ret != 0 or len(out) < 6:
-                    print(f"[WayPoint2] Base2UcsTcp failed ret={ret}")
-                    converted = None
-                    break
-                converted.append([float(v) for v in list(out)[:6]])
-            if converted:
-                spiral_poses = converted
-                if WAYPOINT2_DEBUG_ARC:
-                    print("[WayPoint2] Converted spiral poses from Base to UCS.")
+    if points_in_base and tcp_pose and ucs_pose:
+        converted = []
+        for pose in spiral_poses:
+            out = _convert_base_to_ucs(cps, pose, tcp_pose, ucs_pose, box_id=box_id)
+            if not out:
+                converted = None
+                break
+            converted.append(out)
+        if converted:
+            spiral_poses = converted
+            if WAYPOINT2_DEBUG_ARC:
+                print("[WayPoint2] Converted spiral poses from Base to UCS.")
 
-    act_pose = act_pose_ucs or act_pose_base or _read_current_tcp_pose(cps, box_id=box_id, robot_id=robot_id)
+    act_pose = act_pose_ucs or act_pose_base
     if act_pose and WAYPOINT2_SNAP_TO_ACTUAL:
         dx = act_pose[0] - spiral_poses[0][0]
         dy = act_pose[1] - spiral_poses[0][1]
