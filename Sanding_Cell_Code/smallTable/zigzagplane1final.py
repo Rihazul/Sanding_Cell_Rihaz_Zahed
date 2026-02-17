@@ -763,7 +763,10 @@ def run_waypoint2_spiral_for_zigzag(
         if WAYPOINT2_START_DELAY_S > 0:
             time.sleep(WAYPOINT2_START_DELAY_S)
 
-    rxyz = _read_current_tcp_rxyz(cps, box_id=box_id, robot_id=robot_id)
+    # Use fixed UCS-aligned orientation from the first zigzag point.
+    rxyz = None
+    if zigzag_points and len(zigzag_points[0]) >= 6:
+        rxyz = list(zigzag_points[0][3:6])
     if rxyz:
         spiral_poses = _override_orientation(spiral_poses, rxyz)
 
