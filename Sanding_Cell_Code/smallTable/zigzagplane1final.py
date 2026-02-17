@@ -99,6 +99,7 @@ WAYPOINT2_USE_GLOBAL_SPIRAL = True
 WAYPOINT2_GLOBAL_MARGIN_MM = 2.0
 WAYPOINT2_GLOBAL_MIN_AXIS_MM = 8.0
 WAYPOINT2_GLOBAL_MIN_POINTS = 40
+WAYPOINT2_USE_UCS_BOUNDARY = True
 
 
 
@@ -679,6 +680,22 @@ def _build_global_spiral_poses(zigzag_points, radius, angle_step_deg):
         poses.pop()
 
     return poses
+
+
+def _build_pocket_boundary_points(point5, point6, point7, point8, distance):
+    """
+    Build the 4 pocket boundary points used for edge/zigzag generation.
+    When WAYPOINT2_USE_UCS_BOUNDARY is True, preserve UCS coordinates.
+    The legacy local-frame mapping (distance/0) remains available for reference.
+    """
+    if WAYPOINT2_USE_UCS_BOUNDARY:
+        return point5, point6, point7, point8
+
+    point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
+    point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
+    point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
+    point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
+    return point5u, point6u, point7u, point8u
 
 
 def wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S):
@@ -1636,13 +1653,12 @@ def smalldoor1zizag(
         print("point8:", point8)
 
         # Final Points
-        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
+        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
+            point5, point6, point7, point8, distance
+        )
         print("point5u:", point5u)
-        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
-        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
-        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -1999,13 +2015,12 @@ def smalldoor2zizag(
         print("point8:", point8)
 
         # Final Points
-        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
+        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
+            point5, point6, point7, point8, distance
+        )
         print("point5u:", point5u)
-        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
-        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
-        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -2362,13 +2377,12 @@ def smalldoor3zizag(
         print("point8:", point8)
 
         # Final Points
-        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
+        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
+            point5, point6, point7, point8, distance
+        )
         print("point5u:", point5u)
-        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
-        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
-        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -2724,13 +2738,12 @@ def smalldoor4zizag(
         print("point8:", point8)
 
         # Final Points
-        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
+        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
+            point5, point6, point7, point8, distance
+        )
         print("point5u:", point5u)
-        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
-        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
-        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
