@@ -845,7 +845,6 @@ def run_waypoint2_spiral_for_zigzag(
     if WAYPOINT2_FORCE_UCS_TILT:
         rxyz[0] = float(WAYPOINT2_UCS_RX)
         rxyz[1] = float(WAYPOINT2_UCS_RY)
-    spiral_poses = _override_orientation(spiral_poses, rxyz)
 
     tcp_name = config["coords"].get("tcptool1plane1") if config else None
     ucs_name = config["coords"].get("ucsTable1") if config else None
@@ -892,6 +891,8 @@ def run_waypoint2_spiral_for_zigzag(
             ]
         if WAYPOINT2_DEBUG_ARC:
             print(f"[WayPoint2] Start offset dx={dx:.4f} dy={dy:.4f} dz={dz:.4f}")
+    # Ensure arc orientation is consistent after any frame conversion or snapping.
+    spiral_poses = _override_orientation(spiral_poses, rxyz)
     if act_pose and rxyz:
         if any(abs(act_pose[i + 3] - rxyz[i]) > WAYPOINT2_ORI_TOL for i in range(3)):
             print(
