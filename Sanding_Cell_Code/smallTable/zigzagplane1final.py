@@ -6,7 +6,6 @@ import os
 import time
 import json
 import uuid
-import csv
 from typing import Optional
 
 # Add parent directory to path so Python can find the modules
@@ -70,55 +69,6 @@ DEFAULT_SPIRAL_RADIUS = 12.0
 DEFAULT_MOVEJS_JERK_RATIO = 100
 DEFAULT_MOVEJS_TRANSITION_DEG = 25
 MOVEJS_MAX_POINTS = 50
-USE_WAYPOINT2_ARC = True
-WAYPOINT2_ARC_MIN_AREA = 0.2
-WAYPOINT2_ARC_MIN_SEGMENT = 0.5
-WAYPOINT2_MICRO_ARC_DEG = 10.0
-WAYPOINT2_MAX_POSES = 0  # 0 disables downsampling for micro-arc chains
-WAYPOINT2_BLEND_RADIUS = 2.0
-WAYPOINT2_FORCE_SETTLE_S = 0.6
-WAYPOINT2_START_DELAY_S = 0.35
-WAYPOINT2_CMD_DELAY_S = 0.004
-WAYPOINT2_BATCH_SIZE = 60
-WAYPOINT2_BATCH_PAUSE_S = 0.08
-WAYPOINT2_WAIT_TIMEOUT_S = 120.0
-WAYPOINT2_USE_UCS_ORI = False
-WAYPOINT2_FORCE_UCS_TILT = False
-WAYPOINT2_UCS_RX = 0.0
-WAYPOINT2_UCS_RY = 0.0
-WAYPOINT2_DEBUG_ARC = True
-WAYPOINT2_SNAP_TO_ACTUAL = True
-WAYPOINT2_ORI_TOL = 0.05
-WAYPOINT2_DETECT_FRAME = False
-WAYPOINT2_ARC_LEADIN_TYPE1 = True
-WAYPOINT2_MAX_START_GAP_MM = 120.0
-WAYPOINT2_REQUIRE_PLANE1_FRAME = True
-WAYPOINT2_SKIP_EDGE_COVERAGE = False
-WAYPOINT2_SNAP_XY = False
-WAYPOINT2_SNAP_Z = True
-WAYPOINT2_USE_GLOBAL_SPIRAL = True
-WAYPOINT2_GLOBAL_MARGIN_MM = 2.0
-WAYPOINT2_GLOBAL_MIN_AXIS_MM = 8.0
-WAYPOINT2_GLOBAL_MIN_POINTS = 40
-WAYPOINT2_USE_UCS_BOUNDARY = True
-WAYPOINT2_USE_FILLETED_ZIGZAG = True
-WAYPOINT2_FILLET_RADIUS_MM = 12.0
-WAYPOINT2_USE_SCAN_X_SIGN = True
-WAYPOINT2_FORCE_LEGACY_RXYZ = False
-WAYPOINT2_USE_JOINT_SEED = True
-WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = False
-WAYPOINT2_ROTATE_TOL_DEG = 1.0
-WAYPOINT2_SKIP_PREPOINT_ROTATE = True
-WAYPOINT2_SET_ORI_AT_PREHOMING = False
-WAYPOINT2_PREPOINT_APPROACH_LIFT_MM = 15.0
-WAYPOINT2_DEBUG_POINTS = False
-WAYPOINT2_DEBUG_POINTS_LIMIT = 60
-WAYPOINT2_DEBUG_POINTS_FILE = "waypoint2_debug_points.csv"
-WAYPOINT2_PREPOINT_USE_SCAN_RXYZ = True
-WAYPOINT2_SKIP_PREPOINT = True
-USE_SAFE_PREPOINT_APPROACH = True
-PREPOINT_SAFE_LIFT_MM = 30.0
-PREPOINT_ROTATE_SPEED = 0.6
 
 
 
@@ -534,1031 +484,6 @@ def finalize_spiral_path(
     return ok
 
 
-def _poses_from_flat_points(points_flat):
-    if not points_flat or len(points_flat) % 6 != 0:
-        return []
-    return [points_flat[i : i + 6] for i in range(0, len(points_flat), 6)]
-
-
-def _distance_xyz(a, b):
-    return math.sqrt(
-        (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
-    )
-
-
-def _arc_is_valid(p0, p1, p2, *, min_area=WAYPOINT2_ARC_MIN_AREA, min_seg=WAYPOINT2_ARC_MIN_SEGMENT):
-    if _distance_xyz(p0, p1) < min_seg or _distance_xyz(p1, p2) < min_seg:
-        return False
-    area2 = abs(
-        (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0])
-    )
-    return area2 >= min_area
-
-
-def _read_current_tcp_rxyz(cps, box_id=0, robot_id=0):
-    act = []
-    ret = cps.HRIF_ReadActPos(box_id, robot_id, act)
-    if ret != 0 or len(act) < 12:
-        print("[WayPoint2] Failed to read TCP orientation from controller.")
-        return None
-    return [float(act[9]), float(act[10]), float(act[11])]
-
-
-def _read_current_tcp_pose(cps, box_id=0, robot_id=0):
-    act = []
-    ret = cps.HRIF_ReadActPos(box_id, robot_id, act)
-    if ret != 0 or len(act) < 12:
-        print(f"[WayPoint2] Failed to read TCP pose from controller (ret={ret}).")
-        return None
-    return [
-        float(act[6]),
-        float(act[7]),
-        float(act[8]),
-        float(act[9]),
-        float(act[10]),
-        float(act[11]),
-    ]
-
-
-def _read_ucs_pose(cps, ucs_name, box_id=0, robot_id=0):
-    if not ucs_name:
-        return None
-    result = []
-    ret = cps.HRIF_ReadUCSByName(box_id, robot_id, ucs_name, result)
-    if ret != 0 or len(result) < 6:
-        print(f"[WayPoint2] Failed to read UCS '{ucs_name}' (ret={ret}).")
-        return None
-    try:
-        return [float(v) for v in list(result)[:6]]
-    except Exception:
-        return None
-
-
-def _read_tcp_pose(cps, tcp_name, box_id=0, robot_id=0):
-    if not tcp_name:
-        return None
-    result = []
-    ret = cps.HRIF_ReadTCPByName(box_id, robot_id, tcp_name, result)
-    if ret != 0 or len(result) < 6:
-        print(f"[WayPoint2] Failed to read TCP '{tcp_name}' (ret={ret}).")
-        return None
-    try:
-        return [float(v) for v in list(result)[:6]]
-    except Exception:
-        return None
-
-
-def _override_orientation(poses, rxyz):
-    if not rxyz:
-        return poses
-    rx, ry, rz = rxyz
-    return [[p[0], p[1], p[2], rx, ry, rz] for p in poses]
-
-
-def _write_waypoint2_debug_rows(rows, header):
-    if not WAYPOINT2_DEBUG_POINTS_FILE:
-        return
-    path = str(WAYPOINT2_DEBUG_POINTS_FILE)
-    write_header = not os.path.exists(path)
-    try:
-        with open(path, "a", newline="") as f:
-            writer = csv.writer(f)
-            if write_header:
-                writer.writerow(header)
-            writer.writerows(rows)
-    except Exception as exc:
-        print(f"[WayPoint2] Debug file write failed: {exc}")
-
-
-def _rxyz_max_delta(a, b):
-    if not a or not b:
-        return 999.0
-    try:
-        return max(abs(float(a[i]) - float(b[i])) for i in range(3))
-    except (TypeError, ValueError, IndexError):
-        return 999.0
-
-
-def _wrap_angle_near(angle, ref):
-    try:
-        t = float(angle)
-        r = float(ref)
-    except (TypeError, ValueError):
-        return angle
-    while t - r > 180.0:
-        t -= 360.0
-    while t - r < -180.0:
-        t += 360.0
-    return t
-
-
-def _normalize_rxyz_near(rxyz, ref_rxyz):
-    if not rxyz or not ref_rxyz or len(rxyz) < 3 or len(ref_rxyz) < 3:
-        return rxyz
-    return [
-        _wrap_angle_near(rxyz[0], ref_rxyz[0]),
-        _wrap_angle_near(rxyz[1], ref_rxyz[1]),
-        _wrap_angle_near(rxyz[2], ref_rxyz[2]),
-    ]
-
-
-def _normalize_point_rxyz(point, ref_rxyz):
-    if not point or len(point) < 6:
-        return point
-    rxyz = _normalize_rxyz_near(point[3:6], ref_rxyz)
-    return [point[0], point[1], point[2], rxyz[0], rxyz[1], rxyz[2]]
-
-
-def _normalize_points_rxyz(points, ref_rxyz):
-    if not points:
-        return points
-    out = []
-    for p in points:
-        out.append(_normalize_point_rxyz(p, ref_rxyz))
-    return out
-
-
-def _move_to_prepoint_safe(
-    cps,
-    config,
-    *,
-    prepoint,
-    rxyz_sanding,
-    tcp,
-    ucs,
-    lift_mm=PREPOINT_SAFE_LIFT_MM,
-):
-    """Approach prepoint with minimal twist: translate at current orientation, rotate in place, then descend."""
-    if not prepoint:
-        return
-    act = _read_current_tcp_pose(cps)
-    act_rxyz = rxyz_sanding
-    if act and len(act) >= 6:
-        act_rxyz = [act[3], act[4], act[5]]
-    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL and act and len(act) >= 6:
-        rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
-
-    safe_z = prepoint[2] + float(lift_mm)
-    if safe_z < prepoint[2]:
-        safe_z = prepoint[2]
-    approach_z = prepoint[2] + float(WAYPOINT2_PREPOINT_APPROACH_LIFT_MM)
-    if approach_z < prepoint[2]:
-        approach_z = prepoint[2]
-    if approach_z > safe_z:
-        approach_z = safe_z
-
-    safe_pos = [prepoint[0], prepoint[1], safe_z, act_rxyz[0], act_rxyz[1], act_rxyz[2]]
-    prepoint_target = prepoint
-    if WAYPOINT2_SKIP_PREPOINT_ROTATE:
-        prepoint_target = [
-            prepoint[0],
-            prepoint[1],
-            approach_z,
-            act_rxyz[0],
-            act_rxyz[1],
-            act_rxyz[2],
-        ]
-    else:
-        prepoint_target = [
-            prepoint[0],
-            prepoint[1],
-            approach_z,
-            rxyz_sanding[0],
-            rxyz_sanding[1],
-            rxyz_sanding[2],
-        ]
-    rotate_needed = (
-        (not WAYPOINT2_SKIP_PREPOINT_ROTATE)
-        and _rxyz_max_delta(act_rxyz, rxyz_sanding) > float(WAYPOINT2_ROTATE_TOL_DEG)
-    )
-    rotate_pos = [prepoint[0], prepoint[1], safe_z, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
-
-    communicate(
-        cps=cps,
-        config=config,
-        point=safe_pos,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=PREPOINT_ROTATE_SPEED,
-        wait=True,
-    )
-    if rotate_needed:
-        communicate(
-            cps=cps,
-            config=config,
-            point=rotate_pos,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=PREPOINT_ROTATE_SPEED,
-            wait=True,
-        )
-    communicate(
-        cps=cps,
-        config=config,
-        point=prepoint_target,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=1.0,
-        wait=True,
-    )
-
-
-def _downsample_poses(poses, max_count):
-    if not poses or max_count is None or max_count <= 0 or len(poses) <= max_count:
-        return poses
-    stride = max(2, int(math.ceil(len(poses) / float(max_count))))
-    down = poses[::stride]
-    if down[-1] != poses[-1]:
-        down.append(poses[-1])
-    return down
-
-
-def _build_global_spiral_poses(zigzag_points, radius, angle_step_deg):
-    """
-    Build one continuous inward ellipse-spiral for the full pocket envelope.
-    Keeps the old per-segment method available for fallback/reference.
-    """
-    if not zigzag_points:
-        return []
-    if len(zigzag_points[0]) < 6:
-        return []
-
-    xs = [float(p[0]) for p in zigzag_points]
-    ys = [float(p[1]) for p in zigzag_points]
-    z = float(zigzag_points[0][2])
-    rx, ry, rz = [float(v) for v in zigzag_points[0][3:6]]
-
-    xmin, xmax = min(xs), max(xs)
-    ymin, ymax = min(ys), max(ys)
-    cx = (xmin + xmax) * 0.5
-    cy = (ymin + ymax) * 0.5
-
-    margin = max(0.0, float(WAYPOINT2_GLOBAL_MARGIN_MM))
-    a0 = max(
-        float(WAYPOINT2_GLOBAL_MIN_AXIS_MM),
-        ((xmax - xmin) * 0.5) - margin,
-    )
-    b0 = max(
-        float(WAYPOINT2_GLOBAL_MIN_AXIS_MM),
-        ((ymax - ymin) * 0.5) - margin,
-    )
-
-    start = zigzag_points[0]
-    dx = float(start[0]) - cx
-    dy = float(start[1]) - cy
-    nx = dx / max(a0, 1e-6)
-    ny = dy / max(b0, 1e-6)
-    theta0 = math.atan2(ny, nx)
-
-    pitch_mm = max(4.0, float(radius) * 0.8)
-    max_axis = max(a0, b0)
-    turns = max(1.0, max_axis / max(pitch_mm, 1e-6))
-    step_deg = max(3.0, float(angle_step_deg))
-    total_steps = max(
-        int(float(WAYPOINT2_GLOBAL_MIN_POINTS)),
-        int(math.ceil((turns * 360.0) / step_deg)),
-    )
-
-    poses = [[float(start[0]), float(start[1]), z, rx, ry, rz]]
-    for k in range(1, total_steps + 1):
-        t = k / float(total_steps)
-        scale = max(0.0, 1.0 - t)
-        theta = theta0 + (2.0 * math.pi * turns * t)
-        x = cx + (a0 * scale) * math.cos(theta)
-        y = cy + (b0 * scale) * math.sin(theta)
-        poses.append([x, y, z, rx, ry, rz])
-
-    # Arc chain in run_waypoint2_path expects an even pose count (with lead-in).
-    if len(poses) >= 4 and (len(poses) % 2) != 0:
-        poses.pop()
-
-    return poses
-
-
-def _build_pocket_boundary_points(point5, point6, point7, point8, distance):
-    """
-    Build the 4 pocket boundary points used for edge/zigzag generation.
-    When WAYPOINT2_USE_UCS_BOUNDARY is True, preserve UCS coordinates.
-    The legacy local-frame mapping (distance/0) remains available for reference.
-    """
-    if WAYPOINT2_USE_UCS_BOUNDARY:
-        return point5, point6, point7, point8
-
-    point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
-    point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
-    point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
-    point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
-    return point5u, point6u, point7u, point8u
-
-
-def _unit2(vec):
-    vx, vy = vec
-    mag = math.hypot(vx, vy)
-    if mag <= 1e-6:
-        return None
-    return (vx / mag, vy / mag)
-
-
-def _fillet_for_corner(p0, p1, p2, radius):
-    v1 = _unit2((p0[0] - p1[0], p0[1] - p1[1]))
-    v2 = _unit2((p2[0] - p1[0], p2[1] - p1[1]))
-    if v1 is None or v2 is None:
-        return None
-    dot = max(-1.0, min(1.0, v1[0] * v2[0] + v1[1] * v2[1]))
-    alpha = math.acos(dot)
-    if alpha < 1e-3 or abs(math.pi - alpha) < 1e-3:
-        return None
-    tan_half = math.tan(alpha * 0.5)
-    if abs(tan_half) < 1e-6:
-        return None
-    d = radius / tan_half
-    len1 = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
-    len2 = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
-    if d >= len1 or d >= len2:
-        return None
-
-    t1 = (p1[0] + v1[0] * d, p1[1] + v1[1] * d)
-    t2 = (p1[0] + v2[0] * d, p1[1] + v2[1] * d)
-
-    bis = _unit2((v1[0] + v2[0], v1[1] + v2[1]))
-    if bis is None:
-        return None
-    center_dist = radius / math.sin(alpha * 0.5)
-    c = (p1[0] + bis[0] * center_dist, p1[1] + bis[1] * center_dist)
-
-    a1 = math.atan2(t1[1] - c[1], t1[0] - c[0])
-    a2 = math.atan2(t2[1] - c[1], t2[0] - c[0])
-    cross = v1[0] * v2[1] - v1[1] * v2[0]
-    if cross >= 0:
-        delta = (a2 - a1) % (2.0 * math.pi)
-    else:
-        delta = -((a1 - a2) % (2.0 * math.pi))
-    if abs(delta) > math.pi:
-        return None
-    amid = a1 + delta * 0.5
-    mid = (c[0] + radius * math.cos(amid), c[1] + radius * math.sin(amid))
-
-    return t1, mid, t2
-
-
-def run_waypoint2_filleted_zigzag(
-    cps: CPSClient,
-    config: dict,
-    zigzag_points,
-    *,
-    radius: float,
-    velocity: float,
-    accel: float,
-    blend_radius: float,
-    rxyz,
-    tcp_name: str,
-    ucs_name: str,
-    box_id: int = 0,
-    robot_id: int = 0,
-    cmd_prefix: str = "wp2-fillet",
-):
-    if not zigzag_points or len(zigzag_points) < 2:
-        return True
-
-    z = float(zigzag_points[0][2])
-    rx, ry, rz = rxyz
-    pts2 = [(float(p[0]), float(p[1])) for p in zigzag_points]
-    start = [pts2[0][0], pts2[0][1], z, rx, ry, rz]
-
-    acs_pos = [0, 0, 0, 0, 0, 0]
-    has_joint_seed = False
-    try:
-        joint_seed = []
-        jret = cps.HRIF_ReadActPos(box_id, robot_id, joint_seed)
-        if jret == 0 and isinstance(joint_seed, (list, tuple)) and len(joint_seed) >= 6:
-            acs_pos = [float(v) for v in joint_seed[:6]]
-            has_joint_seed = True
-    except Exception:
-        pass
-
-    is_joint = 1 if (WAYPOINT2_USE_JOINT_SEED and has_joint_seed) else 0
-    is_seek = 0
-    bit = 0
-    state = 0
-
-    cmd_index = 0
-    last = start
-    debug_rows = []
-    debug_limit = int(WAYPOINT2_DEBUG_POINTS_LIMIT) if WAYPOINT2_DEBUG_POINTS else 0
-
-    for i in range(1, len(pts2) - 1):
-        p0 = pts2[i - 1]
-        p1 = pts2[i]
-        p2 = pts2[i + 1]
-        fillet = _fillet_for_corner(p0, p1, p2, radius)
-        if fillet is None:
-            end = [p1[0], p1[1], z, rx, ry, rz]
-            if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
-                print(f"[WayPoint2][dbg] L seg idx={cmd_index} end={end}")
-                debug_rows.append(
-                    [cmd_index, 1, end[0], end[1], end[2], end[3], end[4], end[5], "", "", "", "", "", "", tcp_name, ucs_name]
-                )
-                debug_limit -= 1
-            ret = cps.HRIF_WayPoint2(
-                box_id,
-                robot_id,
-                1,
-                end,
-                end,
-                acs_pos,
-                tcp_name,
-                ucs_name,
-                velocity,
-                accel,
-                blend_radius,
-                is_joint,
-                is_seek,
-                bit,
-                state,
-                str((cmd_index % 3) + 1),
-            )
-            print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-{cmd_index}")
-            if ret != 0:
-                return False
-            cmd_index += 1
-            last = end
-            continue
-
-        t1, mid, t2 = fillet
-        if math.hypot(t1[0] - last[0], t1[1] - last[1]) > 1e-3:
-            end = [t1[0], t1[1], z, rx, ry, rz]
-            ret = cps.HRIF_WayPoint2(
-                box_id,
-                robot_id,
-                1,
-                end,
-                end,
-                acs_pos,
-                tcp_name,
-                ucs_name,
-                velocity,
-                accel,
-                blend_radius,
-                is_joint,
-                is_seek,
-                bit,
-                state,
-                str((cmd_index % 3) + 1),
-            )
-            print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-{cmd_index}")
-            if ret != 0:
-                return False
-            cmd_index += 1
-            last = end
-
-        end_arc = [t2[0], t2[1], z, rx, ry, rz]
-        aux = [mid[0], mid[1], z, rx, ry, rz]
-        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
-            print(f"[WayPoint2][dbg] A seg idx={cmd_index} p0={t1} mid={mid} p2={t2}")
-            debug_rows.append(
-                [cmd_index, 2, t1[0], t1[1], z, rx, ry, rz, mid[0], mid[1], z, rx, ry, rz, end_arc[0], end_arc[1], tcp_name, ucs_name]
-            )
-            debug_limit -= 1
-        ret = cps.HRIF_WayPoint2(
-            box_id,
-            robot_id,
-            2,
-            end_arc,
-            aux,
-            acs_pos,
-            tcp_name,
-            ucs_name,
-            velocity,
-            accel,
-            blend_radius,
-            is_joint,
-            is_seek,
-            bit,
-            state,
-            str((cmd_index % 3) + 1),
-        )
-        print(f"[WayPoint2] ret={ret} type=2 cmd={cmd_prefix}-{cmd_index}")
-        if ret != 0:
-            return False
-        cmd_index += 1
-        last = end_arc
-
-    final_pt = pts2[-1]
-    end = [final_pt[0], final_pt[1], z, rx, ry, rz]
-    if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
-        print(f"[WayPoint2][dbg] L tail idx={cmd_index} end={end}")
-        debug_rows.append(
-            [cmd_index, 1, end[0], end[1], end[2], end[3], end[4], end[5], "", "", "", "", "", "", tcp_name, ucs_name]
-        )
-    ret = cps.HRIF_WayPoint2(
-        box_id,
-        robot_id,
-        1,
-        end,
-        end,
-        acs_pos,
-        tcp_name,
-        ucs_name,
-        velocity,
-        accel,
-        blend_radius,
-        is_joint,
-        is_seek,
-        bit,
-        state,
-        str((cmd_index % 3) + 1),
-    )
-    print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-tail")
-    if ret != 0:
-        return False
-    if WAYPOINT2_DEBUG_POINTS and debug_rows:
-        _write_waypoint2_debug_rows(
-            debug_rows,
-            [
-                "idx",
-                "move_type",
-                "p0_x",
-                "p0_y",
-                "p0_z",
-                "p0_rx",
-                "p0_ry",
-                "p0_rz",
-                "p1_x",
-                "p1_y",
-                "p1_z",
-                "p1_rx",
-                "p1_ry",
-                "p1_rz",
-                "p2_x",
-                "p2_y",
-                "tcp",
-                "ucs",
-            ],
-        )
-    return True
-
-
-def wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S):
-    start = time.time()
-    while True:
-        result = []
-        ret = cps.HRIF_IsMotionDone(0, 0, result)
-        done = False
-        if ret == 0 and result:
-            last = result[-1]
-            if isinstance(last, bool):
-                done = last
-            else:
-                done = str(last).strip().lower() in ("1", "true", "ok")
-        if done:
-            return True
-        if time.time() - start >= float(timeout_s):
-            print(f"[WayPoint2] Motion wait timed out after {timeout_s:.1f}s.")
-            return False
-        time.sleep(0.05)
-
-
-def run_waypoint2_path(
-    cps: CPSClient,
-    config: dict,
-    poses,
-    *,
-    velocity: float,
-    accel: float,
-    radius: float,
-    use_arc: bool = False,
-    box_id: int = 0,
-    robot_id: int = 0,
-    tcp: str = None,
-    ucs: str = None,
-    cmd_prefix: str = "wp2",
-):
-    if not poses or len(poses) < 2:
-        return True
-
-    tcp_name = tcp or config["coords"].get("tcptool1plane1")
-    ucs_name = ucs or config["coords"].get("ucsTable1")
-    # Use current joint pose as IK seed if available; fallback to zeros.
-    acs_pos = [0, 0, 0, 0, 0, 0]
-    has_joint_seed = False
-    try:
-        joint_seed = []
-        jret = cps.HRIF_ReadActPos(box_id, robot_id, joint_seed)
-        if jret == 0 and isinstance(joint_seed, (list, tuple)) and len(joint_seed) >= 6:
-            acs_pos = [float(v) for v in joint_seed[:6]]
-            has_joint_seed = True
-    except Exception:
-        pass
-    is_joint = 1 if (WAYPOINT2_USE_JOINT_SEED and has_joint_seed) else 0
-    is_seek = 0
-    bit = 0
-    state = 0
-
-    cmd_index = 0
-    idx = 0
-    last_pos = poses[0]
-    debug_rows = []
-    debug_limit = int(WAYPOINT2_DEBUG_POINTS_LIMIT) if WAYPOINT2_DEBUG_POINTS else 0
-
-    # Arc mode may fail if current live orientation (after force contact) does not
-    # match the intended arc orientation. A lead-in WayPoint2 type=1 aligns the
-    # controller state before the first type=2 segment.
-    if use_arc and WAYPOINT2_ARC_LEADIN_TYPE1 and len(poses) >= 3:
-        lead_end = poses[1]
-        cmd_id = str((cmd_index % 3) + 1)
-        seg_len = _distance_xyz(last_pos, lead_end)
-        local_radius = 0.0 if seg_len <= 0.8 else min(radius, seg_len * 0.4)
-        ret = cps.HRIF_WayPoint2(
-            box_id,
-            robot_id,
-            1,
-            lead_end,
-            lead_end,
-            acs_pos,
-            tcp_name,
-            ucs_name,
-            velocity,
-            accel,
-            local_radius,
-            is_joint,
-            is_seek,
-            bit,
-            state,
-            cmd_id,
-        )
-        print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-lead")
-        if ret != 0:
-            print(f"[WayPoint2] Lead-in move failed ret={ret} cmd={cmd_prefix}-lead")
-            return False
-        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
-            print(f"[WayPoint2][dbg] L lead idx={cmd_index} end={lead_end}")
-            debug_rows.append(
-                [cmd_index, 1, lead_end[0], lead_end[1], lead_end[2], lead_end[3], lead_end[4], lead_end[5], "", "", "", "", "", "", tcp_name, ucs_name]
-            )
-            debug_limit -= 1
-        cmd_index += 1
-        idx = 1
-        last_pos = lead_end
-        if WAYPOINT2_CMD_DELAY_S > 0:
-            time.sleep(WAYPOINT2_CMD_DELAY_S)
-
-    while idx + 2 < len(poses):
-        p0 = poses[idx]
-        p1 = poses[idx + 1]
-        p2 = poses[idx + 2]
-
-        use_arc_seg = use_arc and _arc_is_valid(p0, p1, p2)
-        if use_arc and not use_arc_seg:
-            print(f"[WayPoint2] Invalid arc geometry at cmd={cmd_prefix}-{cmd_index}")
-            return False
-        if use_arc_seg:
-            move_type = 2
-            end_pos = p2
-            aux_pos = p1
-            idx += 2
-        else:
-            move_type = 1
-            end_pos = p1
-            aux_pos = p1
-            idx += 1
-
-        cmd_id = str((cmd_index % 3) + 1)
-        seg_len = _distance_xyz(last_pos, end_pos)
-        local_radius = radius
-        if seg_len <= 0.8:
-            local_radius = 0.0
-        else:
-            local_radius = min(radius, seg_len * 0.4)
-
-        ret = cps.HRIF_WayPoint2(
-            box_id,
-            robot_id,
-            move_type,
-            end_pos,
-            aux_pos,
-            acs_pos,
-            tcp_name,
-            ucs_name,
-            velocity,
-            accel,
-            local_radius,
-            is_joint,
-            is_seek,
-            bit,
-            state,
-            cmd_id,
-        )
-        print(f"[WayPoint2] ret={ret} type={move_type} cmd={cmd_prefix}-{cmd_index}")
-        if ret != 0:
-            print(f"[WayPoint2] Move failed ret={ret} cmd={cmd_prefix}-{cmd_index}")
-            return False
-        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
-            if move_type == 2:
-                print(f"[WayPoint2][dbg] A seg idx={cmd_index} p0={p0} mid={p1} p2={p2}")
-                debug_rows.append(
-                    [cmd_index, 2, p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p1[0], p1[1], p1[2], p1[3], p1[4], p1[5], p2[0], p2[1], tcp_name, ucs_name]
-                )
-            else:
-                print(f"[WayPoint2][dbg] L seg idx={cmd_index} end={end_pos}")
-                debug_rows.append(
-                    [cmd_index, 1, end_pos[0], end_pos[1], end_pos[2], end_pos[3], end_pos[4], end_pos[5], "", "", "", "", "", "", tcp_name, ucs_name]
-                )
-            debug_limit -= 1
-        cmd_index += 1
-        last_pos = end_pos
-        if WAYPOINT2_CMD_DELAY_S > 0:
-            time.sleep(WAYPOINT2_CMD_DELAY_S)
-        if WAYPOINT2_BATCH_SIZE and cmd_index % int(WAYPOINT2_BATCH_SIZE) == 0:
-            if WAYPOINT2_BATCH_PAUSE_S > 0:
-                time.sleep(WAYPOINT2_BATCH_PAUSE_S)
-
-    if idx + 1 < len(poses):
-        if use_arc:
-            print(f"[WayPoint2] Arc chain ended mid-segment at cmd={cmd_prefix}-{cmd_index}")
-            return False
-        end_pos = poses[idx + 1]
-        cmd_id = str((cmd_index % 3) + 1)
-        seg_len = _distance_xyz(last_pos, end_pos)
-        local_radius = radius
-        if seg_len <= 0.8:
-            local_radius = 0.0
-        else:
-            local_radius = min(radius, seg_len * 0.4)
-
-        ret = cps.HRIF_WayPoint2(
-            box_id,
-            robot_id,
-            1,
-            end_pos,
-            end_pos,
-            acs_pos,
-            tcp_name,
-            ucs_name,
-            velocity,
-            accel,
-            local_radius,
-            is_joint,
-            is_seek,
-            bit,
-            state,
-            cmd_id,
-        )
-        print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-tail")
-        if ret != 0:
-            print(f"[WayPoint2] Final linear move failed ret={ret} cmd={cmd_prefix}-tail")
-            return False
-        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
-            print(f"[WayPoint2][dbg] L tail idx={cmd_index} end={end_pos}")
-            debug_rows.append(
-                [cmd_index, 1, end_pos[0], end_pos[1], end_pos[2], end_pos[3], end_pos[4], end_pos[5], "", "", "", "", "", "", tcp_name, ucs_name]
-            )
-        if WAYPOINT2_CMD_DELAY_S > 0:
-            time.sleep(WAYPOINT2_CMD_DELAY_S)
-
-    if WAYPOINT2_DEBUG_POINTS and debug_rows:
-        _write_waypoint2_debug_rows(
-            debug_rows,
-            [
-                "idx",
-                "move_type",
-                "p0_x",
-                "p0_y",
-                "p0_z",
-                "p0_rx",
-                "p0_ry",
-                "p0_rz",
-                "p1_x",
-                "p1_y",
-                "p1_z",
-                "p1_rx",
-                "p1_ry",
-                "p1_rz",
-                "p2_x",
-                "p2_y",
-                "tcp",
-                "ucs",
-            ],
-        )
-    return True
-
-
-def run_waypoint2_spiral_for_zigzag(
-    cps: CPSClient,
-    config: dict,
-    zigzag_points,
-    *,
-    radius: float,
-    angle_step_deg: float,
-    orientation: str,
-    velocity: float,
-    accel: float,
-    blend_radius: float = WAYPOINT2_BLEND_RADIUS,
-    force: Optional[float] = None,
-    force_settle_s: float = WAYPOINT2_FORCE_SETTLE_S,
-    box_id: int = 0,
-    robot_id: int = 0,
-):
-    if not zigzag_points:
-        return True
-
-    if WAYPOINT2_USE_FILLETED_ZIGZAG:
-        spiral_poses = []
-    elif WAYPOINT2_USE_GLOBAL_SPIRAL:
-        spiral_poses = _build_global_spiral_poses(
-            zigzag_points=zigzag_points,
-            radius=radius,
-            angle_step_deg=angle_step_deg,
-        )
-        if WAYPOINT2_DEBUG_ARC and spiral_poses:
-            xs = [p[0] for p in spiral_poses]
-            ys = [p[1] for p in spiral_poses]
-            print(
-                "[WayPoint2] Global spiral mode: "
-                f"points={len(spiral_poses)} x=[{min(xs):.3f},{max(xs):.3f}] "
-                f"y=[{min(ys):.3f},{max(ys):.3f}]"
-            )
-    else:
-        # Legacy/reference mode: build a local spiral between each zigzag segment.
-        spiral_poses = []
-        for index, _ in enumerate(zigzag_points):
-            if index + 1 >= len(zigzag_points):
-                break
-            point_a = zigzag_points[index]
-            point_b = zigzag_points[index + 1]
-            micro_arc_deg = max(1.0, float(WAYPOINT2_MICRO_ARC_DEG))
-            half_step_deg = micro_arc_deg / 2.0
-            flat_points = generate_spiral_between_points(
-                start_pose=point_a,
-                end_pose=point_b,
-                radius=radius,
-                angle_step_deg=half_step_deg,
-                orientation=orientation,
-            )
-            poses = _poses_from_flat_points(flat_points)
-            if poses:
-                if spiral_poses:
-                    spiral_poses.extend(poses[1:])
-                else:
-                    spiral_poses.extend(poses)
-
-    if not WAYPOINT2_USE_FILLETED_ZIGZAG and not spiral_poses:
-        print("[WayPoint2] No spiral poses generated; skipping WayPoint2 path.")
-        return False
-
-    if not WAYPOINT2_USE_FILLETED_ZIGZAG:
-        before = len(spiral_poses)
-        spiral_poses = _downsample_poses(spiral_poses, WAYPOINT2_MAX_POSES)
-        after = len(spiral_poses)
-        if after != before:
-            print(f"[WayPoint2] Downsampled spiral poses: {before} -> {after}")
-        print(f"[WayPoint2] Total spiral poses: {len(spiral_poses)}")
-
-    if force is not None and config is not None:
-        putForceZminus(
-            cps=cps,
-            force=force,
-            tcp=config["coords"]["tcptool1plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            config=config,
-        )
-        time.sleep(force_settle_s)
-        if WAYPOINT2_START_DELAY_S > 0:
-            time.sleep(WAYPOINT2_START_DELAY_S)
-
-    # Capture preferred UCS orientation for diagnostics/fallback only.
-    preferred_ucs_rxyz = None
-    ucs_name = config["coords"].get("ucsTable1") if config else None
-    if WAYPOINT2_USE_UCS_ORI and ucs_name:
-        ucs_pose = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
-        if ucs_pose:
-            preferred_ucs_rxyz = list(ucs_pose[3:6])
-            if WAYPOINT2_DEBUG_ARC:
-                print(f"[WayPoint2] UCS orientation: {preferred_ucs_rxyz} (ucs={ucs_name})")
-
-    tcp_name = config["coords"].get("tcptool1plane1") if config else None
-    ucs_name = config["coords"].get("ucsTable1") if config else None
-    _ = _read_tcp_pose(cps, tcp_name, box_id=box_id, robot_id=robot_id)
-    _ = _read_ucs_pose(cps, ucs_name, box_id=box_id, robot_id=robot_id)
-    act_pose_base = _read_current_tcp_pose(cps, box_id=box_id, robot_id=robot_id)
-    act_pose_ucs = None
-    if WAYPOINT2_DEBUG_ARC:
-        print("[WayPoint2] Base2UcsTcp disabled; assuming points are already in UCS.")
-
-    points_in_base = False
-    if WAYPOINT2_DETECT_FRAME and act_pose_base and zigzag_points:
-        dist_base = _distance_xyz(act_pose_base, zigzag_points[0])
-        if WAYPOINT2_DEBUG_ARC:
-            print(
-                f"[WayPoint2] Frame check dist_base={dist_base:.3f} "
-                "points_in_base=UNKNOWN"
-            )
-
-    if points_in_base and WAYPOINT2_REQUIRE_PLANE1_FRAME:
-        print(
-            "[WayPoint2] Points appear to be in Base while Plane_1 is required. "
-            "Abort to avoid unsafe frame mismatch."
-        )
-        return False
-
-    # Use Plane_1 end-to-end when required.
-    path_ucs_name = ucs_name
-    if WAYPOINT2_DEBUG_ARC:
-        print(f"[WayPoint2] Path UCS: {path_ucs_name}")
-
-    act_pose = act_pose_base if points_in_base else None
-    if act_pose and spiral_poses and not WAYPOINT2_USE_FILLETED_ZIGZAG:
-        start_gap = _distance_xyz(act_pose, spiral_poses[0])
-        if start_gap > float(WAYPOINT2_MAX_START_GAP_MM):
-            print(
-                f"[WayPoint2] Unsafe start gap {start_gap:.1f}mm "
-                f"(limit={WAYPOINT2_MAX_START_GAP_MM:.1f}mm); aborting."
-            )
-            return False
-    if act_pose and WAYPOINT2_SNAP_TO_ACTUAL and not WAYPOINT2_USE_FILLETED_ZIGZAG:
-        dx = act_pose[0] - spiral_poses[0][0]
-        dy = act_pose[1] - spiral_poses[0][1]
-        dz = act_pose[2] - spiral_poses[0][2]
-        sx = dx if WAYPOINT2_SNAP_XY else 0.0
-        sy = dy if WAYPOINT2_SNAP_XY else 0.0
-        sz = dz if WAYPOINT2_SNAP_Z else 0.0
-        if abs(sx) > 1e-4 or abs(sy) > 1e-4 or abs(sz) > 1e-4:
-            spiral_poses = [
-                [p[0] + sx, p[1] + sy, p[2] + sz, p[3], p[4], p[5]]
-                for p in spiral_poses
-            ]
-        if WAYPOINT2_DEBUG_ARC:
-            print(
-                f"[WayPoint2] Start offset raw(dx={dx:.4f}, dy={dy:.4f}, dz={dz:.4f}) "
-                f"applied(dx={sx:.4f}, dy={sy:.4f}, dz={sz:.4f})"
-            )
-    # Lock orientation using controller-consistent frame after conversion/snap.
-    # If points were converted from Base->UCS, using pose0 orientation avoids
-    # safety-space failures from forcing an incompatible Euler representation.
-    rxyz = None
-    if (not points_in_base) and preferred_ucs_rxyz is not None:
-        rxyz = list(preferred_ucs_rxyz)
-    if rxyz is None and zigzag_points and len(zigzag_points[0]) >= 6:
-        rxyz = list(zigzag_points[0][3:6])
-    if rxyz is None:
-        rxyz = [0.0, 0.0, 0.0]
-    if WAYPOINT2_FORCE_UCS_TILT:
-        rxyz[0] = float(WAYPOINT2_UCS_RX)
-        rxyz[1] = float(WAYPOINT2_UCS_RY)
-    if not WAYPOINT2_USE_FILLETED_ZIGZAG:
-        spiral_poses = _override_orientation(spiral_poses, rxyz)
-    if act_pose and rxyz:
-        if any(abs(act_pose[i + 3] - rxyz[i]) > WAYPOINT2_ORI_TOL for i in range(3)):
-            print(
-                "[WayPoint2] Warning: Live orientation differs from arc orientation; "
-                "arc may fail under force control."
-            )
-    if WAYPOINT2_DEBUG_ARC:
-        print(f"[WayPoint2] Arc orientation: {rxyz}")
-        if not WAYPOINT2_USE_FILLETED_ZIGZAG and len(spiral_poses) >= 3:
-            print(f"[WayPoint2] Arc p0={spiral_poses[0]}")
-            print(f"[WayPoint2] Arc p1={spiral_poses[1]}")
-            print(f"[WayPoint2] Arc p2={spiral_poses[2]}")
-
-    turn_vibration_on(cps)
-    if WAYPOINT2_USE_FILLETED_ZIGZAG:
-        ok = run_waypoint2_filleted_zigzag(
-            cps=cps,
-            config=config,
-            zigzag_points=zigzag_points,
-            radius=float(WAYPOINT2_FILLET_RADIUS_MM),
-            velocity=velocity,
-            accel=accel,
-            blend_radius=blend_radius,
-            rxyz=rxyz,
-            tcp_name=tcp_name,
-            ucs_name=path_ucs_name,
-            box_id=box_id,
-            robot_id=robot_id,
-        )
-    else:
-        ok = run_waypoint2_path(
-            cps=cps,
-            config=config,
-            poses=spiral_poses,
-            velocity=velocity,
-            accel=accel,
-            radius=blend_radius,
-            use_arc=True,
-            ucs=path_ucs_name,
-            box_id=box_id,
-            robot_id=robot_id,
-        )
-    wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S)
-    turn_vibration_off(cps)
-    if force is not None and config is not None:
-        releaseForce(cps=cps, config=config)
-
-    return ok
-
-
 def generate_zigzag_path(
     x_coords,
     y_coords,
@@ -1568,9 +493,7 @@ def generate_zigzag_path(
     orientation="horizontal",
     movement="zigzag",
     innerSandingOffset=50,
-    edge_coverage=False,
-    preserve_frame_sign=False,
-    rxyz_override=None,
+    edge_coverage=False
 ):
     """
     Generate a zigzag/spiral path for sanding.
@@ -1667,16 +590,9 @@ def generate_zigzag_path(
         # modified_Point3 = Top-left
         # modified_Point4 = Bottom-left
 
-    rx_sanding = -0.034
-    ry_sanding = 0.556
-    rz_sanding = 0.251
-    if rxyz_override is not None and len(rxyz_override) >= 3:
-        try:
-            rx_sanding = float(rxyz_override[0])
-            ry_sanding = float(rxyz_override[1])
-            rz_sanding = float(rxyz_override[2])
-        except (TypeError, ValueError):
-            pass
+        rx_sanding = -0.034
+        ry_sanding = 0.556
+        rz_sanding = 0.251
 
         # Generate edge coverage path if enabled (rectangular path around the boundary)
         # The edge coverage must END at the point where zigzag/spiral will START
@@ -1964,28 +880,19 @@ def generate_zigzag_path(
                     ]
                 )
 
-        if not preserve_frame_sign:
-            # Legacy behavior: force positive coordinates.
-            for point in edge_coverage_coords:
-                point[1] = abs(point[1])
-                point[0] = abs(point[0])
-            for point in zigzag_coords:
-                point[1] = abs(point[1])
-                point[0] = abs(point[0])
+        # Update coordinates to absolute values for edge coverage
+        for point in edge_coverage_coords:
+            point[1] = abs(point[1])
+            point[0] = abs(point[0])
 
-        def _norm_xy(xv, yv):
-            if preserve_frame_sign:
-                return xv, yv
-            return abs(xv), abs(yv)
-
-        def _pre_x(xv):
-            if preserve_frame_sign:
-                return xv + (0.5 if xv >= 0 else -0.5)
-            return abs(xv) + 0.5
+        # Update only the y coordinate to its absolute value for zigzag
+        for point in zigzag_coords:
+            point[1] = abs(point[1])
+            point[0] = abs(point[0])
 
         if movement_mode == "rect":
             prepoint = [
-                _pre_x(zigzag_coords[0][0]),
+                abs(zigzag_coords[0][0]) + 0.5,
                 zigzag_coords[0][1],
                 z_zigzag,
                 rx_sanding,
@@ -1995,20 +902,18 @@ def generate_zigzag_path(
         elif orientation_mode == "horizontal":
             # Horizontal: edge coverage starts at P2 (top-left), zigzag starts at top-left
             if edge_coverage:
-                px, py = _norm_xy(modified_Point2[0], modified_Point2[1])
                 prepoint = [
-                    _pre_x(px),
-                    py,
+                    abs(modified_Point2[0]) + 0.5,
+                    abs(modified_Point2[1]),
                     z_zigzag,
                     rx_sanding,
                     ry_sanding,
                     rz_sanding,
                 ]
             else:
-                px, py = _norm_xy(x_min, y_max)
                 prepoint = [
-                    _pre_x(px),
-                    py,
+                    abs(x_min) + 0.5,
+                    y_max,
                     z_zigzag,
                     rx_sanding,
                     ry_sanding,
@@ -2017,20 +922,18 @@ def generate_zigzag_path(
         else:
             # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
             if edge_coverage:
-                px, py = _norm_xy(modified_Point4[0], modified_Point4[1])
                 prepoint = [
-                    _pre_x(px),
-                    py,
+                    abs(modified_Point4[0]) + 0.5,
+                    abs(modified_Point4[1]),
                     z_zigzag,
                     rx_sanding,
                     ry_sanding,
                     rz_sanding,
                 ]
             else:
-                px, py = _norm_xy(modified_Point4[0], modified_Point4[1])
                 prepoint = [
-                    _pre_x(px),
-                    py,
+                    abs(modified_Point4[0]) + 0.5,
+                    abs(modified_Point4[1]),
                     z_zigzag,
                     rx_sanding,
                     ry_sanding,
@@ -2122,31 +1025,24 @@ def smalldoor1zizag(
 
         distance = p6[0] - p8[0]
         print("distance:", distance)
-        z_plane = z
-        if z_plane is None or abs(z_plane) < 1e-6:
-            z_plane = p5[2]
-        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
-        rxyz_sanding = list(rxyz_scan)
-        if WAYPOINT2_FORCE_LEGACY_RXYZ:
-            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
-        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
-            point5, point6, point7, point8, distance
-        )
+        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
         print("point5u:", point5u)
+        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
+        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
+        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -2176,9 +1072,7 @@ def smalldoor1zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2189,9 +1083,7 @@ def smalldoor1zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -2201,8 +1093,6 @@ def smalldoor1zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
-                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -2275,68 +1165,53 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                if USE_WAYPOINT2_ARC:
-                    ok = run_waypoint2_spiral_for_zigzag(
+                for index, _ in enumerate(zigzag_points):
+                    point_A = zigzag_points[index]
+                    if index + 1 >= len(zigzag_points):
+                        break
+                    point_B = zigzag_points[index + 1]
+
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    success, count = run_spiral_between_points(
                         cps=cps,
                         config=config,
-                        zigzag_points=zigzag_points,
+                        start_pose=point_A,
+                        end_pose=point_B,
                         radius=12.0,
                         angle_step_deg=45.0,
-                        orientation=orientation,
+                        track_name=spiral_track_name,
                         velocity=150.0,
                         accel=300.0,
-                        force=force,
+                        jerk=3000.0,
+                        init_path=not path_initialized,
+                        orientation=orientation
                     )
-                    if not ok:
-                        raise RuntimeError("[WayPoint2] Spiral path failed for door 1.")
-                    return
-                # for index, _ in enumerate(zigzag_points):
-                #     point_A = zigzag_points[index]
-                #     if index + 1 >= len(zigzag_points):
-                #         break
-                #     point_B = zigzag_points[index + 1]
+                    if not success:
+                        push_failed = True
+                        break
 
-                #     print("Spiral move from A to B:", point_A, "->", point_B)
-                #     success, count = run_spiral_between_points(
-                #         cps=cps,
-                #         config=config,
-                #         start_pose=point_A,
-                #         end_pose=point_B,
-                #         radius=12.0,
-                #         angle_step_deg=45.0,
-                #         track_name=spiral_track_name,
-                #         velocity=150.0,
-                #         accel=300.0,
-                #         jerk=3000.0,
-                #         init_path=not path_initialized,
-                #         orientation=orientation
-                #     )
-                #     if not success:
-                #         push_failed = True
-                #         break
+                    path_initialized = True
+                    total_count += count
 
-                #     path_initialized = True
-                #     total_count += count
-
-                # if path_initialized and not push_failed:
-                #     timeout = compute_timeout(
-                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                #     )
-                #     # Keep a short anti-false-positive runtime guard without
-                #     # adding visible delay at the final point.
-                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                #     finalized = finalize_spiral_path(
-                #         cps,
-                #         spiral_track_name,
-                #         box_id=0,
-                #         robot_id=0,
-                #         completion_timeout=timeout,
-                #         min_runtime_s=min_runtime_s,
-                #         force= force,
-                #         config= config
-                #     )
-                #     if not finalized:
-                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
+                if path_initialized and not push_failed:
+                    timeout = compute_timeout(
+                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    )
+                    # Keep a short anti-false-positive runtime guard without
+                    # adding visible delay at the final point.
+                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                    finalized = finalize_spiral_path(
+                        cps,
+                        spiral_track_name,
+                        box_id=0,
+                        robot_id=0,
+                        completion_timeout=timeout,
+                        min_runtime_s=min_runtime_s,
+                        force= force,
+                        config= config
+                    )
+                    if not finalized:
+                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -2401,85 +1276,17 @@ def smalldoor1zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
-                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
-                        act_pose = _read_current_tcp_pose(cps)
-                        if act_pose and len(act_pose) >= 6:
-                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
-                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
-                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
-                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
-                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
-                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
-                        prehoming_oriented = [
-                            prehoming[0],
-                            prehoming[1],
-                            prehoming[2],
-                            rxyz_sanding[0],
-                            rxyz_sanding[1],
-                            rxyz_sanding[2],
-                        ]
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=prehoming_oriented,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=PREPOINT_ROTATE_SPEED,
-                            wait=True,
-                        )
-                    prepoint_move = prepointp1
-                    rxyz_prepoint = rxyz_sanding
-                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
-                        rxyz_prepoint = rxyz_scan
-                        prepoint_move = [
-                            prepointp1[0],
-                            prepointp1[1],
-                            prepointp1[2],
-                            rxyz_prepoint[0],
-                            rxyz_prepoint[1],
-                            rxyz_prepoint[2],
-                        ]
-                    if USE_SAFE_PREPOINT_APPROACH:
-
-                        _move_to_prepoint_safe(
-
-                            cps,
-
-                            config,
-
-                            prepoint=prepoint_move,
-
-                            rxyz_sanding=rxyz_prepoint,
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                        )
-
-                    else:
-
-                        communicate(
-
-                            cps=cps,
-
-                            config=config,
-
-                            point=prepoint_move,  # Dynamic prepoint
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                            seventh=-1,
-
-                            speed=1.0,
-
-                            wait=True
-
-                        )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2562,31 +1369,24 @@ def smalldoor2zizag(
         # zigzag points
         distance = p6[0] - p8[0]
         print("distance:", distance)
-        z_plane = z
-        if z_plane is None or abs(z_plane) < 1e-6:
-            z_plane = p5[2]
-        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
-        rxyz_sanding = list(rxyz_scan)
-        if WAYPOINT2_FORCE_LEGACY_RXYZ:
-            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
-        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
-            point5, point6, point7, point8, distance
-        )
+        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
         print("point5u:", point5u)
+        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
+        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
+        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -2616,9 +1416,7 @@ def smalldoor2zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2629,9 +1427,7 @@ def smalldoor2zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -2641,8 +1437,6 @@ def smalldoor2zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
-                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -2713,21 +1507,6 @@ def smalldoor2zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                if USE_WAYPOINT2_ARC:
-                    ok = run_waypoint2_spiral_for_zigzag(
-                        cps=cps,
-                        config=config,
-                        zigzag_points=zigzag_points,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        orientation=orientation,
-                        velocity=150.0,
-                        accel=300.0,
-                        force=force,
-                    )
-                    if not ok:
-                        raise RuntimeError("[WayPoint2] Spiral path failed for door 2.")
-                    return
                 
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
@@ -2840,85 +1619,17 @@ def smalldoor2zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
-                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
-                        act_pose = _read_current_tcp_pose(cps)
-                        if act_pose and len(act_pose) >= 6:
-                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
-                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
-                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
-                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
-                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
-                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
-                        prehoming_oriented = [
-                            prehoming[0],
-                            prehoming[1],
-                            prehoming[2],
-                            rxyz_sanding[0],
-                            rxyz_sanding[1],
-                            rxyz_sanding[2],
-                        ]
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=prehoming_oriented,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=PREPOINT_ROTATE_SPEED,
-                            wait=True,
-                        )
-                    prepoint_move = prepointp1
-                    rxyz_prepoint = rxyz_sanding
-                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
-                        rxyz_prepoint = rxyz_scan
-                        prepoint_move = [
-                            prepointp1[0],
-                            prepointp1[1],
-                            prepointp1[2],
-                            rxyz_prepoint[0],
-                            rxyz_prepoint[1],
-                            rxyz_prepoint[2],
-                        ]
-                    if USE_SAFE_PREPOINT_APPROACH:
-
-                        _move_to_prepoint_safe(
-
-                            cps,
-
-                            config,
-
-                            prepoint=prepoint_move,
-
-                            rxyz_sanding=rxyz_prepoint,
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                        )
-
-                    else:
-
-                        communicate(
-
-                            cps=cps,
-
-                            config=config,
-
-                            point=prepoint_move,  # Dynamic prepoint
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                            seventh=-1,
-
-                            speed=1.0,
-
-                            wait=True
-
-                        )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -3002,31 +1713,24 @@ def smalldoor3zizag(
         # zigzag points
         distance = p6[0] - p8[0]
         print("distance:", distance)
-        z_plane = z
-        if z_plane is None or abs(z_plane) < 1e-6:
-            z_plane = p5[2]
-        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
-        rxyz_sanding = list(rxyz_scan)
-        if WAYPOINT2_FORCE_LEGACY_RXYZ:
-            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
-        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
-            point5, point6, point7, point8, distance
-        )
+        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
         print("point5u:", point5u)
+        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
+        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
+        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -3056,9 +1760,7 @@ def smalldoor3zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -3069,9 +1771,7 @@ def smalldoor3zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -3081,8 +1781,6 @@ def smalldoor3zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
-                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -3154,21 +1852,6 @@ def smalldoor3zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                if USE_WAYPOINT2_ARC:
-                    ok = run_waypoint2_spiral_for_zigzag(
-                        cps=cps,
-                        config=config,
-                        zigzag_points=zigzag_points,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        orientation=orientation,
-                        velocity=150.0,
-                        accel=300.0,
-                        force=force,
-                    )
-                    if not ok:
-                        raise RuntimeError("[WayPoint2] Spiral path failed for door 3.")
-                    return
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
@@ -3280,85 +1963,17 @@ def smalldoor3zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
-                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
-                        act_pose = _read_current_tcp_pose(cps)
-                        if act_pose and len(act_pose) >= 6:
-                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
-                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
-                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
-                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
-                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
-                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
-                        prehoming_oriented = [
-                            prehoming[0],
-                            prehoming[1],
-                            prehoming[2],
-                            rxyz_sanding[0],
-                            rxyz_sanding[1],
-                            rxyz_sanding[2],
-                        ]
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=prehoming_oriented,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=PREPOINT_ROTATE_SPEED,
-                            wait=True,
-                        )
-                    prepoint_move = prepointp1
-                    rxyz_prepoint = rxyz_sanding
-                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
-                        rxyz_prepoint = rxyz_scan
-                        prepoint_move = [
-                            prepointp1[0],
-                            prepointp1[1],
-                            prepointp1[2],
-                            rxyz_prepoint[0],
-                            rxyz_prepoint[1],
-                            rxyz_prepoint[2],
-                        ]
-                    if USE_SAFE_PREPOINT_APPROACH:
-
-                        _move_to_prepoint_safe(
-
-                            cps,
-
-                            config,
-
-                            prepoint=prepoint_move,
-
-                            rxyz_sanding=rxyz_prepoint,
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                        )
-
-                    else:
-
-                        communicate(
-
-                            cps=cps,
-
-                            config=config,
-
-                            point=prepoint_move,  # Dynamic prepoint
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                            seventh=-1,
-
-                            speed=1.0,
-
-                            wait=True
-
-                        )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -3441,31 +2056,24 @@ def smalldoor4zizag(
         # zigzag points
         distance = p6[0] - p8[0]
         print("distance:", distance)
-        z_plane = z
-        if z_plane is None or abs(z_plane) < 1e-6:
-            z_plane = p5[2]
-        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
-        rxyz_sanding = list(rxyz_scan)
-        if WAYPOINT2_FORCE_LEGACY_RXYZ:
-            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
-        point5u, point6u, point7u, point8u = _build_pocket_boundary_points(
-            point5, point6, point7, point8, distance
-        )
+        point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
         print("point5u:", point5u)
+        point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
         print("point6u:", point6u)
+        point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
         print("point7u:", point7u)
+        point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
         print("point8u:", point8u)
 
         # 1) Collect boundary coordinates as [x, y, z]
@@ -3495,9 +2103,7 @@ def smalldoor4zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=True,  # Enable edge coverage with MoveL before spiral
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -3508,9 +2114,7 @@ def smalldoor4zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
-            edge_coverage=False,
-            preserve_frame_sign=USE_WAYPOINT2_ARC,
-            rxyz_override=rxyz_sanding,
+            edge_coverage=False
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -3520,8 +2124,6 @@ def smalldoor4zizag(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE:
-                has_edge = False
             if has_edge:
                 force_seek_linear = 5.0
                 force_blending_timeout = 7.0
@@ -3593,21 +2195,6 @@ def smalldoor4zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                if USE_WAYPOINT2_ARC:
-                    ok = run_waypoint2_spiral_for_zigzag(
-                        cps=cps,
-                        config=config,
-                        zigzag_points=zigzag_points,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        orientation=orientation,
-                        velocity=150.0,
-                        accel=300.0,
-                        force=force,
-                    )
-                    if not ok:
-                        raise RuntimeError("[WayPoint2] Spiral path failed for door 4.")
-                    return
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
@@ -3719,85 +2306,17 @@ def smalldoor4zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
-                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
-                        act_pose = _read_current_tcp_pose(cps)
-                        if act_pose and len(act_pose) >= 6:
-                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
-                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
-                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
-                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
-                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
-                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
-                        prehoming_oriented = [
-                            prehoming[0],
-                            prehoming[1],
-                            prehoming[2],
-                            rxyz_sanding[0],
-                            rxyz_sanding[1],
-                            rxyz_sanding[2],
-                        ]
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=prehoming_oriented,
-                            tcp=config["coords"]["tcptool1plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=PREPOINT_ROTATE_SPEED,
-                            wait=True,
-                        )
-                    prepoint_move = prepointp1
-                    rxyz_prepoint = rxyz_sanding
-                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
-                        rxyz_prepoint = rxyz_scan
-                        prepoint_move = [
-                            prepointp1[0],
-                            prepointp1[1],
-                            prepointp1[2],
-                            rxyz_prepoint[0],
-                            rxyz_prepoint[1],
-                            rxyz_prepoint[2],
-                        ]
-                    if USE_SAFE_PREPOINT_APPROACH:
-
-                        _move_to_prepoint_safe(
-
-                            cps,
-
-                            config,
-
-                            prepoint=prepoint_move,
-
-                            rxyz_sanding=rxyz_prepoint,
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                        )
-
-                    else:
-
-                        communicate(
-
-                            cps=cps,
-
-                            config=config,
-
-                            point=prepoint_move,  # Dynamic prepoint
-
-                            tcp=config["coords"]["tcptool1plane1"],
-
-                            ucs=config["coords"]["ucsTable1"],
-
-                            seventh=-1,
-
-                            speed=1.0,
-
-                            wait=True
-
-                        )
+                if not split:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=prepointp1,  # Dynamic prepoint
+                        tcp=config["coords"]["tcptool1plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=1.0,
+                        wait=True
+                    )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
