@@ -1850,14 +1850,17 @@ def smalldoor1zizag(
 
         distance = p6[0] - p8[0]
         print("distance:", distance)
+        z_plane = z
+        if z_plane is None or abs(z_plane) < 1e-6:
+            z_plane = p5[2]
         # Points calculation
-        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
+        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
+        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
+        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
+        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
@@ -2212,14 +2215,17 @@ def smalldoor2zizag(
         # zigzag points
         distance = p6[0] - p8[0]
         print("distance:", distance)
+        z_plane = z
+        if z_plane is None or abs(z_plane) < 1e-6:
+            z_plane = p5[2]
         # Points calculation
-        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
+        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
+        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
+        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
+        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
@@ -2574,14 +2580,17 @@ def smalldoor3zizag(
         # zigzag points
         distance = p6[0] - p8[0]
         print("distance:", distance)
+        z_plane = z
+        if z_plane is None or abs(z_plane) < 1e-6:
+            z_plane = p5[2]
         # Points calculation
-        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
+        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
+        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
+        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
+        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
@@ -2935,14 +2944,17 @@ def smalldoor4zizag(
         # zigzag points
         distance = p6[0] - p8[0]
         print("distance:", distance)
+        z_plane = z
+        if z_plane is None or abs(z_plane) < 1e-6:
+            z_plane = p5[2]
         # Points calculation
-        point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
+        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
+        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
+        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
+        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
