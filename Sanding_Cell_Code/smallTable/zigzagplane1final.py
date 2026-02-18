@@ -6,6 +6,7 @@ import os
 import time
 import json
 import uuid
+import csv
 from typing import Optional
 
 # Add parent directory to path so Python can find the modules
@@ -109,6 +110,10 @@ WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = False
 WAYPOINT2_ROTATE_TOL_DEG = 1.0
 WAYPOINT2_SKIP_PREPOINT_ROTATE = True
 WAYPOINT2_SET_ORI_AT_PREHOMING = True
+WAYPOINT2_PREPOINT_APPROACH_LIFT_MM = 15.0
+WAYPOINT2_DEBUG_POINTS = True
+WAYPOINT2_DEBUG_POINTS_LIMIT = 60
+WAYPOINT2_DEBUG_POINTS_FILE = "waypoint2_debug_points.csv"
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -608,6 +613,21 @@ def _override_orientation(poses, rxyz):
     return [[p[0], p[1], p[2], rx, ry, rz] for p in poses]
 
 
+def _write_waypoint2_debug_rows(rows, header):
+    if not WAYPOINT2_DEBUG_POINTS_FILE:
+        return
+    path = str(WAYPOINT2_DEBUG_POINTS_FILE)
+    write_header = not os.path.exists(path)
+    try:
+        with open(path, "a", newline="") as f:
+            writer = csv.writer(f)
+            if write_header:
+                writer.writerow(header)
+            writer.writerows(rows)
+    except Exception as exc:
+        print(f"[WayPoint2] Debug file write failed: {exc}")
+
+
 def _rxyz_max_delta(a, b):
     if not a or not b:
         return 999.0
@@ -679,6 +699,11 @@ def _move_to_prepoint_safe(
     safe_z = prepoint[2] + float(lift_mm)
     if safe_z < prepoint[2]:
         safe_z = prepoint[2]
+    approach_z = prepoint[2] + float(WAYPOINT2_PREPOINT_APPROACH_LIFT_MM)
+    if approach_z < prepoint[2]:
+        approach_z = prepoint[2]
+    if approach_z > safe_z:
+        approach_z = safe_z
 
     safe_pos = [prepoint[0], prepoint[1], safe_z, act_rxyz[0], act_rxyz[1], act_rxyz[2]]
     prepoint_target = prepoint
@@ -686,7 +711,7 @@ def _move_to_prepoint_safe(
         prepoint_target = [
             prepoint[0],
             prepoint[1],
-            prepoint[2],
+            approach_z,
             act_rxyz[0],
             act_rxyz[1],
             act_rxyz[2],
@@ -695,7 +720,7 @@ def _move_to_prepoint_safe(
         prepoint_target = [
             prepoint[0],
             prepoint[1],
-            prepoint[2],
+            approach_z,
             rxyz_sanding[0],
             rxyz_sanding[1],
             rxyz_sanding[2],
@@ -919,6 +944,8 @@ def run_waypoint2_filleted_zigzag(
 
     cmd_index = 0
     last = start
+    debug_rows = []
+    debug_limit = int(WAYPOINT2_DEBUG_POINTS_LIMIT) if WAYPOINT2_DEBUG_POINTS else 0
 
     for i in range(1, len(pts2) - 1):
         p0 = pts2[i - 1]
@@ -927,6 +954,12 @@ def run_waypoint2_filleted_zigzag(
         fillet = _fillet_for_corner(p0, p1, p2, radius)
         if fillet is None:
             end = [p1[0], p1[1], z, rx, ry, rz]
+            if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
+                print(f"[WayPoint2][dbg] L seg idx={cmd_index} end={end}")
+                debug_rows.append(
+                    [cmd_index, 1, end[0], end[1], end[2], end[3], end[4], end[5], "", "", "", "", "", "", tcp_name, ucs_name]
+                )
+                debug_limit -= 1
             ret = cps.HRIF_WayPoint2(
                 box_id,
                 robot_id,
@@ -981,6 +1014,12 @@ def run_waypoint2_filleted_zigzag(
 
         end_arc = [t2[0], t2[1], z, rx, ry, rz]
         aux = [mid[0], mid[1], z, rx, ry, rz]
+        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
+            print(f"[WayPoint2][dbg] A seg idx={cmd_index} p0={t1} mid={mid} p2={t2}")
+            debug_rows.append(
+                [cmd_index, 2, t1[0], t1[1], z, rx, ry, rz, mid[0], mid[1], z, rx, ry, rz, end_arc[0], end_arc[1], tcp_name, ucs_name]
+            )
+            debug_limit -= 1
         ret = cps.HRIF_WayPoint2(
             box_id,
             robot_id,
@@ -1007,6 +1046,11 @@ def run_waypoint2_filleted_zigzag(
 
     final_pt = pts2[-1]
     end = [final_pt[0], final_pt[1], z, rx, ry, rz]
+    if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
+        print(f"[WayPoint2][dbg] L tail idx={cmd_index} end={end}")
+        debug_rows.append(
+            [cmd_index, 1, end[0], end[1], end[2], end[3], end[4], end[5], "", "", "", "", "", "", tcp_name, ucs_name]
+        )
     ret = cps.HRIF_WayPoint2(
         box_id,
         robot_id,
@@ -1028,6 +1072,30 @@ def run_waypoint2_filleted_zigzag(
     print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-tail")
     if ret != 0:
         return False
+    if WAYPOINT2_DEBUG_POINTS and debug_rows:
+        _write_waypoint2_debug_rows(
+            debug_rows,
+            [
+                "idx",
+                "move_type",
+                "p0_x",
+                "p0_y",
+                "p0_z",
+                "p0_rx",
+                "p0_ry",
+                "p0_rz",
+                "p1_x",
+                "p1_y",
+                "p1_z",
+                "p1_rx",
+                "p1_ry",
+                "p1_rz",
+                "p2_x",
+                "p2_y",
+                "tcp",
+                "ucs",
+            ],
+        )
     return True
 
 
@@ -1090,6 +1158,8 @@ def run_waypoint2_path(
     cmd_index = 0
     idx = 0
     last_pos = poses[0]
+    debug_rows = []
+    debug_limit = int(WAYPOINT2_DEBUG_POINTS_LIMIT) if WAYPOINT2_DEBUG_POINTS else 0
 
     # Arc mode may fail if current live orientation (after force contact) does not
     # match the intended arc orientation. A lead-in WayPoint2 type=1 aligns the
@@ -1121,6 +1191,12 @@ def run_waypoint2_path(
         if ret != 0:
             print(f"[WayPoint2] Lead-in move failed ret={ret} cmd={cmd_prefix}-lead")
             return False
+        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
+            print(f"[WayPoint2][dbg] L lead idx={cmd_index} end={lead_end}")
+            debug_rows.append(
+                [cmd_index, 1, lead_end[0], lead_end[1], lead_end[2], lead_end[3], lead_end[4], lead_end[5], "", "", "", "", "", "", tcp_name, ucs_name]
+            )
+            debug_limit -= 1
         cmd_index += 1
         idx = 1
         last_pos = lead_end
@@ -1177,6 +1253,18 @@ def run_waypoint2_path(
         if ret != 0:
             print(f"[WayPoint2] Move failed ret={ret} cmd={cmd_prefix}-{cmd_index}")
             return False
+        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
+            if move_type == 2:
+                print(f"[WayPoint2][dbg] A seg idx={cmd_index} p0={p0} mid={p1} p2={p2}")
+                debug_rows.append(
+                    [cmd_index, 2, p0[0], p0[1], p0[2], p0[3], p0[4], p0[5], p1[0], p1[1], p1[2], p1[3], p1[4], p1[5], p2[0], p2[1], tcp_name, ucs_name]
+                )
+            else:
+                print(f"[WayPoint2][dbg] L seg idx={cmd_index} end={end_pos}")
+                debug_rows.append(
+                    [cmd_index, 1, end_pos[0], end_pos[1], end_pos[2], end_pos[3], end_pos[4], end_pos[5], "", "", "", "", "", "", tcp_name, ucs_name]
+                )
+            debug_limit -= 1
         cmd_index += 1
         last_pos = end_pos
         if WAYPOINT2_CMD_DELAY_S > 0:
@@ -1220,9 +1308,38 @@ def run_waypoint2_path(
         if ret != 0:
             print(f"[WayPoint2] Final linear move failed ret={ret} cmd={cmd_prefix}-tail")
             return False
+        if WAYPOINT2_DEBUG_POINTS and debug_limit > 0:
+            print(f"[WayPoint2][dbg] L tail idx={cmd_index} end={end_pos}")
+            debug_rows.append(
+                [cmd_index, 1, end_pos[0], end_pos[1], end_pos[2], end_pos[3], end_pos[4], end_pos[5], "", "", "", "", "", "", tcp_name, ucs_name]
+            )
         if WAYPOINT2_CMD_DELAY_S > 0:
             time.sleep(WAYPOINT2_CMD_DELAY_S)
 
+    if WAYPOINT2_DEBUG_POINTS and debug_rows:
+        _write_waypoint2_debug_rows(
+            debug_rows,
+            [
+                "idx",
+                "move_type",
+                "p0_x",
+                "p0_y",
+                "p0_z",
+                "p0_rx",
+                "p0_ry",
+                "p0_rz",
+                "p1_x",
+                "p1_y",
+                "p1_z",
+                "p1_rx",
+                "p1_ry",
+                "p1_rz",
+                "p2_x",
+                "p2_y",
+                "tcp",
+                "ucs",
+            ],
+        )
     return True
 
 
