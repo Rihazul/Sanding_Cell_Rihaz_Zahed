@@ -102,6 +102,7 @@ WAYPOINT2_GLOBAL_MIN_POINTS = 40
 WAYPOINT2_USE_UCS_BOUNDARY = True
 WAYPOINT2_USE_FILLETED_ZIGZAG = True
 WAYPOINT2_FILLET_RADIUS_MM = 12.0
+WAYPOINT2_USE_SCAN_X_SIGN = True
 
 
 
@@ -1861,15 +1862,16 @@ def smalldoor1zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
             rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
@@ -2229,15 +2231,16 @@ def smalldoor2zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
             rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
@@ -2597,15 +2600,16 @@ def smalldoor3zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
             rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
@@ -2964,15 +2968,16 @@ def smalldoor4zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
             rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
-        point6 = [-p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
         print("point6:", point6)
-        point7 = [-p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
         print("point7:", point7)
-        point8 = [-p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
         print("point8:", point8)
 
         # Final Points
