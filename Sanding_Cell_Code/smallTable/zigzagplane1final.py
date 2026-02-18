@@ -103,6 +103,9 @@ WAYPOINT2_USE_UCS_BOUNDARY = True
 WAYPOINT2_USE_FILLETED_ZIGZAG = True
 WAYPOINT2_FILLET_RADIUS_MM = 12.0
 WAYPOINT2_USE_SCAN_X_SIGN = True
+USE_SAFE_PREPOINT_APPROACH = True
+PREPOINT_SAFE_LIFT_MM = 30.0
+PREPOINT_ROTATE_SPEED = 0.6
 
 
 
@@ -597,6 +600,63 @@ def _override_orientation(poses, rxyz):
         return poses
     rx, ry, rz = rxyz
     return [[p[0], p[1], p[2], rx, ry, rz] for p in poses]
+
+
+def _move_to_prepoint_safe(
+    cps,
+    config,
+    *,
+    prepoint,
+    rxyz_sanding,
+    tcp,
+    ucs,
+    lift_mm=PREPOINT_SAFE_LIFT_MM,
+):
+    """Approach prepoint with minimal twist: translate at current orientation, rotate in place, then descend."""
+    if not prepoint:
+        return
+    act = _read_current_tcp_pose(cps)
+    act_rxyz = rxyz_sanding
+    if act and len(act) >= 6:
+        act_rxyz = [act[3], act[4], act[5]]
+
+    safe_z = prepoint[2] + float(lift_mm)
+    if safe_z < prepoint[2]:
+        safe_z = prepoint[2]
+
+    safe_pos = [prepoint[0], prepoint[1], safe_z, act_rxyz[0], act_rxyz[1], act_rxyz[2]]
+    rotate_pos = [prepoint[0], prepoint[1], safe_z, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+
+    communicate(
+        cps=cps,
+        config=config,
+        point=safe_pos,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=PREPOINT_ROTATE_SPEED,
+        wait=True,
+    )
+    communicate(
+        cps=cps,
+        config=config,
+        point=rotate_pos,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=PREPOINT_ROTATE_SPEED,
+        wait=True,
+    )
+    communicate(
+        cps=cps,
+        config=config,
+        point=prepoint,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=1.0,
+        wait=True,
+    )
 
 
 def _downsample_poses(poses, max_count):
@@ -1862,16 +1922,16 @@ def smalldoor1zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
-            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
+        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point8:", point8)
 
         # Final Points
@@ -2136,16 +2196,45 @@ def smalldoor1zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=prepointp1,  # Dynamic prepoint
-                        tcp=config["coords"]["tcptool1plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=1.0,
-                        wait=True
-                    )
+                    if USE_SAFE_PREPOINT_APPROACH:
+
+                        _move_to_prepoint_safe(
+
+                            cps,
+
+                            config,
+
+                            prepoint=prepointp1,
+
+                            rxyz_sanding=rxyz_sanding,
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                        )
+
+                    else:
+
+                        communicate(
+
+                            cps=cps,
+
+                            config=config,
+
+                            point=prepointp1,  # Dynamic prepoint
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                            seventh=-1,
+
+                            speed=1.0,
+
+                            wait=True
+
+                        )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2231,16 +2320,16 @@ def smalldoor2zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
-            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
+        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point8:", point8)
 
         # Final Points
@@ -2504,16 +2593,45 @@ def smalldoor2zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=prepointp1,  # Dynamic prepoint
-                        tcp=config["coords"]["tcptool1plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=1.0,
-                        wait=True
-                    )
+                    if USE_SAFE_PREPOINT_APPROACH:
+
+                        _move_to_prepoint_safe(
+
+                            cps,
+
+                            config,
+
+                            prepoint=prepointp1,
+
+                            rxyz_sanding=rxyz_sanding,
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                        )
+
+                    else:
+
+                        communicate(
+
+                            cps=cps,
+
+                            config=config,
+
+                            point=prepointp1,  # Dynamic prepoint
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                            seventh=-1,
+
+                            speed=1.0,
+
+                            wait=True
+
+                        )
             # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2600,16 +2718,16 @@ def smalldoor3zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
-            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
+        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point8:", point8)
 
         # Final Points
@@ -2873,16 +2991,45 @@ def smalldoor3zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=prepointp1,  # Dynamic prepoint
-                        tcp=config["coords"]["tcptool1plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=1.0,
-                        wait=True
-                    )
+                    if USE_SAFE_PREPOINT_APPROACH:
+
+                        _move_to_prepoint_safe(
+
+                            cps,
+
+                            config,
+
+                            prepoint=prepointp1,
+
+                            rxyz_sanding=rxyz_sanding,
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                        )
+
+                    else:
+
+                        communicate(
+
+                            cps=cps,
+
+                            config=config,
+
+                            point=prepointp1,  # Dynamic prepoint
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                            seventh=-1,
+
+                            speed=1.0,
+
+                            wait=True
+
+                        )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
@@ -2968,16 +3115,16 @@ def smalldoor4zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
-            x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
+        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
-        point5 = [x_sign * p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
+        point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
-        point6 = [x_sign * p6[0], p6[1], z_plane, -0.034, 0.556, 0.251]
+        point6 = [x_sign * p6[0], p6[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point6:", point6)
-        point7 = [x_sign * p7[0], p7[1], z_plane, -0.034, 0.556, 0.251]
+        point7 = [x_sign * p7[0], p7[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point7:", point7)
-        point8 = [x_sign * p8[0], p8[1], z_plane, -0.034, 0.556, 0.251]
+        point8 = [x_sign * p8[0], p8[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point8:", point8)
 
         # Final Points
@@ -3241,16 +3388,45 @@ def smalldoor4zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=prepointp1,  # Dynamic prepoint
-                        tcp=config["coords"]["tcptool1plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=1.0,
-                        wait=True
-                    )
+                    if USE_SAFE_PREPOINT_APPROACH:
+
+                        _move_to_prepoint_safe(
+
+                            cps,
+
+                            config,
+
+                            prepoint=prepointp1,
+
+                            rxyz_sanding=rxyz_sanding,
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                        )
+
+                    else:
+
+                        communicate(
+
+                            cps=cps,
+
+                            config=config,
+
+                            point=prepointp1,  # Dynamic prepoint
+
+                            tcp=config["coords"]["tcptool1plane1"],
+
+                            ucs=config["coords"]["ucsTable1"],
+
+                            seventh=-1,
+
+                            speed=1.0,
+
+                            wait=True
+
+                        )
             # # turn_vibration_on(cps)
             perform_process_top(
                 cps,
