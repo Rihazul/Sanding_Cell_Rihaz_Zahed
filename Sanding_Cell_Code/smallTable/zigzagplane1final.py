@@ -677,9 +677,8 @@ def _move_to_prepoint_safe(
         safe_z = prepoint[2]
 
     safe_pos = [prepoint[0], prepoint[1], safe_z, act_rxyz[0], act_rxyz[1], act_rxyz[2]]
+    rotate_needed = _rxyz_max_delta(act_rxyz, rxyz_sanding) > float(WAYPOINT2_ROTATE_TOL_DEG)
     rotate_pos = [prepoint[0], prepoint[1], safe_z, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
-    if _rxyz_max_delta(act_rxyz, rxyz_sanding) <= float(WAYPOINT2_ROTATE_TOL_DEG):
-        rotate_pos = safe_pos
 
     communicate(
         cps=cps,
@@ -691,16 +690,17 @@ def _move_to_prepoint_safe(
         speed=PREPOINT_ROTATE_SPEED,
         wait=True,
     )
-    communicate(
-        cps=cps,
-        config=config,
-        point=rotate_pos,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=PREPOINT_ROTATE_SPEED,
-        wait=True,
-    )
+    if rotate_needed:
+        communicate(
+            cps=cps,
+            config=config,
+            point=rotate_pos,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=PREPOINT_ROTATE_SPEED,
+            wait=True,
+        )
     communicate(
         cps=cps,
         config=config,
