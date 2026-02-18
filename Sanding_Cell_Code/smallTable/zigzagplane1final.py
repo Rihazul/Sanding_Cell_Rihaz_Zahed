@@ -1306,6 +1306,7 @@ def generate_zigzag_path(
     innerSandingOffset=50,
     edge_coverage=False,
     preserve_frame_sign=False,
+    rxyz_override=None,
 ):
     """
     Generate a zigzag/spiral path for sanding.
@@ -1402,9 +1403,16 @@ def generate_zigzag_path(
         # modified_Point3 = Top-left
         # modified_Point4 = Bottom-left
 
-        rx_sanding = -0.034
-        ry_sanding = 0.556
-        rz_sanding = 0.251
+    rx_sanding = -0.034
+    ry_sanding = 0.556
+    rz_sanding = 0.251
+    if rxyz_override is not None and len(rxyz_override) >= 3:
+        try:
+            rx_sanding = float(rxyz_override[0])
+            ry_sanding = float(rxyz_override[1])
+            rz_sanding = float(rxyz_override[2])
+        except (TypeError, ValueError):
+            pass
 
         # Generate edge coverage path if enabled (rectangular path around the boundary)
         # The edge coverage must END at the point where zigzag/spiral will START
@@ -1853,6 +1861,7 @@ def smalldoor1zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
@@ -1901,6 +1910,7 @@ def smalldoor1zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -1913,6 +1923,7 @@ def smalldoor1zizag(
             innerSandingOffset=50,
             edge_coverage=False,
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -2218,6 +2229,7 @@ def smalldoor2zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
@@ -2266,6 +2278,7 @@ def smalldoor2zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2278,6 +2291,7 @@ def smalldoor2zizag(
             innerSandingOffset=50,
             edge_coverage=False,
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -2583,6 +2597,7 @@ def smalldoor3zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
@@ -2631,6 +2646,7 @@ def smalldoor3zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -2643,6 +2659,7 @@ def smalldoor3zizag(
             innerSandingOffset=50,
             edge_coverage=False,
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
@@ -2947,6 +2964,7 @@ def smalldoor4zizag(
         z_plane = z
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
+            rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [-p5[0], p5[1], z_plane, -0.034, 0.556, 0.251]
         print("point5:", point5)
@@ -2995,6 +3013,7 @@ def smalldoor4zizag(
             innerSandingOffset=50,
             edge_coverage=True,  # Enable edge coverage with MoveL before spiral
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
@@ -3007,6 +3026,7 @@ def smalldoor4zizag(
             innerSandingOffset=50,
             edge_coverage=False,
             preserve_frame_sign=USE_WAYPOINT2_ARC,
+            rxyz_override=rxyz_sanding,
         )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
