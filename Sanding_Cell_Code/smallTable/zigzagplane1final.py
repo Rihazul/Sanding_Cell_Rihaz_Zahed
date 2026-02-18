@@ -114,6 +114,7 @@ WAYPOINT2_PREPOINT_APPROACH_LIFT_MM = 15.0
 WAYPOINT2_DEBUG_POINTS = True
 WAYPOINT2_DEBUG_POINTS_LIMIT = 60
 WAYPOINT2_DEBUG_POINTS_FILE = "waypoint2_debug_points.csv"
+WAYPOINT2_PREPOINT_USE_SCAN_RXYZ = True
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -2124,7 +2125,8 @@ def smalldoor1zizag(
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_sanding = list(rxyz_scan)
         if WAYPOINT2_FORCE_LEGACY_RXYZ:
             rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
@@ -2426,6 +2428,18 @@ def smalldoor1zizag(
                             speed=PREPOINT_ROTATE_SPEED,
                             wait=True,
                         )
+                    prepoint_move = prepointp1
+                    rxyz_prepoint = rxyz_sanding
+                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
+                        rxyz_prepoint = rxyz_scan
+                        prepoint_move = [
+                            prepointp1[0],
+                            prepointp1[1],
+                            prepointp1[2],
+                            rxyz_prepoint[0],
+                            rxyz_prepoint[1],
+                            rxyz_prepoint[2],
+                        ]
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -2434,9 +2448,9 @@ def smalldoor1zizag(
 
                             config,
 
-                            prepoint=prepointp1,
+                            prepoint=prepoint_move,
 
-                            rxyz_sanding=rxyz_sanding,
+                            rxyz_sanding=rxyz_prepoint,
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -2452,7 +2466,7 @@ def smalldoor1zizag(
 
                             config=config,
 
-                            point=prepointp1,  # Dynamic prepoint
+                            point=prepoint_move,  # Dynamic prepoint
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -2551,7 +2565,8 @@ def smalldoor2zizag(
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_sanding = list(rxyz_scan)
         if WAYPOINT2_FORCE_LEGACY_RXYZ:
             rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
@@ -2852,6 +2867,18 @@ def smalldoor2zizag(
                             speed=PREPOINT_ROTATE_SPEED,
                             wait=True,
                         )
+                    prepoint_move = prepointp1
+                    rxyz_prepoint = rxyz_sanding
+                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
+                        rxyz_prepoint = rxyz_scan
+                        prepoint_move = [
+                            prepointp1[0],
+                            prepointp1[1],
+                            prepointp1[2],
+                            rxyz_prepoint[0],
+                            rxyz_prepoint[1],
+                            rxyz_prepoint[2],
+                        ]
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -2860,9 +2887,9 @@ def smalldoor2zizag(
 
                             config,
 
-                            prepoint=prepointp1,
+                            prepoint=prepoint_move,
 
-                            rxyz_sanding=rxyz_sanding,
+                            rxyz_sanding=rxyz_prepoint,
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -2878,7 +2905,7 @@ def smalldoor2zizag(
 
                             config=config,
 
-                            point=prepointp1,  # Dynamic prepoint
+                            point=prepoint_move,  # Dynamic prepoint
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -2978,7 +3005,8 @@ def smalldoor3zizag(
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_sanding = list(rxyz_scan)
         if WAYPOINT2_FORCE_LEGACY_RXYZ:
             rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
@@ -3279,6 +3307,18 @@ def smalldoor3zizag(
                             speed=PREPOINT_ROTATE_SPEED,
                             wait=True,
                         )
+                    prepoint_move = prepointp1
+                    rxyz_prepoint = rxyz_sanding
+                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
+                        rxyz_prepoint = rxyz_scan
+                        prepoint_move = [
+                            prepointp1[0],
+                            prepointp1[1],
+                            prepointp1[2],
+                            rxyz_prepoint[0],
+                            rxyz_prepoint[1],
+                            rxyz_prepoint[2],
+                        ]
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -3287,9 +3327,9 @@ def smalldoor3zizag(
 
                             config,
 
-                            prepoint=prepointp1,
+                            prepoint=prepoint_move,
 
-                            rxyz_sanding=rxyz_sanding,
+                            rxyz_sanding=rxyz_prepoint,
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -3305,7 +3345,7 @@ def smalldoor3zizag(
 
                             config=config,
 
-                            point=prepointp1,  # Dynamic prepoint
+                            point=prepoint_move,  # Dynamic prepoint
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -3404,7 +3444,8 @@ def smalldoor4zizag(
         if z_plane is None or abs(z_plane) < 1e-6:
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
-        rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_scan = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        rxyz_sanding = list(rxyz_scan)
         if WAYPOINT2_FORCE_LEGACY_RXYZ:
             rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
@@ -3705,6 +3746,18 @@ def smalldoor4zizag(
                             speed=PREPOINT_ROTATE_SPEED,
                             wait=True,
                         )
+                    prepoint_move = prepointp1
+                    rxyz_prepoint = rxyz_sanding
+                    if WAYPOINT2_PREPOINT_USE_SCAN_RXYZ:
+                        rxyz_prepoint = rxyz_scan
+                        prepoint_move = [
+                            prepointp1[0],
+                            prepointp1[1],
+                            prepointp1[2],
+                            rxyz_prepoint[0],
+                            rxyz_prepoint[1],
+                            rxyz_prepoint[2],
+                        ]
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -3713,9 +3766,9 @@ def smalldoor4zizag(
 
                             config,
 
-                            prepoint=prepointp1,
+                            prepoint=prepoint_move,
 
-                            rxyz_sanding=rxyz_sanding,
+                            rxyz_sanding=rxyz_prepoint,
 
                             tcp=config["coords"]["tcptool1plane1"],
 
@@ -3731,7 +3784,7 @@ def smalldoor4zizag(
 
                             config=config,
 
-                            point=prepointp1,  # Dynamic prepoint
+                            point=prepoint_move,  # Dynamic prepoint
 
                             tcp=config["coords"]["tcptool1plane1"],
 
