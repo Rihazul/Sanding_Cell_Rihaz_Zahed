@@ -103,11 +103,12 @@ WAYPOINT2_USE_UCS_BOUNDARY = True
 WAYPOINT2_USE_FILLETED_ZIGZAG = True
 WAYPOINT2_FILLET_RADIUS_MM = 12.0
 WAYPOINT2_USE_SCAN_X_SIGN = True
-WAYPOINT2_FORCE_LEGACY_RXYZ = False
+WAYPOINT2_FORCE_LEGACY_RXYZ = True
 WAYPOINT2_USE_JOINT_SEED = True
-WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = True
+WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = False
 WAYPOINT2_ROTATE_TOL_DEG = 1.0
 WAYPOINT2_SKIP_PREPOINT_ROTATE = True
+WAYPOINT2_SET_ORI_AT_PREHOMING = True
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -2289,6 +2290,25 @@ def smalldoor1zizag(
                             edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
                             zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
                             prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
+                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
+                        prehoming_oriented = [
+                            prehoming[0],
+                            prehoming[1],
+                            prehoming[2],
+                            rxyz_sanding[0],
+                            rxyz_sanding[1],
+                            rxyz_sanding[2],
+                        ]
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=prehoming_oriented,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=PREPOINT_ROTATE_SPEED,
+                            wait=True,
+                        )
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -2696,6 +2716,25 @@ def smalldoor2zizag(
                             edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
                             zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
                             prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
+                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
+                        prehoming_oriented = [
+                            prehoming[0],
+                            prehoming[1],
+                            prehoming[2],
+                            rxyz_sanding[0],
+                            rxyz_sanding[1],
+                            rxyz_sanding[2],
+                        ]
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=prehoming_oriented,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=PREPOINT_ROTATE_SPEED,
+                            wait=True,
+                        )
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -3104,6 +3143,25 @@ def smalldoor3zizag(
                             edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
                             zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
                             prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
+                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
+                        prehoming_oriented = [
+                            prehoming[0],
+                            prehoming[1],
+                            prehoming[2],
+                            rxyz_sanding[0],
+                            rxyz_sanding[1],
+                            rxyz_sanding[2],
+                        ]
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=prehoming_oriented,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=PREPOINT_ROTATE_SPEED,
+                            wait=True,
+                        )
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -3511,6 +3569,25 @@ def smalldoor4zizag(
                             edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
                             zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
                             prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
+                    if WAYPOINT2_SET_ORI_AT_PREHOMING and WAYPOINT2_FORCE_LEGACY_RXYZ:
+                        prehoming_oriented = [
+                            prehoming[0],
+                            prehoming[1],
+                            prehoming[2],
+                            rxyz_sanding[0],
+                            rxyz_sanding[1],
+                            rxyz_sanding[2],
+                        ]
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=prehoming_oriented,
+                            tcp=config["coords"]["tcptool1plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=PREPOINT_ROTATE_SPEED,
+                            wait=True,
+                        )
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
