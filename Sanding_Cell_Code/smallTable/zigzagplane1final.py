@@ -100,6 +100,8 @@ WAYPOINT2_GLOBAL_MARGIN_MM = 2.0
 WAYPOINT2_GLOBAL_MIN_AXIS_MM = 8.0
 WAYPOINT2_GLOBAL_MIN_POINTS = 40
 WAYPOINT2_USE_UCS_BOUNDARY = True
+WAYPOINT2_USE_FILLETED_ZIGZAG = True
+WAYPOINT2_FILLET_RADIUS_MM = 12.0
 
 
 
@@ -589,20 +591,6 @@ def _read_tcp_pose(cps, tcp_name, box_id=0, robot_id=0):
         return None
 
 
-def _convert_base_to_ucs(cps, base_pose, tcp_pose, ucs_pose, box_id=0):
-    if not base_pose or not tcp_pose or not ucs_pose:
-        return None
-    out = []
-    ret = cps.HRIF_Base2UcsTcp(box_id, base_pose, tcp_pose, ucs_pose, out)
-    if ret != 0 or len(out) < 6:
-        print(f"[WayPoint2] Base2UcsTcp failed ret={ret}")
-        return None
-    try:
-        return [float(v) for v in list(out)[:6]]
-    except Exception:
-        return None
-
-
 def _override_orientation(poses, rxyz):
     if not rxyz:
         return poses
@@ -696,6 +684,208 @@ def _build_pocket_boundary_points(point5, point6, point7, point8, distance):
     point7u = [0, point7[1], point7[2], point7[3], point7[4], point7[5]]
     point8u = [0, point8[1], point8[2], point8[3], point8[4], point8[5]]
     return point5u, point6u, point7u, point8u
+
+
+def _unit2(vec):
+    vx, vy = vec
+    mag = math.hypot(vx, vy)
+    if mag <= 1e-6:
+        return None
+    return (vx / mag, vy / mag)
+
+
+def _fillet_for_corner(p0, p1, p2, radius):
+    v1 = _unit2((p0[0] - p1[0], p0[1] - p1[1]))
+    v2 = _unit2((p2[0] - p1[0], p2[1] - p1[1]))
+    if v1 is None or v2 is None:
+        return None
+    dot = max(-1.0, min(1.0, v1[0] * v2[0] + v1[1] * v2[1]))
+    alpha = math.acos(dot)
+    if alpha < 1e-3 or abs(math.pi - alpha) < 1e-3:
+        return None
+    tan_half = math.tan(alpha * 0.5)
+    if abs(tan_half) < 1e-6:
+        return None
+    d = radius / tan_half
+    len1 = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+    len2 = math.hypot(p2[0] - p1[0], p2[1] - p1[1])
+    if d >= len1 or d >= len2:
+        return None
+
+    t1 = (p1[0] + v1[0] * d, p1[1] + v1[1] * d)
+    t2 = (p1[0] + v2[0] * d, p1[1] + v2[1] * d)
+
+    bis = _unit2((v1[0] + v2[0], v1[1] + v2[1]))
+    if bis is None:
+        return None
+    center_dist = radius / math.sin(alpha * 0.5)
+    c = (p1[0] + bis[0] * center_dist, p1[1] + bis[1] * center_dist)
+
+    a1 = math.atan2(t1[1] - c[1], t1[0] - c[0])
+    a2 = math.atan2(t2[1] - c[1], t2[0] - c[0])
+    cross = v1[0] * v2[1] - v1[1] * v2[0]
+    if cross >= 0:
+        delta = (a2 - a1) % (2.0 * math.pi)
+    else:
+        delta = -((a1 - a2) % (2.0 * math.pi))
+    if abs(delta) > math.pi:
+        return None
+    amid = a1 + delta * 0.5
+    mid = (c[0] + radius * math.cos(amid), c[1] + radius * math.sin(amid))
+
+    return t1, mid, t2
+
+
+def run_waypoint2_filleted_zigzag(
+    cps: CPSClient,
+    config: dict,
+    zigzag_points,
+    *,
+    radius: float,
+    velocity: float,
+    accel: float,
+    blend_radius: float,
+    rxyz,
+    tcp_name: str,
+    ucs_name: str,
+    box_id: int = 0,
+    robot_id: int = 0,
+    cmd_prefix: str = "wp2-fillet",
+):
+    if not zigzag_points or len(zigzag_points) < 2:
+        return True
+
+    z = float(zigzag_points[0][2])
+    rx, ry, rz = rxyz
+    pts2 = [(float(p[0]), float(p[1])) for p in zigzag_points]
+    start = [pts2[0][0], pts2[0][1], z, rx, ry, rz]
+
+    acs_pos = [0, 0, 0, 0, 0, 0]
+    try:
+        joint_seed = []
+        jret = cps.HRIF_ReadActPos(box_id, robot_id, joint_seed)
+        if jret == 0 and isinstance(joint_seed, (list, tuple)) and len(joint_seed) >= 6:
+            acs_pos = [float(v) for v in joint_seed[:6]]
+    except Exception:
+        pass
+
+    is_joint = 0
+    is_seek = 0
+    bit = 0
+    state = 0
+
+    cmd_index = 0
+    last = start
+
+    for i in range(1, len(pts2) - 1):
+        p0 = pts2[i - 1]
+        p1 = pts2[i]
+        p2 = pts2[i + 1]
+        fillet = _fillet_for_corner(p0, p1, p2, radius)
+        if fillet is None:
+            end = [p1[0], p1[1], z, rx, ry, rz]
+            ret = cps.HRIF_WayPoint2(
+                box_id,
+                robot_id,
+                1,
+                end,
+                end,
+                acs_pos,
+                tcp_name,
+                ucs_name,
+                velocity,
+                accel,
+                blend_radius,
+                is_joint,
+                is_seek,
+                bit,
+                state,
+                str((cmd_index % 3) + 1),
+            )
+            print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-{cmd_index}")
+            if ret != 0:
+                return False
+            cmd_index += 1
+            last = end
+            continue
+
+        t1, mid, t2 = fillet
+        if math.hypot(t1[0] - last[0], t1[1] - last[1]) > 1e-3:
+            end = [t1[0], t1[1], z, rx, ry, rz]
+            ret = cps.HRIF_WayPoint2(
+                box_id,
+                robot_id,
+                1,
+                end,
+                end,
+                acs_pos,
+                tcp_name,
+                ucs_name,
+                velocity,
+                accel,
+                blend_radius,
+                is_joint,
+                is_seek,
+                bit,
+                state,
+                str((cmd_index % 3) + 1),
+            )
+            print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-{cmd_index}")
+            if ret != 0:
+                return False
+            cmd_index += 1
+            last = end
+
+        end_arc = [t2[0], t2[1], z, rx, ry, rz]
+        aux = [mid[0], mid[1], z, rx, ry, rz]
+        ret = cps.HRIF_WayPoint2(
+            box_id,
+            robot_id,
+            2,
+            end_arc,
+            aux,
+            acs_pos,
+            tcp_name,
+            ucs_name,
+            velocity,
+            accel,
+            blend_radius,
+            is_joint,
+            is_seek,
+            bit,
+            state,
+            str((cmd_index % 3) + 1),
+        )
+        print(f"[WayPoint2] ret={ret} type=2 cmd={cmd_prefix}-{cmd_index}")
+        if ret != 0:
+            return False
+        cmd_index += 1
+        last = end_arc
+
+    final_pt = pts2[-1]
+    end = [final_pt[0], final_pt[1], z, rx, ry, rz]
+    ret = cps.HRIF_WayPoint2(
+        box_id,
+        robot_id,
+        1,
+        end,
+        end,
+        acs_pos,
+        tcp_name,
+        ucs_name,
+        velocity,
+        accel,
+        blend_radius,
+        is_joint,
+        is_seek,
+        bit,
+        state,
+        str((cmd_index % 3) + 1),
+    )
+    print(f"[WayPoint2] ret={ret} type=1 cmd={cmd_prefix}-tail")
+    if ret != 0:
+        return False
+    return True
 
 
 def wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S):
@@ -910,7 +1100,9 @@ def run_waypoint2_spiral_for_zigzag(
     if not zigzag_points:
         return True
 
-    if WAYPOINT2_USE_GLOBAL_SPIRAL:
+    if WAYPOINT2_USE_FILLETED_ZIGZAG:
+        spiral_poses = []
+    elif WAYPOINT2_USE_GLOBAL_SPIRAL:
         spiral_poses = _build_global_spiral_poses(
             zigzag_points=zigzag_points,
             radius=radius,
@@ -948,16 +1140,17 @@ def run_waypoint2_spiral_for_zigzag(
                 else:
                     spiral_poses.extend(poses)
 
-    if not spiral_poses:
+    if not WAYPOINT2_USE_FILLETED_ZIGZAG and not spiral_poses:
         print("[WayPoint2] No spiral poses generated; skipping WayPoint2 path.")
         return False
 
-    before = len(spiral_poses)
-    spiral_poses = _downsample_poses(spiral_poses, WAYPOINT2_MAX_POSES)
-    after = len(spiral_poses)
-    if after != before:
-        print(f"[WayPoint2] Downsampled spiral poses: {before} -> {after}")
-    print(f"[WayPoint2] Total spiral poses: {len(spiral_poses)}")
+    if not WAYPOINT2_USE_FILLETED_ZIGZAG:
+        before = len(spiral_poses)
+        spiral_poses = _downsample_poses(spiral_poses, WAYPOINT2_MAX_POSES)
+        after = len(spiral_poses)
+        if after != before:
+            print(f"[WayPoint2] Downsampled spiral poses: {before} -> {after}")
+        print(f"[WayPoint2] Total spiral poses: {len(spiral_poses)}")
 
     if force is not None and config is not None:
         putForceZminus(
@@ -1012,7 +1205,7 @@ def run_waypoint2_spiral_for_zigzag(
         print(f"[WayPoint2] Path UCS: {path_ucs_name}")
 
     act_pose = act_pose_base if points_in_base else None
-    if act_pose and spiral_poses:
+    if act_pose and spiral_poses and not WAYPOINT2_USE_FILLETED_ZIGZAG:
         start_gap = _distance_xyz(act_pose, spiral_poses[0])
         if start_gap > float(WAYPOINT2_MAX_START_GAP_MM):
             print(
@@ -1020,7 +1213,7 @@ def run_waypoint2_spiral_for_zigzag(
                 f"(limit={WAYPOINT2_MAX_START_GAP_MM:.1f}mm); aborting."
             )
             return False
-    if act_pose and WAYPOINT2_SNAP_TO_ACTUAL:
+    if act_pose and WAYPOINT2_SNAP_TO_ACTUAL and not WAYPOINT2_USE_FILLETED_ZIGZAG:
         dx = act_pose[0] - spiral_poses[0][0]
         dy = act_pose[1] - spiral_poses[0][1]
         dz = act_pose[2] - spiral_poses[0][2]
@@ -1041,8 +1234,6 @@ def run_waypoint2_spiral_for_zigzag(
     # If points were converted from Base->UCS, using pose0 orientation avoids
     # safety-space failures from forcing an incompatible Euler representation.
     rxyz = None
-    if spiral_poses and len(spiral_poses[0]) >= 6:
-        rxyz = list(spiral_poses[0][3:6])
     if (not points_in_base) and preferred_ucs_rxyz is not None:
         rxyz = list(preferred_ucs_rxyz)
     if rxyz is None and zigzag_points and len(zigzag_points[0]) >= 6:
@@ -1052,7 +1243,8 @@ def run_waypoint2_spiral_for_zigzag(
     if WAYPOINT2_FORCE_UCS_TILT:
         rxyz[0] = float(WAYPOINT2_UCS_RX)
         rxyz[1] = float(WAYPOINT2_UCS_RY)
-    spiral_poses = _override_orientation(spiral_poses, rxyz)
+    if not WAYPOINT2_USE_FILLETED_ZIGZAG:
+        spiral_poses = _override_orientation(spiral_poses, rxyz)
     if act_pose and rxyz:
         if any(abs(act_pose[i + 3] - rxyz[i]) > WAYPOINT2_ORI_TOL for i in range(3)):
             print(
@@ -1061,24 +1253,40 @@ def run_waypoint2_spiral_for_zigzag(
             )
     if WAYPOINT2_DEBUG_ARC:
         print(f"[WayPoint2] Arc orientation: {rxyz}")
-        if len(spiral_poses) >= 3:
+        if not WAYPOINT2_USE_FILLETED_ZIGZAG and len(spiral_poses) >= 3:
             print(f"[WayPoint2] Arc p0={spiral_poses[0]}")
             print(f"[WayPoint2] Arc p1={spiral_poses[1]}")
             print(f"[WayPoint2] Arc p2={spiral_poses[2]}")
 
     turn_vibration_on(cps)
-    ok = run_waypoint2_path(
-        cps=cps,
-        config=config,
-        poses=spiral_poses,
-        velocity=velocity,
-        accel=accel,
-        radius=blend_radius,
-        use_arc=True,
-        ucs=path_ucs_name,
-        box_id=box_id,
-        robot_id=robot_id,
-    )
+    if WAYPOINT2_USE_FILLETED_ZIGZAG:
+        ok = run_waypoint2_filleted_zigzag(
+            cps=cps,
+            config=config,
+            zigzag_points=zigzag_points,
+            radius=float(WAYPOINT2_FILLET_RADIUS_MM),
+            velocity=velocity,
+            accel=accel,
+            blend_radius=blend_radius,
+            rxyz=rxyz,
+            tcp_name=tcp_name,
+            ucs_name=path_ucs_name,
+            box_id=box_id,
+            robot_id=robot_id,
+        )
+    else:
+        ok = run_waypoint2_path(
+            cps=cps,
+            config=config,
+            poses=spiral_poses,
+            velocity=velocity,
+            accel=accel,
+            radius=blend_radius,
+            use_arc=True,
+            ucs=path_ucs_name,
+            box_id=box_id,
+            robot_id=robot_id,
+        )
     wait_for_motion_done(cps, timeout_s=WAYPOINT2_WAIT_TIMEOUT_S)
     turn_vibration_off(cps)
     if force is not None and config is not None:
