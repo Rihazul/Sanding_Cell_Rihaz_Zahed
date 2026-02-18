@@ -105,6 +105,8 @@ WAYPOINT2_FILLET_RADIUS_MM = 12.0
 WAYPOINT2_USE_SCAN_X_SIGN = True
 WAYPOINT2_FORCE_LEGACY_RXYZ = False
 WAYPOINT2_USE_JOINT_SEED = True
+WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = True
+WAYPOINT2_ROTATE_TOL_DEG = 1.0
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -604,6 +606,54 @@ def _override_orientation(poses, rxyz):
     return [[p[0], p[1], p[2], rx, ry, rz] for p in poses]
 
 
+def _rxyz_max_delta(a, b):
+    if not a or not b:
+        return 999.0
+    try:
+        return max(abs(float(a[i]) - float(b[i])) for i in range(3))
+    except (TypeError, ValueError, IndexError):
+        return 999.0
+
+
+def _wrap_angle_near(angle, ref):
+    try:
+        t = float(angle)
+        r = float(ref)
+    except (TypeError, ValueError):
+        return angle
+    while t - r > 180.0:
+        t -= 360.0
+    while t - r < -180.0:
+        t += 360.0
+    return t
+
+
+def _normalize_rxyz_near(rxyz, ref_rxyz):
+    if not rxyz or not ref_rxyz or len(rxyz) < 3 or len(ref_rxyz) < 3:
+        return rxyz
+    return [
+        _wrap_angle_near(rxyz[0], ref_rxyz[0]),
+        _wrap_angle_near(rxyz[1], ref_rxyz[1]),
+        _wrap_angle_near(rxyz[2], ref_rxyz[2]),
+    ]
+
+
+def _normalize_point_rxyz(point, ref_rxyz):
+    if not point or len(point) < 6:
+        return point
+    rxyz = _normalize_rxyz_near(point[3:6], ref_rxyz)
+    return [point[0], point[1], point[2], rxyz[0], rxyz[1], rxyz[2]]
+
+
+def _normalize_points_rxyz(points, ref_rxyz):
+    if not points:
+        return points
+    out = []
+    for p in points:
+        out.append(_normalize_point_rxyz(p, ref_rxyz))
+    return out
+
+
 def _move_to_prepoint_safe(
     cps,
     config,
@@ -628,6 +678,8 @@ def _move_to_prepoint_safe(
 
     safe_pos = [prepoint[0], prepoint[1], safe_z, act_rxyz[0], act_rxyz[1], act_rxyz[2]]
     rotate_pos = [prepoint[0], prepoint[1], safe_z, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
+    if _rxyz_max_delta(act_rxyz, rxyz_sanding) <= float(WAYPOINT2_ROTATE_TOL_DEG):
+        rotate_pos = safe_pos
 
     communicate(
         cps=cps,
@@ -2204,6 +2256,14 @@ def smalldoor1zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
+                        act_pose = _read_current_tcp_pose(cps)
+                        if act_pose and len(act_pose) >= 6:
+                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
+                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
+                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
+                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
+                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -2603,6 +2663,14 @@ def smalldoor2zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
+                        act_pose = _read_current_tcp_pose(cps)
+                        if act_pose and len(act_pose) >= 6:
+                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
+                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
+                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
+                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
+                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -3003,6 +3071,14 @@ def smalldoor3zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
+                        act_pose = _read_current_tcp_pose(cps)
+                        if act_pose and len(act_pose) >= 6:
+                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
+                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
+                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
+                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
+                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
@@ -3402,6 +3478,14 @@ def smalldoor4zizag(
                     wait=True
                 )
                 if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
+                        act_pose = _read_current_tcp_pose(cps)
+                        if act_pose and len(act_pose) >= 6:
+                            act_rxyz = [act_pose[3], act_pose[4], act_pose[5]]
+                            rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
+                            edge_coverage_pathp1 = _normalize_points_rxyz(edge_coverage_pathp1, act_rxyz)
+                            zigzag_pathp1 = _normalize_points_rxyz(zigzag_pathp1, act_rxyz)
+                            prepointp1 = _normalize_point_rxyz(prepointp1, act_rxyz)
                     if USE_SAFE_PREPOINT_APPROACH:
 
                         _move_to_prepoint_safe(
