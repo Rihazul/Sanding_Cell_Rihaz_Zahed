@@ -104,17 +104,18 @@ WAYPOINT2_USE_UCS_BOUNDARY = True
 WAYPOINT2_USE_FILLETED_ZIGZAG = True
 WAYPOINT2_FILLET_RADIUS_MM = 12.0
 WAYPOINT2_USE_SCAN_X_SIGN = True
-WAYPOINT2_FORCE_LEGACY_RXYZ = True
+WAYPOINT2_FORCE_LEGACY_RXYZ = False
 WAYPOINT2_USE_JOINT_SEED = True
 WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = False
 WAYPOINT2_ROTATE_TOL_DEG = 1.0
 WAYPOINT2_SKIP_PREPOINT_ROTATE = True
-WAYPOINT2_SET_ORI_AT_PREHOMING = True
+WAYPOINT2_SET_ORI_AT_PREHOMING = False
 WAYPOINT2_PREPOINT_APPROACH_LIFT_MM = 15.0
-WAYPOINT2_DEBUG_POINTS = True
+WAYPOINT2_DEBUG_POINTS = False
 WAYPOINT2_DEBUG_POINTS_LIMIT = 60
 WAYPOINT2_DEBUG_POINTS_FILE = "waypoint2_debug_points.csv"
 WAYPOINT2_PREPOINT_USE_SCAN_RXYZ = True
+WAYPOINT2_SKIP_PREPOINT = True
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -2400,7 +2401,7 @@ def smalldoor1zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
                     if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
                         act_pose = _read_current_tcp_pose(cps)
                         if act_pose and len(act_pose) >= 6:
@@ -2839,7 +2840,7 @@ def smalldoor2zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
                     if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
                         act_pose = _read_current_tcp_pose(cps)
                         if act_pose and len(act_pose) >= 6:
@@ -3279,7 +3280,7 @@ def smalldoor3zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
                     if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
                         act_pose = _read_current_tcp_pose(cps)
                         if act_pose and len(act_pose) >= 6:
@@ -3718,7 +3719,7 @@ def smalldoor4zizag(
                     speed=0.8,
                     wait=True
                 )
-                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE):
+                if (not split) and not (USE_WAYPOINT2_ARC and WAYPOINT2_SKIP_EDGE_COVERAGE) and not WAYPOINT2_SKIP_PREPOINT:
                     if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL:
                         act_pose = _read_current_tcp_pose(cps)
                         if act_pose and len(act_pose) >= 6:
