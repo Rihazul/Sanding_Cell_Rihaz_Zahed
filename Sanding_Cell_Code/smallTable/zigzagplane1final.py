@@ -103,6 +103,7 @@ WAYPOINT2_USE_UCS_BOUNDARY = True
 WAYPOINT2_USE_FILLETED_ZIGZAG = True
 WAYPOINT2_FILLET_RADIUS_MM = 12.0
 WAYPOINT2_USE_SCAN_X_SIGN = True
+WAYPOINT2_FORCE_LEGACY_RXYZ = True
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -1924,6 +1925,8 @@ def smalldoor1zizag(
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
         rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        if WAYPOINT2_FORCE_LEGACY_RXYZ:
+            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
@@ -2322,6 +2325,8 @@ def smalldoor2zizag(
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
         rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        if WAYPOINT2_FORCE_LEGACY_RXYZ:
+            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
@@ -2720,6 +2725,8 @@ def smalldoor3zizag(
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
         rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        if WAYPOINT2_FORCE_LEGACY_RXYZ:
+            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
@@ -3117,6 +3124,8 @@ def smalldoor4zizag(
             z_plane = p5[2]
         x_sign = 1.0 if WAYPOINT2_USE_SCAN_X_SIGN else -1.0
         rxyz_sanding = [p5[3], p5[4], p5[5]] if len(p5) >= 6 else [-0.034, 0.556, 0.251]
+        if WAYPOINT2_FORCE_LEGACY_RXYZ:
+            rxyz_sanding = [-0.034, 0.556, 0.251]
         # Points calculation
         point5 = [x_sign * p5[0], p5[1], z_plane, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
         print("point5:", point5)
