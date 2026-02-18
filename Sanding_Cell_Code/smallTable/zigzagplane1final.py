@@ -81,7 +81,7 @@ WAYPOINT2_CMD_DELAY_S = 0.004
 WAYPOINT2_BATCH_SIZE = 60
 WAYPOINT2_BATCH_PAUSE_S = 0.08
 WAYPOINT2_WAIT_TIMEOUT_S = 120.0
-WAYPOINT2_USE_UCS_ORI = True
+WAYPOINT2_USE_UCS_ORI = False
 WAYPOINT2_FORCE_UCS_TILT = False
 WAYPOINT2_UCS_RX = 0.0
 WAYPOINT2_UCS_RY = 0.0
@@ -103,7 +103,8 @@ WAYPOINT2_USE_UCS_BOUNDARY = True
 WAYPOINT2_USE_FILLETED_ZIGZAG = True
 WAYPOINT2_FILLET_RADIUS_MM = 12.0
 WAYPOINT2_USE_SCAN_X_SIGN = True
-WAYPOINT2_FORCE_LEGACY_RXYZ = True
+WAYPOINT2_FORCE_LEGACY_RXYZ = False
+WAYPOINT2_USE_JOINT_SEED = True
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -823,15 +824,17 @@ def run_waypoint2_filleted_zigzag(
     start = [pts2[0][0], pts2[0][1], z, rx, ry, rz]
 
     acs_pos = [0, 0, 0, 0, 0, 0]
+    has_joint_seed = False
     try:
         joint_seed = []
         jret = cps.HRIF_ReadActPos(box_id, robot_id, joint_seed)
         if jret == 0 and isinstance(joint_seed, (list, tuple)) and len(joint_seed) >= 6:
             acs_pos = [float(v) for v in joint_seed[:6]]
+            has_joint_seed = True
     except Exception:
         pass
 
-    is_joint = 0
+    is_joint = 1 if (WAYPOINT2_USE_JOINT_SEED and has_joint_seed) else 0
     is_seek = 0
     bit = 0
     state = 0
@@ -992,14 +995,16 @@ def run_waypoint2_path(
     ucs_name = ucs or config["coords"].get("ucsTable1")
     # Use current joint pose as IK seed if available; fallback to zeros.
     acs_pos = [0, 0, 0, 0, 0, 0]
+    has_joint_seed = False
     try:
         joint_seed = []
         jret = cps.HRIF_ReadActPos(box_id, robot_id, joint_seed)
         if jret == 0 and isinstance(joint_seed, (list, tuple)) and len(joint_seed) >= 6:
             acs_pos = [float(v) for v in joint_seed[:6]]
+            has_joint_seed = True
     except Exception:
         pass
-    is_joint = 0
+    is_joint = 1 if (WAYPOINT2_USE_JOINT_SEED and has_joint_seed) else 0
     is_seek = 0
     bit = 0
     state = 0
