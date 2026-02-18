@@ -107,6 +107,7 @@ WAYPOINT2_FORCE_LEGACY_RXYZ = False
 WAYPOINT2_USE_JOINT_SEED = True
 WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL = True
 WAYPOINT2_ROTATE_TOL_DEG = 1.0
+WAYPOINT2_SKIP_PREPOINT_ROTATE = True
 USE_SAFE_PREPOINT_APPROACH = True
 PREPOINT_SAFE_LIFT_MM = 30.0
 PREPOINT_ROTATE_SPEED = 0.6
@@ -671,13 +672,37 @@ def _move_to_prepoint_safe(
     act_rxyz = rxyz_sanding
     if act and len(act) >= 6:
         act_rxyz = [act[3], act[4], act[5]]
+    if WAYPOINT2_NORMALIZE_RXYZ_TO_ACTUAL and act and len(act) >= 6:
+        rxyz_sanding = _normalize_rxyz_near(rxyz_sanding, act_rxyz)
 
     safe_z = prepoint[2] + float(lift_mm)
     if safe_z < prepoint[2]:
         safe_z = prepoint[2]
 
     safe_pos = [prepoint[0], prepoint[1], safe_z, act_rxyz[0], act_rxyz[1], act_rxyz[2]]
-    rotate_needed = _rxyz_max_delta(act_rxyz, rxyz_sanding) > float(WAYPOINT2_ROTATE_TOL_DEG)
+    prepoint_target = prepoint
+    if WAYPOINT2_SKIP_PREPOINT_ROTATE:
+        prepoint_target = [
+            prepoint[0],
+            prepoint[1],
+            prepoint[2],
+            act_rxyz[0],
+            act_rxyz[1],
+            act_rxyz[2],
+        ]
+    else:
+        prepoint_target = [
+            prepoint[0],
+            prepoint[1],
+            prepoint[2],
+            rxyz_sanding[0],
+            rxyz_sanding[1],
+            rxyz_sanding[2],
+        ]
+    rotate_needed = (
+        (not WAYPOINT2_SKIP_PREPOINT_ROTATE)
+        and _rxyz_max_delta(act_rxyz, rxyz_sanding) > float(WAYPOINT2_ROTATE_TOL_DEG)
+    )
     rotate_pos = [prepoint[0], prepoint[1], safe_z, rxyz_sanding[0], rxyz_sanding[1], rxyz_sanding[2]]
 
     communicate(
@@ -704,7 +729,7 @@ def _move_to_prepoint_safe(
     communicate(
         cps=cps,
         config=config,
-        point=prepoint,
+        point=prepoint_target,
         tcp=tcp,
         ucs=ucs,
         seventh=-1,
