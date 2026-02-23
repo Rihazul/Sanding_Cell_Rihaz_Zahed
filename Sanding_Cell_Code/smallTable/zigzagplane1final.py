@@ -26,6 +26,12 @@ from Server_Better_V2 import (
     putForceZplus,
     putForceZminus,
 )
+from smallTable.waypoint2 import (
+    Waypoint2Config,
+    execute_waypoint2_path,
+    generate_spiral_points_between,
+    generate_arc_line_segments_between,
+)
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -1165,11 +1171,60 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                use_waypoint2 = False
+                wp2_cfg = Waypoint2Config(
+                    speed=150.0,
+                    accel=300.0,
+                    radius=8.0,
+                    min_seg_len=5.0,
+                    min_angle_deg=12.0,
+                    max_angle_deg=170.0,
+                    use_arc=True,
+                    use_wp2_for_line=True,
+                    enforce_orientation="start",
+                    wait_timeout_s=20.0,
+                    cmd_id_prefix="zig",
+                    line_cmd_id_prefix="zigL",
+                )
+                move_kwargs = {
+                    "cps": cps,
+                    "config": config,
+                    "tcp": config["coords"]["tcptool1plane1"],
+                    "ucs": config["coords"]["ucsTable1"],
+                    "seventh": -1,
+                    "speed": float(json_config["sandingSpeed"]),
+                    "speed_mode": "linear",
+                    "wait": True,
+                }
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
                     point_B = zigzag_points[index + 1]
+
+                    if use_waypoint2:
+                        wp2_segments = generate_arc_line_segments_between(
+                            point_A,
+                            point_B,
+                            radius=12.0,
+                            arc_step_deg=120.0,
+                            pitch=24.0,
+                            clockwise=True,
+                        )
+                        for seg_points in wp2_segments:
+                            wp2_result = execute_waypoint2_path(
+                                cps,
+                                seg_points,
+                                tcp=config["coords"]["tcptool1plane1"],
+                                ucs=config["coords"]["ucsTable1"],
+                                cfg=wp2_cfg,
+                                move_l_fn=communicate,
+                                move_l_kwargs=move_kwargs,
+                                logger=config.get("logger"),
+                            )
+                            if not wp2_result.get("ok", False):
+                                raise RuntimeError("[WayPoint2] Segment execution failed.")
+                        continue
 
                     print("Spiral move from A to B:", point_A, "->", point_B)
                     success, count = run_spiral_between_points(
