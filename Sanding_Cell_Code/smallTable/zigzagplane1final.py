@@ -1211,13 +1211,17 @@ def smalldoor1zizag(
                             pitch=24.0,
                             clockwise=True,
                         )
-                        for seg_points in wp2_segments:
+                        last_pair = index == (len(zigzag_points) - 2)
+                        for seg_idx, seg_points in enumerate(wp2_segments):
+                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
                             wp2_result = execute_waypoint2_path(
                                 cps,
                                 seg_points,
                                 tcp=config["coords"]["tcptool3plane1"],
                                 ucs=config["coords"]["ucsTable1"],
                                 cfg=wp2_cfg,
+                                wait_each=False,
+                                wait_end=wait_end,
                                 move_l_fn=communicate,
                                 move_l_kwargs=move_kwargs,
                                 logger=config.get("logger"),

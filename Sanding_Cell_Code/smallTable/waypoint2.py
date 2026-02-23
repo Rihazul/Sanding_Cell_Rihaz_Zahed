@@ -447,6 +447,8 @@ def execute_waypoint2_path(
     tcp: str,
     ucs: str,
     cfg: Waypoint2Config,
+    wait_each: bool = True,
+    wait_end: bool = False,
     move_l_fn: Optional[Callable[..., object]] = None,
     move_l_kwargs: Optional[Dict[str, object]] = None,
     box_id: int = 0,
@@ -520,7 +522,8 @@ def execute_waypoint2_path(
             )
             if ret == 0:
                 arcs += 1
-                _wait_motion_done(cps, cfg.wait_timeout_s)
+                if wait_each:
+                    _wait_motion_done(cps, cfg.wait_timeout_s)
                 current = end
                 continue
 
@@ -561,7 +564,8 @@ def execute_waypoint2_path(
             )
             if ret == 0:
                 lines += 1
-                _wait_motion_done(cps, cfg.wait_timeout_s)
+                if wait_each:
+                    _wait_motion_done(cps, cfg.wait_timeout_s)
                 current = target
                 continue
             failed += 1
@@ -582,6 +586,9 @@ def execute_waypoint2_path(
 
         lines += 1
         current = target
+
+    if wait_end and failed == 0:
+        _wait_motion_done(cps, cfg.wait_timeout_s)
 
     result = {"ok": failed == 0, "arcs": arcs, "lines": lines, "failed": failed}
     if return_plan:
