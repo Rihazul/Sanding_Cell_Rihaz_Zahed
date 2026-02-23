@@ -1171,7 +1171,7 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                use_waypoint2 = False
+                use_waypoint2 = True
                 wp2_cfg = Waypoint2Config(
                     speed=150.0,
                     accel=300.0,
@@ -1226,47 +1226,47 @@ def smalldoor1zizag(
                                 raise RuntimeError("[WayPoint2] Segment execution failed.")
                         continue
 
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=150.0,
-                        accel=300.0,
-                        jerk=3000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
+                #     print("Spiral move from A to B:", point_A, "->", point_B)
+                #     success, count = run_spiral_between_points(
+                #         cps=cps,
+                #         config=config,
+                #         start_pose=point_A,
+                #         end_pose=point_B,
+                #         radius=12.0,
+                #         angle_step_deg=45.0,
+                #         track_name=spiral_track_name,
+                #         velocity=150.0,
+                #         accel=300.0,
+                #         jerk=3000.0,
+                #         init_path=not path_initialized,
+                #         orientation=orientation
+                #     )
+                #     if not success:
+                #         push_failed = True
+                #         break
 
-                    path_initialized = True
-                    total_count += count
+                #     path_initialized = True
+                #     total_count += count
 
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    # Keep a short anti-false-positive runtime guard without
-                    # adding visible delay at the final point.
-                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    finalized = finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout,
-                        min_runtime_s=min_runtime_s,
-                        force= force,
-                        config= config
-                    )
-                    if not finalized:
-                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
+                # if path_initialized and not push_failed:
+                #     timeout = compute_timeout(
+                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                #     )
+                #     # Keep a short anti-false-positive runtime guard without
+                #     # adding visible delay at the final point.
+                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                #     finalized = finalize_spiral_path(
+                #         cps,
+                #         spiral_track_name,
+                #         box_id=0,
+                #         robot_id=0,
+                #         completion_timeout=timeout,
+                #         min_runtime_s=min_runtime_s,
+                #         force= force,
+                #         config= config
+                #     )
+                #     if not finalized:
+                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
