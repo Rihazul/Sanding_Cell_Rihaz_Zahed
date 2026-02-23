@@ -609,23 +609,23 @@ def generate_zigzag_path(
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
             edge_Point1 = [
-                x_coords[0] + tool3x + 1.0,
-                y_coords[0] + tool3y + 1.5,
+                x_coords[0] + tool3x + 1.75,
+                y_coords[0] + tool3y + 1.75,
                 z_zigzag,
             ]
             edge_Point2 = [
-                x_coords[1] + tool3x + 1.0,
-                y_coords[1] - tool3y - 1.0,
+                x_coords[1] + tool3x + 1.75,
+                y_coords[1] - tool3y - 1.75,
                 z_zigzag,
             ]
             edge_Point3 = [
-                x_coords[2] - tool3x - 1.0,
-                y_coords[2] - tool3y - 1.0,
+                x_coords[2] - tool3x - 1.75,
+                y_coords[2] - tool3y - 1.75,
                 z_zigzag,
             ]
             edge_Point4 = [
-                x_coords[3] - tool3x - 1.0,
-                y_coords[3] + tool3y + 1.5,
+                x_coords[3] - tool3x - 1.75,
+                y_coords[3] + tool3y + 1.75,
                 z_zigzag,
             ]
 
@@ -1196,6 +1196,12 @@ def smalldoor1zizag(
                     "speed_mode": "linear",
                     "wait": True,
                 }
+                bounds = None
+                bounds_points = edge_points if edge_points else zigzag_points
+                if bounds_points:
+                    xs = [p[0] for p in bounds_points]
+                    ys = [p[1] for p in bounds_points]
+                    bounds = (min(xs), max(xs), min(ys), max(ys))
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
@@ -1210,6 +1216,9 @@ def smalldoor1zizag(
                             arc_step_deg=120.0,
                             pitch=24.0,
                             clockwise=True,
+                            bounds=bounds,
+                            safety_margin=0.0,
+                            min_radius=1.0,
                         )
                         last_pair = index == (len(zigzag_points) - 2)
                         for seg_idx, seg_points in enumerate(wp2_segments):

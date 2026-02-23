@@ -171,6 +171,9 @@ def generate_arc_line_segments_between(
     pitch: Optional[float] = None,
     clockwise: bool = True,
     max_circles: Optional[int] = None,
+    bounds: Optional[Tuple[float, float, float, float]] = None,
+    safety_margin: float = 0.0,
+    min_radius: float = 1.0,
 ) -> List[List[Pose]]:
     """
     Generate a helix-like path using true circular arcs (WayPoint2 type-2)
@@ -209,10 +212,6 @@ def generate_arc_line_segments_between(
 
     sign = -1.0 if clockwise else 1.0
 
-    # Choose the first circle center so the start point lies on the circle at angle 0.
-    c0x = x0 - radius * perp[0]
-    c0y = y0 - radius * perp[1]
-
     # In-plane orthonormal basis for the circle.
     u = perp
     v = (-perp[1], perp[0])
@@ -221,10 +220,28 @@ def generate_arc_line_segments_between(
     last_start = (x0, y0)
 
     for i in range(num_circles):
-        cx = c0x + dir_xy[0] * pitch * i
-        cy = c0y + dir_xy[1] * pitch * i
+        axis_x = x0 + dir_xy[0] * pitch * i
+        axis_y = y0 + dir_xy[1] * pitch * i
 
-        start_i = (cx + radius * u[0], cy + radius * u[1])
+        r_eff = radius
+        if bounds is not None:
+            xmin, xmax, ymin, ymax = bounds
+            xmin += safety_margin
+            xmax -= safety_margin
+            ymin += safety_margin
+            ymax -= safety_margin
+            # Iteratively shrink radius so the full circle stays inside bounds.
+            for _ in range(3):
+                cx = axis_x - r_eff * u[0]
+                cy = axis_y - r_eff * u[1]
+                max_r = min(cx - xmin, xmax - cx, cy - ymin, ymax - cy)
+                if max_r < r_eff:
+                    r_eff = max_r
+                else:
+                    break
+            r_eff = max(0.0, r_eff)
+
+        start_i = (axis_x, axis_y)
         if i > 0:
             # Linear advance to the next circle start.
             segments.append(
@@ -235,16 +252,19 @@ def generate_arc_line_segments_between(
             )
         last_start = start_i
 
-        circle_points: List[Pose] = []
-        for k in range(0, 2 * num_arcs + 1):
-            theta = math.radians(sign * (k * half_step_deg))
-            ctheta = math.cos(theta)
-            stheta = math.sin(theta)
-            px = cx + radius * (ctheta * u[0] + stheta * v[0])
-            py = cy + radius * (ctheta * u[1] + stheta * v[1])
-            circle_points.append([px, py, z0, rx, ry, rz])
+        if r_eff >= min_radius:
+            cx = axis_x - r_eff * u[0]
+            cy = axis_y - r_eff * u[1]
+            circle_points: List[Pose] = []
+            for k in range(0, 2 * num_arcs + 1):
+                theta = math.radians(sign * (k * half_step_deg))
+                ctheta = math.cos(theta)
+                stheta = math.sin(theta)
+                px = cx + r_eff * (ctheta * u[0] + stheta * v[0])
+                py = cy + r_eff * (ctheta * u[1] + stheta * v[1])
+                circle_points.append([px, py, z0, rx, ry, rz])
 
-        segments.append(circle_points)
+            segments.append(circle_points)
 
     # Final linear advance to end_pose.
     segments.append([[last_start[0], last_start[1], z0, rx, ry, rz], [x1, y1, z0, rx, ry, rz]])
