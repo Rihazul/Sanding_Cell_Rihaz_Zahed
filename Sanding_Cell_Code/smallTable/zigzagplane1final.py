@@ -1076,7 +1076,8 @@ def smalldoor1zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        middle_overlap = float(innerSandingOffset) * 0.5
+        inner_sanding_offset = 50.0
+        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -1533,7 +1534,8 @@ def smalldoor2zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        middle_overlap = float(innerSandingOffset) * 0.5
+        inner_sanding_offset = 50.0
+        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -1991,7 +1993,8 @@ def smalldoor3zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        middle_overlap = float(innerSandingOffset) * 0.5
+        inner_sanding_offset = 50.0
+        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -2448,7 +2451,8 @@ def smalldoor4zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        middle_overlap = float(innerSandingOffset) * 0.5
+        inner_sanding_offset = 50.0
+        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
