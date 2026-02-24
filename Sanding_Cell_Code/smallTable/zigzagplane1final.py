@@ -1286,10 +1286,30 @@ def smalldoor1zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
+                actual_pose = _read_act_cart_pose(cps)
+                if actual_pose and len(actual_pose) >= 6:
+                    locked_orient = list(actual_pose[3:6])
+                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
+                    msg = (
+                        f"[Orientation] actual vs target diff={diffs} "
+                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
+                    )
+                    if config.get("logger"):
+                        config["logger"].info(msg)
+                    else:
+                        print(msg)
+                target_pose = [
+                    zigzag_points[0][0],
+                    zigzag_points[0][1],
+                    zigzag_points[0][2],
+                    locked_orient[0],
+                    locked_orient[1],
+                    locked_orient[2],
+                ]
                 aligned = ensure_tool_orientation(
                     cps,
                     config,
-                    zigzag_points[0],
+                    target_pose,
                     tcp=config["coords"]["tcptool3plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -1320,7 +1340,7 @@ def smalldoor1zizag(
                     ensure_tool_orientation(
                         cps,
                         config,
-                        zigzag_points[0],
+                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -1793,10 +1813,30 @@ def smalldoor2zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
+                actual_pose = _read_act_cart_pose(cps)
+                if actual_pose and len(actual_pose) >= 6:
+                    locked_orient = list(actual_pose[3:6])
+                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
+                    msg = (
+                        f"[Orientation] actual vs target diff={diffs} "
+                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
+                    )
+                    if config.get("logger"):
+                        config["logger"].info(msg)
+                    else:
+                        print(msg)
+                target_pose = [
+                    zigzag_points[0][0],
+                    zigzag_points[0][1],
+                    zigzag_points[0][2],
+                    locked_orient[0],
+                    locked_orient[1],
+                    locked_orient[2],
+                ]
                 aligned = ensure_tool_orientation(
                     cps,
                     config,
-                    zigzag_points[0],
+                    target_pose,
                     tcp=config["coords"]["tcptool3plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -1827,7 +1867,7 @@ def smalldoor2zizag(
                     ensure_tool_orientation(
                         cps,
                         config,
-                        zigzag_points[0],
+                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -2302,10 +2342,30 @@ def smalldoor3zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
+                actual_pose = _read_act_cart_pose(cps)
+                if actual_pose and len(actual_pose) >= 6:
+                    locked_orient = list(actual_pose[3:6])
+                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
+                    msg = (
+                        f"[Orientation] actual vs target diff={diffs} "
+                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
+                    )
+                    if config.get("logger"):
+                        config["logger"].info(msg)
+                    else:
+                        print(msg)
+                target_pose = [
+                    zigzag_points[0][0],
+                    zigzag_points[0][1],
+                    zigzag_points[0][2],
+                    locked_orient[0],
+                    locked_orient[1],
+                    locked_orient[2],
+                ]
                 aligned = ensure_tool_orientation(
                     cps,
                     config,
-                    zigzag_points[0],
+                    target_pose,
                     tcp=config["coords"]["tcptool3plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -2336,7 +2396,7 @@ def smalldoor3zizag(
                     ensure_tool_orientation(
                         cps,
                         config,
-                        zigzag_points[0],
+                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -2810,10 +2870,30 @@ def smalldoor4zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
+                actual_pose = _read_act_cart_pose(cps)
+                if actual_pose and len(actual_pose) >= 6:
+                    locked_orient = list(actual_pose[3:6])
+                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
+                    msg = (
+                        f"[Orientation] actual vs target diff={diffs} "
+                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
+                    )
+                    if config.get("logger"):
+                        config["logger"].info(msg)
+                    else:
+                        print(msg)
+                target_pose = [
+                    zigzag_points[0][0],
+                    zigzag_points[0][1],
+                    zigzag_points[0][2],
+                    locked_orient[0],
+                    locked_orient[1],
+                    locked_orient[2],
+                ]
                 aligned = ensure_tool_orientation(
                     cps,
                     config,
-                    zigzag_points[0],
+                    target_pose,
                     tcp=config["coords"]["tcptool3plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     speed=float(json_config["sandingSpeed"]) * 0.4,
@@ -2845,7 +2925,7 @@ def smalldoor4zizag(
                     ensure_tool_orientation(
                         cps,
                         config,
-                        zigzag_points[0],
+                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         speed=float(json_config["sandingSpeed"]) * 0.4,
