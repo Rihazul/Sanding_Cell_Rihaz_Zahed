@@ -72,8 +72,8 @@ def compute_timeout(
 
 DEFAULT_ORIENTATION_TOL = 1.0
 # Optional forced orientation (Rx, Ry, Rz in degrees) to keep tool normal
-# perpendicular to the sanding plane. Example: [0.0, 0.0, -180.0]
-FORCE_SPIRAL_ORIENT = None
+# perpendicular to the sanding plane.
+FORCE_SPIRAL_ORIENT = [0.0, 0.0, 0.0]
 
 
 def _read_act_coord_pose(cps, tcp: str, ucs: str) -> Optional[list]:
