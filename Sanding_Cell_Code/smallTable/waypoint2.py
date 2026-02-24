@@ -469,6 +469,8 @@ def execute_waypoint2_path(
     cfg: Waypoint2Config,
     wait_each: bool = True,
     wait_end: bool = False,
+    throttle_every: int = 0,
+    throttle_sleep_s: float = 0.0,
     move_l_fn: Optional[Callable[..., object]] = None,
     move_l_kwargs: Optional[Dict[str, object]] = None,
     box_id: int = 0,
@@ -506,6 +508,7 @@ def execute_waypoint2_path(
     failed = 0
 
     current = pts[0]
+    cmds_sent = 0
     for seg in plan:
         if seg.kind == "arc":
             prev = pts[seg.start_idx]
@@ -542,6 +545,11 @@ def execute_waypoint2_path(
             )
             if ret == 0:
                 arcs += 1
+                cmds_sent += 1
+                if throttle_sleep_s > 0.0:
+                    time.sleep(throttle_sleep_s)
+                if throttle_every > 0 and not wait_each and (cmds_sent % throttle_every == 0):
+                    _wait_motion_done(cps, cfg.wait_timeout_s)
                 if wait_each:
                     _wait_motion_done(cps, cfg.wait_timeout_s)
                 current = end
@@ -584,6 +592,11 @@ def execute_waypoint2_path(
             )
             if ret == 0:
                 lines += 1
+                cmds_sent += 1
+                if throttle_sleep_s > 0.0:
+                    time.sleep(throttle_sleep_s)
+                if throttle_every > 0 and not wait_each and (cmds_sent % throttle_every == 0):
+                    _wait_motion_done(cps, cfg.wait_timeout_s)
                 if wait_each:
                     _wait_motion_done(cps, cfg.wait_timeout_s)
                 current = target

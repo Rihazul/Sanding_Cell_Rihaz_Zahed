@@ -1186,6 +1186,8 @@ def smalldoor1zizag(
                     cmd_id_prefix="zig",
                     line_cmd_id_prefix="zigL",
                 )
+                throttle_every = 8
+                throttle_sleep_s = 0.01
                 move_kwargs = {
                     "cps": cps,
                     "config": config,
@@ -1231,6 +1233,8 @@ def smalldoor1zizag(
                                 cfg=wp2_cfg,
                                 wait_each=False,
                                 wait_end=wait_end,
+                                throttle_every=throttle_every,
+                                throttle_sleep_s=throttle_sleep_s,
                                 move_l_fn=communicate,
                                 move_l_kwargs=move_kwargs,
                                 logger=config.get("logger"),
