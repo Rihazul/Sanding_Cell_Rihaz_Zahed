@@ -496,6 +496,8 @@ def generate_zigzag_path(
     z_coords,
     innerOffset,
     innerOffsetX,
+    x_min_offset: float = 0.0,
+    x_max_offset: float = 0.0,
     orientation="horizontal",
     movement="zigzag",
     innerSandingOffset=50,
@@ -582,6 +584,10 @@ def generate_zigzag_path(
             modified_Point3[1],
             modified_Point4[1],
         )
+
+        # Optional x-bound expansion/contraction (used for split overlap in horizontal zigzag)
+        x_min += float(x_min_offset)
+        x_max += float(x_max_offset)
 
         # Calculate available horizontal dimension
         xinner = abs(x_max - x_min)
@@ -1069,6 +1075,9 @@ def smalldoor1zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
+        orientation_mode = (orientation or "horizontal").lower()
+        middle_overlap = float(innerSandingOffset) * 0.5
+
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
@@ -1091,6 +1100,33 @@ def smalldoor1zizag(
             innerSandingOffset=50,
             edge_coverage=False
         )
+        zigzag_pathp1_left = zigzag_pathp1
+        zigzag_pathp1_right = zigzag_pathp1
+        if split:
+            _, zigzag_pathp1_left, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_max_offset=middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
+            _, zigzag_pathp1_right, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_min_offset=-middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -1171,6 +1207,16 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
+                )
+                turn_vibration_on(cps)
                 use_waypoint2 = True
                 wp2_cfg = Waypoint2Config(
                     speed=150.0,
@@ -1242,7 +1288,11 @@ def smalldoor1zizag(
                             if not wp2_result.get("ok", False):
                                 raise RuntimeError("[WayPoint2] Segment execution failed.")
                         continue
-
+                    
+                #motion done for zigzag, now turn off vibration and release force before next steps        
+                turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
+                
                 #     print("Spiral move from A to B:", point_A, "->", point_B)
                 #     success, count = run_spiral_between_points(
                 #         cps=cps,
@@ -1338,6 +1388,9 @@ def smalldoor1zizag(
         
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
+            current_zigzag = zigzag_pathp1
+            if split:
+                current_zigzag = zigzag_pathp1_left if idx == 0 else zigzag_pathp1_right
             if not first_split:
                 communicate(
                     cps=cps,
@@ -1364,7 +1417,7 @@ def smalldoor1zizag(
                 cps,
                 config,
                 edge_points=edge_coverage_pathp1 if not split else [],
-                zigzag_points=zigzag_pathp1,
+                zigzag_points=current_zigzag,
                 force=force,
                 run_edge_coverage=not split
             )  # Edge coverage + zigzag path
@@ -1479,6 +1532,9 @@ def smalldoor2zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
+        orientation_mode = (orientation or "horizontal").lower()
+        middle_overlap = float(innerSandingOffset) * 0.5
+
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
@@ -1501,6 +1557,33 @@ def smalldoor2zizag(
             innerSandingOffset=50,
             edge_coverage=False
         )
+        zigzag_pathp1_left = zigzag_pathp1
+        zigzag_pathp1_right = zigzag_pathp1
+        if split:
+            _, zigzag_pathp1_left, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_max_offset=middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
+            _, zigzag_pathp1_right, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_min_offset=-middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -1567,6 +1650,7 @@ def smalldoor2zizag(
                 path_initialized = False
                 push_failed = False
                 total_count = 0
+                
                 # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
@@ -1579,54 +1663,134 @@ def smalldoor2zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
+                )
+                turn_vibration_on(cps)
+                use_waypoint2 = True
+                wp2_cfg = Waypoint2Config(
+                    speed=150.0,
+                    accel=300.0,
+                    radius=8.0,
+                    min_seg_len=5.0,
+                    min_angle_deg=12.0,
+                    max_angle_deg=170.0,
+                    use_arc=True,
+                    use_wp2_for_line=True,
+                    enforce_orientation="start",
+                    wait_timeout_s=20.0,
+                    cmd_id_prefix="zig",
+                    line_cmd_id_prefix="zigL",
+                )
+                throttle_every = 8
+                throttle_sleep_s = 0.01
+                move_kwargs = {
+                    "cps": cps,
+                    "config": config,
+                    "tcp": config["coords"]["tcptool3plane1"],
+                    "ucs": config["coords"]["ucsTable1"],
+                    "seventh": -1,
+                    "speed": float(json_config["sandingSpeed"]),
+                    "speed_mode": "linear",
+                    "wait": True,
+                }
+                bounds = None
+                bounds_points = edge_points if edge_points else zigzag_points
+                if bounds_points:
+                    xs = [p[0] for p in bounds_points]
+                    ys = [p[1] for p in bounds_points]
+                    bounds = (min(xs), max(xs), min(ys), max(ys))
+                    
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
                     point_B = zigzag_points[index + 1]
 
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=150.0,
-                        accel=300.0,
-                        jerk=3000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
+                    if use_waypoint2:
+                        wp2_segments = generate_arc_line_segments_between(
+                            point_A,
+                            point_B,
+                            radius=12.0,
+                            arc_step_deg=120.0,
+                            pitch=12.0,
+                            clockwise=True,
+                            bounds=bounds,
+                            safety_margin=0.0,
+                            min_radius=1.0,
+                        )
+                        last_pair = index == (len(zigzag_points) - 2)
+                        for seg_idx, seg_points in enumerate(wp2_segments):
+                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
+                            wp2_result = execute_waypoint2_path(
+                                cps,
+                                seg_points,
+                                tcp=config["coords"]["tcptool3plane1"],
+                                ucs=config["coords"]["ucsTable1"],
+                                cfg=wp2_cfg,
+                                wait_each=False,
+                                wait_end=wait_end,
+                                throttle_every=throttle_every,
+                                throttle_sleep_s=throttle_sleep_s,
+                                move_l_fn=communicate,
+                                move_l_kwargs=move_kwargs,
+                                logger=config.get("logger"),
+                            )
+                            if not wp2_result.get("ok", False):
+                                raise RuntimeError("[WayPoint2] Segment execution failed.")
+                        continue
+                    
+                #motion done for zigzag, now turn off vibration and release force before next steps        
+                turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
+                    
+                #     print("Spiral move from A to B:", point_A, "->", point_B)
+                #     success, count = run_spiral_between_points(
+                #         cps=cps,
+                #         config=config,
+                #         start_pose=point_A,
+                #         end_pose=point_B,
+                #         radius=12.0,
+                #         angle_step_deg=45.0,
+                #         track_name=spiral_track_name,
+                #         velocity=150.0,
+                #         accel=300.0,
+                #         jerk=3000.0,
+                #         init_path=not path_initialized,
+                #         orientation=orientation
+                #     )
+                #     if not success:
+                #         push_failed = True
+                #         break
 
-                    path_initialized = True
-                    total_count += count
+                #     path_initialized = True
+                #     total_count += count
 
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    # Keep a short anti-false-positive runtime guard without
-                    # adding visible delay at the final point.
-                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    finalized = finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout,
-                        min_runtime_s=min_runtime_s,
-                        force=force,
-                        config=config
-                    )
-                    if not finalized:
-                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 2.")
+                # if path_initialized and not push_failed:
+                #     timeout = compute_timeout(
+                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                #     )
+                #     # Keep a short anti-false-positive runtime guard without
+                #     # adding visible delay at the final point.
+                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                #     finalized = finalize_spiral_path(
+                #         cps,
+                #         spiral_track_name,
+                #         box_id=0,
+                #         robot_id=0,
+                #         completion_timeout=timeout,
+                #         min_runtime_s=min_runtime_s,
+                #         force=force,
+                #         config=config
+                #     )
+                #     if not finalized:
+                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 2.")
 
             # Wait for blending and turn off vibration
             # waitForBlending(cps=cps, config=config)
@@ -1681,6 +1845,9 @@ def smalldoor2zizag(
 
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
+            current_zigzag = zigzag_pathp1
+            if split:
+                current_zigzag = zigzag_pathp1_left if idx == 0 else zigzag_pathp1_right
             if not first_split:
                 communicate(
                     cps=cps,
@@ -1707,7 +1874,7 @@ def smalldoor2zizag(
                 cps,
                 config,
                 edge_points=edge_coverage_pathp1 if not split else [],
-                zigzag_points=zigzag_pathp1,
+                zigzag_points=current_zigzag,
                 force=force,
                 run_edge_coverage=not split
             )
@@ -1823,6 +1990,9 @@ def smalldoor3zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
+        orientation_mode = (orientation or "horizontal").lower()
+        middle_overlap = float(innerSandingOffset) * 0.5
+
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
@@ -1845,6 +2015,33 @@ def smalldoor3zizag(
             innerSandingOffset=50,
             edge_coverage=False
         )
+        zigzag_pathp1_left = zigzag_pathp1
+        zigzag_pathp1_right = zigzag_pathp1
+        if split:
+            _, zigzag_pathp1_left, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_max_offset=middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
+            _, zigzag_pathp1_right, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_min_offset=-middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -1924,53 +2121,134 @@ def smalldoor3zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
+                )
+                turn_vibration_on(cps)
+                use_waypoint2 = True
+                wp2_cfg = Waypoint2Config(
+                    speed=150.0,
+                    accel=300.0,
+                    radius=8.0,
+                    min_seg_len=5.0,
+                    min_angle_deg=12.0,
+                    max_angle_deg=170.0,
+                    use_arc=True,
+                    use_wp2_for_line=True,
+                    enforce_orientation="start",
+                    wait_timeout_s=20.0,
+                    cmd_id_prefix="zig",
+                    line_cmd_id_prefix="zigL",
+                )
+                throttle_every = 8
+                throttle_sleep_s = 0.01
+                move_kwargs = {
+                    "cps": cps,
+                    "config": config,
+                    "tcp": config["coords"]["tcptool3plane1"],
+                    "ucs": config["coords"]["ucsTable1"],
+                    "seventh": -1,
+                    "speed": float(json_config["sandingSpeed"]),
+                    "speed_mode": "linear",
+                    "wait": True,
+                }
+                bounds = None
+                bounds_points = edge_points if edge_points else zigzag_points
+                if bounds_points:
+                    xs = [p[0] for p in bounds_points]
+                    ys = [p[1] for p in bounds_points]
+                    bounds = (min(xs), max(xs), min(ys), max(ys))
+                
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
                     point_B = zigzag_points[index + 1]
+                    
+                    if use_waypoint2:
+                        wp2_segments = generate_arc_line_segments_between(
+                            point_A,
+                            point_B,
+                            radius=12.0,
+                            arc_step_deg=120.0,
+                            pitch=12.0,
+                            clockwise=True,
+                            bounds=bounds,
+                            safety_margin=0.0,
+                            min_radius=1.0,
+                        )
+                        last_pair = index == (len(zigzag_points) - 2)
+                        for seg_idx, seg_points in enumerate(wp2_segments):
+                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
+                            wp2_result = execute_waypoint2_path(
+                                cps,
+                                seg_points,
+                                tcp=config["coords"]["tcptool3plane1"],
+                                ucs=config["coords"]["ucsTable1"],
+                                cfg=wp2_cfg,
+                                wait_each=False,
+                                wait_end=wait_end,
+                                throttle_every=throttle_every,
+                                throttle_sleep_s=throttle_sleep_s,
+                                move_l_fn=communicate,
+                                move_l_kwargs=move_kwargs,
+                                logger=config.get("logger"),
+                            )
+                            if not wp2_result.get("ok", False):
+                                raise RuntimeError("[WayPoint2] Segment execution failed.")
+                        continue
+                    
+                #motion done for zigzag, now turn off vibration and release force before next steps        
+                turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)
 
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=150.0,
-                        accel=300.0,
-                        jerk=3000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
+                #     print("Spiral move from A to B:", point_A, "->", point_B)
+                #     success, count = run_spiral_between_points(
+                #         cps=cps,
+                #         config=config,
+                #         start_pose=point_A,
+                #         end_pose=point_B,
+                #         radius=12.0,
+                #         angle_step_deg=45.0,
+                #         track_name=spiral_track_name,
+                #         velocity=150.0,
+                #         accel=300.0,
+                #         jerk=3000.0,
+                #         init_path=not path_initialized,
+                #         orientation=orientation
+                #     )
+                #     if not success:
+                #         push_failed = True
+                #         break
 
-                    path_initialized = True
-                    total_count += count
+                #     path_initialized = True
+                #     total_count += count
 
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    # Keep a short anti-false-positive runtime guard without
-                    # adding visible delay at the final point.
-                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    finalized = finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout,
-                        min_runtime_s=min_runtime_s,
-                        force = force,
-                        config= config
-                    )
-                    if not finalized:
-                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 3.")
+                # if path_initialized and not push_failed:
+                #     timeout = compute_timeout(
+                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                #     )
+                #     # Keep a short anti-false-positive runtime guard without
+                #     # adding visible delay at the final point.
+                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                #     finalized = finalize_spiral_path(
+                #         cps,
+                #         spiral_track_name,
+                #         box_id=0,
+                #         robot_id=0,
+                #         completion_timeout=timeout,
+                #         min_runtime_s=min_runtime_s,
+                #         force = force,
+                #         config= config
+                #     )
+                #     if not finalized:
+                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 3.")
 
             # Wait for blending and turn off vibration
             #waitForBlending(cps=cps, config=config)
@@ -2025,6 +2303,9 @@ def smalldoor3zizag(
 
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
+            current_zigzag = zigzag_pathp1
+            if split:
+                current_zigzag = zigzag_pathp1_left if idx == 0 else zigzag_pathp1_right
             if not first_split:
                 communicate(
                     cps=cps,
@@ -2051,7 +2332,7 @@ def smalldoor3zizag(
                 cps,
                 config,
                 edge_points=edge_coverage_pathp1 if not split else [],
-                zigzag_points=zigzag_pathp1,
+                zigzag_points=current_zigzag,
                 force=force,
                 run_edge_coverage=not split
             )  # Edge coverage + zigzag path
@@ -2166,6 +2447,9 @@ def smalldoor4zizag(
         if split:
             x_coords_path = [coord / 2 for coord in x_coords1]
 
+        orientation_mode = (orientation or "horizontal").lower()
+        middle_overlap = float(innerSandingOffset) * 0.5
+
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
@@ -2188,6 +2472,33 @@ def smalldoor4zizag(
             innerSandingOffset=50,
             edge_coverage=False
         )
+        zigzag_pathp1_left = zigzag_pathp1
+        zigzag_pathp1_right = zigzag_pathp1
+        if split:
+            _, zigzag_pathp1_left, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_max_offset=middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
+            _, zigzag_pathp1_right, _ = generate_zigzag_path(
+                x_coords=x_coords_path,
+                y_coords=y_coords1,
+                z_coords=z_coords1,
+                innerOffset=17,
+                innerOffsetX=17,
+                x_min_offset=-middle_overlap,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=50,
+                edge_coverage=False,
+            )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -2267,53 +2578,135 @@ def smalldoor4zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
+                
+                putForceZminus(
+                    cps=cps,
+                    force=force,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    search_linear_velocity=force_seek_linear,
+                    blending_timeout_s=force_blending_timeout,
+                )
+                turn_vibration_on(cps)
+                use_waypoint2 = True
+                wp2_cfg = Waypoint2Config(
+                    speed=150.0,
+                    accel=300.0,
+                    radius=8.0,
+                    min_seg_len=5.0,
+                    min_angle_deg=12.0,
+                    max_angle_deg=170.0,
+                    use_arc=True,
+                    use_wp2_for_line=True,
+                    enforce_orientation="start",
+                    wait_timeout_s=20.0,
+                    cmd_id_prefix="zig",
+                    line_cmd_id_prefix="zigL",
+                )
+                throttle_every = 8
+                throttle_sleep_s = 0.01
+                move_kwargs = {
+                    "cps": cps,
+                    "config": config,
+                    "tcp": config["coords"]["tcptool3plane1"],
+                    "ucs": config["coords"]["ucsTable1"],
+                    "seventh": -1,
+                    "speed": float(json_config["sandingSpeed"]),
+                    "speed_mode": "linear",
+                    "wait": True,
+                }
+                bounds = None
+                bounds_points = edge_points if edge_points else zigzag_points
+                if bounds_points:
+                    xs = [p[0] for p in bounds_points]
+                    ys = [p[1] for p in bounds_points]
+                    bounds = (min(xs), max(xs), min(ys), max(ys))
+                    
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
                     point_B = zigzag_points[index + 1]
 
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=spiral_track_name,
-                        velocity=150.0,
-                        accel=300.0,
-                        jerk=3000.0,
-                        init_path=not path_initialized,
-                        orientation=orientation
-                    )
-                    if not success:
-                        push_failed = True
-                        break
+                    if use_waypoint2:
+                        wp2_segments = generate_arc_line_segments_between(
+                            point_A,
+                            point_B,
+                            radius=12.0,
+                            arc_step_deg=120.0,
+                            pitch=12.0,
+                            clockwise=True,
+                            bounds=bounds,
+                            safety_margin=0.0,
+                            min_radius=1.0,
+                        )
+                        last_pair = index == (len(zigzag_points) - 2)
+                        for seg_idx, seg_points in enumerate(wp2_segments):
+                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
+                            wp2_result = execute_waypoint2_path(
+                                cps,
+                                seg_points,
+                                tcp=config["coords"]["tcptool3plane1"],
+                                ucs=config["coords"]["ucsTable1"],
+                                cfg=wp2_cfg,
+                                wait_each=False,
+                                wait_end=wait_end,
+                                throttle_every=throttle_every,
+                                throttle_sleep_s=throttle_sleep_s,
+                                move_l_fn=communicate,
+                                move_l_kwargs=move_kwargs,
+                                logger=config.get("logger"),
+                            )
+                            if not wp2_result.get("ok", False):
+                                raise RuntimeError("[WayPoint2] Segment execution failed.")
+                        continue
+                    
+                #motion done for zigzag, now turn off vibration and release force before next steps        
+                turn_vibration_off(cps)
+                releaseForce(cps=cps, config=config)    
+                
+                #     print("Spiral move from A to B:", point_A, "->", point_B)
+                #     success, count = run_spiral_between_points(
+                #         cps=cps,
+                #         config=config,
+                #         start_pose=point_A,
+                #         end_pose=point_B,
+                #         radius=12.0,
+                #         angle_step_deg=45.0,
+                #         track_name=spiral_track_name,
+                #         velocity=150.0,
+                #         accel=300.0,
+                #         jerk=3000.0,
+                #         init_path=not path_initialized,
+                #         orientation=orientation
+                #     )
+                #     if not success:
+                #         push_failed = True
+                #         break
 
-                    path_initialized = True
-                    total_count += count
+                #     path_initialized = True
+                #     total_count += count
 
-                if path_initialized and not push_failed:
-                    timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                    )
-                    # Keep a short anti-false-positive runtime guard without
-                    # adding visible delay at the final point.
-                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    finalized = finalize_spiral_path(
-                        cps,
-                        spiral_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout,
-                        min_runtime_s=min_runtime_s,
-                        force=force,
-                        config=config
-                    )
-                    if not finalized:
-                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 4.")
+                # if path_initialized and not push_failed:
+                #     timeout = compute_timeout(
+                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                #     )
+                #     # Keep a short anti-false-positive runtime guard without
+                #     # adding visible delay at the final point.
+                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                #     finalized = finalize_spiral_path(
+                #         cps,
+                #         spiral_track_name,
+                #         box_id=0,
+                #         robot_id=0,
+                #         completion_timeout=timeout,
+                #         min_runtime_s=min_runtime_s,
+                #         force=force,
+                #         config=config
+                #     )
+                #     if not finalized:
+                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 4.")
 
             # Wait for blending and turn off vibration
             #waitForBlending(cps=cps, config=config)
@@ -2368,6 +2761,9 @@ def smalldoor4zizag(
 
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
+            current_zigzag = zigzag_pathp1
+            if split:
+                current_zigzag = zigzag_pathp1_left if idx == 0 else zigzag_pathp1_right
             if not first_split:
                 communicate(
                     cps=cps,
@@ -2394,7 +2790,7 @@ def smalldoor4zizag(
                 cps,
                 config,
                 edge_points=edge_coverage_pathp1 if not split else [],
-                zigzag_points=zigzag_pathp1,
+                zigzag_points=current_zigzag,
                 force=force,
                 run_edge_coverage=not split,
             )  # Edge coverage + zigzag path
