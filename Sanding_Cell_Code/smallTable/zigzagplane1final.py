@@ -1135,6 +1135,10 @@ def smalldoor1zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
+            force_seek_linear = 5.0
+            force_blending_timeout = 7.0
+            if split:
+                force_blending_timeout = 0.4
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
@@ -1593,6 +1597,10 @@ def smalldoor2zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
+            force_seek_linear = 5.0
+            force_blending_timeout = 7.0
+            if split:
+                force_blending_timeout = 0.4
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
@@ -2052,6 +2060,10 @@ def smalldoor3zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
+            force_seek_linear = 5.0
+            force_blending_timeout = 7.0
+            if split:
+                force_blending_timeout = 0.4
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
@@ -2510,6 +2522,10 @@ def smalldoor4zizag(
         def perform_process_top(
             cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
         ):
+            force_seek_linear = 5.0
+            force_blending_timeout = 7.0
+            if split:
+                force_blending_timeout = 0.4
             has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
             if has_edge:
                 force_seek_linear = 5.0
