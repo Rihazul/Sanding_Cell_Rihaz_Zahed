@@ -1270,7 +1270,7 @@ def smalldoor1zizag(
                             pitch=12.0,
                             clockwise=True,
                             bounds=bounds,
-                            safety_margin=0.0,
+                            safety_margin=5.0,
                             min_radius=1.0,
                         )
                         last_pair = index == (len(zigzag_points) - 2)
@@ -1732,7 +1732,7 @@ def smalldoor2zizag(
                             pitch=12.0,
                             clockwise=True,
                             bounds=bounds,
-                            safety_margin=0.0,
+                            safety_margin=5.0,
                             min_radius=1.0,
                         )
                         last_pair = index == (len(zigzag_points) - 2)
@@ -2195,7 +2195,7 @@ def smalldoor3zizag(
                             pitch=12.0,
                             clockwise=True,
                             bounds=bounds,
-                            safety_margin=0.0,
+                            safety_margin=5.0,
                             min_radius=1.0,
                         )
                         last_pair = index == (len(zigzag_points) - 2)
@@ -2658,7 +2658,7 @@ def smalldoor4zizag(
                             pitch=12.0,
                             clockwise=True,
                             bounds=bounds,
-                            safety_margin=0.0,
+                            safety_margin=5.0,
                             min_radius=1.0,
                         )
                         last_pair = index == (len(zigzag_points) - 2)
