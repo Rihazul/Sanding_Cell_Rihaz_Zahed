@@ -1214,7 +1214,7 @@ def smalldoor1zizag(
                             point_B,
                             radius=12.0,
                             arc_step_deg=120.0,
-                            pitch=24.0,
+                            pitch=12.0,
                             clockwise=True,
                             bounds=bounds,
                             safety_margin=0.0,
