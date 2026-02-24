@@ -71,9 +71,19 @@ def compute_timeout(
 
 
 DEFAULT_ORIENTATION_TOL = 1.0
+# Optional forced orientation (Rx, Ry, Rz in degrees) to keep tool normal
+# perpendicular to the sanding plane. Example: [0.0, 0.0, -180.0]
+FORCE_SPIRAL_ORIENT = None
 
 
-def _read_act_cart_pose(cps) -> Optional[list]:
+def _read_act_coord_pose(cps, tcp: str, ucs: str) -> Optional[list]:
+    result = []
+    ret = cps.HRIF_ReadActCoord(0, 0, tcp, ucs, result)
+    if ret == 0 and len(result) >= 6:
+        try:
+            return [float(v) for v in result[:6]]
+        except (TypeError, ValueError):
+            pass
     result = []
     ret = cps.HRIF_ReadActPos(0, 0, result)
     if ret != 0 or len(result) < 12:
@@ -88,8 +98,8 @@ def _orientation_diff(a, b):
     return [abs(a[i] - b[i]) for i in range(3)]
 
 
-def _orientation_ok(cps, desired_orient, tol: float) -> bool:
-    actual = _read_act_cart_pose(cps)
+def _orientation_ok(cps, desired_orient, tol: float, tcp: str, ucs: str) -> bool:
+    actual = _read_act_coord_pose(cps, tcp, ucs)
     if not actual:
         return False
     diffs = _orientation_diff(actual[3:6], desired_orient)
@@ -106,7 +116,7 @@ def ensure_tool_orientation(
     speed: float,
     tol: float = DEFAULT_ORIENTATION_TOL,
 ) -> bool:
-    actual = _read_act_cart_pose(cps)
+    actual = _read_act_coord_pose(cps, tcp, ucs)
     if not actual or len(target_pose) < 6:
         return False
     desired_orient = target_pose[3:6]
@@ -1286,7 +1296,11 @@ def smalldoor1zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_cart_pose(cps)
+                actual_pose = _read_act_coord_pose(
+                    cps,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                )
                 if actual_pose and len(actual_pose) >= 6:
                     locked_orient = list(actual_pose[3:6])
                     diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
@@ -1306,6 +1320,46 @@ def smalldoor1zizag(
                     locked_orient[1],
                     locked_orient[2],
                 ]
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
+                    target_pose = [
+                        zigzag_points[0][0],
+                        zigzag_points[0][1],
+                        zigzag_points[0][2],
+                        locked_orient[0],
+                        locked_orient[1],
+                        locked_orient[2],
+                    ]
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
+                    target_pose = [
+                        zigzag_points[0][0],
+                        zigzag_points[0][1],
+                        zigzag_points[0][2],
+                        locked_orient[0],
+                        locked_orient[1],
+                        locked_orient[2],
+                    ]
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
+                    target_pose = [
+                        zigzag_points[0][0],
+                        zigzag_points[0][1],
+                        zigzag_points[0][2],
+                        locked_orient[0],
+                        locked_orient[1],
+                        locked_orient[2],
+                    ]
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
+                    target_pose = [
+                        zigzag_points[0][0],
+                        zigzag_points[0][1],
+                        zigzag_points[0][2],
+                        locked_orient[0],
+                        locked_orient[1],
+                        locked_orient[2],
+                    ]
                 aligned = ensure_tool_orientation(
                     cps,
                     config,
@@ -1330,7 +1384,13 @@ def smalldoor1zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(cps, locked_orient, orientation_tol):
+                if not _orientation_ok(
+                    cps,
+                    locked_orient,
+                    orientation_tol,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                ):
                     msg = "[Orientation] deviation after force; re-aligning and re-applying force."
                     if config.get("logger"):
                         config["logger"].warning(msg)
@@ -1813,7 +1873,11 @@ def smalldoor2zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_cart_pose(cps)
+                actual_pose = _read_act_coord_pose(
+                    cps,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                )
                 if actual_pose and len(actual_pose) >= 6:
                     locked_orient = list(actual_pose[3:6])
                     diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
@@ -1857,7 +1921,13 @@ def smalldoor2zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(cps, locked_orient, orientation_tol):
+                if not _orientation_ok(
+                    cps,
+                    locked_orient,
+                    orientation_tol,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                ):
                     msg = "[Orientation] deviation after force; re-aligning and re-applying force."
                     if config.get("logger"):
                         config["logger"].warning(msg)
@@ -2342,7 +2412,11 @@ def smalldoor3zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_cart_pose(cps)
+                actual_pose = _read_act_coord_pose(
+                    cps,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                )
                 if actual_pose and len(actual_pose) >= 6:
                     locked_orient = list(actual_pose[3:6])
                     diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
@@ -2386,7 +2460,13 @@ def smalldoor3zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(cps, locked_orient, orientation_tol):
+                if not _orientation_ok(
+                    cps,
+                    locked_orient,
+                    orientation_tol,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                ):
                     msg = "[Orientation] deviation after force; re-aligning and re-applying force."
                     if config.get("logger"):
                         config["logger"].warning(msg)
@@ -2870,7 +2950,11 @@ def smalldoor4zizag(
                 )
                 orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_cart_pose(cps)
+                actual_pose = _read_act_coord_pose(
+                    cps,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                )
                 if actual_pose and len(actual_pose) >= 6:
                     locked_orient = list(actual_pose[3:6])
                     diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
@@ -2915,7 +2999,13 @@ def smalldoor4zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(cps, locked_orient, orientation_tol):
+                if not _orientation_ok(
+                    cps,
+                    locked_orient,
+                    orientation_tol,
+                    config["coords"]["tcptool3plane1"],
+                    config["coords"]["ucsTable1"],
+                ):
                     msg = "[Orientation] deviation after force; re-aligning and re-applying force."
                     if config.get("logger"):
                         config["logger"].warning(msg)
