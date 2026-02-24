@@ -72,8 +72,9 @@ def compute_timeout(
 
 DEFAULT_ORIENTATION_TOL = 1.0
 # Optional forced orientation (Rx, Ry, Rz in degrees) to keep tool normal
-# perpendicular to the sanding plane.
-FORCE_SPIRAL_ORIENT = [0.0, 0.0, 0.0]
+# perpendicular to the sanding plane. When None, we lock to the actual
+# orientation measured under force control.
+FORCE_SPIRAL_ORIENT = None
 
 
 def _read_act_coord_pose(cps, tcp: str, ucs: str) -> Optional[list]:
@@ -94,63 +95,32 @@ def _read_act_coord_pose(cps, tcp: str, ucs: str) -> Optional[list]:
         return None
 
 
-def _orientation_diff(a, b):
-    return [abs(a[i] - b[i]) for i in range(3)]
-
-
-def _orientation_ok(cps, desired_orient, tol: float, tcp: str, ucs: str) -> bool:
-    actual = _read_act_coord_pose(cps, tcp, ucs)
-    if not actual:
-        return False
-    diffs = _orientation_diff(actual[3:6], desired_orient)
-    return max(diffs) <= tol
-
-
-def ensure_tool_orientation(
+def _capture_locked_orient(
     cps,
     config,
-    target_pose,
     *,
     tcp: str,
     ucs: str,
-    speed: float,
-    tol: float = DEFAULT_ORIENTATION_TOL,
-) -> bool:
+    fallback_orient,
+    settle_s: float = 0.05,
+):
+    time.sleep(max(0.0, float(settle_s)))
     actual = _read_act_coord_pose(cps, tcp, ucs)
-    if not actual or len(target_pose) < 6:
-        return False
-    desired_orient = target_pose[3:6]
-    diffs = _orientation_diff(actual[3:6], desired_orient)
-    if max(diffs) <= tol:
-        return True
-
     logger = config.get("logger") if config else None
-    msg = (
-        f"[Orientation] correcting orientation. "
-        f"diff={diffs} tol={tol} desired={desired_orient} actual={actual[3:6]}"
-    )
+    if actual and len(actual) >= 6:
+        orient = list(actual[3:6])
+        msg = f"[Orientation] locked to actual under force: {orient}"
+        if logger:
+            logger.info(msg)
+        else:
+            print(msg)
+        return orient
+    msg = f"[Orientation] failed to read actual; using fallback {fallback_orient}"
     if logger:
         logger.warning(msg)
     else:
         print(msg)
-
-    align_point = [actual[0], actual[1], actual[2], desired_orient[0], desired_orient[1], desired_orient[2]]
-    communicate(
-        cps=cps,
-        config=config,
-        point=align_point,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=float(speed),
-        speed_mode="linear",
-        wait=True,
-    )
-    actual = _read_act_cart_pose(cps)
-    if not actual:
-        return False
-    diffs = _orientation_diff(actual[3:6], desired_orient)
-    return max(diffs) <= tol
+    return list(fallback_orient)
 
 DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
@@ -1294,87 +1264,9 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_coord_pose(
-                    cps,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                )
-                if actual_pose and len(actual_pose) >= 6:
-                    locked_orient = list(actual_pose[3:6])
-                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
-                    msg = (
-                        f"[Orientation] actual vs target diff={diffs} "
-                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
-                    )
-                    if config.get("logger"):
-                        config["logger"].info(msg)
-                    else:
-                        print(msg)
-                target_pose = [
-                    zigzag_points[0][0],
-                    zigzag_points[0][1],
-                    zigzag_points[0][2],
-                    locked_orient[0],
-                    locked_orient[1],
-                    locked_orient[2],
-                ]
                 if FORCE_SPIRAL_ORIENT:
                     locked_orient = list(FORCE_SPIRAL_ORIENT)
-                    target_pose = [
-                        zigzag_points[0][0],
-                        zigzag_points[0][1],
-                        zigzag_points[0][2],
-                        locked_orient[0],
-                        locked_orient[1],
-                        locked_orient[2],
-                    ]
-                if FORCE_SPIRAL_ORIENT:
-                    locked_orient = list(FORCE_SPIRAL_ORIENT)
-                    target_pose = [
-                        zigzag_points[0][0],
-                        zigzag_points[0][1],
-                        zigzag_points[0][2],
-                        locked_orient[0],
-                        locked_orient[1],
-                        locked_orient[2],
-                    ]
-                if FORCE_SPIRAL_ORIENT:
-                    locked_orient = list(FORCE_SPIRAL_ORIENT)
-                    target_pose = [
-                        zigzag_points[0][0],
-                        zigzag_points[0][1],
-                        zigzag_points[0][2],
-                        locked_orient[0],
-                        locked_orient[1],
-                        locked_orient[2],
-                    ]
-                if FORCE_SPIRAL_ORIENT:
-                    locked_orient = list(FORCE_SPIRAL_ORIENT)
-                    target_pose = [
-                        zigzag_points[0][0],
-                        zigzag_points[0][1],
-                        zigzag_points[0][2],
-                        locked_orient[0],
-                        locked_orient[1],
-                        locked_orient[2],
-                    ]
-                aligned = ensure_tool_orientation(
-                    cps,
-                    config,
-                    target_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=float(json_config["sandingSpeed"]) * 0.4,
-                    tol=orientation_tol,
-                )
-                if not aligned:
-                    msg = "[Orientation] initial alignment failed; continuing with locked orientation."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -1384,37 +1276,20 @@ def smalldoor1zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(
-                    cps,
-                    locked_orient,
-                    orientation_tol,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                ):
-                    msg = "[Orientation] deviation after force; re-aligning and re-applying force."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
-                    releaseForce(cps=cps, config=config)
-                    ensure_tool_orientation(
+                if FORCE_SPIRAL_ORIENT is None:
+                    locked_orient = _capture_locked_orient(
                         cps,
                         config,
-                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
-                        speed=float(json_config["sandingSpeed"]) * 0.4,
-                        tol=orientation_tol,
+                        fallback_orient=locked_orient,
+                        settle_s=0.05,
                     )
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        search_linear_velocity=force_seek_linear,
-                        blending_timeout_s=force_blending_timeout,
-                    )
+                else:
+                    if config.get("logger"):
+                        config["logger"].info(f"[Orientation] forced for spiral: {locked_orient}")
+                    else:
+                        print(f"[Orientation] forced for spiral: {locked_orient}")
                 turn_vibration_on(cps)
                 use_waypoint2 = True
                 wp2_cfg = Waypoint2Config(
@@ -1871,47 +1746,9 @@ def smalldoor2zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_coord_pose(
-                    cps,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                )
-                if actual_pose and len(actual_pose) >= 6:
-                    locked_orient = list(actual_pose[3:6])
-                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
-                    msg = (
-                        f"[Orientation] actual vs target diff={diffs} "
-                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
-                    )
-                    if config.get("logger"):
-                        config["logger"].info(msg)
-                    else:
-                        print(msg)
-                target_pose = [
-                    zigzag_points[0][0],
-                    zigzag_points[0][1],
-                    zigzag_points[0][2],
-                    locked_orient[0],
-                    locked_orient[1],
-                    locked_orient[2],
-                ]
-                aligned = ensure_tool_orientation(
-                    cps,
-                    config,
-                    target_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=float(json_config["sandingSpeed"]) * 0.4,
-                    tol=orientation_tol,
-                )
-                if not aligned:
-                    msg = "[Orientation] initial alignment failed; continuing with locked orientation."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -1921,37 +1758,20 @@ def smalldoor2zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(
-                    cps,
-                    locked_orient,
-                    orientation_tol,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                ):
-                    msg = "[Orientation] deviation after force; re-aligning and re-applying force."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
-                    releaseForce(cps=cps, config=config)
-                    ensure_tool_orientation(
+                if FORCE_SPIRAL_ORIENT is None:
+                    locked_orient = _capture_locked_orient(
                         cps,
                         config,
-                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
-                        speed=float(json_config["sandingSpeed"]) * 0.4,
-                        tol=orientation_tol,
+                        fallback_orient=locked_orient,
+                        settle_s=0.05,
                     )
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        search_linear_velocity=force_seek_linear,
-                        blending_timeout_s=force_blending_timeout,
-                    )
+                else:
+                    if config.get("logger"):
+                        config["logger"].info(f"[Orientation] forced for spiral: {locked_orient}")
+                    else:
+                        print(f"[Orientation] forced for spiral: {locked_orient}")
                 turn_vibration_on(cps)
                 use_waypoint2 = True
                 wp2_cfg = Waypoint2Config(
@@ -2410,47 +2230,9 @@ def smalldoor3zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_coord_pose(
-                    cps,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                )
-                if actual_pose and len(actual_pose) >= 6:
-                    locked_orient = list(actual_pose[3:6])
-                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
-                    msg = (
-                        f"[Orientation] actual vs target diff={diffs} "
-                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
-                    )
-                    if config.get("logger"):
-                        config["logger"].info(msg)
-                    else:
-                        print(msg)
-                target_pose = [
-                    zigzag_points[0][0],
-                    zigzag_points[0][1],
-                    zigzag_points[0][2],
-                    locked_orient[0],
-                    locked_orient[1],
-                    locked_orient[2],
-                ]
-                aligned = ensure_tool_orientation(
-                    cps,
-                    config,
-                    target_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=float(json_config["sandingSpeed"]) * 0.4,
-                    tol=orientation_tol,
-                )
-                if not aligned:
-                    msg = "[Orientation] initial alignment failed; continuing with locked orientation."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -2460,37 +2242,20 @@ def smalldoor3zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(
-                    cps,
-                    locked_orient,
-                    orientation_tol,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                ):
-                    msg = "[Orientation] deviation after force; re-aligning and re-applying force."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
-                    releaseForce(cps=cps, config=config)
-                    ensure_tool_orientation(
+                if FORCE_SPIRAL_ORIENT is None:
+                    locked_orient = _capture_locked_orient(
                         cps,
                         config,
-                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
-                        speed=float(json_config["sandingSpeed"]) * 0.4,
-                        tol=orientation_tol,
+                        fallback_orient=locked_orient,
+                        settle_s=0.05,
                     )
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        search_linear_velocity=force_seek_linear,
-                        blending_timeout_s=force_blending_timeout,
-                    )
+                else:
+                    if config.get("logger"):
+                        config["logger"].info(f"[Orientation] forced for spiral: {locked_orient}")
+                    else:
+                        print(f"[Orientation] forced for spiral: {locked_orient}")
                 turn_vibration_on(cps)
                 use_waypoint2 = True
                 wp2_cfg = Waypoint2Config(
@@ -2948,47 +2713,9 @@ def smalldoor4zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                orientation_tol = DEFAULT_ORIENTATION_TOL
                 locked_orient = list(zigzag_points[0][3:6])
-                actual_pose = _read_act_coord_pose(
-                    cps,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                )
-                if actual_pose and len(actual_pose) >= 6:
-                    locked_orient = list(actual_pose[3:6])
-                    diffs = _orientation_diff(locked_orient, list(zigzag_points[0][3:6]))
-                    msg = (
-                        f"[Orientation] actual vs target diff={diffs} "
-                        f"actual={locked_orient} target={zigzag_points[0][3:6]}"
-                    )
-                    if config.get("logger"):
-                        config["logger"].info(msg)
-                    else:
-                        print(msg)
-                target_pose = [
-                    zigzag_points[0][0],
-                    zigzag_points[0][1],
-                    zigzag_points[0][2],
-                    locked_orient[0],
-                    locked_orient[1],
-                    locked_orient[2],
-                ]
-                aligned = ensure_tool_orientation(
-                    cps,
-                    config,
-                    target_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=float(json_config["sandingSpeed"]) * 0.4,
-                    tol=orientation_tol,
-                )
-                if not aligned:
-                    msg = "[Orientation] initial alignment failed; continuing with locked orientation."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
+                if FORCE_SPIRAL_ORIENT:
+                    locked_orient = list(FORCE_SPIRAL_ORIENT)
 
                 putForceZminus(
                     cps=cps,
@@ -2999,37 +2726,20 @@ def smalldoor4zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if not _orientation_ok(
-                    cps,
-                    locked_orient,
-                    orientation_tol,
-                    config["coords"]["tcptool3plane1"],
-                    config["coords"]["ucsTable1"],
-                ):
-                    msg = "[Orientation] deviation after force; re-aligning and re-applying force."
-                    if config.get("logger"):
-                        config["logger"].warning(msg)
-                    else:
-                        print(msg)
-                    releaseForce(cps=cps, config=config)
-                    ensure_tool_orientation(
+                if FORCE_SPIRAL_ORIENT is None:
+                    locked_orient = _capture_locked_orient(
                         cps,
                         config,
-                        target_pose,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
-                        speed=float(json_config["sandingSpeed"]) * 0.4,
-                        tol=orientation_tol,
+                        fallback_orient=locked_orient,
+                        settle_s=0.05,
                     )
-                    putForceZminus(
-                        cps=cps,
-                        force=force,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        search_linear_velocity=force_seek_linear,
-                        blending_timeout_s=force_blending_timeout,
-                    )
+                else:
+                    if config.get("logger"):
+                        config["logger"].info(f"[Orientation] forced for spiral: {locked_orient}")
+                    else:
+                        print(f"[Orientation] forced for spiral: {locked_orient}")
                 turn_vibration_on(cps)
                 use_waypoint2 = True
                 wp2_cfg = Waypoint2Config(
