@@ -1279,6 +1279,12 @@ def robot_status():
     }
     return jsonify({'status': 'ok', 'flags': flags})
 
+############################################################################################
+# Process status (homing / sanding / scan child process)
+@app.route('/process_status', methods=['GET'])
+def process_status():
+    return jsonify({'status': process_state.get('status', 'completed')})
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:

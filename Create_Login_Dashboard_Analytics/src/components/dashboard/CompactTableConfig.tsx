@@ -108,6 +108,13 @@ export function CompactTableConfig({
       const configuredDoors = doorConfigs.filter(d => d.model && d.model !== '');
       const totalDoors = doorConfigs.length;
       const modelName = formatModelName(model);
+      const hasTableModel = !!model && model.trim() !== '';
+      const hasDoorModel = configuredDoors.length > 0;
+      if (!hasTableModel && !hasDoorModel) {
+        addActivity(`Table ${tableName}: Select a model before starting the task.`, 'warning');
+        setIsOperating(false);
+        return;
+      }
       
       try {
         const selectedDoorsByRow = Object.fromEntries(

@@ -139,6 +139,10 @@ export function RobotControlPanel({
             <h3 className="text-sm font-semibold text-gray-600 mb-2">Stoppers</h3>
             <ToggleButton label="Stopper A" isActive={stopperAUp} onToggle={async () => { 
               try {
+                if (tableAOpen) {
+                  addActivity('Close Table A before activating Stopper A.', 'warning');
+                  return;
+                }
                 await performAction(!stopperAUp ? 'stopperUp' : 'stopperDown');
                 setStopperAUp(!stopperAUp); 
                 addActivity(`Stopper A moved ${!stopperAUp ? 'UP' : 'DOWN'}`, 'success'); 
@@ -148,6 +152,10 @@ export function RobotControlPanel({
             }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={async () => { 
               try {
+                if (tableBOpen) {
+                  addActivity('Close Table B before activating Stopper B.', 'warning');
+                  return;
+                }
                 await performAction(!stopperBUp ? 'stopperUpB' : 'stopperDownB');
                 setStopperBUp(!stopperBUp); 
                 addActivity(`Stopper B moved ${!stopperBUp ? 'UP' : 'DOWN'}`, 'success'); 

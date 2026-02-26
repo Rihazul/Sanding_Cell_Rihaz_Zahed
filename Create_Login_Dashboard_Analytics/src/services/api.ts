@@ -356,6 +356,11 @@ export async function getRobotStatus() {
   return apiCall('/robot_status', 'GET');
 }
 
+// Get process status (used for homing completion)
+export async function getProcessStatus() {
+  return apiCall('/process_status', 'GET');
+}
+
 // Tool attachment status checks (returns shouldBlink boolean)
 export async function checkToolStatus(toolNumber: 1 | 2 | 3) {
   const endpoint =
@@ -380,5 +385,6 @@ export const api = {
   getTableState,
   getStopperState,
   getRobotStatus,
+  getProcessStatus,
   checkToolStatus,
 };

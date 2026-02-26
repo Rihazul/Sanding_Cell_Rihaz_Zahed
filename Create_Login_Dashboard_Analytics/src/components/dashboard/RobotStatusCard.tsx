@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import ActivityLog from './ActivityLog';
-import { performAction } from '../../services/api';
+import { getProcessStatus, performAction } from '../../services/api';
 
 interface RobotStatusCardProps {
   isHoming: boolean;
@@ -45,7 +45,20 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
     
     try {
       await performAction('homing');
-      addActivity('Homing completed successfully', 'success');
+      const start = Date.now();
+      const timeoutMs = 10 * 60 * 1000;
+      const pollIntervalMs = 1000;
+      while (true) {
+        const status = await getProcessStatus();
+        if (status?.status === 'completed') {
+          addActivity('Homing completed successfully', 'success');
+          break;
+        }
+        if (Date.now() - start > timeoutMs) {
+          throw new Error('Homing timed out');
+        }
+        await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+      }
     } catch (error) {
       addActivity(`Homing failed - ${error}`, 'error');
     } finally {
