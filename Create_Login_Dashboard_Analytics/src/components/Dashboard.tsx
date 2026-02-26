@@ -17,6 +17,10 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: DashboardProps) {
+  const TOOL_PENDING_MIN_PICK_MS = 2500;
+  const TOOL_PENDING_MIN_DROP_MS = 6000;
+  type ToolPending = { state: 'picking' | 'dropping'; since: number };
+
   const [robotEnabled, setRobotEnabled] = useState(false);
   const [robotSpeed, setRobotSpeed] = useState([100]);
   const [inverseOverlapping, setInverseOverlapping] = useState([50]);
@@ -33,10 +37,16 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [stopperBUp, setStopperBUp] = useState(false);
   const [tableAOpen, setTableAOpen] = useState(false);
   const [tableBOpen, setTableBOpen] = useState(false);
+  const [tableAPending, setTableAPending] = useState<'opening' | 'closing' | null>(null);
+  const [tableBPending, setTableBPending] = useState<'opening' | 'closing' | null>(null);
   const [t1Picked, setT1Picked] = useState(false);
   const [t2Picked, setT2Picked] = useState(false);
   const [t3Picked, setT3Picked] = useState(false);
   const [t4Picked, setT4Picked] = useState(false);
+  const [t1Pending, setT1Pending] = useState<ToolPending | null>(null);
+  const [t2Pending, setT2Pending] = useState<ToolPending | null>(null);
+  const [t3Pending, setT3Pending] = useState<ToolPending | null>(null);
+  const [t4Pending, setT4Pending] = useState<ToolPending | null>(null);
 
   // Initialize basic settings from backend (if available)
   useEffect(() => {
@@ -99,6 +109,12 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         const state = tableAResult.value?.state;
         if (state === 'Open' || state === 'Close') {
           setTableAOpen(state === 'Open');
+          if (state === 'Open') {
+            setTableAPending(prev => (prev === 'opening' ? null : prev));
+          }
+          if (state === 'Close') {
+            setTableAPending(prev => (prev === 'closing' ? null : prev));
+          }
         }
       }
 
@@ -106,6 +122,12 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         const state = tableBResult.value?.state;
         if (state === 'Open' || state === 'Close') {
           setTableBOpen(state === 'Open');
+          if (state === 'Open') {
+            setTableBPending(prev => (prev === 'opening' ? null : prev));
+          }
+          if (state === 'Close') {
+            setTableBPending(prev => (prev === 'closing' ? null : prev));
+          }
         }
       }
 
@@ -124,13 +146,37 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
       }
 
       if (tool1Result.status === 'fulfilled') {
-        setT1Picked(!!tool1Result.value?.shouldBlink);
+        const picked = !!tool1Result.value?.shouldBlink;
+        setT1Picked(picked);
+        setT1Pending(prev => {
+          if (!prev) return prev;
+          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+          if (done && Date.now() - prev.since >= minMs) return null;
+          return prev;
+        });
       }
       if (tool2Result.status === 'fulfilled') {
-        setT2Picked(!!tool2Result.value?.shouldBlink);
+        const picked = !!tool2Result.value?.shouldBlink;
+        setT2Picked(picked);
+        setT2Pending(prev => {
+          if (!prev) return prev;
+          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+          if (done && Date.now() - prev.since >= minMs) return null;
+          return prev;
+        });
       }
       if (tool3Result.status === 'fulfilled') {
-        setT3Picked(!!tool3Result.value?.shouldBlink);
+        const picked = !!tool3Result.value?.shouldBlink;
+        setT3Picked(picked);
+        setT3Pending(prev => {
+          if (!prev) return prev;
+          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+          if (done && Date.now() - prev.since >= minMs) return null;
+          return prev;
+        });
       }
     };
 
@@ -220,9 +266,11 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 stopperBUp={stopperBUp}
                 setStopperBUp={setStopperBUp}
                 tableAOpen={tableAOpen}
-                setTableAOpen={setTableAOpen}
                 tableBOpen={tableBOpen}
-                setTableBOpen={setTableBOpen}
+                tableAPending={tableAPending}
+                setTableAPending={setTableAPending}
+                tableBPending={tableBPending}
+                setTableBPending={setTableBPending}
                 t1Picked={t1Picked}
                 setT1Picked={setT1Picked}
                 t2Picked={t2Picked}
@@ -231,6 +279,14 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 setT3Picked={setT3Picked}
                 t4Picked={t4Picked}
                 setT4Picked={setT4Picked}
+                t1Pending={t1Pending}
+                setT1Pending={setT1Pending}
+                t2Pending={t2Pending}
+                setT2Pending={setT2Pending}
+                t3Pending={t3Pending}
+                setT3Pending={setT3Pending}
+                t4Pending={t4Pending}
+                setT4Pending={setT4Pending}
                 laserOn={laserOn}
                 setLaserOn={setLaserOn}
                 isOperating={isOperating}

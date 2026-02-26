@@ -7,6 +7,8 @@ interface ToggleButtonProps {
   onToggle: () => void;
   activeLabel: string;
   inactiveLabel: string;
+  isPending?: boolean;
+  pendingLabel?: string;
   disabled?: boolean;
   showCheckmarkPosition?: 'left' | 'right';
 }
@@ -17,12 +19,14 @@ export function ToggleButton({
   onToggle,
   activeLabel,
   inactiveLabel,
+  isPending = false,
+  pendingLabel,
   disabled = false,
   showCheckmarkPosition = 'left',
 }: ToggleButtonProps) {
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (!disabled) {
+    if (!disabled && !isPending) {
       onToggle();
     }
   };
@@ -30,11 +34,14 @@ export function ToggleButton({
   return (
     <motion.button
       type="button"
-      whileTap={disabled ? {} : { scale: 0.95 }}
+      whileTap={disabled || isPending ? {} : { scale: 0.95 }}
       onClick={handleClick}
       disabled={disabled}
+      aria-busy={isPending}
       className={`w-full relative px-6 py-4 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg overflow-hidden ${
-        disabled
+        isPending
+          ? 'toggle-pending'
+          : disabled
           ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-500 cursor-not-allowed opacity-50'
           : isActive
           ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
@@ -45,14 +52,14 @@ export function ToggleButton({
         <span className="font-medium">{label}</span>
         <div
           className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
-            isActive ? 'bg-white/20' : 'bg-gray-300'
+            isPending ? 'toggle-pending-badge' : isActive ? 'bg-white/20' : 'bg-gray-300'
           }`}
         >
           {showCheckmarkPosition === 'left' && (
             <span className="font-bold text-lg leading-none">{isActive ? '✓' : '✗'}</span>
           )}
           <span className="text-xs min-w-[80px] inline-block text-center">
-            {isActive ? activeLabel : inactiveLabel}
+            {isPending ? (pendingLabel || activeLabel) : isActive ? activeLabel : inactiveLabel}
           </span>
           {showCheckmarkPosition === 'right' && (
             <span className="font-bold text-lg leading-none">{isActive ? '✓' : '✗'}</span>

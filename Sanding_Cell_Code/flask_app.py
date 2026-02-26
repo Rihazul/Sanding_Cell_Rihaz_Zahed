@@ -1347,6 +1347,42 @@ def handle_action():
             CPS.HRIF_SetBoxDO(0, 5, 1)
         socketio.emit('flash_message', {"message": f"Dropping the Tool In Hand"})
         return jsonify({'status': 'success', 'message': 'Action tool received and executed'})
+    
+    elif action == "laserOn":
+        with locked_cps() as ok:
+            if ok:
+                laser(CPS, "on", config=config)
+                socketio.emit('flash_message', {"message": "Laser turned ON"})
+                return jsonify({'status': 'success', 'message': 'Laser ON executed'})
+        # Fallback: try a temporary CPS connection if the shared lock is busy
+        cps_tmp = CPSClient()
+        ret = cps_tmp.HRIF_Connect(0, config["server"]["cpip"], config["server"]["cps"])
+        if ret != 0:
+            return jsonify({"error": f"Failed to connect to CPS client (ret={ret})"}), 500
+        try:
+            laser(cps_tmp, "on", config=config)
+        finally:
+            cps_tmp.HRIF_DisConnect(0)
+        socketio.emit('flash_message', {"message": "Laser turned ON"})
+        return jsonify({'status': 'success', 'message': 'Laser ON executed'})
+
+    elif action == "laserOff":
+        with locked_cps() as ok:
+            if ok:
+                laser(CPS, "off", config=config)
+                socketio.emit('flash_message', {"message": "Laser turned OFF"})
+                return jsonify({'status': 'success', 'message': 'Laser OFF executed'})
+        # Fallback: try a temporary CPS connection if the shared lock is busy
+        cps_tmp = CPSClient()
+        ret = cps_tmp.HRIF_Connect(0, config["server"]["cpip"], config["server"]["cps"])
+        if ret != 0:
+            return jsonify({"error": f"Failed to connect to CPS client (ret={ret})"}), 500
+        try:
+            laser(cps_tmp, "off", config=config)
+        finally:
+            cps_tmp.HRIF_DisConnect(0)
+        socketio.emit('flash_message', {"message": "Laser turned OFF"})
+        return jsonify({'status': 'success', 'message': 'Laser OFF executed'})
 
     elif action == "stop":
         request_stop()

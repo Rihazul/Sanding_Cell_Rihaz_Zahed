@@ -19,7 +19,19 @@ async function apiCall(endpoint: string, method: 'GET' | 'POST', payload?: any) 
     const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
 
     if (!response.ok) {
-      throw new Error(`API call failed: ${response.statusText}`);
+      let details = '';
+      try {
+        const data = await response.json();
+        details = data?.message || data?.error || JSON.stringify(data);
+      } catch {
+        try {
+          details = await response.text();
+        } catch {
+          details = '';
+        }
+      }
+      const suffix = details ? ` - ${details}` : '';
+      throw new Error(`API call failed: ${response.status} ${response.statusText}${suffix}`);
     }
 
     return await response.json();
@@ -320,7 +332,7 @@ export async function toolToggle(toolNumber: 1 | 2 | 3 | 4, action: 'pick' | 'ke
 }
 
 // Action operations
-export async function performAction(action: 'stopperUp' | 'stopperDown' | 'stopperUpB' | 'stopperDownB' | 'homing' | 'enable' | 'disable' | 'scan' | 'stop' | 'toolLift' | 'toolDrop') {
+export async function performAction(action: 'stopperUp' | 'stopperDown' | 'stopperUpB' | 'stopperDownB' | 'homing' | 'enable' | 'disable' | 'scan' | 'stop' | 'toolLift' | 'toolDrop' | 'laserOn' | 'laserOff') {
   return apiCall('/action', 'POST', { action });
 }
 

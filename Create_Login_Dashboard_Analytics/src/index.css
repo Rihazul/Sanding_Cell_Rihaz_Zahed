@@ -2158,3 +2158,15 @@ html {
   syntax: "*";
   inherits: false
 }
+
+/* ToggleButton pending state (Table open/close transition) */
+.toggle-pending {
+  background: linear-gradient(90deg, #fef9c3 0%, #fde68a 50%, #fef3c7 100%);
+  color: #1f2937;
+  box-shadow: 0 0 0 2px rgba(253, 230, 138, 0.9);
+}
+
+.toggle-pending-badge {
+  background: rgba(17, 24, 39, 0.12);
+  color: #111827;
+}
