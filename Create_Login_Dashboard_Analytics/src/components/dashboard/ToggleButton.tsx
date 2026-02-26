@@ -42,7 +42,7 @@ export function ToggleButton({
         isPending
           ? 'toggle-pending'
           : disabled
-          ? 'bg-gradient-to-r from-gray-300 to-gray-400 text-gray-500 cursor-not-allowed opacity-50'
+          ? 'bg-gradient-to-r from-slate-400 to-slate-500 text-white cursor-not-allowed'
           : isActive
           ? 'bg-gradient-to-r from-emerald-500 to-green-500 text-white'
           : 'bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700'

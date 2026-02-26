@@ -66,6 +66,7 @@ export function CompactTableConfig({
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
   // Temporarily bypass scan requirement so tasks can run without it
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(true);
+  const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
     Frame: [],
     'Pocket ZigZag': [],
@@ -90,12 +91,20 @@ export function CompactTableConfig({
   
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
+    if (isOperating || isScanning) return;
     setIsOperating(true);
-    // addActivity(`Table ${tableName}: Scan bypassed (temporary)`, 'info');
-    addActivity(`Table ${tableName}: Scan Started.`, 'info');
-    performAction('scan')
-    setScanCompleted(true);
-    setIsOperating(false);
+    setIsScanning(true);
+    addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
+    try {
+      await performAction('scan');
+      setScanCompleted(true);
+      addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
+    } catch (error) {
+      addActivity(`Table ${tableName}: Scan failed - ${error}`, 'error');
+    } finally {
+      setIsScanning(false);
+      setIsOperating(false);
+    }
   };
   
   const handleStartTask = async () => {
@@ -739,15 +748,15 @@ export function CompactTableConfig({
                 <>
                   <Button 
                     onClick={handleStartScan} 
-                    disabled={isOperating}
-                    className="bg-green-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+                    disabled={isOperating || isScanning}
+                    className={`scan-button ${isScanning ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-purple-600'} text-white disabled:bg-green-600 disabled:text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed`}
                   >
-                    {isOperating ? 'Scanning...' : 'Scan'}
+                    {isScanning ? 'Scanning...' : 'Scan'}
                   </Button>
                   <Button 
                     onClick={handleStartTask} 
                     disabled={isOperating}
-                    className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                   >
                     {isOperating ? 'Operating...' : 'Start Task'}
                   </Button>
@@ -756,7 +765,7 @@ export function CompactTableConfig({
                 <Button 
                   onClick={handleUpload3DFile} 
                   disabled={isOperating}
-                  className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                 >
                   {isOperating ? 'Operating...' : 'Upload 3D File'}
                 </Button>

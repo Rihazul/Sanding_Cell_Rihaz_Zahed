@@ -101,7 +101,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
             whileTap={isOperating ? {} : { scale: 0.95 }}
             onClick={isOperating ? undefined : (e) => { e.preventDefault(); handleHoming(robotEnabled); }}
             disabled={isOperating}
-            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${isOperating ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${isOperating ? 'brightness-95 cursor-not-allowed' : ''}`}
           >
             {isHoming ? 'Homing...' : 'Homing'}
           </motion.button>

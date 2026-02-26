@@ -2170,3 +2170,11 @@ html {
   background: rgba(17, 24, 39, 0.12);
   color: #111827;
 }
+
+/* Force Scan button color even when disabled */
+.scan-button:disabled {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
