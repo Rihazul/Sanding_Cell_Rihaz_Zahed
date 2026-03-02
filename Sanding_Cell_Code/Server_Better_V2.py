@@ -171,6 +171,9 @@ def _verify_tool_attached(cps, tool_number, config):
     if tool_number not in (1, 2, 3):
         return True
 
+    if tool_number == 3:
+        return True
+
     timeout_s = None
     poll_s = None
     try:
