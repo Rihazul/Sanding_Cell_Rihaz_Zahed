@@ -161,7 +161,7 @@ def _get_tool_in_hand(cps):
         return 2
 
     # Tool 3 attached.
-    if ci0 == 1 and ci1 == 0 and ci2 == 0 and di4 == 1:
+    if ci0 == 1 and ci1 == 0 and ci2 == 0 and di4 == 0:
         return 3
 
     return -1

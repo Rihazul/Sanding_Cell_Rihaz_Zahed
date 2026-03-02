@@ -769,7 +769,7 @@ def tool_toggle():
                 (cps.HRIF_ReadBoxCI, 0, 0, 1),
                 (cps.HRIF_ReadBoxCI, 0, 1, 0),
                 (cps.HRIF_ReadBoxCI, 0, 2, 0),
-                (cps.HRIF_ReadBoxDI, 0, 4, 1)
+                (cps.HRIF_ReadBoxDI, 0, 4, 0)
             ]
             if check_conditions(drop_conditions):
                 # Keep the tool
