@@ -146,6 +146,16 @@ tool:
   tool3height: 180 # actual is 160.274 # always subtract 120mm
   tool4height: 180 # actual is 160.274 # always subtract 120mm
 
+  # Tool change motion speeds
+  manualPickFastSpeed: 0.9
+  manualPickSlowSpeed: 0.3
+  manualDropFastSpeed: 0.9
+  manualDropSlowSpeed: 0.3
+  autoPickFastSpeed: 0.9
+  autoPickSlowSpeed: 0.3
+  autoDropFastSpeed: 0.9
+  autoDropSlowSpeed: 0.3
+
   sideToolPos: 2
   frameToolPos: 3
   3dToolPos: 4

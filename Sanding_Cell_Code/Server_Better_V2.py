@@ -114,6 +114,79 @@ def stop_requested() -> bool:
     return STOP_REQUESTED
 
 
+def _read_box_bit(cps, reader, bit_index):
+    result = []
+    nRet = reader(0, bit_index, result)
+    if nRet != 0 or not result:
+        return None
+    try:
+        return int(result[0])
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_tool_in_hand(cps):
+    ci0 = _read_box_bit(cps, cps.HRIF_ReadBoxCI, 0)
+    ci1 = _read_box_bit(cps, cps.HRIF_ReadBoxCI, 1)
+    ci2 = _read_box_bit(cps, cps.HRIF_ReadBoxCI, 2)
+    di4 = _read_box_bit(cps, cps.HRIF_ReadBoxDI, 4)
+    di5 = _read_box_bit(cps, cps.HRIF_ReadBoxDI, 5)
+    di7 = _read_box_bit(cps, cps.HRIF_ReadBoxDI, 7)
+
+    if any(val is None for val in (ci0, ci1, ci2, di4, di5, di7)):
+        return None
+
+    # No tool in hand (matches pick pre-conditions used in Flask).
+    if ci0 == 0 and ci1 == 0 and ci2 == 0 and di7 == 1:
+        return 0
+
+    # Tool 1 attached.
+    if ci0 == 0 and ci1 == 1 and ci2 == 1 and di7 == 0:
+        return 1
+
+    # Tool 2 attached.
+    if ci0 == 0 and ci1 == 1 and ci2 == 0 and di5 == 0:
+        return 2
+
+    # Tool 3 attached.
+    if ci0 == 1 and ci1 == 0 and ci2 == 0 and di4 == 0:
+        return 3
+
+    return -1
+
+
+def _verify_tool_attached(cps, tool_number, config):
+    if tool_number not in (1, 2, 3):
+        return True
+
+    detected = _get_tool_in_hand(cps)
+    if detected is None:
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Failed to read tool sensor inputs (CI/DI).",
+        )
+        return False
+
+    if detected != tool_number:
+        detected_label = "none" if detected == 0 else f"tool {detected}"
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message=(
+                f"Tool {tool_number} not detected after pick (detected {detected_label}). "
+                "Check the tool station or sensors."
+            ),
+        )
+        return False
+
+    return True
+
+
+def _tool_speed(config, key, default):
+    try:
+        return float(config.get("tool", {}).get(key, default))
+    except (TypeError, ValueError):
+        return default
+
 
 
 def setup_logger(
@@ -2366,13 +2439,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             startFromSafe (bool, optional): If should go to the safe tool picking position or not. Make False if doing tool drop and pick one after another. Defaults to True.
         """
         if not config["settings"]["useTool"]:
-            return
+            return False
+        pick_fast = _tool_speed(
+            config, "autoPickFastSpeed", config["UI"].get("robotSpeed", 0.7)
+        )
+        pick_slow = _tool_speed(config, "autoPickSlowSpeed", 0.15)
+        current_tool = _get_tool_in_hand(cps)
+        if current_tool and current_tool > 0:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message=f"Tool {current_tool} already in hand. Drop it before picking Tool {toolNumber}.",
+            )
+            return False
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Tool collection stopped by user.",
             )
-            return
+            return False
         # Ensure prior blended motion is fully settled before speed/approach changes.
         waitForBlending(cps=cps, config=config)
         msg_to_frontend(
@@ -2388,7 +2472,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 ucs=config["coords"]["ucsDefault"],
                 seventh=-1,
                 config=config,
-                speed=config["UI"]["robotSpeed"],
+                speed=pick_fast,
                 wait=True,
             )
             if stop_requested():
@@ -2396,7 +2480,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message="Tool collection stopped by user.",
                 )
-                return
+                return False
 
         # go to that tool's home position (right above the tool)
         communicate(
@@ -2406,7 +2490,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=config["UI"]["robotSpeed"],
+            speed=pick_fast,
             wait=True,
         )
         if stop_requested():
@@ -2414,7 +2498,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Tool collection stopped by user.",
             )
-            return
+            return False
         # drop (for safety, to open the valve)
         toolValve(cps, valveState="drop", config=config)
         if stop_requested():
@@ -2422,7 +2506,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Tool collection stopped by user.",
             )
-            return
+            return False
         # touch the tool (slowly)
         communicate(
             cps=cps,
@@ -2431,7 +2515,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=0.15,
+            speed=pick_slow,
             wait=True,
         )
         if stop_requested():
@@ -2439,15 +2523,17 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Tool collection stopped by user.",
             )
-            return
+            return False
         # pick the tool
         toolValve(cps, valveState="pick", config=config)
+        if not _verify_tool_attached(cps, toolNumber, config):
+            return False
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Tool collection stopped by user.",
             )
-            return
+            return False
         # come back to tool's home position
         communicate(
             cps=cps,
@@ -2456,7 +2542,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=0.15,
+            speed=pick_slow,
             wait=True,
         )
         if stop_requested():
@@ -2464,7 +2550,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Tool collection stopped by user.",
             )
-            return
+            return False
         # come back to safe tool picking position
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -2477,13 +2563,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=config["UI"]["robotSpeed"],
+            speed=pick_fast,
             wait=True,
         )
+        return True
 
     def keepTool(cps, toolNumber, config, goToSafe=True):
         if not config["settings"]["useTool"]:
             return
+        drop_fast = _tool_speed(
+            config, "autoDropFastSpeed", config["UI"].get("robotSpeed", 0.7)
+        )
+        drop_slow = _tool_speed(config, "autoDropSlowSpeed", 0.15)
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -2504,7 +2595,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=config["UI"]["robotSpeed"],
+            speed=drop_fast,
             wait=True,
         )
         if stop_requested():
@@ -2521,7 +2612,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=config["UI"]["robotSpeed"],
+            speed=drop_fast,
             wait=True,
         )
         if stop_requested():
@@ -2538,7 +2629,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=0.15,
+            speed=drop_slow,
             wait=True,
         )
         if stop_requested():
@@ -2563,7 +2654,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=0.15,
+            speed=drop_slow,
             wait=True,
         )
         if stop_requested():
@@ -2585,7 +2676,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 ucs=config["coords"]["ucsDefault"],
                 seventh=-1,
                 config=config,
-                speed=config["UI"]["robotSpeed"],
+                speed=drop_fast,
                 wait=True,
             )
 
@@ -4807,7 +4898,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
         if doSideCycle or doOutEdgeCycle:
             # toolsPicked[config['tool']['sideToolPos']] = True
-            getTool(cps, toolNumber=config["tool"]["sideToolPos"], config=config)
+            if not getTool(cps, toolNumber=config["tool"]["sideToolPos"], config=config):
+                return
 
         if doSideCycle:
             enum7thPos = list(reversed(enum7thPos))
@@ -4921,12 +5013,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         #########################################################
         ########### Tool Pick # 2: Pick the flat tool ###########
         if doFrameCycle or doInEdgeCycle or doPocketSqCycle or doPocketZigCycle:
-            getTool(
+            if not getTool(
                 cps,
                 toolNumber=config["tool"]["frameToolPos"],
                 config=config,
                 startFromSafe=not (doSideCycle or doOutEdgeCycle),
-            )
+            ):
+                return
 
         if doFrameCycle:
             enum7thPos = list(reversed(enum7thPos))
@@ -5139,7 +5232,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         #########################################################
         ########### Tool Pick # 3: Pick the 3D tool ###########
         if do3DCycle:
-            getTool(
+            if not getTool(
                 cps,
                 toolNumber=config["tool"]["3dToolPos"],
                 config=config,
@@ -5152,7 +5245,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     or doSideCycle
                     or doOutEdgeCycle
                 ),
-            )
+            ):
+                return
 
         if do3DCycle:
             enum7thPos = list(reversed(enum7thPos))
@@ -5725,7 +5819,16 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         startFromSafe (bool, optional): If should go to the safe tool picking position or not. Make False if doing tool drop and pick one after another. Defaults to True.
     """
     if not config["settings"]["useTool"]:
-        return
+        return False
+    pick_fast = _tool_speed(config, "manualPickFastSpeed", 0.9)
+    pick_slow = _tool_speed(config, "manualPickSlowSpeed", 0.1)
+    current_tool = _get_tool_in_hand(cps)
+    if current_tool and current_tool > 0:
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message=f"Tool {current_tool} already in hand. Drop it before picking Tool {toolNumber}.",
+        )
+        return False
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Collection Started...",
@@ -5739,7 +5842,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=0.9,
+            speed=pick_fast,
             wait=True,
         )
 
@@ -5751,7 +5854,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.9,
+        speed=pick_fast,
         wait=True,
     )
     # drop (for safety, to open the valve)
@@ -5764,11 +5867,13 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.1,
+        speed=pick_slow,
         wait=True,
     )
     # pick the tool
     toolValve1(cps, valveState="pick", config=config)
+    if not _verify_tool_attached(cps, toolNumber, config):
+        return False
     # come back to tool's home position
     communicate(
         cps=cps,
@@ -5777,7 +5882,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.1,
+        speed=pick_slow,
         wait=True,
     )
     # come back to safe tool picking position
@@ -5792,14 +5897,17 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.9,
+        speed=pick_fast,
         wait=True,
     )
+    return True
 
 
 def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe dibe
     if not config["settings"]["useTool"]:
         return
+    drop_fast = _tool_speed(config, "manualDropFastSpeed", 0.9)
+    drop_slow = _tool_speed(config, "manualDropSlowSpeed", 0.1)
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Keeping Started...",
@@ -5812,7 +5920,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.9,
+        speed=drop_fast,
         wait=True,
     )
     # go to tool's home
@@ -5823,7 +5931,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.9,
+        speed=drop_fast,
         wait=True,
     )
     # touch the tool (slowly)
@@ -5834,7 +5942,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.1,
+        speed=drop_slow,
         wait=True,
     )
     # drop the tool
@@ -5847,7 +5955,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=0.1,
+        speed=drop_slow,
         wait=True,
     )
     # if don't need to pick another tool just after dropping this one, then come to safe picking position
@@ -5863,7 +5971,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=0.9,
+            speed=drop_fast,
             wait=True,
         )
 

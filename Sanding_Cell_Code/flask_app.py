@@ -748,7 +748,9 @@ def tool_toggle():
             ]
             if check_conditions(pick_conditions):
                 # Pick the tool
-                getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                if not success:
+                    return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
@@ -837,7 +839,9 @@ def tool_toggle2():
             ]
             if check_conditions(pick_conditions):
                 # Pick the tool
-                getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                if not success:
+                    return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
@@ -926,7 +930,9 @@ def tool_toggle1():
             ]
             if check_conditions(pick_conditions):
                 # Pick the tool
-                getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                if not success:
+                    return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
