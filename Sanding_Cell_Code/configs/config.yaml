@@ -155,6 +155,7 @@ tool:
   autoPickSlowSpeed: 0.3
   autoDropFastSpeed: 0.9
   autoDropSlowSpeed: 0.3
+  sensorSettleSeconds: 0.4
 
   sideToolPos: 2
   frameToolPos: 3

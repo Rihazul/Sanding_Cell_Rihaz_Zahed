@@ -125,13 +125,25 @@ def _read_box_bit(cps, reader, bit_index):
         return None
 
 
+def _read_tool_sensors(cps):
+    return {
+        "ci0": _read_box_bit(cps, cps.HRIF_ReadBoxCI, 0),
+        "ci1": _read_box_bit(cps, cps.HRIF_ReadBoxCI, 1),
+        "ci2": _read_box_bit(cps, cps.HRIF_ReadBoxCI, 2),
+        "di4": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 4),
+        "di5": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 5),
+        "di7": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 7),
+    }
+
+
 def _get_tool_in_hand(cps):
-    ci0 = _read_box_bit(cps, cps.HRIF_ReadBoxCI, 0)
-    ci1 = _read_box_bit(cps, cps.HRIF_ReadBoxCI, 1)
-    ci2 = _read_box_bit(cps, cps.HRIF_ReadBoxCI, 2)
-    di4 = _read_box_bit(cps, cps.HRIF_ReadBoxDI, 4)
-    di5 = _read_box_bit(cps, cps.HRIF_ReadBoxDI, 5)
-    di7 = _read_box_bit(cps, cps.HRIF_ReadBoxDI, 7)
+    sensors = _read_tool_sensors(cps)
+    ci0 = sensors["ci0"]
+    ci1 = sensors["ci1"]
+    ci2 = sensors["ci2"]
+    di4 = sensors["di4"]
+    di5 = sensors["di5"]
+    di7 = sensors["di7"]
 
     if any(val is None for val in (ci0, ci1, ci2, di4, di5, di7)):
         return None
@@ -159,6 +171,14 @@ def _verify_tool_attached(cps, tool_number, config):
     if tool_number not in (1, 2, 3):
         return True
 
+    settle_s = 0.0
+    try:
+        settle_s = float(config.get("tool", {}).get("sensorSettleSeconds", 0.4))
+    except (TypeError, ValueError):
+        settle_s = 0.4
+    if settle_s > 0:
+        time.sleep(settle_s)
+
     detected = _get_tool_in_hand(cps)
     if detected is None:
         msg_to_frontend(
@@ -168,12 +188,17 @@ def _verify_tool_attached(cps, tool_number, config):
         return False
 
     if detected != tool_number:
+        sensors = _read_tool_sensors(cps)
+        sensor_msg = (
+            f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
+            f"DI4={sensors['di4']} DI5={sensors['di5']} DI7={sensors['di7']}"
+        )
         detected_label = "none" if detected == 0 else f"tool {detected}"
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=(
                 f"Tool {tool_number} not detected after pick (detected {detected_label}). "
-                "Check the tool station or sensors."
+                f"{sensor_msg}. Check the tool station or sensors."
             ),
         )
         return False
