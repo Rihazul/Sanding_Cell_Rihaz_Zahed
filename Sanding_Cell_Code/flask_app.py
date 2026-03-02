@@ -262,6 +262,8 @@ def locked_cps(timeout=1.0, allow_when_busy=False):
 # Store modal data and process state globally
 modal_data_store = {}
 process_state = {'status': 'completed'}  # Can be 'in_progress' or 'completed'
+tool_override_state = {1: False, 2: False, 3: False}
+
 
 
 def _track_process(proc: Process) -> None:
@@ -752,6 +754,8 @@ def tool_toggle():
                 if not success:
                     return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
+                if tool_num == 3:
+                    tool_override_state[3] = True
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             else:
@@ -761,6 +765,14 @@ def tool_toggle():
 
     elif action == "keep":
         with locked_cps() as ok:
+            if tool_num == 3 and tool_override_state.get(3):
+                if not ok:
+                    return jsonify({"error": "Failed to connect to CPS client"}), 500
+                cps = CPS
+                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                tool_override_state[3] = False
+                socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
+                return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
@@ -775,6 +787,8 @@ def tool_toggle():
                 # Keep the tool
                 keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
+                if tool_num == 3:
+                    tool_override_state[3] = False
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
             else:
@@ -1063,6 +1077,9 @@ def check_tool2_status():
 
 ############################################################################################
 def check_tool3_attachment_condition(cps):
+    if tool_override_state.get(3):
+        socketio.emit('blink_circle_button3', {'shouldBlink': True})
+        return True
     """
     Checks if these conditions are met for Tool 3 attachment:
         (cps.HRIF_ReadBoxCI, 0, 0, 1)
