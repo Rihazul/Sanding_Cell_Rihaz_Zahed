@@ -171,15 +171,48 @@ def _verify_tool_attached(cps, tool_number, config):
     if tool_number not in (1, 2, 3):
         return True
 
-    settle_s = 0.0
+    timeout_s = None
+    poll_s = None
     try:
-        settle_s = float(config.get("tool", {}).get("sensorSettleSeconds", 0.4))
+        timeout_s = float(config.get("tool", {}).get("signalWaitTimeoutSeconds"))
     except (TypeError, ValueError):
-        settle_s = 0.4
-    if settle_s > 0:
-        time.sleep(settle_s)
+        timeout_s = None
+    try:
+        poll_s = float(config.get("tool", {}).get("signalPollIntervalSeconds"))
+    except (TypeError, ValueError):
+        poll_s = None
 
-    detected = _get_tool_in_hand(cps)
+    # Backward-compatible fallback to retry settings.
+    if timeout_s is None or poll_s is None:
+        attempts = 3
+        delay_s = 0.2
+        try:
+            attempts = int(config.get("tool", {}).get("sensorRetryAttempts", attempts))
+        except (TypeError, ValueError):
+            attempts = 3
+        try:
+            delay_s = float(config.get("tool", {}).get("sensorRetryDelay", delay_s))
+        except (TypeError, ValueError):
+            delay_s = 0.2
+        poll_s = delay_s
+        timeout_s = max(0.0, (attempts - 1) * delay_s)
+
+    if poll_s is None or poll_s <= 0:
+        poll_s = 0.05
+
+    start = time.monotonic()
+    detected = None
+    while True:
+        detected = _get_tool_in_hand(cps)
+        if detected == tool_number:
+            return True
+        if timeout_s is not None and timeout_s >= 0:
+            if time.monotonic() - start >= timeout_s:
+                break
+        else:
+            break
+        time.sleep(poll_s)
+
     if detected is None:
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -187,23 +220,20 @@ def _verify_tool_attached(cps, tool_number, config):
         )
         return False
 
-    if detected != tool_number:
-        sensors = _read_tool_sensors(cps)
-        sensor_msg = (
-            f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
-            f"DI4={sensors['di4']} DI5={sensors['di5']} DI7={sensors['di7']}"
-        )
-        detected_label = "none" if detected == 0 else f"tool {detected}"
-        msg_to_frontend(
-            api_url=config["server"]["frontEnd_messaging_url"],
-            message=(
-                f"Tool {tool_number} not detected after pick (detected {detected_label}). "
-                f"{sensor_msg}. Check the tool station or sensors."
-            ),
-        )
-        return False
-
-    return True
+    sensors = _read_tool_sensors(cps)
+    sensor_msg = (
+        f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
+        f"DI4={sensors['di4']} DI5={sensors['di5']} DI7={sensors['di7']}"
+    )
+    detected_label = "none" if detected == 0 else f"tool {detected}"
+    msg_to_frontend(
+        api_url=config["server"]["frontEnd_messaging_url"],
+        message=(
+            f"Tool {tool_number} not detected after pick (detected {detected_label}). "
+            f"{sensor_msg}. Check the tool station or sensors."
+        ),
+    )
+    return False
 
 
 def _tool_speed(config, key, default):

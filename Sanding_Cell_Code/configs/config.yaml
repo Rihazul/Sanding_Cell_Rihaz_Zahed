@@ -156,6 +156,10 @@ tool:
   autoDropFastSpeed: 0.9
   autoDropSlowSpeed: 0.3
   sensorSettleSeconds: 0.4
+  signalWaitTimeoutSeconds: 2.0
+  signalPollIntervalSeconds: 0.1
+  sensorRetryAttempts: 3
+  sensorRetryDelay: 0.2
 
   sideToolPos: 2
   frameToolPos: 3
