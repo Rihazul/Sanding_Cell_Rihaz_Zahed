@@ -67,6 +67,8 @@ export function CompactTableConfig({
   // Temporarily bypass scan requirement so tasks can run without it
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(true);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
+  const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
+  const completionTimerRef = React.useRef<number | null>(null);
   const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
     Frame: [],
     'Pocket ZigZag': [],
@@ -88,6 +90,25 @@ export function CompactTableConfig({
   React.useEffect(() => {
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
   }, [addActivity, tableName]);
+
+  React.useEffect(() => {
+    return () => {
+      if (completionTimerRef.current !== null) {
+        window.clearTimeout(completionTimerRef.current);
+      }
+    };
+  }, []);
+
+  const showCompletionPopup = (title: string, subtitle?: string) => {
+    if (tableName !== 'A') return;
+    setCompletionPopup({ title, subtitle });
+    if (completionTimerRef.current !== null) {
+      window.clearTimeout(completionTimerRef.current);
+    }
+    completionTimerRef.current = window.setTimeout(() => {
+      setCompletionPopup(null);
+    }, 1000);
+  };
   
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
@@ -99,6 +120,7 @@ export function CompactTableConfig({
       await performAction('scan');
       setScanCompleted(true);
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
+      showCompletionPopup('Scan Completed', 'Table A scan completed');
     } catch (error) {
       addActivity(`Table ${tableName}: Scan failed - ${error}`, 'error');
     } finally {
@@ -223,6 +245,7 @@ export function CompactTableConfig({
         
         if (result.success) {
           addActivity(`Table ${tableName}: Task completed successfully`, 'success');
+          showCompletionPopup('Task Completed', 'Table A task completed');
         } else {
           addActivity(`Table ${tableName}: Task completed with status: ${result.status || 'unknown'}`, 'warning');
         }
@@ -446,7 +469,24 @@ export function CompactTableConfig({
   };
 
   return (
-    <Card className="shadow-xl border border-slate-300 bg-white/95 backdrop-blur-sm">
+    <>
+      {completionPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="absolute inset-0 bg-[#e7f1d5]/80" />
+          <div className="relative bg-white/95 border border-green-200 shadow-[0_30px_80px_rgba(0,0,0,0.18)] rounded-3xl px-10 py-8 text-center min-w-[320px] max-w-[420px]">
+            <div className="absolute left-8 top-6 h-1.5 w-12 rounded-full bg-green-200" />
+            <div className="absolute right-8 top-10 h-1.5 w-16 rounded-full bg-green-100" />
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border-[6px] border-green-500 text-green-600 text-3xl shadow-[0_6px_20px_rgba(34,197,94,0.25)]">
+              ✓
+            </div>
+            <div className="text-xl font-semibold text-gray-900">{completionPopup.title}</div>
+            {completionPopup.subtitle && (
+              <div className="text-sm text-gray-600 mt-2">{completionPopup.subtitle}</div>
+            )}
+          </div>
+        </div>
+      )}
+      <Card className="shadow-xl border border-slate-300 bg-white/95 backdrop-blur-sm">
       <CardHeader className="bg-gradient-to-r from-indigo-50 to-cyan-50">
         <CardTitle className="flex items-center justify-between">
           Table {tableName} Configuration
@@ -774,6 +814,7 @@ export function CompactTableConfig({
           </div>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </>
   );
 }
