@@ -67,9 +67,17 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
   };
 
   const handleStop = async () => {
+    if (!robotEnabled) {
+      addActivity('Cannot stop - Robot power is disabled', 'error');
+      return;
+    }
     addActivity('Sending stop to robot...', 'warning');
     try {
-      await performAction('stop');
+      const response = await performAction('stop');
+      if (response?.error) {
+        addActivity(response.error, 'error');
+        return;
+      }
       addActivity('Emergency stop activated!', 'error');
     } catch (error) {
       addActivity(`Failed to send stop: ${error}`, 'error');
@@ -107,9 +115,10 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
           </motion.button>
           <motion.button 
             type="button"
-            whileTap={{ scale: 0.95 }} 
-            onClick={(e) => { e.preventDefault(); handleStop(); }}
-            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg"
+            whileTap={robotEnabled ? { scale: 0.95 } : {}}
+            onClick={robotEnabled ? (e) => { e.preventDefault(); handleStop(); } : undefined}
+            disabled={!robotEnabled}
+            className={`bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${!robotEnabled ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             Stop
           </motion.button>

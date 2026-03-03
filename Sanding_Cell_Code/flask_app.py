@@ -595,6 +595,18 @@ def _halt_robot_motion_best_effort():
             pass
 
 
+def _read_robot_enabled_flag():
+    """Best-effort read of robot enabled flag. Returns True/False/None."""
+    result = []
+    with locked_cps(allow_when_busy=True) as ok:
+        if not ok:
+            return None
+        nRet = CPS.HRIF_ReadRobotState(0, 0, result)
+    if nRet != 0 or len(result) < 2:
+        return None
+    return result[1] == "1"
+
+
 def _wait_cps_ready_after_stop(config, max_wait_s=STOP_TO_HOMING_PROBE_TIMEOUT_SECONDS, poll_s=0.08):
     """Wait until CPS accepts a fresh connect+state-read after a hard stop."""
     if not isinstance(config, dict):
@@ -655,6 +667,12 @@ def stop_process():
     global _cps_reconnect_grace_until, _last_stop_ts, client_process
     had_process = bool(client_process and client_process.is_alive())
     scan_active = _inline_scan_active.is_set()
+    if not had_process and not scan_active:
+        enabled = _read_robot_enabled_flag()
+        if enabled is False or enabled is None:
+            msg = "Robot is not enabled or not connected. Stop is unavailable."
+            socketio.emit('flash_message', {"message": msg})
+            return jsonify({'error': msg}), 200
     if had_process:
         proc = client_process
         request_stop()
