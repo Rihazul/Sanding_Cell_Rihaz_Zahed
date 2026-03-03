@@ -178,7 +178,12 @@ export function RobotControlPanel({
                 try {
                   const willOpen = !tableAOpen;
                   setTableAPending(willOpen ? 'opening' : 'closing');
-                  await toggleTableState('tableAOpenClose');
+                  const response = await toggleTableState('tableAOpenClose');
+                  if (response?.error || response?.newState === 'Busy') {
+                    setTableAPending(null);
+                    addActivity(response?.error || 'Table A action blocked. Please try again.', 'warning');
+                    return;
+                  }
                   addActivity(`Table A ${willOpen ? 'OPENING' : 'CLOSING'}`, willOpen ? 'info' : 'warning'); 
                 } catch (error) {
                   setTableAPending(null);
@@ -200,7 +205,12 @@ export function RobotControlPanel({
                 try {
                   const willOpen = !tableBOpen;
                   setTableBPending(willOpen ? 'opening' : 'closing');
-                  await toggleTableState('tableBOpenClose');
+                  const response = await toggleTableState('tableBOpenClose');
+                  if (response?.error || response?.newState === 'Busy') {
+                    setTableBPending(null);
+                    addActivity(response?.error || 'Table B action blocked. Please try again.', 'warning');
+                    return;
+                  }
                   addActivity(`Table B ${willOpen ? 'OPENING' : 'CLOSING'}`, willOpen ? 'info' : 'warning'); 
                 } catch (error) {
                   setTableBPending(null);
