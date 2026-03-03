@@ -179,6 +179,8 @@ toolForModels:
 
 seventhAxis:
   maxSpeed: 200
+  homePosition: 0
+  homeTolerance: 5
 
 model3D:
   # size of the 3D frame in millimeters

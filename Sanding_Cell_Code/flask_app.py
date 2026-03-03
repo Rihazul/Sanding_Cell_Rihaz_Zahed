@@ -1131,9 +1131,27 @@ def toggle_state(table_id):
     robot_state = []
     di_state_0 = []
     di_state_1 = []
+    config_data_UI = fetch_and_combine_data()
+    home_pos = 0.0
+    home_tol = 5.0
+    if isinstance(config_data_UI, dict):
+        home_pos = float(config_data_UI.get('seventhAxis', {}).get('homePosition', 0.0))
+        home_tol = float(config_data_UI.get('seventhAxis', {}).get('homeTolerance', 5.0))
     with locked_cps() as ok:
         if not ok:
-            return jsonify({'newState': 'Busy'}), 200
+            return jsonify({'newState': "Busy"}), 200
+        # Ensure 7th axis is at home before allowing table open/close
+        result = [-1] * 7
+        nRet = CPS.HRIF_ReadActPos(0, 0, result)
+        if nRet != 0 or len(result) < 7:
+            msg = "Please home the robot (7th axis) before opening or closing the table."
+            socketio.emit('flash_message', {"message": msg})
+            return jsonify({"error": msg}), 200
+        current_7th = float(result[6])
+        if abs(current_7th - home_pos) > home_tol:
+            msg = "Please home the robot (7th axis) before opening or closing the table."
+            socketio.emit('flash_message', {"message": msg})
+            return jsonify({"error": msg}), 200
         if table_id == "tableAOpenClose": 
             #nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
             nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
