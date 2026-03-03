@@ -261,8 +261,13 @@ def locked_cps(timeout=1.0, allow_when_busy=False):
 ############################################################################################
 # Store modal data and process state globally
 modal_data_store = {}
-process_state = {'status': 'completed'}  # Can be 'in_progress' or 'completed'
+process_state = {
+    'status': 'completed',  # Can be 'in_progress' or 'completed'
+    'last_action': None,
+}
 tool_override_state = {1: False, 2: False, 3: False}
+# Since J7 position cannot be read, track "homed" in software.
+j7_home_confirmed = False
 
 
 
@@ -271,7 +276,7 @@ def _track_process(proc: Process) -> None:
     try:
         proc.join()
     finally:
-        global client_process, _cps_reconnect_grace_until, _last_child_exit_ts
+        global client_process, _cps_reconnect_grace_until, _last_child_exit_ts, j7_home_confirmed
         now = time.monotonic()
         _last_child_exit_ts = now
         # Brief cooldown after child process exit to avoid hitting stale CPS sockets.
@@ -280,6 +285,9 @@ def _track_process(proc: Process) -> None:
         # Only clear process_state/client_process if this watcher belongs to the current process slot.
         if client_process is proc:
             process_state['status'] = 'completed'
+            if process_state.get('last_action') == 'homing':
+                j7_home_confirmed = True
+            process_state['last_action'] = None
             client_process = None
             socketio.emit('flash_message', {"message": "Process finished"})
 
@@ -365,6 +373,7 @@ def get_modal_data():
 @app.route('/start_TableB_process', methods=['POST'])
 def start_TableB_process():
     global client_process
+    global j7_home_confirmed
     data = request.json
 
     if client_process and client_process.is_alive():
@@ -393,6 +402,7 @@ def start_TableB_process():
         })   
     
     clear_stop()
+    j7_home_confirmed = False
     with robot_lock:
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
@@ -421,6 +431,7 @@ def start_TableB_process():
 @app.route('/start_TableA_process', methods=['POST'])
 def start_TableA_process():
     global client_process
+    global j7_home_confirmed
     data = request.json
     print("Received data in start_TableA_process:", data)
     
@@ -454,6 +465,7 @@ def start_TableA_process():
         json.dump(data, f)
 
     clear_stop()
+    j7_home_confirmed = False
     with robot_lock:
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
@@ -1132,44 +1144,14 @@ def toggle_state(table_id):
     di_state_0 = []
     di_state_1 = []
     config_data_UI = fetch_and_combine_data()
-    home_pos = 0.0
-    home_tol = 5.0
-    if isinstance(config_data_UI, dict):
-        home_pos = float(config_data_UI.get('seventhAxis', {}).get('homePosition', 0.0))
-        home_tol = float(config_data_UI.get('seventhAxis', {}).get('homeTolerance', 5.0))
     with locked_cps() as ok:
         if not ok:
             return jsonify({'newState': "Busy"}), 200
 
-
-        # Ensure 7th axis is at home before allowing table open/close
-        j7_result = []
-        nRet = CPS.HRIF_HRApp(0, "MT_Kinco", "MotorReadPosition", [], j7_result)
-        if (nRet not in (0, None)) or not j7_result:
-            j7_result = []
-            nRet = CPS.HRIF_HRApp(0, "MT_Kinco", "MotorReadPosition", ["J7"], j7_result)
-        if (nRet not in (0, None)) or not j7_result:
-            # Fallback to HR_Motor if MT_Kinco is not available
-            j7_result = []
-            nRet = CPS.HRIF_HRApp(0, "HR_Motor", "MotorReadPosition", ["J7"], j7_result)
-            if (nRet not in (0, None)) or not j7_result:
-                j7_result = []
-                nRet = CPS.HRIF_HRApp(0, "HR_Motor", "MotorReadPosition", [], j7_result)
-        if (nRet not in (0, None)) or not j7_result:
-            msg = ("Please home the robot (7th axis) before opening or closing the table. "
-                   f"(J7 read failed: ret={nRet}, res={j7_result})")
-            socketio.emit('flash_message', {"message": msg})
-            return jsonify({"error": msg}), 200
-        try:
-            current_7th = float(j7_result[0])
-        except (TypeError, ValueError):
-            msg = ("Please home the robot (7th axis) before opening or closing the table. "
-                   f"(J7 read parse failed: res={j7_result})")
-            socketio.emit('flash_message', {"message": msg})
-            return jsonify({"error": msg}), 200
-        if abs(current_7th - home_pos) > home_tol:
-            msg = ("Please home the robot (7th axis) before opening or closing the table. "
-                   f"(Current: {current_7th:.2f}, Expected: {home_pos:.2f}±{home_tol:.2f})")
+        # Ensure 7th axis is at home before allowing table open/close.
+        # J7 position cannot be read, so we rely on a software flag set by homing.
+        if not j7_home_confirmed:
+            msg = "Please home the robot (7th axis) before opening or closing the table."
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
         if table_id == "tableAOpenClose": 
@@ -1364,6 +1346,7 @@ def handle_action():
     config['logger'] = setup_logger(config['settings']['debug'])
 
     action = request.json.get('action')  # Get action from frontend
+    global j7_home_confirmed
     print('the action is :',action)
     result = []  # Define the return value as an empty list
 
@@ -1489,6 +1472,8 @@ def handle_action():
             }), 503
 
         process_state['status'] = 'in_progress'
+        process_state['last_action'] = 'homing'
+        j7_home_confirmed = False
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
         client_process = Process(target=_run_homing_child, args=(config_data_UI,))
         client_process.start()
@@ -1521,6 +1506,7 @@ def handle_action():
         if _inline_scan_active.is_set():
             return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409
         _inline_scan_active.set()
+        j7_home_confirmed = False
         with robot_lock:
             ret = ensure_cps_connected()
             if ret != 0:
