@@ -1159,6 +1159,12 @@ def toggle_state(table_id):
                    f"(J7 read parse failed: res={j7_result})")
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
+        # Ignore error-code readings (e.g., 60002) and proceed as homed.
+        if abs(current_7th) >= 60000:
+            msg = ("J7 position read returned error code; proceeding with table toggle. "
+                   f"(Code: {current_7th:.0f})")
+            socketio.emit('flash_message', {"message": msg})
+            current_7th = home_pos
         if abs(current_7th - home_pos) > home_tol:
             msg = ("Please home the robot (7th axis) before opening or closing the table. "
                    f"(Current: {current_7th:.2f}, Expected: {home_pos:.2f}±{home_tol:.2f})")
