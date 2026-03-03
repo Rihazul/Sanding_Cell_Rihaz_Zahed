@@ -1140,16 +1140,28 @@ def toggle_state(table_id):
     with locked_cps() as ok:
         if not ok:
             return jsonify({'newState': "Busy"}), 200
+
         # Ensure 7th axis is at home before allowing table open/close
-        result = [-1] * 7
-        nRet = CPS.HRIF_ReadActPos(0, 0, result)
-        if nRet != 0 or len(result) < 7:
-            msg = "Please home the robot (7th axis) before opening or closing the table."
+        j7_result = []
+        nRet = CPS.HRIF_HRApp(0, "HR_Motor", "MotorReadPosition", ["J7"], j7_result)
+        if (nRet not in (0, None)) or not j7_result:
+            j7_result = []
+            nRet = CPS.HRIF_HRApp(0, "HR_Motor", "MotorReadPosition", [], j7_result)
+        if (nRet not in (0, None)) or not j7_result:
+            msg = ("Please home the robot (7th axis) before opening or closing the table. "
+                   f"(J7 read failed: ret={nRet}, res={j7_result})")
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
-        current_7th = float(result[6])
+        try:
+            current_7th = float(j7_result[0])
+        except (TypeError, ValueError):
+            msg = ("Please home the robot (7th axis) before opening or closing the table. "
+                   f"(J7 read parse failed: res={j7_result})")
+            socketio.emit('flash_message', {"message": msg})
+            return jsonify({"error": msg}), 200
         if abs(current_7th - home_pos) > home_tol:
-            msg = "Please home the robot (7th axis) before opening or closing the table."
+            msg = ("Please home the robot (7th axis) before opening or closing the table. "
+                   f"(Current: {current_7th:.2f}, Expected: {home_pos:.2f}±{home_tol:.2f})")
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
         if table_id == "tableAOpenClose": 

@@ -179,7 +179,7 @@ toolForModels:
 
 seventhAxis:
   maxSpeed: 200
-  homePosition: 0
+  homePosition: -65
   homeTolerance: 5
 
 model3D:
