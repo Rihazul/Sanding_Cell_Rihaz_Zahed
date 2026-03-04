@@ -9,30 +9,35 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
+# door frame with tool 3
 from smallTable.frameplane1final import (
     smalldoor1side,
     smalldoor2side,
     smalldoor3side,
     smalldoor4side,
 )
+# zigzag and spiral tool path with tool 3
 from smallTable.zigzagplane1final import (
     smalldoor1zizag,
     smalldoor2zizag,
     smalldoor3zizag,
     smalldoor4zizag,
 )
+
 from smallTable.pocketplane1final import (
     smalldoor1pocket,
     smalldoor2pocket,
     smalldoor3pocket,
     smalldoor4pocket,
 )
+#Side of the door with tool 2
 from smallTable.frame1tool2sidefinal import (
     door1frametool2side,
     door2frametool2side,
     door3frametool2side,
     door4frametool2side,
 )
+#Top edge between frame and outer side with tool 2
 from smallTable.frame1tool2edgefinal import (
     door1frametool2sideedge,
     door2frametool2sideedge,
@@ -80,6 +85,7 @@ def load_config():
 #             time.sleep(3)
 
 
+# function for running door frame with tool 3
 def run_side_cycles(count, force, door_num, cps):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
@@ -104,6 +110,7 @@ def run_side_cycles(count, force, door_num, cps):
             time.sleep(3)
 
 
+# function for running zigzag and spiral tool path with tool 3
 def run_zigzag_cycles(
     count,
     force,
@@ -169,6 +176,7 @@ def run_pocket_cycles(count, force, door_num, z, cps):
             time.sleep(3)
 
 
+#function for side with tool 2
 def run_tool2side_cycles(count, force, door_num, cps):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
@@ -193,6 +201,7 @@ def run_tool2side_cycles(count, force, door_num, cps):
             time.sleep(3)
 
 
+#function for top edges between frame and outer side with tool 2
 def run_tool2side_edgecycles(count, force, door_num, cps):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
@@ -496,7 +505,9 @@ def sandingModelATableA():
             # run_side_cycles(side_cycles2,force_side_cycles2,door_number2)
             # run_side_cycles(side_cycles3,force_side_cycles3,door_number3)
             # run_side_cycles(side_cycles4,force_side_cycles4,door_number4)
-
+            
+            
+            #zigzag and spiral cycles
             for door_number in zig_zag_cycle_doors:
                 cfg = zigzag_by_door.get(int(door_number), {})
                 # Map UI toggles/config to orientation/movement
@@ -727,7 +738,7 @@ def sandingModelATableA():
             has_tool1 = check_tool(
                 cps=cps, config=config, tool_num=1, ci0=ci0, ci1=ci1, ci2=ci2
             )
-            # Pick Tool 3
+            # Pick Tool 1
             print("taking tool 1")
             # getTool11(cps, toolNumber=1, config=config)
             # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
@@ -765,7 +776,7 @@ def sandingModelATableA():
                 wait=True,
             )
 
-            # #Tool 3 3D Cycle
+            # #Tool 1 3D Cycle
             # run_tool3_cycles(tool3_3dcycle,force_tool3_3d)  # <-- Fixed indentation
             for door_number in tl3sideedge_door:
                 cfg = tool3_by_door.get(int(door_number), {})

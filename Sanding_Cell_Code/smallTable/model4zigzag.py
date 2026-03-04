@@ -36,7 +36,9 @@ def load_json_config():
     return config
 
 
-def smalldoor1zizag(force,z,cps):
+def smalldoor1zizag(
+    force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
+):
     
     def smalldoor1zizagsmall(force,z,cps):
         
@@ -567,7 +569,9 @@ def smalldoor1zizag(force,z,cps):
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor2zizag(force,z,cps):
+def smalldoor2zizag(
+    force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
+):
     
     def smalldoor2zizagsmall(force,z,cps):
         
@@ -1098,7 +1102,9 @@ def smalldoor2zizag(force,z,cps):
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor3zizag(force,z,cps):
+def smalldoor3zizag(
+    force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
+):
     
     def smalldoor3zizagsmall(force,z,cps):
         
@@ -1629,7 +1635,9 @@ def smalldoor3zizag(force,z,cps):
     else:
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
 
-def smalldoor4zizag(force,z,cps):
+def smalldoor4zizag(
+    force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
+):
     
     def smalldoor4zizagsmall(force,z,cps):
         

@@ -20,6 +20,8 @@ from contextlib import contextmanager
 
 # Reduce noisy werkzeug request logs.
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
+
+# for right table model plotting and sanding
 from FileUtils.upload import upload3DModel
 from Table1Model.plotexp import plot_data as plot_data_table1Model
 from Table2Model.plotexp import plot_data as plot_data_table2Model
@@ -32,6 +34,8 @@ from model2cycle.mainmodel2 import startingRobotToSandmodel2
 from model3cycle.mainmodel3 import startingRobotToSandmodel3
 from model4cycle.mainmodel4 import startingRobotToSandmodel4
 from model5cycle.mainmodel5 import startingRobotToSandmodel5
+
+#for left table homing and sanding total
 from smallTable.smallmodelfinal import sandingModelATableA
 from smallTable.smallmodelfinal2 import sandingModelBTableA
 from smallTable.smallmodelfinal3 import sandingModelCTableA

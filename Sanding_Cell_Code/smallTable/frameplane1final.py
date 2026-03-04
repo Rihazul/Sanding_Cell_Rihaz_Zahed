@@ -165,7 +165,7 @@ def run_spiral_between_points(
     `finalize_spiral_path`. Set `finalize=True` to push and execute immediately.
     """
     track_name = track_name or "spiral_path"
-    tcp_name = tcp or config["coords"].get("tcptool1plane1")
+    tcp_name = tcp or config["coords"].get("tcptool3plane1")
     ucs_name = ucs or config["coords"].get("ucsTable1")
     for label, value in (("track", track_name), ("tcp", tcp_name), ("ucs", ucs_name)):
         if not isinstance(value, str) or not value.strip():
@@ -277,7 +277,7 @@ def finalize_spiral_path(
         if config is None:
             print("[Spiral] Missing config for force control; skipping force.")
         else:
-            tcp_name = tcp or config["coords"].get("tcptool1plane1")
+            tcp_name = tcp or config["coords"].get("tcptool3plane1")
             ucs_name = ucs or config["coords"].get("ucsTable1")
             ret = force_func(
                 cps=cps,
@@ -565,7 +565,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -635,9 +635,9 @@ def smalldoor1side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
 
         # cps.HRIF_DisConnect(0)
 
@@ -772,7 +772,7 @@ def smalldoor1side(force,cps):
                     sanding_points[0][4],
                     sanding_points[0][5],
                 ],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -886,7 +886,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -974,7 +974,7 @@ def smalldoor1side(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
                     speed=0.2,
@@ -986,7 +986,7 @@ def smalldoor1side(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     speed=0.2,
                     wait=True
@@ -1003,14 +1003,14 @@ def smalldoor1side(force,cps):
             robot_thread.join()
             axis_thread.join()
         
-        communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
 
         # cps.HRIF_DisConnect(0)
 
@@ -1114,7 +1114,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1181,9 +1181,9 @@ def smalldoor2side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoor2sidebig(force,cps,speed):
@@ -1308,7 +1308,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1400,7 +1400,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1481,7 +1481,7 @@ def smalldoor2side(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
                     speed=0.2,
@@ -1493,7 +1493,7 @@ def smalldoor2side(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     speed=0.2,
                     wait=True
@@ -1510,13 +1510,13 @@ def smalldoor2side(force,cps):
             robot_thread.join()
             axis_thread.join()
         
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
 
     #Main Function Execution
@@ -1619,7 +1619,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1685,9 +1685,9 @@ def smalldoor3side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoor3sidebig(force,cps,speed):
@@ -1811,7 +1811,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1901,7 +1901,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1982,7 +1982,7 @@ def smalldoor3side(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
                     speed=0.2,
@@ -1994,7 +1994,7 @@ def smalldoor3side(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     speed=0.2,
                     wait=True
@@ -2011,13 +2011,13 @@ def smalldoor3side(force,cps):
             robot_thread.join()
             axis_thread.join()
         
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
     #Main Function Execution
     # ylen = get_y_values(1)['ylen']
@@ -2118,7 +2118,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2184,9 +2184,9 @@ def smalldoor4side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoor4sidebig(force,cps,speed):
@@ -2311,7 +2311,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2399,7 +2399,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool1plane1"],
+                tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2481,7 +2481,7 @@ def smalldoor4side(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
                     speed=0.2,
@@ -2493,7 +2493,7 @@ def smalldoor4side(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool1plane1'],
+                    tcp=config['coords']['tcptool3plane1'],
                     ucs=config['coords']['ucsTable1'],
                     speed=0.2,
                     wait=True
@@ -2510,13 +2510,13 @@ def smalldoor4side(force,cps):
             robot_thread.join()
             axis_thread.join()
         
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
     #Main Function Execution
     # ylen = get_y_values(1)['ylen']
