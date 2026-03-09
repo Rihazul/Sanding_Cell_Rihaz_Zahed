@@ -789,7 +789,7 @@ export function CompactTableConfig({
           )}
 
           <div className="mt-5 border-2 border-slate-200 pt-4 bg-white rounded-xl px-4 pb-4 shadow-sm">
-            <div className={`grid gap-3 ${tableName === 'A' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-3 ${tableName === 'A' ? 'grid-cols-2' : 'grid-cols-2'}`}>
               {tableName === 'A' ? (
                 <>
                   <Button 
@@ -808,13 +808,22 @@ export function CompactTableConfig({
                   </Button>
                 </>
               ) : (
-                <Button 
-                  onClick={handleUpload3DFile} 
-                  disabled={isOperating}
-                  className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
-                >
-                  {isOperating ? 'Operating...' : 'Upload 3D File'}
-                </Button>
+                <>
+                  <Button 
+                    onClick={handleUpload3DFile} 
+                    disabled={isOperating}
+                    className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
+                  >
+                    {isOperating ? 'Operating...' : 'Upload 3D File'}
+                  </Button>
+                  <Button 
+                    onClick={handleStartTask} 
+                    disabled={isOperating}
+                    className="bg-blue-500 hover:bg-purple-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
+                  >
+                    {isOperating ? 'Operating...' : 'Start Task'}
+                  </Button>
+                </>
               )}
             </div>
           </div>
