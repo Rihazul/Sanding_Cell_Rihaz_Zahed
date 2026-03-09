@@ -6,7 +6,7 @@ from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_sta
 from Server_Better_V2 import setup_logger
 import yaml, requests
 from modules.CPS import CPSClient, RbtClient, PluginClient
-from multiprocessing import Process, Event, current_process
+from multiprocessing import Process, Event, Pipe, current_process
 import time
 from flask_socketio import SocketIO
 # Get the absolute path to flask_app.py (important when running as an executable)
@@ -66,6 +66,24 @@ modelMap = {
     "modelD": plot_data_table4Model,
     "modelE": plot_data_table5Model,
 }
+
+
+def _run_tableb_plot_dialog(model_key, inverse_overlapping, conn):
+    """
+    Run the matplotlib Start/Cancel dialog in a dedicated process so GUI code
+    executes on that process's main thread (avoids tkinter thread errors).
+    """
+    try:
+        plot_fn = modelMap[model_key]
+        action = plot_fn(inverseOverlapping=inverse_overlapping)
+        conn.send({"ok": True, "action": action})
+    except Exception as e:
+        conn.send({"ok": False, "error": str(e)})
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 #left Table
 modelMethodMapTableA = {
@@ -401,7 +419,24 @@ def start_TableB_process():
             "validModels": valid_models
         }), 400
 
-    buttonClicked = modelMap[selected_model](inverseOverlapping=data.get('inverseOverlapping', 50))
+    inverse_overlapping = data.get('inverseOverlapping', 50)
+    parent_conn, child_conn = Pipe(duplex=False)
+    plot_process = Process(
+        target=_run_tableb_plot_dialog,
+        args=(selected_model, inverse_overlapping, child_conn),
+    )
+    plot_process.start()
+    child_conn.close()
+    plot_process.join()
+
+    if not parent_conn.poll():
+        return jsonify({"error": "Plot dialog did not return an action"}), 500
+
+    plot_result = parent_conn.recv()
+    if not plot_result.get("ok", False):
+        return jsonify({"error": f"Failed to run plot dialog: {plot_result.get('error', 'unknown error')}"}), 500
+
+    buttonClicked = plot_result.get("action", "cancel")
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
         
