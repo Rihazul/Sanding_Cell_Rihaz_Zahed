@@ -66,13 +66,24 @@ def plot_data(inverseOverlapping):
         y_coords = []
         z_coords = []
         
+        missing_points = []
+
         # Gather data for this pocket
         for pt in point_names:
             point = results.get(pt)
-            if point is not None:
+            if isinstance(point, (list, tuple)) and len(point) >= 3:
                 x_coords.append(point[0])
                 y_coords.append(point[1])
                 z_coords.append(point[2])
+            else:
+                missing_points.append(pt)
+
+        if missing_points:
+            print(f"\n{pocket_name}: missing/invalid points -> {missing_points}")
+            # Keep flow alive when uploaded geometry has fewer pockets than expected.
+            if len(x_coords) < 4:
+                print(f"{pocket_name}: insufficient valid points ({len(x_coords)}/4), skipping.")
+                continue
         
         # Plot the pocket boundary (if points are valid)
         if x_coords and y_coords:
@@ -116,6 +127,10 @@ def plot_data(inverseOverlapping):
             # ------------------------------------------------------------
             # 2) Step in X, build zigzag lines from bottom to top
             # ------------------------------------------------------------
+            if innerSandingOffset <= 0:
+                print("inverseOverlapping must be > 0; using fallback 1.")
+                innerSandingOffset = 1
+
             num_steps = math.ceil(xinner / innerSandingOffset)
             adjusted_step = xinner / num_steps
             

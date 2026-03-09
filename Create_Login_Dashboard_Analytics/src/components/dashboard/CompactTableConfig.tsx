@@ -260,6 +260,17 @@ export function CompactTableConfig({
       }
     } else {
       // Table B logic (single model)
+      if (!model || model.trim() === '') {
+        addActivity(`Table ${tableName}: Select a model before starting the task.`, 'warning');
+        setIsOperating(false);
+        return;
+      }
+      if (!['modelA', 'modelB', 'modelC', 'modelD', 'modelE'].includes(model)) {
+        addActivity(`Table ${tableName}: Model ${formatModelName(model)} is not supported by backend yet.`, 'warning');
+        setIsOperating(false);
+        return;
+      }
+
       const modelName = formatModelName(model);
       
       addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');

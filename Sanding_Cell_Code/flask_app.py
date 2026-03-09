@@ -390,11 +390,18 @@ def start_TableB_process():
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
     
     tableData = data['TableB']
-    
-    if 'model' not in tableData:
-        return jsonify({"error": "Invalid request, no JSON data found"}), 400
+    selected_model = tableData.get('model')
 
-    buttonClicked = modelMap[tableData['model']](inverseOverlapping=data.get('inverseOverlapping', 50))
+    if not selected_model:
+        return jsonify({"error": "Invalid request, model is required for TableB"}), 400
+    if selected_model not in modelMap or selected_model not in modelMethodmap:
+        valid_models = sorted(set(modelMap.keys()).intersection(set(modelMethodmap.keys())))
+        return jsonify({
+            "error": f"Invalid model '{selected_model}' for TableB",
+            "validModels": valid_models
+        }), 400
+
+    buttonClicked = modelMap[selected_model](inverseOverlapping=data.get('inverseOverlapping', 50))
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
         
@@ -418,7 +425,7 @@ def start_TableB_process():
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
     _disconnect_global_cps_for_child_start()
-    client_process = Process(target=modelMethodmap[tableData['model']], args=())
+    client_process = Process(target=modelMethodmap[selected_model], args=())
     process_state['status'] = 'in_progress'
     client_process.start()
     Thread(target=_track_process, args=(client_process,), daemon=True).start()
