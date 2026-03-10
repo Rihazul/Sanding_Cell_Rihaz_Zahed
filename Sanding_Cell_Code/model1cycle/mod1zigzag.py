@@ -53,6 +53,7 @@ def _generate_zigzag_edge_path(
     innerSandingOffset,
     orientation="vertical",
     edge_coverage=False,
+    edge_offset=1.75,
 ):
     """Generate zigzag points with optional perimeter edge coverage."""
     if not (x_coords and y_coords and z_coords):
@@ -97,25 +98,56 @@ def _generate_zigzag_edge_path(
     if orientation_mode not in ("horizontal", "vertical"):
         orientation_mode = "vertical"
 
+    # Edge coverage uses a dedicated offset (not innerOffset/innerOffsetX)
+    edge_Point2 = [
+        (x_coords[1]) + tool3x + edge_offset,
+        y_coords[1] - tool3y - edge_offset,
+    ]
+    edge_Point3 = [
+        x_coords[2] - tool3x - edge_offset,
+        y_coords[2] - tool3y - edge_offset,
+    ]
+    edge_Point1 = [
+        (x_coords[0]) + tool3x + edge_offset,
+        y_coords[0] + tool3y + edge_offset,
+    ]
+    edge_Point4 = [
+        x_coords[3] - tool3x - edge_offset,
+        y_coords[3] + tool3y + edge_offset,
+    ]
+
+    x_min_edge = min(
+        edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0]
+    )
+    x_max_edge = max(
+        edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0]
+    )
+    y_min_edge = min(
+        edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1]
+    )
+    y_max_edge = max(
+        edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1]
+    )
+
     edge_points = []
     if edge_coverage:
         if orientation_mode == "horizontal":
             # End at top-left so horizontal rows can start immediately.
             edge_points = [
-                [x_min, y_max, z_zigzag, rx, ry, rz],
-                [x_max, y_max, z_zigzag, rx, ry, rz],
-                [x_max, y_min, z_zigzag, rx, ry, rz],
-                [x_min, y_min, z_zigzag, rx, ry, rz],
-                [x_min, y_max, z_zigzag, rx, ry, rz],
+                [x_min_edge, y_max_edge, z_zigzag, rx, ry, rz],
+                [x_max_edge, y_max_edge, z_zigzag, rx, ry, rz],
+                [x_max_edge, y_min_edge, z_zigzag, rx, ry, rz],
+                [x_min_edge, y_min_edge, z_zigzag, rx, ry, rz],
+                [x_min_edge, y_max_edge, z_zigzag, rx, ry, rz],
             ]
         else:
             # End at bottom-right so vertical columns can start immediately.
             edge_points = [
-                [x_max, y_min, z_zigzag, rx, ry, rz],
-                [x_min, y_min, z_zigzag, rx, ry, rz],
-                [x_min, y_max, z_zigzag, rx, ry, rz],
-                [x_max, y_max, z_zigzag, rx, ry, rz],
-                [x_max, y_min, z_zigzag, rx, ry, rz],
+                [x_max_edge, y_min_edge, z_zigzag, rx, ry, rz],
+                [x_min_edge, y_min_edge, z_zigzag, rx, ry, rz],
+                [x_min_edge, y_max_edge, z_zigzag, rx, ry, rz],
+                [x_max_edge, y_max_edge, z_zigzag, rx, ry, rz],
+                [x_max_edge, y_min_edge, z_zigzag, rx, ry, rz],
             ]
 
     zigzag_points = []
