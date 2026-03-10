@@ -310,15 +310,15 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         # Vibration on
         
         
-        # Force Control Activated
-        putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-        )
-        turn_vibration_on(cps)
+        # # Force Control Activated
+        # putForceZplus(
+        #     cps=cps,
+        #     force=force,
+        #     tcp=config['coords']['tcpReal'],
+        #     ucs=config['coords']['ucsTable2'],
+        #     config=config
+        # )
+        # turn_vibration_on(cps)
         
         # Communicate to each point in points1
         for point in points1:
@@ -335,9 +335,9 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        #Release force
-        releaseForce(cps=cps, config=config)
+        # turn_vibration_off(cps)
+        # #Release force
+        # releaseForce(cps=cps, config=config)
     
     for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
     # Get the current tcx (0-indexed)
@@ -668,14 +668,14 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         
         
         # Force Control Activated
-        putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-        )
-        turn_vibration_on(cps)
+        # putForceZplus(
+        #     cps=cps,
+        #     force=force,
+        #     tcp=config['coords']['tcpReal'],
+        #     ucs=config['coords']['ucsTable2'],
+        #     config=config
+        # )
+        # turn_vibration_on(cps)
         
         # Communicate to each point in points1
         for point in points1:
@@ -692,9 +692,9 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        #Release force
-        releaseForce(cps=cps, config=config)
+        # turn_vibration_off(cps)
+        # #Release force
+        # releaseForce(cps=cps, config=config)
     
     for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
     # Get the current tcx (0-indexed)
@@ -1025,15 +1025,15 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         # Vibration on
         
         
-        # Force Control Activated
-        putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-        )
-        turn_vibration_on(cps)
+        # # Force Control Activated
+        # putForceZplus(
+        #     cps=cps,
+        #     force=force,
+        #     tcp=config['coords']['tcpReal'],
+        #     ucs=config['coords']['ucsTable2'],
+        #     config=config
+        # )
+        # turn_vibration_on(cps)
         
         # Communicate to each point in points1
         for point in points1:
@@ -1050,9 +1050,9 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        #Release force
-        releaseForce(cps=cps, config=config)
+        # turn_vibration_off(cps)
+        # #Release force
+        # releaseForce(cps=cps, config=config)
     
     for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
     # Get the current tcx (0-indexed)
