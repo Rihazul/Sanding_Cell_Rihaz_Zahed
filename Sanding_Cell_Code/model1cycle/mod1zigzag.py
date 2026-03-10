@@ -930,7 +930,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
 
             # For Pocket4, corners (P13, P14, P15, P16):
             modified_Point2 = [
-                (x_coords[1])/2 + tool3x + innerOffsetX,
+                (x_coords[1]) + tool3x + innerOffsetX,
                 y_coords[1] - tool3y - innerOffset,
             ]
             modified_Point3 = [
@@ -938,8 +938,8 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                 y_coords[2] - tool3y - innerOffset,
             ]
             modified_Point1 = [
-                (x_coords[0])/2 + tool3x + innerOffsetX,
-                y_coords[0] + tool3y + innerOffset*2,
+                (x_coords[0]) + tool3x + innerOffsetX,
+                y_coords[0] + tool3y + innerOffset,
             ]
             modified_Point4 = [
                 x_coords[3] - tool3x - innerOffset,
@@ -994,13 +994,15 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("Prepoint2:", prepoint2)
 
     #Second Pocket 1st Cycle
-    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10,innerSandingOffset=innerSandingOffset)
+    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=10,innerOffsetX=10,innerSandingOffset=innerSandingOffset)
     print("zigzag_pathp=",zigzag_pathp1)
     print("prepointp:", prepointp1)
+    
     #Second Pocket 2nd Cycle
-    zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=5,innerSandingOffset=innerSandingOffset)
-    print("zigzag_pathp2=",zigzag_pathp2)
-    print("prepointp2:", prepointp2)
+    # zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=5,innerSandingOffset=innerSandingOffset)
+    # print("zigzag_pathp2=",zigzag_pathp2)
+    # print("prepointp2:", prepointp2)
+    
     # #Second Pocket 3rd Cycle
     # zigzag_pathp3,prepointp3= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10)
     # print("zigzag_pathp3=",zigzag_pathp3)
@@ -1054,7 +1056,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force
         # releaseForce(cps=cps, config=config)
     
-    for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
+    for i in range(1, 2):  # Loop from 1 to 6 (for p1-p6)
     # Get the current tcx (0-indexed)
         current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
         
