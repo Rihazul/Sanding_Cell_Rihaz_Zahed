@@ -26,6 +26,158 @@ def load_json_config():
         config = json.load(file)
     return config
 
+
+def _get_zigzag_mode_and_edge(json_config):
+    """Read zigzag orientation/edge settings with safe defaults."""
+    table_cfg = json_config.get("TableB", json_config.get("TableA", {}))
+    pocket_cfg = table_cfg.get("pocketzigzag", {})
+
+    orientation = str(pocket_cfg.get("orientation", "vertical")).lower()
+    if pocket_cfg.get("horizontalSpiral"):
+        orientation = "horizontal"
+    elif pocket_cfg.get("verticalSpiral"):
+        orientation = "vertical"
+    if orientation not in ("horizontal", "vertical"):
+        orientation = "vertical"
+
+    edge_coverage = bool(pocket_cfg.get("edgeCoverage", pocket_cfg.get("edge", False)))
+    return orientation, edge_coverage
+
+
+def _generate_zigzag_edge_path(
+    x_coords,
+    y_coords,
+    z_coords,
+    innerOffset,
+    innerOffsetX,
+    innerSandingOffset,
+    orientation="vertical",
+    edge_coverage=False,
+):
+    """Generate zigzag points with optional perimeter edge coverage."""
+    if not (x_coords and y_coords and z_coords):
+        return [], [], None
+
+    tool3y = 50.8
+    tool3x = 38.1
+    z_zigzag = z_coords[0]
+    rx, ry, rz = 180, 0, 0
+
+    modified_Point2 = [
+        (x_coords[1]) + tool3x + innerOffsetX,
+        y_coords[1] - tool3y - innerOffset,
+    ]
+    modified_Point3 = [
+        x_coords[2] - tool3x - innerOffset,
+        y_coords[2] - tool3y - innerOffset,
+    ]
+    modified_Point1 = [
+        (x_coords[0]) + tool3x + innerOffsetX,
+        y_coords[0] + tool3y + innerOffset,
+    ]
+    modified_Point4 = [
+        x_coords[3] - tool3x - innerOffset,
+        y_coords[3] + tool3y + innerOffset,
+    ]
+
+    x_min = min(
+        modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0]
+    )
+    x_max = max(
+        modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0]
+    )
+    y_min = min(
+        modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1]
+    )
+    y_max = max(
+        modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1]
+    )
+
+    orientation_mode = (orientation or "vertical").lower()
+    if orientation_mode not in ("horizontal", "vertical"):
+        orientation_mode = "vertical"
+
+    edge_points = []
+    if edge_coverage:
+        if orientation_mode == "horizontal":
+            # End at top-left so horizontal rows can start immediately.
+            edge_points = [
+                [x_min, y_max, z_zigzag, rx, ry, rz],
+                [x_max, y_max, z_zigzag, rx, ry, rz],
+                [x_max, y_min, z_zigzag, rx, ry, rz],
+                [x_min, y_min, z_zigzag, rx, ry, rz],
+                [x_min, y_max, z_zigzag, rx, ry, rz],
+            ]
+        else:
+            # End at bottom-right so vertical columns can start immediately.
+            edge_points = [
+                [x_max, y_min, z_zigzag, rx, ry, rz],
+                [x_min, y_min, z_zigzag, rx, ry, rz],
+                [x_min, y_max, z_zigzag, rx, ry, rz],
+                [x_max, y_max, z_zigzag, rx, ry, rz],
+                [x_max, y_min, z_zigzag, rx, ry, rz],
+            ]
+
+    zigzag_points = []
+    inner_step = max(1e-6, float(innerSandingOffset))
+    toggle = 0
+
+    if orientation_mode == "horizontal":
+        span = abs(y_max - y_min)
+        num_steps = max(1, math.ceil(span / inner_step))
+        step = span / num_steps
+        offset = 0.0
+        while offset <= span + 1e-9:
+            y_val = y_max - offset
+            row = [
+                [x_min, y_val, z_zigzag, rx, ry, rz],
+                [x_max, y_val, z_zigzag, rx, ry, rz],
+            ]
+            if toggle:
+                row.reverse()
+            zigzag_points.extend(row)
+            offset += step
+            toggle = 1 - toggle
+    else:
+        span = abs(x_max - x_min)
+        num_steps = max(1, math.ceil(span / inner_step))
+        step = span / num_steps
+        offset = 0.0
+        while offset <= span + 1e-9:
+            x_val = x_min + offset
+            row = [
+                [x_val, y_min, z_zigzag, rx, ry, rz],
+                [x_val, y_max, z_zigzag, rx, ry, rz],
+            ]
+            if toggle:
+                row.reverse()
+            zigzag_points.extend(row)
+            offset += step
+            toggle = 1 - toggle
+
+    for points in (edge_points, zigzag_points):
+        for point in points:
+            point[0] = abs(point[0])
+            point[1] = abs(point[1])
+
+    start_point = None
+    if edge_points:
+        start_point = edge_points[0]
+    elif zigzag_points:
+        start_point = zigzag_points[0]
+    if start_point is None:
+        return edge_points, zigzag_points, None
+
+    prepoint = [
+        abs(start_point[0]) + 0.5,
+        start_point[1],
+        start_point[2],
+        start_point[3],
+        start_point[4],
+        start_point[5],
+    ]
+    return edge_points, zigzag_points, prepoint
+
 def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
 
 
@@ -66,6 +218,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
     
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
 
     # Hard-coded points for Pocket4
     # Format: [x, y, z, rotX, rotY, rotZ]
@@ -279,7 +432,12 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("Prepoint2:", prepoint2)
 
     #Second Pocket 1st Cycle
-    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=10,innerOffsetX=10,innerSandingOffset=innerSandingOffset)
+    edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
+        x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
+        innerOffset=10, innerOffsetX=10, innerSandingOffset=innerSandingOffset,
+        orientation=zigzag_orientation, edge_coverage=True
+    )
+    print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
     print("prepointp:", prepointp1)
     
@@ -309,7 +467,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
     
 
 
-    def perform_process_top(cps, config, points1,force):
+    def perform_process_top(cps, config, points1, force, edge_points=None):
         # Vibration on
         
         
@@ -323,8 +481,9 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         # )
         # turn_vibration_on(cps)
         
-        # Communicate to each point in points1
-        for point in points1:
+        path_points = list(edge_points or []) + list(points1 or [])
+        # Communicate to each point in the combined path
+        for point in path_points:
             communicate(
                 cps=cps,
                 config=config,
@@ -342,12 +501,13 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force
         # releaseForce(cps=cps, config=config)
     
-    for i in range(1, 2):  # Loop from 1 to 6 (for p1-p6)
+    for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
         current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
         
-        # Get the current prepoint and zigzag path (1-indexed)
+        # Get the current prepoint, optional edge path, and zigzag path (1-indexed)
         current_prepoint = eval(f"prepointp{i}")
+        current_edge = eval(f"edge_pathp{i}")
         current_zigzag = eval(f"zigzag_pathp{i}")
 
         # Original sequence with dynamic variables
@@ -376,7 +536,9 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
             speed=speeed, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        perform_process_top(
+            cps, config, points1=current_zigzag, force=force, edge_points=current_edge
+        )  # Dynamic edge + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
@@ -425,6 +587,8 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
     print("p7:",p7)
     print("p8:",p8)
 
+    json_config = load_json_config()
+    zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed=0.7
 
     # Hard-coded points for Pocket4
@@ -639,7 +803,12 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("Prepoint2:", prepoint2)
 
     #Second Pocket 1st Cycle
-    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=10,innerOffsetX=10,innerSandingOffset=innerSandingOffset)
+    edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
+        x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
+        innerOffset=10, innerOffsetX=10, innerSandingOffset=innerSandingOffset,
+        orientation=zigzag_orientation, edge_coverage=True
+    )
+    print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
     print("prepointp:", prepointp1)
     
@@ -669,7 +838,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
     
 
 
-    def perform_process_top(cps, config, points1,force):
+    def perform_process_top(cps, config, points1, force, edge_points=None):
         # Vibration on
         
         
@@ -683,8 +852,9 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         # )
         # turn_vibration_on(cps)
         
-        # Communicate to each point in points1
-        for point in points1:
+        path_points = list(edge_points or []) + list(points1 or [])
+        # Communicate to each point in the combined path
+        for point in path_points:
             communicate(
                 cps=cps,
                 config=config,
@@ -702,12 +872,13 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force
         # releaseForce(cps=cps, config=config)
     
-    for i in range(1, 2):  # Loop from 1 to 6 (for p1-p6)
+    for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
         current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
         
-        # Get the current prepoint and zigzag path (1-indexed)
+        # Get the current prepoint, optional edge path, and zigzag path (1-indexed)
         current_prepoint = eval(f"prepointp{i}")
+        current_edge = eval(f"edge_pathp{i}")
         current_zigzag = eval(f"zigzag_pathp{i}")
 
         # Original sequence with dynamic variables
@@ -736,7 +907,9 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
             speed=speeed, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        perform_process_top(
+            cps, config, points1=current_zigzag, force=force, edge_points=current_edge
+        )  # Dynamic edge + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
@@ -776,6 +949,8 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     p7 = exported_points["p15"]
     p8= exported_points["p16"]
 
+    json_config = load_json_config()
+    zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed=0.7
 
     # print("p9:",p9)
@@ -1000,7 +1175,12 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("Prepoint2:", prepoint2)
 
     #Second Pocket 1st Cycle
-    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=10,innerOffsetX=10,innerSandingOffset=innerSandingOffset)
+    edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
+        x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
+        innerOffset=10, innerOffsetX=10, innerSandingOffset=innerSandingOffset,
+        orientation=zigzag_orientation, edge_coverage=True
+    )
+    print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
     print("prepointp:", prepointp1)
     
@@ -1029,7 +1209,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     
 
 
-    def perform_process_top(cps, config, points1,force):
+    def perform_process_top(cps, config, points1, force, edge_points=None):
         # Vibration on
         
         
@@ -1043,8 +1223,9 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         # )
         # turn_vibration_on(cps)
         
-        # Communicate to each point in points1
-        for point in points1:
+        path_points = list(edge_points or []) + list(points1 or [])
+        # Communicate to each point in the combined path
+        for point in path_points:
             communicate(
                 cps=cps,
                 config=config,
@@ -1062,12 +1243,13 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force
         # releaseForce(cps=cps, config=config)
     
-    for i in range(1, 2):  # Loop from 1 to 6 (for p1-p6)
+    for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
         current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
         
-        # Get the current prepoint and zigzag path (1-indexed)
+        # Get the current prepoint, optional edge path, and zigzag path (1-indexed)
         current_prepoint = eval(f"prepointp{i}")
+        current_edge = eval(f"edge_pathp{i}")
         current_zigzag = eval(f"zigzag_pathp{i}")
 
         # Original sequence with dynamic variables
@@ -1096,7 +1278,9 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
             speed=speeed, wait=True
         )
         # # turn_vibration_on(cps)
-        perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+        perform_process_top(
+            cps, config, points1=current_zigzag, force=force, edge_points=current_edge
+        )  # Dynamic edge + zigzag path
         # # turn_vibration_off(cps)
         communicate(
             cps=cps, config=config, 
