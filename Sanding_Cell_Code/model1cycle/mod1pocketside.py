@@ -21,6 +21,53 @@ from Table1Model.exportpointsmodule import exported_points
 from model1cycle.mod1bottomb import model1bottombig
 from model1cycle.mod1bottoms import model1bottomsmall
 
+def _frame_point(pt, z):
+    return [pt[0], pt[1], z, 180, 0, 0]
+
+def _midpoint(a, b, z):
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z, 180, 0, 0]
+
+def _build_frame_paths(p13, p14, p15, p16, z_work, z_clear):
+    # Corner mapping: bottom-left p13, top-left p14, top-right p15, bottom-right p16
+    blw = _frame_point(p13, z_work)
+    tlw = _frame_point(p14, z_work)
+    trw = _frame_point(p15, z_work)
+    brw = _frame_point(p16, z_work)
+    blc = _frame_point(p13, z_clear)
+    tlc = _frame_point(p14, z_clear)
+    trc = _frame_point(p15, z_clear)
+    brc = _frame_point(p16, z_clear)
+
+    bottom_mid_w = _midpoint(blw, brw, z_work)
+    top_mid_w = _midpoint(tlw, trw, z_work)
+    left_mid_w = _midpoint(blw, tlw, z_work)
+    right_mid_w = _midpoint(brw, trw, z_work)
+    bottom_mid_c = _midpoint(blw, brw, z_clear)
+    top_mid_c = _midpoint(tlw, trw, z_clear)
+
+    return {
+        "blw": blw,
+        "tlw": tlw,
+        "trw": trw,
+        "brw": brw,
+        "blc": blc,
+        "tlc": tlc,
+        "trc": trc,
+        "brc": brc,
+        "bottom_mid_w": bottom_mid_w,
+        "top_mid_w": top_mid_w,
+        "left_mid_w": left_mid_w,
+        "right_mid_w": right_mid_w,
+        "bottom_mid_c": bottom_mid_c,
+        "top_mid_c": top_mid_c,
+        "bottom_mid_to_left": [bottom_mid_c, bottom_mid_w, blw, blc],
+        "bottom_mid_to_right": [bottom_mid_c, bottom_mid_w, brw, brc],
+        "top_mid_to_left": [top_mid_c, top_mid_w, tlw, tlc],
+        "top_mid_to_right": [top_mid_c, top_mid_w, trw, trc],
+        "leftpoints": [blc, blw, left_mid_w, tlw, tlc],
+        "rightpoints": [trc, trw, right_mid_w, brw, brc],
+    }
+
 
 
 
@@ -112,7 +159,9 @@ def model1pocket1side(force,cps):
 
    
    
-    z=-4
+    z_clear = -10
+    z_work = -4
+    z = z_work
     # #Outer Pocket Offset
     # outeroffset=p7[0]/2
     # print("outeroffset=",outeroffset)
@@ -122,7 +171,7 @@ def model1pocket1side(force,cps):
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
-    z=-4
+    z = z_work
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
 
@@ -247,6 +296,48 @@ def model1pocket1side(force,cps):
 
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
+
+    # Override frame paths using corner mapping (p13..p16) and fixed Z values
+    frame_paths = _build_frame_paths(p13, p14, p15, p16, z_work, z_clear)
+
+    x1 = frame_paths["brw"][0]
+    x2 = frame_paths["blw"][0]
+
+    bpointmiddle = frame_paths["bottom_mid_w"]
+    bpoint1st = frame_paths["blw"]
+    bpoint2nd = frame_paths["brw"]
+    prebpoint1st = frame_paths["blc"]
+    prebpoint2nd = frame_paths["brc"]
+
+    lpoint1st = frame_paths["blw"]
+    lpoint2nd = frame_paths["tlw"]
+    lpointmiddle = frame_paths["left_mid_w"]
+    prelpoint1st = frame_paths["blc"]
+    prelpoint2nd = frame_paths["tlc"]
+
+    tpoint1st = frame_paths["tlw"]
+    tpoint2nd = frame_paths["trw"]
+    topointmiddle = frame_paths["top_mid_w"]
+    pretpoint1st = frame_paths["tlc"]
+    pretpoint2nd = frame_paths["trc"]
+
+    rpoint1st = frame_paths["trw"]
+    rpoint2nd = frame_paths["brw"]
+    rpointmiddle = frame_paths["right_mid_w"]
+    prepoint1st = frame_paths["trc"]
+    prepoint2nd = frame_paths["brc"]
+
+    bottom_mid_to_left = frame_paths["bottom_mid_to_left"]
+    bottom_mid_to_right = frame_paths["bottom_mid_to_right"]
+    top_mid_to_left = frame_paths["top_mid_to_left"]
+    top_mid_to_right = frame_paths["top_mid_to_right"]
+    leftpoints = frame_paths["leftpoints"]
+    rightpoints = frame_paths["rightpoints"]
+
+    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd, prebpoint2nd]
+    toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
+
+    hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -628,7 +719,9 @@ def model1pocket2side(force,cps):
 
    
    
-    z=-4
+    z_clear = -10
+    z_work = -4
+    z = z_work
     # #Outer Pocket Offset
     # outeroffset=p7[0]/2
     # print("outeroffset=",outeroffset)
@@ -638,7 +731,7 @@ def model1pocket2side(force,cps):
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
-    z=-4
+    z = z_work
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
@@ -764,6 +857,48 @@ def model1pocket2side(force,cps):
 
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
+
+    # Override frame paths using corner mapping (p13..p16) and fixed Z values
+    frame_paths = _build_frame_paths(p13, p14, p15, p16, z_work, z_clear)
+
+    x1 = frame_paths["brw"][0]
+    x2 = frame_paths["blw"][0]
+
+    bpointmiddle = frame_paths["bottom_mid_w"]
+    bpoint1st = frame_paths["blw"]
+    bpoint2nd = frame_paths["brw"]
+    prebpoint1st = frame_paths["blc"]
+    prebpoint2nd = frame_paths["brc"]
+
+    lpoint1st = frame_paths["blw"]
+    lpoint2nd = frame_paths["tlw"]
+    lpointmiddle = frame_paths["left_mid_w"]
+    prelpoint1st = frame_paths["blc"]
+    prelpoint2nd = frame_paths["tlc"]
+
+    tpoint1st = frame_paths["tlw"]
+    tpoint2nd = frame_paths["trw"]
+    topointmiddle = frame_paths["top_mid_w"]
+    pretpoint1st = frame_paths["tlc"]
+    pretpoint2nd = frame_paths["trc"]
+
+    rpoint1st = frame_paths["trw"]
+    rpoint2nd = frame_paths["brw"]
+    rpointmiddle = frame_paths["right_mid_w"]
+    prepoint1st = frame_paths["trc"]
+    prepoint2nd = frame_paths["brc"]
+
+    bottom_mid_to_left = frame_paths["bottom_mid_to_left"]
+    bottom_mid_to_right = frame_paths["bottom_mid_to_right"]
+    top_mid_to_left = frame_paths["top_mid_to_left"]
+    top_mid_to_right = frame_paths["top_mid_to_right"]
+    leftpoints = frame_paths["leftpoints"]
+    rightpoints = frame_paths["rightpoints"]
+
+    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd, prebpoint2nd]
+    toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
+
+    hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -1184,7 +1319,9 @@ def model1pocket3side(force,cps):
 
    
    
-    z=-4
+    z_clear = -10
+    z_work = -4
+    z = z_work
     # #Outer Pocket Offset
     # outeroffset=p7[0]/2
     # print("outeroffset=",outeroffset)
@@ -1194,7 +1331,7 @@ def model1pocket3side(force,cps):
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
-    z=-4
+    z = z_work
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
@@ -1320,6 +1457,48 @@ def model1pocket3side(force,cps):
 
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
+
+    # Override frame paths using corner mapping (p13..p16) and fixed Z values
+    frame_paths = _build_frame_paths(p13, p14, p15, p16, z_work, z_clear)
+
+    x1 = frame_paths["brw"][0]
+    x2 = frame_paths["blw"][0]
+
+    bpointmiddle = frame_paths["bottom_mid_w"]
+    bpoint1st = frame_paths["blw"]
+    bpoint2nd = frame_paths["brw"]
+    prebpoint1st = frame_paths["blc"]
+    prebpoint2nd = frame_paths["brc"]
+
+    lpoint1st = frame_paths["blw"]
+    lpoint2nd = frame_paths["tlw"]
+    lpointmiddle = frame_paths["left_mid_w"]
+    prelpoint1st = frame_paths["blc"]
+    prelpoint2nd = frame_paths["tlc"]
+
+    tpoint1st = frame_paths["tlw"]
+    tpoint2nd = frame_paths["trw"]
+    topointmiddle = frame_paths["top_mid_w"]
+    pretpoint1st = frame_paths["tlc"]
+    pretpoint2nd = frame_paths["trc"]
+
+    rpoint1st = frame_paths["trw"]
+    rpoint2nd = frame_paths["brw"]
+    rpointmiddle = frame_paths["right_mid_w"]
+    prepoint1st = frame_paths["trc"]
+    prepoint2nd = frame_paths["brc"]
+
+    bottom_mid_to_left = frame_paths["bottom_mid_to_left"]
+    bottom_mid_to_right = frame_paths["bottom_mid_to_right"]
+    top_mid_to_left = frame_paths["top_mid_to_left"]
+    top_mid_to_right = frame_paths["top_mid_to_right"]
+    leftpoints = frame_paths["leftpoints"]
+    rightpoints = frame_paths["rightpoints"]
+
+    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd, prebpoint2nd]
+    toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
+
+    hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
