@@ -296,14 +296,6 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==bpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==bpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -314,6 +306,16 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
+            if point==bpointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+            if point==bpoint2nd:
+                turn_vibration_on(cps)
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
@@ -337,14 +339,6 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==lpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==lpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -355,6 +349,16 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
+            if point==lpointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+            if point==lpoint2nd:
+                turn_vibration_on(cps)
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
@@ -378,14 +382,6 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==topointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==tpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -396,6 +392,16 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
+            if point==topointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+            if point==tpoint2nd:
+                turn_vibration_on(cps)
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
@@ -419,14 +425,6 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==rpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==rpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -437,6 +435,16 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
+            if point==rpointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+            if point==rpoint2nd:
+                turn_vibration_on(cps)
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
@@ -461,14 +469,6 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==pmiddile21:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==pmiddile1:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -479,6 +479,16 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
+            if point==pmiddile21:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+            if point==pmiddile1:
+                turn_vibration_on(cps)
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
