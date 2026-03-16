@@ -72,7 +72,7 @@ def run_tool2sideoutedge_cycles(count,force,cps):
 #             print("Pausing 3 seconds before next zigzag cycle...")
 #             time.sleep(3)
 
-def run_tool3_cycles(count,force,cps):
+def run_tool1_cycles(count,force,cps):
     """Execute zigzag function with specified number of cycles"""
     for i in range(count):
         print(f"\n=== ZIGZAG CYCLE {i+1}/{count} ===")
@@ -120,7 +120,7 @@ def startingRobotToSandmodel1():
     #zigzag_cycles = 1
     #tool2_side_cycle=1
     #tool2_sideoutedge=1
-    #tool3_cycles=1
+    #tool1_cycles=1
     #force_side_cycles=5
     #force_zigzag_cycles = 5
     #force_tool2_side_cycle=5
@@ -144,7 +144,7 @@ def startingRobotToSandmodel1():
     print("the pocketzigzag cycle is", zigzag_cycles)
     tool2_side_cycle = int(json_config_TableB['side']['cycle'])
     tool2_sideoutedge = int(json_config_TableB['edgeOutside']['cycle'])
-    tool3_cycles= int(json_config_TableB['3D']['cycle'])
+    tool1_cycles= int(json_config_TableB['3D']['cycle'])
     
     force_side_cycles = int(json_config_TableB['frame']['force'])
     force_zigzag_cycles = int(json_config_TableB['pocketzigzag']['force'])
@@ -203,7 +203,7 @@ def startingRobotToSandmodel1():
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             communicate(cps=cps, config=config, seventh=0, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], speed=0.3, wait=True)
             #keepTool11(cps, toolNumber=3, config=config)
-            cycles = [tool2_side_cycle, tool2_sideoutedge,tool3_cycles]
+            cycles = [tool2_side_cycle, tool2_sideoutedge,tool1_cycles]
             if any(cycle > 0 for cycle in cycles):
                 keepToolupdated(cps, toolNumber=3, config=config)
             else:
@@ -240,7 +240,7 @@ def startingRobotToSandmodel1():
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)
             #keepTool11(cps, toolNumber=2, config=config)
-            cycles = [tool3_cycles]
+            cycles = [tool1_cycles]
             if any(cycle > 0 for cycle in cycles):
                 keepToolupdated(cps, toolNumber=2, config=config)
             else:
@@ -248,7 +248,7 @@ def startingRobotToSandmodel1():
                 communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             #communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['door']['homingSpeed'], wait=True)
 
-        if tool3_cycles>0:
+        if tool1_cycles>0:
             check_tool(cps=cps,config=config,tool_num=1,ci0=ci0,ci1=ci1,ci2=ci2)
 
             #Pick Tool 2
@@ -264,7 +264,7 @@ def startingRobotToSandmodel1():
                 getTool11(cps, toolNumber=1, config=config)
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             #Tool 3Cycle
-            run_tool3_cycles(tool3_cycles,force_tool3,cps)
+            run_tool1_cycles(tool1_cycles,force_tool3,cps)
             #Drop Tool 2
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)

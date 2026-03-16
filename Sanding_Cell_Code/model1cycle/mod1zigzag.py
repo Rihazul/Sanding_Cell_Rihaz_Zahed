@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import json
+import math
 
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -13,6 +14,12 @@ from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibra
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
 from Table1Model.exportpointsmodule import exported_points
+from model1cycle.waypoint2 import (
+    Waypoint2Config,
+    execute_waypoint2_path,
+    generate_spiral_points_between,
+    generate_arc_line_segments_between,
+)
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -503,19 +510,23 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         # Vibration on
         
         
-        # # Force Control Activated
-        # putForceZplus(
-        #     cps=cps,
-        #     force=force,
-        #     tcp=config['coords']['tcpReal'],
-        #     ucs=config['coords']['ucsTable2'],
-        #     config=config
-        # )
-        # turn_vibration_on(cps)
+        # Force Control Activated
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
         
-        path_points = list(edge_points or []) + list(points1 or [])
-        # Communicate to each point in the combined path
-        for point in path_points:
+        edge_path = list(edge_points or [])
+        zigzag_points = list(points1 or [])
+        if not edge_path and not zigzag_points:
+            return
+
+        # Edge coverage uses regular MoveL points.
+        for point in edge_path:
             communicate(
                 cps=cps,
                 config=config,
@@ -526,13 +537,72 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
                 speed=0.6,
                 wait=False
             )
-        
-        # Wait for blending and turn off vibration
+
+        if zigzag_points:
+            wp2_cfg = Waypoint2Config(
+                speed=150.0,
+                accel=300.0,
+                radius=8.0,
+                min_seg_len=5.0,
+                min_angle_deg=12.0,
+                max_angle_deg=170.0,
+                use_arc=False,
+                use_wp2_for_line=True,
+                enforce_orientation="start",
+                wait_timeout_s=20.0,
+                cmd_id_prefix="zig",
+                line_cmd_id_prefix="zigL",
+            )
+        move_kwargs = {
+            "cps": cps,
+            "config": config,
+            "tcp": config['coords']['tcpReal'],
+            "ucs": config['coords']['ucsTable2'],
+            "seventh": -1,
+            "speed": speeed,
+            "wait": False,
+        }
+        spiral_points = []
+        for idx in range(len(zigzag_points) - 1):
+            start_pt = zigzag_points[idx]
+            end_pt = zigzag_points[idx + 1]
+            seg_points = generate_spiral_points_between(
+                start_pt,
+                end_pt,
+                radius=12.0,
+                angle_step_deg=45.0,
+                max_points=None,
+            )
+            if idx == 0:
+                spiral_points.extend(seg_points)
+            else:
+                spiral_points.extend(seg_points[1:])
+        if not spiral_points:
+            spiral_points = zigzag_points
+        wp2_result = execute_waypoint2_path(
+            cps,
+            spiral_points,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            cfg=wp2_cfg,
+            wait_each=False,
+            wait_end=True,
+            throttle_every=8,
+            throttle_sleep_s=0.01,
+            move_l_fn=communicate,
+            move_l_kwargs=move_kwargs,
+            logger=config.get("logger"),
+        )
+        if not wp2_result.get("ok", False):
+            print("[WayPoint2] Zigzag execution had failures; see log for details.")
+
+        # Wait for blending 
         waitForBlending(cps=cps, config=config)
-        # turn_vibration_off(cps)
-        # #Release force
-        # releaseForce(cps=cps, config=config)
-    
+        
+        # #Release force and turn off vibration after path is complete
+        releaseForce(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
         current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
@@ -875,18 +945,22 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         
         
         # Force Control Activated
-        # putForceZplus(
-        #     cps=cps,
-        #     force=force,
-        #     tcp=config['coords']['tcpReal'],
-        #     ucs=config['coords']['ucsTable2'],
-        #     config=config
-        # )
-        # turn_vibration_on(cps)
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
         
-        path_points = list(edge_points or []) + list(points1 or [])
-        # Communicate to each point in the combined path
-        for point in path_points:
+        edge_path = list(edge_points or [])
+        zigzag_points = list(points1 or [])
+        if not edge_path and not zigzag_points:
+            return
+
+        # Edge coverage uses regular MoveL points.
+        for point in edge_path:
             communicate(
                 cps=cps,
                 config=config,
@@ -897,12 +971,71 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
                 speed=0.6,
                 wait=False
             )
+
+        if zigzag_points:
+            wp2_cfg = Waypoint2Config(
+                speed=150.0,
+                accel=300.0,
+                radius=8.0,
+                min_seg_len=5.0,
+                min_angle_deg=12.0,
+                max_angle_deg=170.0,
+                use_arc=False,
+                use_wp2_for_line=True,
+                enforce_orientation="start",
+                wait_timeout_s=20.0,
+                cmd_id_prefix="zig",
+                line_cmd_id_prefix="zigL",
+            )
+            move_kwargs = {
+                "cps": cps,
+                "config": config,
+                "tcp": config['coords']['tcpReal'],
+                "ucs": config['coords']['ucsTable2'],
+                "seventh": -1,
+                "speed": speeed,
+                "wait": False,
+            }
+            spiral_points = []
+            for idx in range(len(zigzag_points) - 1):
+                start_pt = zigzag_points[idx]
+                end_pt = zigzag_points[idx + 1]
+                seg_points = generate_spiral_points_between(
+                    start_pt,
+                    end_pt,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    max_points=None,
+                )
+                if idx == 0:
+                    spiral_points.extend(seg_points)
+                else:
+                    spiral_points.extend(seg_points[1:])
+            if not spiral_points:
+                spiral_points = zigzag_points
+            wp2_result = execute_waypoint2_path(
+                cps,
+                spiral_points,
+                tcp=config['coords']['tcpReal'],
+                ucs=config['coords']['ucsTable2'],
+                cfg=wp2_cfg,
+                wait_each=False,
+                wait_end=True,
+                throttle_every=8,
+                throttle_sleep_s=0.01,
+                move_l_fn=communicate,
+                move_l_kwargs=move_kwargs,
+                logger=config.get("logger"),
+            )
+            if not wp2_result.get("ok", False):
+                print("[WayPoint2] Zigzag execution had failures; see log for details.")
         
-        # Wait for blending and turn off vibration
+        # Wait for blending 
         waitForBlending(cps=cps, config=config)
-        # turn_vibration_off(cps)
-        # #Release force
-        # releaseForce(cps=cps, config=config)
+    
+        # #Release force and turn off vibration after path is complete
+        releaseForce(cps=cps, config=config)
+        turn_vibration_off(cps)
     
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
@@ -1246,18 +1379,22 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         
         
         # # Force Control Activated
-        # putForceZplus(
-        #     cps=cps,
-        #     force=force,
-        #     tcp=config['coords']['tcpReal'],
-        #     ucs=config['coords']['ucsTable2'],
-        #     config=config
-        # )
-        # turn_vibration_on(cps)
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
         
-        path_points = list(edge_points or []) + list(points1 or [])
-        # Communicate to each point in the combined path
-        for point in path_points:
+        edge_path = list(edge_points or [])
+        zigzag_points = list(points1 or [])
+        if not edge_path and not zigzag_points:
+            return
+
+        # Edge coverage uses regular MoveL points.
+        for point in edge_path:
             communicate(
                 cps=cps,
                 config=config,
@@ -1268,12 +1405,71 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                 speed=0.6,
                 wait=False
             )
+
+        if zigzag_points:
+            wp2_cfg = Waypoint2Config(
+                speed=150.0,
+                accel=300.0,
+                radius=8.0,
+                min_seg_len=5.0,
+                min_angle_deg=12.0,
+                max_angle_deg=170.0,
+                use_arc=False,
+                use_wp2_for_line=True,
+                enforce_orientation="start",
+                wait_timeout_s=20.0,
+                cmd_id_prefix="zig",
+                line_cmd_id_prefix="zigL",
+            )
+            move_kwargs = {
+                "cps": cps,
+                "config": config,
+                "tcp": config['coords']['tcpReal'],
+                "ucs": config['coords']['ucsTable2'],
+                "seventh": -1,
+                "speed": speeed,
+                "wait": False,
+            }
+            spiral_points = []
+            for idx in range(len(zigzag_points) - 1):
+                start_pt = zigzag_points[idx]
+                end_pt = zigzag_points[idx + 1]
+                seg_points = generate_spiral_points_between(
+                    start_pt,
+                    end_pt,
+                    radius=12.0,
+                    angle_step_deg=45.0,
+                    max_points=None,
+                )
+                if idx == 0:
+                    spiral_points.extend(seg_points)
+                else:
+                    spiral_points.extend(seg_points[1:])
+            if not spiral_points:
+                spiral_points = zigzag_points
+            wp2_result = execute_waypoint2_path(
+                cps,
+                spiral_points,
+                tcp=config['coords']['tcpReal'],
+                ucs=config['coords']['ucsTable2'],
+                cfg=wp2_cfg,
+                wait_each=False,
+                wait_end=True,
+                throttle_every=8,
+                throttle_sleep_s=0.01,
+                move_l_fn=communicate,
+                move_l_kwargs=move_kwargs,
+                logger=config.get("logger"),
+            )
+            if not wp2_result.get("ok", False):
+                print("[WayPoint2] Zigzag execution had failures; see log for details.")
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        # turn_vibration_off(cps)
-        # #Release force
-        # releaseForce(cps=cps, config=config)
+        
+        # #Release force and turn off vibration after path is complete
+        releaseForce(cps=cps, config=config)
+        turn_vibration_off(cps)
     
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
