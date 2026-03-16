@@ -301,7 +301,7 @@ def model1pocket1side(force,cps):
     frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
     x1 = frame_paths["brw"][0]
-    x2 = frame_paths["blw"][0]
+    x2 = x1 + (frame_paths["blw"][0] - frame_paths["brw"][0]) / 2
 
     bpointmiddle = frame_paths["bottom_mid_w"]
     bpoint1st = frame_paths["blw"]
@@ -647,7 +647,10 @@ def model1pocket1side(force,cps):
     perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
 
     # Pass 2 (x2): bottom mid -> left side -> top mid
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
+    # Move to safe height, shift 7th axis, then re-approach at the new axis position
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_mid_to_left,force=force)
@@ -862,7 +865,7 @@ def model1pocket2side(force,cps):
     frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
     x1 = frame_paths["brw"][0]
-    x2 = frame_paths["blw"][0]
+    x2 = x1 + (frame_paths["blw"][0] - frame_paths["brw"][0]) / 2
 
     bpointmiddle = frame_paths["bottom_mid_w"]
     bpoint1st = frame_paths["blw"]
@@ -1247,7 +1250,10 @@ def model1pocket2side(force,cps):
     perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
 
     # Pass 2 (x2): bottom mid -> left side -> top mid
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
+    # Move to safe height, shift 7th axis, then re-approach at the new axis position
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_mid_to_left,force=force)
@@ -1462,7 +1468,7 @@ def model1pocket3side(force,cps):
     frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
     x1 = frame_paths["brw"][0]
-    x2 = frame_paths["blw"][0]
+    x2 = x1 + (frame_paths["blw"][0] - frame_paths["brw"][0]) / 2
 
     bpointmiddle = frame_paths["bottom_mid_w"]
     bpoint1st = frame_paths["blw"]
@@ -1846,7 +1852,10 @@ def model1pocket3side(force,cps):
     perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
 
     # Pass 2 (x2): bottom mid -> left side -> top mid
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
+    # Move to safe height, shift 7th axis, then re-approach at the new axis position
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_mid_to_left,force=force)
