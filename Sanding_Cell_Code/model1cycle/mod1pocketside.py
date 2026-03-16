@@ -297,8 +297,8 @@ def model1pocket1side(force,cps):
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
 
-    # Override frame paths using corner mapping (p13..p16) and fixed Z values
-    frame_paths = _build_frame_paths(p13, p14, p15, p16, z_work, z_clear)
+    # Override frame paths using offset corners (p5..p8) and fixed Z values
+    frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
     x1 = frame_paths["brw"][0]
     x2 = frame_paths["blw"][0]
@@ -858,8 +858,8 @@ def model1pocket2side(force,cps):
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
 
-    # Override frame paths using corner mapping (p13..p16) and fixed Z values
-    frame_paths = _build_frame_paths(p13, p14, p15, p16, z_work, z_clear)
+    # Override frame paths using offset corners (p5..p8) and fixed Z values
+    frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
     x1 = frame_paths["brw"][0]
     x2 = frame_paths["blw"][0]
@@ -1458,8 +1458,8 @@ def model1pocket3side(force,cps):
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
 
-    # Override frame paths using corner mapping (p13..p16) and fixed Z values
-    frame_paths = _build_frame_paths(p13, p14, p15, p16, z_work, z_clear)
+    # Override frame paths using offset corners (p5..p8) and fixed Z values
+    frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
     x1 = frame_paths["brw"][0]
     x2 = frame_paths["blw"][0]
