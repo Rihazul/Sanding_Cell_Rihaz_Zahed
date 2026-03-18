@@ -561,53 +561,30 @@ def model1pocket1side(force,cps):
 
     
 
-    def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
+    def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
+        Moves seventh axis first, then repositions the robot.
+        This avoids the frame shift that happens when both move at once.
         """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            speed=0.5,
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=0.8,
+            wait=True
+        )
    
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
@@ -619,7 +596,7 @@ def model1pocket1side(force,cps):
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2)
-    run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
+    move_axis_then_robot(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid,force=force)
@@ -1139,53 +1116,30 @@ def model1pocket2side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-    def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
+    def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
+        Moves seventh axis first, then repositions the robot.
+        This avoids the frame shift that happens when both move at once.
         """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            speed=0.5,
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=0.8,
+            wait=True
+        )
     
 
     # def run_single_movement(robot_point, seventh_axis_point, cps, config):
@@ -1249,7 +1203,7 @@ def model1pocket2side(force,cps):
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2)
-    run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
+    move_axis_then_robot(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid,force=force)
@@ -1770,53 +1724,30 @@ def model1pocket3side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-    def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
+    def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
+        Moves seventh axis first, then repositions the robot.
+        This avoids the frame shift that happens when both move at once.
         """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            speed=0.5,
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=0.8,
+            wait=True
+        )
    
    
 
@@ -1879,7 +1810,7 @@ def model1pocket3side(force,cps):
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2)
-    run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
+    move_axis_then_robot(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid,force=force)
