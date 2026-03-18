@@ -133,6 +133,18 @@ def model1pocket1side(force,cps):
     p14 = exported_points["p14"]
     p15 = exported_points["p15"]
     p16 = exported_points["p16"]
+
+    # Base pocket bounds (before offset expansion) for 7th-axis positioning
+    base_left = p5[0]
+    base_right = p8[0]
+
+    # Base pocket bounds (before offset expansion) for 7th-axis positioning
+    base_left = p9[0]
+    base_right = p12[0]
+
+    # Base pocket bounds (before offset expansion) for 7th-axis positioning
+    base_left = p13[0]
+    base_right = p16[0]
     
 
 
@@ -301,8 +313,8 @@ def model1pocket1side(force,cps):
     # Override frame paths using offset corners (p5..p8) and fixed Z values
     frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
-    x1 = frame_paths["brw"][0]
-    x2 = x1 + (frame_paths["blw"][0] - frame_paths["brw"][0]) / 2
+    x1 = base_right
+    x2 = x1 + (base_left - base_right) / 2
 
     bpointmiddle = frame_paths["bottom_mid_w"]
     bpoint1st = frame_paths["blw"]
@@ -866,8 +878,8 @@ def model1pocket2side(force,cps):
     # Override frame paths using offset corners (p5..p8) and fixed Z values
     frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
-    x1 = frame_paths["brw"][0]
-    x2 = x1 + (frame_paths["blw"][0] - frame_paths["brw"][0]) / 2
+    x1 = base_right
+    x2 = x1 + (base_left - base_right) / 2
 
     bpointmiddle = frame_paths["bottom_mid_w"]
     bpoint1st = frame_paths["blw"]
@@ -1469,8 +1481,8 @@ def model1pocket3side(force,cps):
     # Override frame paths using offset corners (p5..p8) and fixed Z values
     frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
 
-    x1 = frame_paths["brw"][0]
-    x2 = x1 + (frame_paths["blw"][0] - frame_paths["brw"][0]) / 2
+    x1 = base_right
+    x2 = x1 + (base_left - base_right) / 2
 
     bpointmiddle = frame_paths["bottom_mid_w"]
     bpoint1st = frame_paths["blw"]
