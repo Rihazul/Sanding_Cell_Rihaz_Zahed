@@ -316,12 +316,14 @@ def model1bottomsmall(force,cps):
         robot_thread.join()
         axis_thread.join()
 
-    #Bottom Cycle b (x1)
+    #Bottom Cycle at x1 (U pattern: bottom -> top)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bottompointsb,force=force)
+    perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
-    #Shift to x2 and do Bottom Cycle a (U pattern without backtracking to x1)
+    #Shift to x2 and repeat U pattern
     run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottompointsb,force=force)
     perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
     #Last cycle
