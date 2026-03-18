@@ -178,10 +178,11 @@ def model1pocket1side(force,cps):
    
      
     # Calculate new points outside the pocket
-    p5 = [p13[0] + outeroffset, p13[1] - outeroffset, z, 180, 0, 0]
-    p6 = [p14[0] + outeroffset, p14[1] + outeroffset, z, 180, 0, 0]
-    p7 = [p15[0] - outeroffset, p15[1] + outeroffset, z, 180, 0, 0]
-    p8 = [p16[0] - outeroffset, p16[1] - outeroffset, z, 180, 0, 0]
+    # Expand pocket boundary outward to frame: left gets more negative, right gets more positive
+    p5 = [p13[0] - outeroffset, p13[1] - outeroffset, z, 180, 0, 0]
+    p6 = [p14[0] - outeroffset, p14[1] + outeroffset, z, 180, 0, 0]
+    p7 = [p15[0] + outeroffset, p15[1] + outeroffset, z, 180, 0, 0]
+    p8 = [p16[0] + outeroffset, p16[1] - outeroffset, z, 180, 0, 0]
 
 
     print("offset p5=", p5)
@@ -742,10 +743,11 @@ def model1pocket2side(force,cps):
    
      
     # Calculate new points outside the pocket
-    p5 = [p9[0] + outeroffset, p9[1] - outeroffset, z, 180, 0, 0]
-    p6 = [p10[0] + outeroffset, p10[1] + outeroffset, z, 180, 0, 0]
-    p7 = [p11[0] - outeroffset, p11[1] + outeroffset, z, 180, 0, 0]
-    p8 = [p12[0] - outeroffset, p12[1] - outeroffset, z, 180, 0, 0]
+    # Expand pocket boundary outward to frame: left gets more negative, right gets more positive
+    p5 = [p9[0] - outeroffset, p9[1] - outeroffset, z, 180, 0, 0]
+    p6 = [p10[0] - outeroffset, p10[1] + outeroffset, z, 180, 0, 0]
+    p7 = [p11[0] + outeroffset, p11[1] + outeroffset, z, 180, 0, 0]
+    p8 = [p12[0] + outeroffset, p12[1] - outeroffset, z, 180, 0, 0]
 
 
     print("offset p5=", p5)
@@ -1344,10 +1346,11 @@ def model1pocket3side(force,cps):
    
      
     # Calculate new points outside the pocket
-    p5 = [p5[0] + outeroffset, p5[1] - outeroffset, z, 180, 0, 0]
-    p6 = [p6[0] + outeroffset, p6[1] + outeroffset, z, 180, 0, 0]
-    p7 = [p7[0] - outeroffset, p7[1] + outeroffset, z, 180, 0, 0]
-    p8 = [p8[0] - outeroffset, p8[1] - outeroffset, z, 180, 0, 0]
+    # Expand pocket boundary outward to frame: left gets more negative, right gets more positive
+    p5 = [p5[0] - outeroffset, p5[1] - outeroffset, z, 180, 0, 0]
+    p6 = [p6[0] - outeroffset, p6[1] + outeroffset, z, 180, 0, 0]
+    p7 = [p7[0] + outeroffset, p7[1] + outeroffset, z, 180, 0, 0]
+    p8 = [p8[0] + outeroffset, p8[1] - outeroffset, z, 180, 0, 0]
 
 
     print("offset p5=", p5)
