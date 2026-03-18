@@ -316,28 +316,15 @@ def model1bottomsmall(force,cps):
         robot_thread.join()
         axis_thread.join()
 
-    #Bottom Cycle b
+    #Bottom Cycle b (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-    # run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
-    # perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-    seventh_axis_points = [x2]
 
-    for point in seventh_axis_points:
-        run_single_movement(robot_point=prehoming, seventh_axis_point=point, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=bottompointsb, force=force)
-    #last cycle
-    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    #Bottom Cycle a
-    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    #Shift to x2 and do Bottom Cycle a (U pattern without backtracking to x1)
+    run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
-    seventh_axis_points = [x1]
-    for point in seventh_axis_points:
-        run_single_movement(robot_point=prehoming, seventh_axis_point=point, cps=cps, config=config)
-        perform_process_bottoma(cps, config, points1=bottompointsa, force=force)
-
-    #last cycle
+    #Last cycle
     communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
     

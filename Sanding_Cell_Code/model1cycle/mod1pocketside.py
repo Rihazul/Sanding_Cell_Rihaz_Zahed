@@ -1856,10 +1856,10 @@ def mod1tool1siderun(force,cps):
     if xlen == "null":
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
-        if xlen > 1000:
-            model1bottombig(force,cps)
-        else:
-            model1bottomsmall(force,cps)
+        # if xlen > 1000:
+        #     model1bottombig(force,cps)
+        # else:
+        model1bottomsmall(force,cps)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
 
