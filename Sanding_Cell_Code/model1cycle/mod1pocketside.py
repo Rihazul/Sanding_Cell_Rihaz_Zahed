@@ -167,7 +167,7 @@ def model1pocket1side(force,cps):
     # print("outeroffset=",outeroffset)
     # outeroffset1=p7[0]
     # print("outeroffset1=",outeroffset1)
-    framesize=p16[0]
+    framesize=abs(p16[0])
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
@@ -327,12 +327,12 @@ def model1pocket1side(force,cps):
     prepoint1st = frame_paths["trc"]
     prepoint2nd = frame_paths["brc"]
 
-    bottom_mid_to_left = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["blw"]]
-    bottom_mid_to_right = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["brw"]]
-    top_mid_to_left = frame_paths["top_mid_to_left"]
-    top_mid_to_right = frame_paths["top_mid_to_right"]
-    leftpoints = [prelpoint1st, lpoint1st, lpoint2nd, prelpoint2nd]
-    rightpoints = [prepoint1st, rpoint1st, rpoint2nd, prepoint2nd]
+    bottom_mid_to_left = [bpointmiddle, bpoint1st]
+    bottom_mid_to_right = [bpoint2nd, bpointmiddle]
+    top_mid_to_left = [tpoint1st, topointmiddle]
+    top_mid_to_right = [topointmiddle, tpoint2nd]
+    leftpoints = [lpoint1st, lpoint2nd]
+    rightpoints = [rpoint1st, rpoint2nd]
 
     bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
 
@@ -398,7 +398,7 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==bpointmiddle:
+            if force and point==bpointmiddle:
                 putForceZplus(
                     cps=cps,
                     force=force,
@@ -644,7 +644,7 @@ def model1pocket1side(force,cps):
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force, finalize=False)
     perform_process_right(cps, config, points1=rightpoints,force=force, finalize=False)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force, finalize=True)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=None, finalize=True)
 
     # Pass 2 (x2): bottom mid -> left side -> top mid
     # Move to safe height, shift 7th axis, then re-approach at the new axis position
@@ -730,7 +730,7 @@ def model1pocket2side(force,cps):
     # print("outeroffset=",outeroffset)
     # outeroffset1=p7[0]
     # print("outeroffset1=",outeroffset1)
-    framesize=p16[0]
+    framesize=abs(p16[0])
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
@@ -891,12 +891,12 @@ def model1pocket2side(force,cps):
     prepoint1st = frame_paths["trc"]
     prepoint2nd = frame_paths["brc"]
 
-    bottom_mid_to_left = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["blw"]]
-    bottom_mid_to_right = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["brw"]]
-    top_mid_to_left = frame_paths["top_mid_to_left"]
-    top_mid_to_right = frame_paths["top_mid_to_right"]
-    leftpoints = [prelpoint1st, lpoint1st, lpoint2nd, prelpoint2nd]
-    rightpoints = [prepoint1st, rpoint1st, rpoint2nd, prepoint2nd]
+    bottom_mid_to_left = [bpointmiddle, bpoint1st]
+    bottom_mid_to_right = [bpoint2nd, bpointmiddle]
+    top_mid_to_left = [tpoint1st, topointmiddle]
+    top_mid_to_right = [topointmiddle, tpoint2nd]
+    leftpoints = [lpoint1st, lpoint2nd]
+    rightpoints = [rpoint1st, rpoint2nd]
 
     bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
 
@@ -952,7 +952,7 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==bpointmiddle:putForceZplus(
+            if force and point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1246,7 +1246,7 @@ def model1pocket2side(force,cps):
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force, finalize=False)
     perform_process_right(cps, config, points1=rightpoints,force=force, finalize=False)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force, finalize=True)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=None, finalize=True)
 
     # Pass 2 (x2): bottom mid -> left side -> top mid
     # Move to safe height, shift 7th axis, then re-approach at the new axis position
@@ -1332,7 +1332,7 @@ def model1pocket3side(force,cps):
     # print("outeroffset=",outeroffset)
     # outeroffset1=p7[0]
     # print("outeroffset1=",outeroffset1)
-    framesize=p16[0]
+    framesize=abs(p16[0])
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
@@ -1493,12 +1493,12 @@ def model1pocket3side(force,cps):
     prepoint1st = frame_paths["trc"]
     prepoint2nd = frame_paths["brc"]
 
-    bottom_mid_to_left = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["blw"]]
-    bottom_mid_to_right = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["brw"]]
-    top_mid_to_left = frame_paths["top_mid_to_left"]
-    top_mid_to_right = frame_paths["top_mid_to_right"]
-    leftpoints = [prelpoint1st, lpoint1st, lpoint2nd, prelpoint2nd]
-    rightpoints = [prepoint1st, rpoint1st, rpoint2nd, prepoint2nd]
+    bottom_mid_to_left = [bpointmiddle, bpoint1st]
+    bottom_mid_to_right = [bpoint2nd, bpointmiddle]
+    top_mid_to_left = [tpoint1st, topointmiddle]
+    top_mid_to_right = [topointmiddle, tpoint2nd]
+    leftpoints = [lpoint1st, lpoint2nd]
+    rightpoints = [rpoint1st, rpoint2nd]
 
     bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
 
@@ -1554,7 +1554,7 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==bpointmiddle:putForceZplus(
+            if force and point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1847,7 +1847,7 @@ def model1pocket3side(force,cps):
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force, finalize=False)
     perform_process_right(cps, config, points1=rightpoints,force=force, finalize=False)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force, finalize=True)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=None, finalize=True)
 
     # Pass 2 (x2): bottom mid -> left side -> top mid
     # Move to safe height, shift 7th axis, then re-approach at the new axis position
@@ -1907,6 +1907,9 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
+
+
+
 
 
 
