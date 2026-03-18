@@ -21,53 +21,6 @@ from Table1Model.exportpointsmodule import exported_points
 from model1cycle.mod1bottomb import model1bottombig
 from model1cycle.mod1bottoms import model1bottomsmall
 
-def _frame_point(pt, z):
-    return [pt[0], pt[1], z, 180, 0, 0]
-
-def _midpoint(a, b, z):
-    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, z, 180, 0, 0]
-
-def _build_frame_paths(p13, p14, p15, p16, z_work, z_clear):
-    # Corner mapping: bottom-left p13, top-left p14, top-right p15, bottom-right p16
-    blw = _frame_point(p13, z_work)
-    tlw = _frame_point(p14, z_work)
-    trw = _frame_point(p15, z_work)
-    brw = _frame_point(p16, z_work)
-    blc = _frame_point(p13, z_clear)
-    tlc = _frame_point(p14, z_clear)
-    trc = _frame_point(p15, z_clear)
-    brc = _frame_point(p16, z_clear)
-
-    bottom_mid_w = _midpoint(blw, brw, z_work)
-    top_mid_w = _midpoint(tlw, trw, z_work)
-    left_mid_w = _midpoint(blw, tlw, z_work)
-    right_mid_w = _midpoint(brw, trw, z_work)
-    bottom_mid_c = _midpoint(blw, brw, z_clear)
-    top_mid_c = _midpoint(tlw, trw, z_clear)
-
-    return {
-        "blw": blw,
-        "tlw": tlw,
-        "trw": trw,
-        "brw": brw,
-        "blc": blc,
-        "tlc": tlc,
-        "trc": trc,
-        "brc": brc,
-        "bottom_mid_w": bottom_mid_w,
-        "top_mid_w": top_mid_w,
-        "left_mid_w": left_mid_w,
-        "right_mid_w": right_mid_w,
-        "bottom_mid_c": bottom_mid_c,
-        "top_mid_c": top_mid_c,
-        "bottom_mid_to_left": [bottom_mid_c, bottom_mid_w, blw, blc],
-        "bottom_mid_to_right": [bottom_mid_c, bottom_mid_w, brw, brc],
-        "top_mid_to_left": [top_mid_c, top_mid_w, tlw, tlc],
-        "top_mid_to_right": [top_mid_c, top_mid_w, trw, trc],
-        "leftpoints": [blc, blw, left_mid_w, tlw, tlc],
-        "rightpoints": [trc, trw, right_mid_w, brw, brc],
-    }
-
 
 
 
@@ -133,18 +86,6 @@ def model1pocket1side(force,cps):
     p14 = exported_points["p14"]
     p15 = exported_points["p15"]
     p16 = exported_points["p16"]
-
-    # Base pocket bounds (before offset expansion) for 7th-axis positioning
-    base_left = p5[0]
-    base_right = p8[0]
-
-    # Base pocket bounds (before offset expansion) for 7th-axis positioning
-    base_left = p9[0]
-    base_right = p12[0]
-
-    # Base pocket bounds (before offset expansion) for 7th-axis positioning
-    base_left = p13[0]
-    base_right = p16[0]
     
 
 
@@ -171,30 +112,27 @@ def model1pocket1side(force,cps):
 
    
    
-    z_clear = -10
-    z_work = -4
-    z = z_work
+    z=-4
     # #Outer Pocket Offset
     # outeroffset=p7[0]/2
     # print("outeroffset=",outeroffset)
     # outeroffset1=p7[0]
     # print("outeroffset1=",outeroffset1)
-    framesize=abs(p16[0])
+    framesize=p16[0]
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
-    z = z_work
+    z=-4
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
 
    
      
     # Calculate new points outside the pocket
-    # Expand pocket boundary outward to frame: left gets more negative, right gets more positive
-    p5 = [p13[0] - outeroffset, p13[1] - outeroffset, z, 180, 0, 0]
-    p6 = [p14[0] - outeroffset, p14[1] + outeroffset, z, 180, 0, 0]
-    p7 = [p15[0] + outeroffset, p15[1] + outeroffset, z, 180, 0, 0]
-    p8 = [p16[0] + outeroffset, p16[1] - outeroffset, z, 180, 0, 0]
+    p5 = [p13[0] + outeroffset, p13[1] - outeroffset, z, 180, 0, 0]
+    p6 = [p14[0] + outeroffset, p14[1] + outeroffset, z, 180, 0, 0]
+    p7 = [p15[0] - outeroffset, p15[1] + outeroffset, z, 180, 0, 0]
+    p8 = [p16[0] - outeroffset, p16[1] - outeroffset, z, 180, 0, 0]
 
 
     print("offset p5=", p5)
@@ -210,6 +148,8 @@ def model1pocket1side(force,cps):
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
+    x3=x1+seventhdistance*2
+    print("x3:", x3)
 
 
 
@@ -237,10 +177,6 @@ def model1pocket1side(force,cps):
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
-    bottom_mid_to_left=[bpointmiddle,bpoint1st,prebpoint1st]
-    bottom_mid_to_right=[bpointmiddle,bpoint2nd,prebpoint2nd]
-    print("bottom_mid_to_left:", bottom_mid_to_left)
-    print("bottom_mid_to_right:", bottom_mid_to_right)
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -290,10 +226,6 @@ def model1pocket1side(force,cps):
 
     toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
     print("toppoints:", toppoints)
-    top_mid_to_left=[topointmiddle,tpoint1st,pretpoint1st]
-    top_mid_to_right=[topointmiddle,tpoint2nd,pretpoint2nd]
-    print("top_mid_to_left:", top_mid_to_left)
-    print("top_mid_to_right:", top_mid_to_right)
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -309,49 +241,6 @@ def model1pocket1side(force,cps):
 
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
-
-    # Override frame paths using offset corners (p5..p8) and fixed Z values
-    frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
-
-    x1 = base_right
-    x2 = x1 + (base_left - base_right) / 2
-
-    bpointmiddle = frame_paths["bottom_mid_w"]
-    bpoint1st = frame_paths["blw"]
-    bpoint2nd = frame_paths["brw"]
-    prebpoint1st = frame_paths["blc"]
-    prebpoint2nd = frame_paths["brc"]
-
-    lpoint1st = frame_paths["blw"]
-    lpoint2nd = frame_paths["tlw"]
-    lpointmiddle = frame_paths["left_mid_w"]
-    prelpoint1st = frame_paths["blc"]
-    prelpoint2nd = frame_paths["tlc"]
-
-    tpoint1st = frame_paths["tlw"]
-    tpoint2nd = frame_paths["trw"]
-    topointmiddle = frame_paths["top_mid_w"]
-    pretpoint1st = frame_paths["tlc"]
-    pretpoint2nd = frame_paths["trc"]
-
-    rpoint1st = frame_paths["trw"]
-    rpoint2nd = frame_paths["brw"]
-    rpointmiddle = frame_paths["right_mid_w"]
-    prepoint1st = frame_paths["trc"]
-    prepoint2nd = frame_paths["brc"]
-
-    bottom_mid_to_left = [bpointmiddle, bpoint1st]
-    bottom_mid_to_right = [bpoint2nd, bpointmiddle]
-    top_mid_to_left = [tpoint1st, topointmiddle]
-    top_mid_to_right = [topointmiddle, tpoint2nd]
-    leftpoints = [lpoint1st, lpoint2nd]
-    rightpoints = [rpoint1st, rpoint2nd]
-
-    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
-
-    toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
-
-    hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -386,7 +275,7 @@ def model1pocket1side(force,cps):
 
     
 
-    def perform_process_bottom(cps, config, points1,force, finalize=True):
+    def perform_process_bottom(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -401,6 +290,14 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
+            if point==bpointmiddle:putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+            )
+            if point==bpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -411,25 +308,15 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if force and point==bpointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
-            if point==bpoint2nd:
-                turn_vibration_on(cps)
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_left(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    def perform_process_left(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -444,6 +331,14 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
+            if point==lpointmiddle:putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+            )
+            if point==lpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -454,25 +349,15 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==lpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
-            if point==lpoint2nd:
-                turn_vibration_on(cps)
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_top(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    def perform_process_top(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -487,6 +372,14 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
+            if point==topointmiddle:putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+            )
+            if point==tpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -497,25 +390,15 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==topointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
-            if point==tpoint2nd:
-                turn_vibration_on(cps)
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_right(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+    
+    def perform_process_right(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -530,6 +413,14 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
+            if point==rpointmiddle:putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+            )
+            if point==rpoint2nd:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -540,24 +431,15 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==rpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
-            if point==rpoint2nd:
-                turn_vibration_on(cps)
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -573,6 +455,14 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
+            if point==pmiddile21:putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+            )
+            if point==pmiddile1:turn_vibration_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -583,24 +473,14 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==pmiddile21:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
-            if point==pmiddile1:
-                turn_vibration_on(cps)
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
         import time
 
     
@@ -653,23 +533,35 @@ def model1pocket1side(force,cps):
         robot_thread.join()
         axis_thread.join()
    
-    # Pass 1 (x1): top mid -> right side -> bottom mid
+    # #Movement Bottom
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_top(cps, config, points1=top_mid_to_right,force=force, finalize=False)
-    perform_process_right(cps, config, points1=rightpoints,force=force, finalize=False)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=None, finalize=True)
+    #perform_process_bottom(cps, config, points1=bpoints,force=force)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # Pass 2 (x2): bottom mid -> left side -> top mid
-    # Move to safe height, shift 7th axis, then re-approach at the new axis position
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force, finalize=False)
-    perform_process_left(cps, config, points1=leftpoints,force=force, finalize=False)
-    perform_process_top(cps, config, points1=top_mid_to_left,force=force, finalize=True)
+    # #Cycles With Loops
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bpoints,force=force)
+
+    # #BottomExtra Cycle
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+
+    #LeftPoints
+    perform_process_left(cps, config, points1=leftpoints,force=force)
+    
+    #Top Cycles
+    perform_process_top(cps, config, points1=toppoints,force=force)
+    #Cycles
+    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_top(cps, config, points1=toppoints,force=force)
+
+    #Extra Cycle
+    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    #Left Cycle
+    perform_process_right(cps, config, points1=rightpoints,force=force)
+
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    
 def model1pocket2side(force,cps):
     # Load configuration from YAML
     config = load_config()
@@ -735,19 +627,17 @@ def model1pocket2side(force,cps):
 
    
    
-    z_clear = -10
-    z_work = -4
-    z = z_work
+    z=-4
     # #Outer Pocket Offset
     # outeroffset=p7[0]/2
     # print("outeroffset=",outeroffset)
     # outeroffset1=p7[0]
     # print("outeroffset1=",outeroffset1)
-    framesize=abs(p16[0])
+    framesize=p16[0]
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
-    z = z_work
+    z=-4
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
@@ -755,11 +645,10 @@ def model1pocket2side(force,cps):
    
      
     # Calculate new points outside the pocket
-    # Expand pocket boundary outward to frame: left gets more negative, right gets more positive
-    p5 = [p9[0] - outeroffset, p9[1] - outeroffset, z, 180, 0, 0]
-    p6 = [p10[0] - outeroffset, p10[1] + outeroffset, z, 180, 0, 0]
-    p7 = [p11[0] + outeroffset, p11[1] + outeroffset, z, 180, 0, 0]
-    p8 = [p12[0] + outeroffset, p12[1] - outeroffset, z, 180, 0, 0]
+    p5 = [p9[0] + outeroffset, p9[1] - outeroffset, z, 180, 0, 0]
+    p6 = [p10[0] + outeroffset, p10[1] + outeroffset, z, 180, 0, 0]
+    p7 = [p11[0] - outeroffset, p11[1] + outeroffset, z, 180, 0, 0]
+    p8 = [p12[0] - outeroffset, p12[1] - outeroffset, z, 180, 0, 0]
 
 
     print("offset p5=", p5)
@@ -775,6 +664,8 @@ def model1pocket2side(force,cps):
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
+    x3=x1+seventhdistance*2
+    print("x3:", x3)
 
 
 
@@ -802,10 +693,6 @@ def model1pocket2side(force,cps):
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
-    bottom_mid_to_left=[bpointmiddle,bpoint1st,prebpoint1st]
-    bottom_mid_to_right=[bpointmiddle,bpoint2nd,prebpoint2nd]
-    print("bottom_mid_to_left:", bottom_mid_to_left)
-    print("bottom_mid_to_right:", bottom_mid_to_right)
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -855,10 +742,6 @@ def model1pocket2side(force,cps):
 
     toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
     print("toppoints:", toppoints)
-    top_mid_to_left=[topointmiddle,tpoint1st,pretpoint1st]
-    top_mid_to_right=[topointmiddle,tpoint2nd,pretpoint2nd]
-    print("top_mid_to_left:", top_mid_to_left)
-    print("top_mid_to_right:", top_mid_to_right)
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -874,49 +757,6 @@ def model1pocket2side(force,cps):
 
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
-
-    # Override frame paths using offset corners (p5..p8) and fixed Z values
-    frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
-
-    x1 = base_right
-    x2 = x1 + (base_left - base_right) / 2
-
-    bpointmiddle = frame_paths["bottom_mid_w"]
-    bpoint1st = frame_paths["blw"]
-    bpoint2nd = frame_paths["brw"]
-    prebpoint1st = frame_paths["blc"]
-    prebpoint2nd = frame_paths["brc"]
-
-    lpoint1st = frame_paths["blw"]
-    lpoint2nd = frame_paths["tlw"]
-    lpointmiddle = frame_paths["left_mid_w"]
-    prelpoint1st = frame_paths["blc"]
-    prelpoint2nd = frame_paths["tlc"]
-
-    tpoint1st = frame_paths["tlw"]
-    tpoint2nd = frame_paths["trw"]
-    topointmiddle = frame_paths["top_mid_w"]
-    pretpoint1st = frame_paths["tlc"]
-    pretpoint2nd = frame_paths["trc"]
-
-    rpoint1st = frame_paths["trw"]
-    rpoint2nd = frame_paths["brw"]
-    rpointmiddle = frame_paths["right_mid_w"]
-    prepoint1st = frame_paths["trc"]
-    prepoint2nd = frame_paths["brc"]
-
-    bottom_mid_to_left = [bpointmiddle, bpoint1st]
-    bottom_mid_to_right = [bpoint2nd, bpointmiddle]
-    top_mid_to_left = [tpoint1st, topointmiddle]
-    top_mid_to_right = [topointmiddle, tpoint2nd]
-    leftpoints = [lpoint1st, lpoint2nd]
-    rightpoints = [rpoint1st, rpoint2nd]
-
-    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
-
-    toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
-
-    hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -951,7 +791,7 @@ def model1pocket2side(force,cps):
 
     
 
-    def perform_process_bottom(cps, config, points1,force, finalize=True):
+    def perform_process_bottom(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -966,7 +806,7 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if force and point==bpointmiddle:putForceZplus(
+            if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -985,14 +825,14 @@ def model1pocket2side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_left(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    def perform_process_left(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1007,7 +847,7 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==lpoint1st:putForceZplus(
+            if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1026,14 +866,14 @@ def model1pocket2side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_top(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    def perform_process_top(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1067,14 +907,14 @@ def model1pocket2side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_right(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+    
+    def perform_process_right(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1089,7 +929,7 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==rpoint1st:putForceZplus(
+            if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1108,13 +948,14 @@ def model1pocket2side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1149,13 +990,14 @@ def model1pocket2side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
         lock = threading.Lock()
         # time.sleep(0.2)
@@ -1256,20 +1098,33 @@ def model1pocket2side(force,cps):
 
     #     return True
    
-    # Pass 1 (x1): top mid -> right side -> bottom mid
+    # #Movement Bottom
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_top(cps, config, points1=top_mid_to_right,force=force, finalize=False)
-    perform_process_right(cps, config, points1=rightpoints,force=force, finalize=False)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=None, finalize=True)
+    #perform_process_bottom(cps, config, points1=bpoints,force=force)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # Pass 2 (x2): bottom mid -> left side -> top mid
-    # Move to safe height, shift 7th axis, then re-approach at the new axis position
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force, finalize=False)
-    perform_process_left(cps, config, points1=leftpoints,force=force, finalize=False)
-    perform_process_top(cps, config, points1=top_mid_to_left,force=force, finalize=True)
+    # #Cycles With Loops
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bpoints,force=force)
+
+    # #BottomExtra Cycle
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+
+    #LeftPoints
+    perform_process_left(cps, config, points1=leftpoints,force=force)
+    
+    #Top Cycles
+    perform_process_top(cps, config, points1=toppoints,force=force)
+    #Cycles
+    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_top(cps, config, points1=toppoints,force=force)
+
+    #Extra Cycle
+    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    #Left Cycle
+    perform_process_right(cps, config, points1=rightpoints,force=force)
+
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     
@@ -1338,19 +1193,17 @@ def model1pocket3side(force,cps):
 
    
    
-    z_clear = -10
-    z_work = -4
-    z = z_work
+    z=-4
     # #Outer Pocket Offset
     # outeroffset=p7[0]/2
     # print("outeroffset=",outeroffset)
     # outeroffset1=p7[0]
     # print("outeroffset1=",outeroffset1)
-    framesize=abs(p16[0])
+    framesize=p16[0]
     print("framesize=",framesize)
     outeroffset=framesize/2
     print("outeroffset=",outeroffset)
-    z = z_work
+    z=-4
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
@@ -1358,11 +1211,10 @@ def model1pocket3side(force,cps):
    
      
     # Calculate new points outside the pocket
-    # Expand pocket boundary outward to frame: left gets more negative, right gets more positive
-    p5 = [p5[0] - outeroffset, p5[1] - outeroffset, z, 180, 0, 0]
-    p6 = [p6[0] - outeroffset, p6[1] + outeroffset, z, 180, 0, 0]
-    p7 = [p7[0] + outeroffset, p7[1] + outeroffset, z, 180, 0, 0]
-    p8 = [p8[0] + outeroffset, p8[1] - outeroffset, z, 180, 0, 0]
+    p5 = [p5[0] + outeroffset, p5[1] - outeroffset, z, 180, 0, 0]
+    p6 = [p6[0] + outeroffset, p6[1] + outeroffset, z, 180, 0, 0]
+    p7 = [p7[0] - outeroffset, p7[1] + outeroffset, z, 180, 0, 0]
+    p8 = [p8[0] - outeroffset, p8[1] - outeroffset, z, 180, 0, 0]
 
 
     print("offset p5=", p5)
@@ -1378,6 +1230,8 @@ def model1pocket3side(force,cps):
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
+    x3=x1+seventhdistance*2
+    print("x3:", x3)
 
 
 
@@ -1405,10 +1259,6 @@ def model1pocket3side(force,cps):
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
-    bottom_mid_to_left=[bpointmiddle,bpoint1st,prebpoint1st]
-    bottom_mid_to_right=[bpointmiddle,bpoint2nd,prebpoint2nd]
-    print("bottom_mid_to_left:", bottom_mid_to_left)
-    print("bottom_mid_to_right:", bottom_mid_to_right)
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -1458,10 +1308,6 @@ def model1pocket3side(force,cps):
 
     toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
     print("toppoints:", toppoints)
-    top_mid_to_left=[topointmiddle,tpoint1st,pretpoint1st]
-    top_mid_to_right=[topointmiddle,tpoint2nd,pretpoint2nd]
-    print("top_mid_to_left:", top_mid_to_left)
-    print("top_mid_to_right:", top_mid_to_right)
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -1477,49 +1323,6 @@ def model1pocket3side(force,cps):
 
     rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
-
-    # Override frame paths using offset corners (p5..p8) and fixed Z values
-    frame_paths = _build_frame_paths(p5, p6, p7, p8, z_work, z_clear)
-
-    x1 = base_right
-    x2 = x1 + (base_left - base_right) / 2
-
-    bpointmiddle = frame_paths["bottom_mid_w"]
-    bpoint1st = frame_paths["blw"]
-    bpoint2nd = frame_paths["brw"]
-    prebpoint1st = frame_paths["blc"]
-    prebpoint2nd = frame_paths["brc"]
-
-    lpoint1st = frame_paths["blw"]
-    lpoint2nd = frame_paths["tlw"]
-    lpointmiddle = frame_paths["left_mid_w"]
-    prelpoint1st = frame_paths["blc"]
-    prelpoint2nd = frame_paths["tlc"]
-
-    tpoint1st = frame_paths["tlw"]
-    tpoint2nd = frame_paths["trw"]
-    topointmiddle = frame_paths["top_mid_w"]
-    pretpoint1st = frame_paths["tlc"]
-    pretpoint2nd = frame_paths["trc"]
-
-    rpoint1st = frame_paths["trw"]
-    rpoint2nd = frame_paths["brw"]
-    rpointmiddle = frame_paths["right_mid_w"]
-    prepoint1st = frame_paths["trc"]
-    prepoint2nd = frame_paths["brc"]
-
-    bottom_mid_to_left = [bpointmiddle, bpoint1st]
-    bottom_mid_to_right = [bpoint2nd, bpointmiddle]
-    top_mid_to_left = [tpoint1st, topointmiddle]
-    top_mid_to_right = [topointmiddle, tpoint2nd]
-    leftpoints = [lpoint1st, lpoint2nd]
-    rightpoints = [rpoint1st, rpoint2nd]
-
-    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
-
-    toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
-
-    hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -1554,7 +1357,7 @@ def model1pocket3side(force,cps):
 
     
 
-    def perform_process_bottom(cps, config, points1,force, finalize=True):
+    def perform_process_bottom(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1569,7 +1372,7 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if force and point==bpointmiddle:putForceZplus(
+            if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1588,14 +1391,14 @@ def model1pocket3side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_left(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    def perform_process_left(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1610,7 +1413,7 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==lpoint1st:putForceZplus(
+            if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1629,14 +1432,14 @@ def model1pocket3side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_top(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    def perform_process_top(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1670,14 +1473,14 @@ def model1pocket3side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-    def perform_process_right(cps, config, points1,force, finalize=True):
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+    
+    def perform_process_right(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
         
@@ -1692,7 +1495,7 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==rpoint1st:putForceZplus(
+            if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1711,13 +1514,14 @@ def model1pocket3side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+    
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1752,13 +1556,14 @@ def model1pocket3side(force,cps):
                 wait=False
             )
         
-        if finalize:
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+        # Wait for blending and turn off vibration
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        
+        # Release Force Control
+        releaseForce(cps=cps, config=config) 
+
+
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
         lock = threading.Lock()
         # time.sleep(0.2)
@@ -1858,20 +1663,33 @@ def model1pocket3side(force,cps):
     #         time.sleep(0.01)
 
     #     return True
-    # Pass 1 (x1): top mid -> right side -> bottom mid
+    # #Movement Bottom
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_top(cps, config, points1=top_mid_to_right,force=force, finalize=False)
-    perform_process_right(cps, config, points1=rightpoints,force=force, finalize=False)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=None, finalize=True)
+    #perform_process_bottom(cps, config, points1=bpoints,force=force)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # Pass 2 (x2): bottom mid -> left side -> top mid
-    # Move to safe height, shift 7th axis, then re-approach at the new axis position
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force, finalize=False)
-    perform_process_left(cps, config, points1=leftpoints,force=force, finalize=False)
-    perform_process_top(cps, config, points1=top_mid_to_left,force=force, finalize=True)
+    # #Cycles With Loops
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bpoints,force=force)
+
+    # #BottomExtra Cycle
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+
+    #LeftPoints
+    perform_process_left(cps, config, points1=leftpoints,force=force)
+    
+    #Top Cycles
+    perform_process_top(cps, config, points1=toppoints,force=force)
+    #Cycles
+    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_top(cps, config, points1=toppoints,force=force)
+
+    #Extra Cycle
+    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    #Left Cycle
+    perform_process_right(cps, config, points1=rightpoints,force=force)
+
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     
@@ -1922,14 +1740,4 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
-
-
-
-
-
-
-
-
-
-
 
