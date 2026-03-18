@@ -352,7 +352,7 @@ def model1pocket1side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -405,7 +405,7 @@ def model1pocket1side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -458,7 +458,7 @@ def model1pocket1side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -511,7 +511,7 @@ def model1pocket1side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -550,7 +550,7 @@ def model1pocket1side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -912,7 +912,7 @@ def model1pocket2side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -965,7 +965,7 @@ def model1pocket2side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1018,7 +1018,7 @@ def model1pocket2side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1071,7 +1071,7 @@ def model1pocket2side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1110,7 +1110,7 @@ def model1pocket2side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1160,7 +1160,7 @@ def model1pocket2side(force,cps):
     #         ucs=config['coords']['ucsTable2'],
     #         seventh=-1,
     #         speed=0.8,
-    #         wait=False
+    #         wait=True
     #     )
     #     communicate(
     #         cps=cps,
@@ -1169,7 +1169,7 @@ def model1pocket2side(force,cps):
     #         tcp=config['coords']['tcpReal'],
     #         ucs=config['coords']['ucsTable2'],
     #         speed=0.5,
-    #         wait=False
+    #         wait=True
     #     )
 
 
@@ -1521,7 +1521,7 @@ def model1pocket3side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1574,7 +1574,7 @@ def model1pocket3side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1627,7 +1627,7 @@ def model1pocket3side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1680,7 +1680,7 @@ def model1pocket3side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1719,7 +1719,7 @@ def model1pocket3side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
-                wait=False
+                wait=True
             )
         
         # Wait for blending and turn off vibration
@@ -1769,7 +1769,7 @@ def model1pocket3side(force,cps):
     #         ucs=config['coords']['ucsTable2'],
     #         seventh=-1,
     #         speed=0.8,
-    #         wait=False
+    #         wait=True
     #     )
 
     #     communicate(
@@ -1779,7 +1779,7 @@ def model1pocket3side(force,cps):
     #         tcp=config['coords']['tcpReal'],
     #         ucs=config['coords']['ucsTable2'],
     #         speed=0.5,
-    #         wait=False
+    #         wait=True
     #     )
 
         
@@ -1870,6 +1870,7 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
+
 
 
 
