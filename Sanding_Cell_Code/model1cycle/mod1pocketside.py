@@ -170,6 +170,8 @@ def model1pocket1side(force,cps):
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
+    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -10, 180, 0, 0]
+    print("prebpointmiddle:", prebpointmiddle)
 
 
     #Hpoints for bottom
@@ -177,6 +179,8 @@ def model1pocket1side(force,cps):
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
+    bottom_mid_to_right=[bpoint1st,bpointmiddle,prebpointmiddle]
+    bottom_mid_to_left=[bpointmiddle,bpoint2nd,prebpoint2nd]
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -194,7 +198,7 @@ def model1pocket1side(force,cps):
     lpointmiddle = [0, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
-    leftpoints=[prelpoint1st,lpoint1st,lpointmiddle,lpoint2nd,prelpoint2nd]
+    leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
     print("leftpoints:",leftpoints)
 
 
@@ -213,6 +217,8 @@ def model1pocket1side(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
+    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
+    print("pretpointmiddle:", pretpointmiddle)
     tpoint2nd = [-distance/2, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
     pretpoint2nd = [-distance/2, point7[1], -10, 180, 0, 0]
@@ -226,6 +232,8 @@ def model1pocket1side(force,cps):
 
     toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
     print("toppoints:", toppoints)
+    top_mid_to_right=[topointmiddle,tpoint1st,pretpoint1st]
+    top_mid_to_left=[topointmiddle,tpoint2nd,pretpoint2nd]
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -239,7 +247,7 @@ def model1pocket1side(force,cps):
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
 
-    rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
+    rightpoints=[prepoint1st,rpoint1st,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
 
     #Middle Points
@@ -289,15 +297,22 @@ def model1pocket1side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==bpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==bpoint2nd:turn_vibration_on(cps)
+            if point==bpointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==bpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -330,15 +345,22 @@ def model1pocket1side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==lpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==lpoint2nd:turn_vibration_on(cps)
+            if point==lpoint1st:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==lpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -371,15 +393,22 @@ def model1pocket1side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==topointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==tpoint2nd:turn_vibration_on(cps)
+            if point==topointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==tpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -412,15 +441,22 @@ def model1pocket1side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==rpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==rpoint2nd:turn_vibration_on(cps)
+            if point==rpoint1st:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==rpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -535,17 +571,16 @@ def model1pocket1side(force,cps):
    
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=htoppoints,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    perform_process_top(cps, config, points1=toppoints,force=force)
+    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
 
     # Pass 2: bottom -> left -> top (x2)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
+    run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=toppoints,force=force)
+    perform_process_top(cps, config, points1=top_mid_to_left,force=force)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -673,6 +708,8 @@ def model1pocket2side(force,cps):
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
+    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -10, 180, 0, 0]
+    print("prebpointmiddle:", prebpointmiddle)
 
 
     #Hpoints for bottom
@@ -680,6 +717,8 @@ def model1pocket2side(force,cps):
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
+    bottom_mid_to_right=[bpoint1st,bpointmiddle,prebpointmiddle]
+    bottom_mid_to_left=[bpointmiddle,bpoint2nd,prebpoint2nd]
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -697,7 +736,7 @@ def model1pocket2side(force,cps):
     lpointmiddle = [0, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
-    leftpoints=[prelpoint1st,lpoint1st,lpointmiddle,lpoint2nd,prelpoint2nd]
+    leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
     print("leftpoints:",leftpoints)
 
 
@@ -716,6 +755,8 @@ def model1pocket2side(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
+    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
+    print("pretpointmiddle:", pretpointmiddle)
     tpoint2nd = [-distance/2, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
     pretpoint2nd = [-distance/2, point7[1], -10, 180, 0, 0]
@@ -729,6 +770,8 @@ def model1pocket2side(force,cps):
 
     toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
     print("toppoints:", toppoints)
+    top_mid_to_right=[topointmiddle,tpoint1st,pretpoint1st]
+    top_mid_to_left=[topointmiddle,tpoint2nd,pretpoint2nd]
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -742,7 +785,7 @@ def model1pocket2side(force,cps):
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
 
-    rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
+    rightpoints=[prepoint1st,rpoint1st,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
 
     #Middle Points
@@ -792,15 +835,22 @@ def model1pocket2side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==bpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==bpoint2nd:turn_vibration_on(cps)
+            if point==bpointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==bpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -833,15 +883,22 @@ def model1pocket2side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==lpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==lpoint2nd:turn_vibration_on(cps)
+            if point==lpoint1st:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==lpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -874,15 +931,22 @@ def model1pocket2side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==topointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==tpoint2nd:turn_vibration_on(cps)
+            if point==topointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==tpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -915,15 +979,22 @@ def model1pocket2side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==rpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==rpoint2nd:turn_vibration_on(cps)
+            if point==rpoint1st:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==rpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1087,17 +1158,16 @@ def model1pocket2side(force,cps):
    
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=htoppoints,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    perform_process_top(cps, config, points1=toppoints,force=force)
+    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
 
     # Pass 2: bottom -> left -> top (x2)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
+    run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=toppoints,force=force)
+    perform_process_top(cps, config, points1=top_mid_to_left,force=force)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -1226,6 +1296,8 @@ def model1pocket3side(force,cps):
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
+    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -10, 180, 0, 0]
+    print("prebpointmiddle:", prebpointmiddle)
 
 
     #Hpoints for bottom
@@ -1233,6 +1305,8 @@ def model1pocket3side(force,cps):
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
+    bottom_mid_to_right=[bpoint1st,bpointmiddle,prebpointmiddle]
+    bottom_mid_to_left=[bpointmiddle,bpoint2nd,prebpoint2nd]
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -1250,7 +1324,7 @@ def model1pocket3side(force,cps):
     lpointmiddle = [0, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
-    leftpoints=[prelpoint1st,lpoint1st,lpointmiddle,lpoint2nd,prelpoint2nd]
+    leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
     print("leftpoints:",leftpoints)
 
 
@@ -1269,6 +1343,8 @@ def model1pocket3side(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
+    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
+    print("pretpointmiddle:", pretpointmiddle)
     tpoint2nd = [-distance/2, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
     pretpoint2nd = [-distance/2, point7[1], -10, 180, 0, 0]
@@ -1282,6 +1358,8 @@ def model1pocket3side(force,cps):
 
     toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
     print("toppoints:", toppoints)
+    top_mid_to_right=[topointmiddle,tpoint1st,pretpoint1st]
+    top_mid_to_left=[topointmiddle,tpoint2nd,pretpoint2nd]
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -1295,7 +1373,7 @@ def model1pocket3side(force,cps):
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
 
-    rightpoints=[prepoint1st,rpoint1st,rpointmiddle,rpoint2nd,prepoint2nd]
+    rightpoints=[prepoint1st,rpoint1st,rpoint2nd,prepoint2nd]
     print("rightpoints:",rightpoints)
 
     #Middle Points
@@ -1345,15 +1423,22 @@ def model1pocket3side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==bpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==bpoint2nd:turn_vibration_on(cps)
+            if point==bpointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==bpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1386,15 +1471,22 @@ def model1pocket3side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==lpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==lpoint2nd:turn_vibration_on(cps)
+            if point==lpoint1st:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==lpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1427,15 +1519,22 @@ def model1pocket3side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==topointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==tpoint2nd:turn_vibration_on(cps)
+            if point==topointmiddle:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==tpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1468,15 +1567,22 @@ def model1pocket3side(force,cps):
         #)
         
         # Communicate to each point in points1
+        vibration_started = False
         for point in points1:
-            if point==rpointmiddle:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==rpoint2nd:turn_vibration_on(cps)
+            if point==rpoint1st:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                if not vibration_started:
+                    turn_vibration_on(cps)
+                    vibration_started = True
+            if point==rpoint2nd and not vibration_started:
+                turn_vibration_on(cps)
+                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1639,17 +1745,16 @@ def model1pocket3side(force,cps):
     #     return True
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=htoppoints,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    perform_process_top(cps, config, points1=toppoints,force=force)
+    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
 
     # Pass 2: bottom -> left -> top (x2)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
+    run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=toppoints,force=force)
+    perform_process_top(cps, config, points1=top_mid_to_left,force=force)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
