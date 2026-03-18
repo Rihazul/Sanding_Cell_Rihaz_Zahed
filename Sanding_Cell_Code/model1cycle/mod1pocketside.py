@@ -178,10 +178,10 @@ def model1pocket1side(force,cps):
     #Hpoints for bottom
     hbpoint1st=[0, point8[1], -50, 180, 0, 0]
     print("hbpoint1st:", hbpoint1st)
-    bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
+    bpoints=[bpoint1st, bpointmiddle, bpoint2nd]
     print("bpoints:", bpoints)
-    bottom_mid_to_right=[bpoint1st,bpointmiddle,prebpointmiddle]
-    bottom_mid_to_left=[bpointmiddle,bpoint2nd,prebpoint2nd]
+    bottom_right_to_mid=[bpoint1st, bpointmiddle]
+    bottom_mid_to_left=[bpointmiddle, bpoint2nd]
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -199,7 +199,7 @@ def model1pocket1side(force,cps):
     lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
-    leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
+    leftpoints=[lpoint1st, lpoint2nd]
     print("leftpoints:",leftpoints)
 
 
@@ -231,10 +231,10 @@ def model1pocket1side(force,cps):
     print("htoppoints:", htoppoints)
 
 
-    toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
+    toppoints=[tpoint1st, topointmiddle, tpoint2nd]
     print("toppoints:", toppoints)
-    top_mid_to_right=[topointmiddle,tpoint1st,pretpoint1st]
-    top_mid_to_left=[topointmiddle,tpoint2nd,pretpoint2nd]
+    top_mid_to_right=[topointmiddle, tpoint1st]
+    top_left_to_mid=[tpoint2nd, topointmiddle]
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -248,7 +248,7 @@ def model1pocket1side(force,cps):
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
 
-    rightpoints=[prepoint1st,rpoint1st,rpoint2nd,prepoint2nd]
+    rightpoints=[rpoint1st, rpoint2nd]
     print("rightpoints:",rightpoints)
 
     #Middle Points
@@ -614,7 +614,7 @@ def model1pocket1side(force,cps):
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
+    perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -622,7 +622,7 @@ def model1pocket1side(force,cps):
     run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=top_mid_to_left,force=force)
+    perform_process_top(cps, config, points1=top_left_to_mid,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -760,10 +760,10 @@ def model1pocket2side(force,cps):
     #Hpoints for bottom
     hbpoint1st=[0, point8[1], -50, 180, 0, 0]
     print("hbpoint1st:", hbpoint1st)
-    bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
+    bpoints=[bpoint1st, bpointmiddle, bpoint2nd]
     print("bpoints:", bpoints)
-    bottom_mid_to_right=[bpoint1st,bpointmiddle,prebpointmiddle]
-    bottom_mid_to_left=[bpointmiddle,bpoint2nd,prebpoint2nd]
+    bottom_right_to_mid=[bpoint1st, bpointmiddle]
+    bottom_mid_to_left=[bpointmiddle, bpoint2nd]
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -781,7 +781,7 @@ def model1pocket2side(force,cps):
     lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
-    leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
+    leftpoints=[lpoint1st, lpoint2nd]
     print("leftpoints:",leftpoints)
 
 
@@ -813,10 +813,10 @@ def model1pocket2side(force,cps):
     print("htoppoints:", htoppoints)
 
 
-    toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
+    toppoints=[tpoint1st, topointmiddle, tpoint2nd]
     print("toppoints:", toppoints)
-    top_mid_to_right=[topointmiddle,tpoint1st,pretpoint1st]
-    top_mid_to_left=[topointmiddle,tpoint2nd,pretpoint2nd]
+    top_mid_to_right=[topointmiddle, tpoint1st]
+    top_left_to_mid=[tpoint2nd, topointmiddle]
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -830,7 +830,7 @@ def model1pocket2side(force,cps):
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
 
-    rightpoints=[prepoint1st,rpoint1st,rpoint2nd,prepoint2nd]
+    rightpoints=[rpoint1st, rpoint2nd]
     print("rightpoints:",rightpoints)
 
     #Middle Points
@@ -1244,7 +1244,7 @@ def model1pocket2side(force,cps):
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
+    perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -1252,7 +1252,7 @@ def model1pocket2side(force,cps):
     run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=top_mid_to_left,force=force)
+    perform_process_top(cps, config, points1=top_left_to_mid,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -1391,10 +1391,10 @@ def model1pocket3side(force,cps):
     #Hpoints for bottom
     hbpoint1st=[0, point8[1], -50, 180, 0, 0]
     print("hbpoint1st:", hbpoint1st)
-    bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
+    bpoints=[bpoint1st, bpointmiddle, bpoint2nd]
     print("bpoints:", bpoints)
-    bottom_mid_to_right=[bpoint1st,bpointmiddle,prebpointmiddle]
-    bottom_mid_to_left=[bpointmiddle,bpoint2nd,prebpoint2nd]
+    bottom_right_to_mid=[bpoint1st, bpointmiddle]
+    bottom_mid_to_left=[bpointmiddle, bpoint2nd]
 
     #Points Left
     point6 = [p6[0], p6[1], z, 180, 0, 0]
@@ -1412,7 +1412,7 @@ def model1pocket3side(force,cps):
     lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
-    leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
+    leftpoints=[lpoint1st, lpoint2nd]
     print("leftpoints:",leftpoints)
 
 
@@ -1444,10 +1444,10 @@ def model1pocket3side(force,cps):
     print("htoppoints:", htoppoints)
 
 
-    toppoints=[pretpoint1st,tpoint1st,topointmiddle,tpoint2nd,pretpoint2nd]
+    toppoints=[tpoint1st, topointmiddle, tpoint2nd]
     print("toppoints:", toppoints)
-    top_mid_to_right=[topointmiddle,tpoint1st,pretpoint1st]
-    top_mid_to_left=[topointmiddle,tpoint2nd,pretpoint2nd]
+    top_mid_to_right=[topointmiddle, tpoint1st]
+    top_left_to_mid=[tpoint2nd, topointmiddle]
 
     #Right Side
     rpoint1st = [0, point7[1], z, 180, 0, 0]
@@ -1461,7 +1461,7 @@ def model1pocket3side(force,cps):
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
 
-    rightpoints=[prepoint1st,rpoint1st,rpoint2nd,prepoint2nd]
+    rightpoints=[rpoint1st, rpoint2nd]
     print("rightpoints:",rightpoints)
 
     #Middle Points
@@ -1874,7 +1874,7 @@ def model1pocket3side(force,cps):
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
+    perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -1882,7 +1882,7 @@ def model1pocket3side(force,cps):
     run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=top_mid_to_left,force=force)
+    perform_process_top(cps, config, points1=top_left_to_mid,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
