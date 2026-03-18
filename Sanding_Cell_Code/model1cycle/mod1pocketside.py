@@ -327,14 +327,15 @@ def model1pocket1side(force,cps):
     prepoint1st = frame_paths["trc"]
     prepoint2nd = frame_paths["brc"]
 
-    bottom_mid_to_left = frame_paths["bottom_mid_to_left"]
-    bottom_mid_to_right = frame_paths["bottom_mid_to_right"]
+    bottom_mid_to_left = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["blw"]]
+    bottom_mid_to_right = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["brw"]]
     top_mid_to_left = frame_paths["top_mid_to_left"]
     top_mid_to_right = frame_paths["top_mid_to_right"]
-    leftpoints = frame_paths["leftpoints"]
-    rightpoints = frame_paths["rightpoints"]
+    leftpoints = [prelpoint1st, lpoint1st, lpoint2nd, prelpoint2nd]
+    rightpoints = [prepoint1st, rpoint1st, rpoint2nd, prepoint2nd]
 
-    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd, prebpoint2nd]
+    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
+
     toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
 
     hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
@@ -440,7 +441,7 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==lpointmiddle:
+            if point==lpoint1st:
                 putForceZplus(
                     cps=cps,
                     force=force,
@@ -526,7 +527,7 @@ def model1pocket1side(force,cps):
                 speed=0.6,
                 wait=False
             )
-            if point==rpointmiddle:
+            if point==rpoint1st:
                 putForceZplus(
                     cps=cps,
                     force=force,
@@ -890,14 +891,15 @@ def model1pocket2side(force,cps):
     prepoint1st = frame_paths["trc"]
     prepoint2nd = frame_paths["brc"]
 
-    bottom_mid_to_left = frame_paths["bottom_mid_to_left"]
-    bottom_mid_to_right = frame_paths["bottom_mid_to_right"]
+    bottom_mid_to_left = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["blw"]]
+    bottom_mid_to_right = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["brw"]]
     top_mid_to_left = frame_paths["top_mid_to_left"]
     top_mid_to_right = frame_paths["top_mid_to_right"]
-    leftpoints = frame_paths["leftpoints"]
-    rightpoints = frame_paths["rightpoints"]
+    leftpoints = [prelpoint1st, lpoint1st, lpoint2nd, prelpoint2nd]
+    rightpoints = [prepoint1st, rpoint1st, rpoint2nd, prepoint2nd]
 
-    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd, prebpoint2nd]
+    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
+
     toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
 
     hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
@@ -991,7 +993,7 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==lpointmiddle:putForceZplus(
+            if point==lpoint1st:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1073,7 +1075,7 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==rpointmiddle:putForceZplus(
+            if point==rpoint1st:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1491,14 +1493,15 @@ def model1pocket3side(force,cps):
     prepoint1st = frame_paths["trc"]
     prepoint2nd = frame_paths["brc"]
 
-    bottom_mid_to_left = frame_paths["bottom_mid_to_left"]
-    bottom_mid_to_right = frame_paths["bottom_mid_to_right"]
+    bottom_mid_to_left = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["blw"]]
+    bottom_mid_to_right = [frame_paths["bottom_mid_c"], frame_paths["bottom_mid_w"], frame_paths["brw"]]
     top_mid_to_left = frame_paths["top_mid_to_left"]
     top_mid_to_right = frame_paths["top_mid_to_right"]
-    leftpoints = frame_paths["leftpoints"]
-    rightpoints = frame_paths["rightpoints"]
+    leftpoints = [prelpoint1st, lpoint1st, lpoint2nd, prelpoint2nd]
+    rightpoints = [prepoint1st, rpoint1st, rpoint2nd, prepoint2nd]
 
-    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd, prebpoint2nd]
+    bpoints = [prebpoint1st, bpoint1st, bpointmiddle, bpoint2nd]
+
     toppoints = [pretpoint1st, tpoint1st, topointmiddle, tpoint2nd, pretpoint2nd]
 
     hbpoint1st = [frame_paths["bottom_mid_w"][0], frame_paths["bottom_mid_w"][1], -50, 180, 0, 0]
@@ -1592,7 +1595,7 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==lpointmiddle:putForceZplus(
+            if point==lpoint1st:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1674,7 +1677,7 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for point in points1:
-            if point==rpointmiddle:putForceZplus(
+            if point==rpoint1st:putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcpReal'],
@@ -1904,6 +1907,10 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
+
+
+
+
 
 
 
