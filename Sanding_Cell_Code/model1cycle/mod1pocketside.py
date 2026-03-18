@@ -168,7 +168,8 @@ def model1pocket1side(force,cps):
     prebpoint2nd=[distance/2, point5[1], -10, 180, 0, 0]
     bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
-    bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
+    mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
+    bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
     prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -10, 180, 0, 0]
     print("prebpointmiddle:", prebpointmiddle)
@@ -215,7 +216,7 @@ def model1pocket1side(force,cps):
     print("tpoint1st:", tpoint1st)
     pretpoint1st = [0, point6[1], -10, 180, 0, 0]
     print("pretpoint1st:", pretpoint1st)
-    topointmiddle = [0+2, point6[1], z, 180, 0, 0]
+    topointmiddle = [mid_x, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
     pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
@@ -280,6 +281,19 @@ def model1pocket1side(force,cps):
 
 
 
+    force_active = False
+
+    def ensure_force():
+        nonlocal force_active
+        if not force_active:
+            putForceZplus(
+                cps=cps,
+                force=force,
+                tcp=config['coords']['tcpReal'],
+                ucs=config['coords']['ucsTable2'],
+                config=config
+            )
+            force_active = True
 
     
 
@@ -299,14 +313,8 @@ def model1pocket1side(force,cps):
         # Communicate to each point in points1
         vibration_started = False
         for point in points1:
-            if point==bpointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+            if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -329,8 +337,6 @@ def model1pocket1side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
     def perform_process_left(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -348,13 +354,7 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==lpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -377,8 +377,6 @@ def model1pocket1side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
     def perform_process_top(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -396,13 +394,7 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==topointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -425,8 +417,6 @@ def model1pocket1side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-    
     def perform_process_right(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -444,13 +434,7 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==rpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -473,9 +457,6 @@ def model1pocket1side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
-    
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -515,8 +496,6 @@ def model1pocket1side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
         import time
 
     
@@ -575,12 +554,16 @@ def model1pocket1side(force,cps):
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
+    releaseForce(cps=cps, config=config)
+    force_active = False
 
     # Pass 2: bottom -> left -> top (x2)
     run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_mid_to_left,force=force)
+    releaseForce(cps=cps, config=config)
+    force_active = False
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -706,7 +689,8 @@ def model1pocket2side(force,cps):
     prebpoint2nd=[distance/2, point5[1], -10, 180, 0, 0]
     bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
-    bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
+    mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
+    bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
     prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -10, 180, 0, 0]
     print("prebpointmiddle:", prebpointmiddle)
@@ -753,7 +737,7 @@ def model1pocket2side(force,cps):
     print("tpoint1st:", tpoint1st)
     pretpoint1st = [0, point6[1], -10, 180, 0, 0]
     print("pretpoint1st:", pretpoint1st)
-    topointmiddle = [0+2, point6[1], z, 180, 0, 0]
+    topointmiddle = [mid_x, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
     pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
@@ -818,6 +802,19 @@ def model1pocket2side(force,cps):
 
 
 
+    force_active = False
+
+    def ensure_force():
+        nonlocal force_active
+        if not force_active:
+            putForceZplus(
+                cps=cps,
+                force=force,
+                tcp=config['coords']['tcpReal'],
+                ucs=config['coords']['ucsTable2'],
+                config=config
+            )
+            force_active = True
 
     
 
@@ -837,14 +834,8 @@ def model1pocket2side(force,cps):
         # Communicate to each point in points1
         vibration_started = False
         for point in points1:
-            if point==bpointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+            if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -867,8 +858,6 @@ def model1pocket2side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
     def perform_process_left(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -886,13 +875,7 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==lpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -915,8 +898,6 @@ def model1pocket2side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
     def perform_process_top(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -934,13 +915,7 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==topointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -963,8 +938,6 @@ def model1pocket2side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-    
     def perform_process_right(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -982,13 +955,7 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==rpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -1011,9 +978,6 @@ def model1pocket2side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
-    
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1053,9 +1017,6 @@ def model1pocket2side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
-
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
         lock = threading.Lock()
         # time.sleep(0.2)
@@ -1162,12 +1123,16 @@ def model1pocket2side(force,cps):
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
+    releaseForce(cps=cps, config=config)
+    force_active = False
 
     # Pass 2: bottom -> left -> top (x2)
     run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_mid_to_left,force=force)
+    releaseForce(cps=cps, config=config)
+    force_active = False
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -1294,7 +1259,8 @@ def model1pocket3side(force,cps):
     prebpoint2nd=[distance/2, point5[1], -10, 180, 0, 0]
     bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
-    bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
+    mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
+    bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
     prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -10, 180, 0, 0]
     print("prebpointmiddle:", prebpointmiddle)
@@ -1341,7 +1307,7 @@ def model1pocket3side(force,cps):
     print("tpoint1st:", tpoint1st)
     pretpoint1st = [0, point6[1], -10, 180, 0, 0]
     print("pretpoint1st:", pretpoint1st)
-    topointmiddle = [0+2, point6[1], z, 180, 0, 0]
+    topointmiddle = [mid_x, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
     pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
@@ -1406,6 +1372,19 @@ def model1pocket3side(force,cps):
 
 
 
+    force_active = False
+
+    def ensure_force():
+        nonlocal force_active
+        if not force_active:
+            putForceZplus(
+                cps=cps,
+                force=force,
+                tcp=config['coords']['tcpReal'],
+                ucs=config['coords']['ucsTable2'],
+                config=config
+            )
+            force_active = True
 
     
 
@@ -1425,14 +1404,8 @@ def model1pocket3side(force,cps):
         # Communicate to each point in points1
         vibration_started = False
         for point in points1:
-            if point==bpointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+            if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -1455,8 +1428,6 @@ def model1pocket3side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
     def perform_process_left(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1474,13 +1445,7 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==lpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -1503,8 +1468,6 @@ def model1pocket3side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
     def perform_process_top(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1522,13 +1485,7 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==topointmiddle:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -1551,8 +1508,6 @@ def model1pocket3side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-    
     def perform_process_right(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1570,13 +1525,7 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==rpoint1st:
-                putForceZplus(
-                    cps=cps,
-                    force=force,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    config=config
-                )
+                ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
@@ -1599,9 +1548,6 @@ def model1pocket3side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
-    
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
         # turn_vibration_on(cps)
@@ -1641,9 +1587,6 @@ def model1pocket3side(force,cps):
         turn_vibration_off(cps)
         
         # Release Force Control
-        releaseForce(cps=cps, config=config) 
-
-
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
         lock = threading.Lock()
         # time.sleep(0.2)
@@ -1749,12 +1692,16 @@ def model1pocket3side(force,cps):
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_mid_to_right,force=force)
+    releaseForce(cps=cps, config=config)
+    force_active = False
 
     # Pass 2: bottom -> left -> top (x2)
     run_single_movement(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
     perform_process_left(cps, config, points1=leftpoints,force=force)
     perform_process_top(cps, config, points1=top_mid_to_left,force=force)
+    releaseForce(cps=cps, config=config)
+    force_active = False
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -1806,4 +1753,5 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
+
 
