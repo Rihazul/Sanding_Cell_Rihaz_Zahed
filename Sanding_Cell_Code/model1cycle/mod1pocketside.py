@@ -165,8 +165,8 @@ def model1pocket1side(force,cps):
     prebpoint1st=[0, point8[1], -10, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/2, point5[1], -10, 180, 0, 0]
-    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -10, 180, 0, 0]
+    bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
     bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
@@ -220,9 +220,9 @@ def model1pocket1side(force,cps):
     print("topointmiddle:", topointmiddle)
     pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
-    tpoint2nd = [-distance/2, point7[1], z, 180, 0, 0]
+    tpoint2nd = [distance, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distance/2, point7[1], -10, 180, 0, 0]
+    pretpoint2nd = [distance, point7[1], -10, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -314,13 +314,26 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==bpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -354,6 +367,22 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==lpoint1st:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -394,6 +423,22 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==topointmiddle:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -434,6 +479,22 @@ def model1pocket1side(force,cps):
         vibration_started = False
         for point in points1:
             if point==rpoint1st:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -686,8 +747,8 @@ def model1pocket2side(force,cps):
     prebpoint1st=[0, point8[1], -10, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/2, point5[1], -10, 180, 0, 0]
-    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -10, 180, 0, 0]
+    bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
     bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
@@ -741,9 +802,9 @@ def model1pocket2side(force,cps):
     print("topointmiddle:", topointmiddle)
     pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
-    tpoint2nd = [-distance/2, point7[1], z, 180, 0, 0]
+    tpoint2nd = [distance, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distance/2, point7[1], -10, 180, 0, 0]
+    pretpoint2nd = [distance, point7[1], -10, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -835,13 +896,26 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==bpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -875,6 +949,22 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==lpoint1st:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -915,6 +1005,22 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==topointmiddle:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -955,6 +1061,22 @@ def model1pocket2side(force,cps):
         vibration_started = False
         for point in points1:
             if point==rpoint1st:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -1256,8 +1378,8 @@ def model1pocket3side(force,cps):
     prebpoint1st=[0, point8[1], -10, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/2, point5[1], -10, 180, 0, 0]
-    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -10, 180, 0, 0]
+    bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
     bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
@@ -1311,9 +1433,9 @@ def model1pocket3side(force,cps):
     print("topointmiddle:", topointmiddle)
     pretpointmiddle = [topointmiddle[0], topointmiddle[1], -10, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
-    tpoint2nd = [-distance/2, point7[1], z, 180, 0, 0]
+    tpoint2nd = [distance, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distance/2, point7[1], -10, 180, 0, 0]
+    pretpoint2nd = [distance, point7[1], -10, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -1405,13 +1527,26 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==bpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1445,6 +1580,22 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==lpoint1st:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -1485,6 +1636,22 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==topointmiddle:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
@@ -1525,6 +1692,22 @@ def model1pocket3side(force,cps):
         vibration_started = False
         for point in points1:
             if point==rpoint1st:
+                if not force_active:
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1,
+                        speed=0.6,
+                        wait=False
+                    )
+                    ensure_force()
+                    if not vibration_started:
+                        turn_vibration_on(cps)
+                        vibration_started = True
+                    continue
                 ensure_force()
                 if not vibration_started:
                     turn_vibration_on(cps)
