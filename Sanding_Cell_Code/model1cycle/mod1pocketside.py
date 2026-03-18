@@ -533,32 +533,19 @@ def model1pocket1side(force,cps):
         robot_thread.join()
         axis_thread.join()
    
-    # #Movement Bottom
+    # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    #perform_process_bottom(cps, config, points1=bpoints,force=force)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=htoppoints,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=toppoints,force=force)
+    perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # #Cycles With Loops
+    # Pass 2: bottom -> left -> top (x2)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
-
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
-
-    #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    
-    #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
-    #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
-    #Left Cycle
-    perform_process_right(cps, config, points1=rightpoints,force=force)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -1098,32 +1085,19 @@ def model1pocket2side(force,cps):
 
     #     return True
    
-    # #Movement Bottom
+    # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    #perform_process_bottom(cps, config, points1=bpoints,force=force)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=htoppoints,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=toppoints,force=force)
+    perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # #Cycles With Loops
+    # Pass 2: bottom -> left -> top (x2)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
-
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
-
-    #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    
-    #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
-    #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
-    #Left Cycle
-    perform_process_right(cps, config, points1=rightpoints,force=force)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -1663,32 +1637,19 @@ def model1pocket3side(force,cps):
     #         time.sleep(0.01)
 
     #     return True
-    # #Movement Bottom
+    # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    #perform_process_bottom(cps, config, points1=bpoints,force=force)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=htoppoints,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=toppoints,force=force)
+    perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # #Cycles With Loops
+    # Pass 2: bottom -> left -> top (x2)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
-
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
-
-    #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
-    
-    #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
-    #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
-    #Left Cycle
-    perform_process_right(cps, config, points1=rightpoints,force=force)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
