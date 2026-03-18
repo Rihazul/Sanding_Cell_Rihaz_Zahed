@@ -251,6 +251,16 @@ def model1pocket1side(force,cps):
     rightpoints=[rpoint1st, rpoint2nd]
     print("rightpoints:",rightpoints)
 
+    # Shifted points for pass 2 (centered on mid_x)
+    shift_x = mid_x
+    def shift_point(pt):
+        return [pt[0] - shift_x, pt[1], pt[2], pt[3], pt[4], pt[5]]
+
+    prebpointmiddle_shifted = shift_point(prebpointmiddle)
+    bottom_mid_to_left_shifted = [shift_point(p) for p in bottom_mid_to_left]
+    leftpoints_shifted = [shift_point(p) for p in leftpoints]
+    top_left_to_mid_shifted = [shift_point(p) for p in top_left_to_mid]
+
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
     print("pmiddile1=", pmiddile1)
@@ -312,8 +322,8 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -365,8 +375,8 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==lpoint1st:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -387,9 +397,6 @@ def model1pocket1side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==lpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -421,8 +428,8 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==topointmiddle:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -443,9 +450,6 @@ def model1pocket1side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==tpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -477,8 +481,8 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==rpoint1st:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -499,9 +503,6 @@ def model1pocket1side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==rpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -595,11 +596,11 @@ def model1pocket1side(force,cps):
     releaseForce(cps=cps, config=config)
     force_active = False
 
-    # Pass 2: bottom -> left -> top (x2)
-    move_axis_then_robot(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
-    perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=top_left_to_mid,force=force)
+    # Pass 2: bottom -> left -> top (x2, centered)
+    move_axis_then_robot(robot_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_left_shifted,force=force)
+    perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
+    perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -810,6 +811,16 @@ def model1pocket2side(force,cps):
     rightpoints=[rpoint1st, rpoint2nd]
     print("rightpoints:",rightpoints)
 
+    # Shifted points for pass 2 (centered on mid_x)
+    shift_x = mid_x
+    def shift_point(pt):
+        return [pt[0] - shift_x, pt[1], pt[2], pt[3], pt[4], pt[5]]
+
+    prebpointmiddle_shifted = shift_point(prebpointmiddle)
+    bottom_mid_to_left_shifted = [shift_point(p) for p in bottom_mid_to_left]
+    leftpoints_shifted = [shift_point(p) for p in leftpoints]
+    top_left_to_mid_shifted = [shift_point(p) for p in top_left_to_mid]
+
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
     print("pmiddile1=", pmiddile1)
@@ -871,8 +882,8 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -924,8 +935,8 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==lpoint1st:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -946,9 +957,6 @@ def model1pocket2side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==lpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -980,8 +988,8 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==topointmiddle:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -1002,9 +1010,6 @@ def model1pocket2side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==tpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1036,8 +1041,8 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==rpoint1st:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -1058,9 +1063,6 @@ def model1pocket2side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==rpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1202,11 +1204,11 @@ def model1pocket2side(force,cps):
     releaseForce(cps=cps, config=config)
     force_active = False
 
-    # Pass 2: bottom -> left -> top (x2)
-    move_axis_then_robot(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
-    perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=top_left_to_mid,force=force)
+    # Pass 2: bottom -> left -> top (x2, centered)
+    move_axis_then_robot(robot_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_left_shifted,force=force)
+    perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
+    perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -1418,6 +1420,16 @@ def model1pocket3side(force,cps):
     rightpoints=[rpoint1st, rpoint2nd]
     print("rightpoints:",rightpoints)
 
+    # Shifted points for pass 2 (centered on mid_x)
+    shift_x = mid_x
+    def shift_point(pt):
+        return [pt[0] - shift_x, pt[1], pt[2], pt[3], pt[4], pt[5]]
+
+    prebpointmiddle_shifted = shift_point(prebpointmiddle)
+    bottom_mid_to_left_shifted = [shift_point(p) for p in bottom_mid_to_left]
+    leftpoints_shifted = [shift_point(p) for p in leftpoints]
+    top_left_to_mid_shifted = [shift_point(p) for p in top_left_to_mid]
+
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
     print("pmiddile1=", pmiddile1)
@@ -1479,8 +1491,8 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==bpointmiddle or point==bpoint1st or point==bpoint2nd:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -1532,8 +1544,8 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==lpoint1st:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -1554,9 +1566,6 @@ def model1pocket3side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==lpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1588,8 +1597,8 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==topointmiddle:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -1610,9 +1619,6 @@ def model1pocket3side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==tpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1644,8 +1650,8 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         vibration_started = False
-        for point in points1:
-            if point==rpoint1st:
+        for idx, point in enumerate(points1):
+            if idx == 0:
                 if not force_active:
                     communicate(
                         cps=cps,
@@ -1666,9 +1672,6 @@ def model1pocket3side(force,cps):
                 if not vibration_started:
                     turn_vibration_on(cps)
                     vibration_started = True
-            if point==rpoint2nd and not vibration_started:
-                turn_vibration_on(cps)
-                vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1809,11 +1812,11 @@ def model1pocket3side(force,cps):
     releaseForce(cps=cps, config=config)
     force_active = False
 
-    # Pass 2: bottom -> left -> top (x2)
-    move_axis_then_robot(robot_point=prebpointmiddle, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bottom_mid_to_left,force=force)
-    perform_process_left(cps, config, points1=leftpoints,force=force)
-    perform_process_top(cps, config, points1=top_left_to_mid,force=force)
+    # Pass 2: bottom -> left -> top (x2, centered)
+    move_axis_then_robot(robot_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom(cps, config, points1=bottom_mid_to_left_shifted,force=force)
+    perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
+    perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
 
@@ -1867,6 +1870,7 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
+
 
 
 
