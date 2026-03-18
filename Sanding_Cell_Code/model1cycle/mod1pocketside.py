@@ -188,15 +188,15 @@ def model1pocket1side(force,cps):
     print("point6:", point6)
 
     #Left Final Points
-    lpoint1st = [0, point5[1], z, 180, 0, 0]
+    lpoint1st = [distance, point5[1], z, 180, 0, 0]
     print("lpoint1st:", lpoint1st)
-    prelpoint1st = [0, point5[1], -10, 180, 0, 0]
+    prelpoint1st = [distance, point5[1], -10, 180, 0, 0]
     print("prelpoint1st:", prelpoint1st)
-    lpoint2nd = [0, point6[1], z, 180, 0, 0]
+    lpoint2nd = [distance, point6[1], z, 180, 0, 0]
     print("lpoint2nd:", lpoint2nd)
-    prelpoint2nd = [0, point6[1], -10, 180, 0, 0]
+    prelpoint2nd = [distance, point6[1], -10, 180, 0, 0]
     print("prelpoint2nd:", prelpoint2nd)
-    lpointmiddle = [0, point5[1] + 2, z, 180, 0, 0]
+    lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
     leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
@@ -204,7 +204,7 @@ def model1pocket1side(force,cps):
 
 
     #Hpoints for left
-    hleft2nd = [0, point6[1], -20, 180, 0, 0]
+    hleft2nd = [distance, point6[1], -20, 180, 0, 0]
     print("hleft2nd:", hleft2nd)
 
     #Top Points
@@ -323,7 +323,7 @@ def model1pocket1side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -376,7 +376,7 @@ def model1pocket1side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -432,7 +432,7 @@ def model1pocket1side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -488,7 +488,7 @@ def model1pocket1side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -770,15 +770,15 @@ def model1pocket2side(force,cps):
     print("point6:", point6)
 
     #Left Final Points
-    lpoint1st = [0, point5[1], z, 180, 0, 0]
+    lpoint1st = [distance, point5[1], z, 180, 0, 0]
     print("lpoint1st:", lpoint1st)
-    prelpoint1st = [0, point5[1], -10, 180, 0, 0]
+    prelpoint1st = [distance, point5[1], -10, 180, 0, 0]
     print("prelpoint1st:", prelpoint1st)
-    lpoint2nd = [0, point6[1], z, 180, 0, 0]
+    lpoint2nd = [distance, point6[1], z, 180, 0, 0]
     print("lpoint2nd:", lpoint2nd)
-    prelpoint2nd = [0, point6[1], -10, 180, 0, 0]
+    prelpoint2nd = [distance, point6[1], -10, 180, 0, 0]
     print("prelpoint2nd:", prelpoint2nd)
-    lpointmiddle = [0, point5[1] + 2, z, 180, 0, 0]
+    lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
     leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
@@ -786,7 +786,7 @@ def model1pocket2side(force,cps):
 
 
     #Hpoints for left
-    hleft2nd = [0, point6[1], -20, 180, 0, 0]
+    hleft2nd = [distance, point6[1], -20, 180, 0, 0]
     print("hleft2nd:", hleft2nd)
 
     #Top Points
@@ -905,7 +905,7 @@ def model1pocket2side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -958,7 +958,7 @@ def model1pocket2side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1014,7 +1014,7 @@ def model1pocket2side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1070,7 +1070,7 @@ def model1pocket2side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1401,15 +1401,15 @@ def model1pocket3side(force,cps):
     print("point6:", point6)
 
     #Left Final Points
-    lpoint1st = [0, point5[1], z, 180, 0, 0]
+    lpoint1st = [distance, point5[1], z, 180, 0, 0]
     print("lpoint1st:", lpoint1st)
-    prelpoint1st = [0, point5[1], -10, 180, 0, 0]
+    prelpoint1st = [distance, point5[1], -10, 180, 0, 0]
     print("prelpoint1st:", prelpoint1st)
-    lpoint2nd = [0, point6[1], z, 180, 0, 0]
+    lpoint2nd = [distance, point6[1], z, 180, 0, 0]
     print("lpoint2nd:", lpoint2nd)
-    prelpoint2nd = [0, point6[1], -10, 180, 0, 0]
+    prelpoint2nd = [distance, point6[1], -10, 180, 0, 0]
     print("prelpoint2nd:", prelpoint2nd)
-    lpointmiddle = [0, point5[1] + 2, z, 180, 0, 0]
+    lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
 
     leftpoints=[prelpoint1st,lpoint1st,lpoint2nd,prelpoint2nd]
@@ -1417,7 +1417,7 @@ def model1pocket3side(force,cps):
 
 
     #Hpoints for left
-    hleft2nd = [0, point6[1], -20, 180, 0, 0]
+    hleft2nd = [distance, point6[1], -20, 180, 0, 0]
     print("hleft2nd:", hleft2nd)
 
     #Top Points
@@ -1536,7 +1536,7 @@ def model1pocket3side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1589,7 +1589,7 @@ def model1pocket3side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1645,7 +1645,7 @@ def model1pocket3side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1701,7 +1701,7 @@ def model1pocket3side(force,cps):
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
                         speed=0.6,
-                        wait=False
+                        wait=True
                     )
                     ensure_force()
                     if not vibration_started:
@@ -1936,5 +1936,8 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
+
+
+
 
 
