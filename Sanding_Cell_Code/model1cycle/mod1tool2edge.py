@@ -87,74 +87,74 @@ def mod1tool2outedge(force,cps):
         print("point1=",point1)
         point12=[p4[0]+1+1,p4[1]+0-8,p4[2]+45,0,21.998,-90]
         print("point12=",point12)
-        point2=[p1[0]/6,p1[1]+0-8,p1[2]+45,0,21.998,-90]
+        point2=[p1[0]/3,p1[1]+0-8,p1[2]+45,0,21.998,-90]
         print("point2=",point2)
-        point2pre=[p1[0]/6,p1[1]-5-10,p1[2]+45,0,21.998,-90]
+        point2pre=[p1[0]/3,p1[1]-5-10,p1[2]+45,0,21.998,-90]
         print("point2pre=",point2pre)
-        point2air=[p1[0]/6,p1[1]-20,p1[2]+45,0,21.998,-90]
+        point2air=[p1[0]/3,p1[1]-20,p1[2]+45,0,21.998,-90]
         print("point2air=",point2air)
         point1Combo=[0,p1[1]-20,p1[2]+45,0,21.998,-90]
         print("point1Combo=",point1Combo)
 
         #Bottom Extra point
-        point2bottomextra=[p1[0]/6+30,p1[1]-20,p1[2]+45,0,0,0]
+        point2bottomextra=[p1[0]/3+30,p1[1]-20,p1[2]+45,0,0,0]
         print("point2bottomextra=",point2bottomextra)
 
         #Left Points
-        pointleft1=[(p1[0]/6)+8,p4[1],p1[2]+45,0,21.998,0]
+        pointleft1=[(p1[0]/3)+8,p4[1],p1[2]+45,0,21.998,0]
         print("pointleft1=",pointleft1)
-        pointleft1pre=[(p1[0]/6)+2+5,p4[1],p1[2]+45,0,21.998,0]
+        pointleft1pre=[(p1[0]/3)+2+5,p4[1],p1[2]+45,0,21.998,0]
         print("pointleft1pre=",pointleft1pre)
-        pointleft12=[(p1[0]/6)+8,p4[1]+1+1,p1[2]+45,0,21.998,0]
+        pointleft12=[(p1[0]/3)+8,p4[1]+1+1,p1[2]+45,0,21.998,0]
         print("pointleft12=",pointleft12)
-        pointleft2=[(p1[0]/6)+8,p2[1],p1[2]+45,0,21.998,0]
+        pointleft2=[(p1[0]/3)+8,p2[1],p1[2]+45,0,21.998,0]
         print("pointleft2=",pointleft2)
-        pointleft2pre=[(p1[0]/6)+2+5+10,p2[1],p1[2]+45,0,21.998,0]
+        pointleft2pre=[(p1[0]/3)+2+5+10,p2[1],p1[2]+45,0,21.998,0]
         print("pointleft2pre=",pointleft2pre)
         #Left Extra Points
-        pointLeftExtra=[(p1[0]/6)+10,p2[1]+5,p1[2]+15,0,0,90]
+        pointLeftExtra=[(p1[0]/3)+10,p2[1]+5,p1[2]+15,0,0,90]
         print("pointLeftExtra=",pointLeftExtra)
 
         
         #Top Cycle Points
-        pointtop1=[(p1[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop1=[(p1[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop1=",pointtop1)
-        pointtop1pre=[(p1[0]/6),p2[1]+2+8,p1[2]+45,0,21.998,90]
+        pointtop1pre=[(p1[0]/3),p2[1]+2+8,p1[2]+45,0,21.998,90]
         print("pointtop1pre=",pointtop1pre)
-        pointtop12=[(p1[0]/6)-1-1,p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop12=[(p1[0]/3)-1-1,p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop12=",pointtop12)
-        pointtop2=[(p4[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop2=[(p4[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop2=",pointtop2)
-        pointtop2pre=[(p4[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop2pre=[(p4[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop2pre =",pointtop2pre)
-        pointtop2air=[(p4[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop2air=[(p4[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop2air =",pointtop2air)
-        pointtop1Combo=[(p1[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop1Combo=[(p1[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop1Combo =",pointtop1Combo)
 
         #TopMain Minus Points
-        pointtop3=[-(p1[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop3=[-(p1[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop3=",pointtop3)
-        pointtop3pre=[-(p1[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop3pre=[-(p1[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop3pre =",pointtop3pre)
-        pointtop3air=[-(p1[0]/6),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop3air=[-(p1[0]/3),p2[1]+10,p1[2]+45,0,21.998,90]
         print("pointtop3air =",pointtop3air)
 
         
         #Top Cycle Points Extra
-        pointtopExtra=[(p4[0]/6)-6,p2[1]+10,p1[2]+15,0,0,180]
+        pointtopExtra=[(p4[0]/3)-6,p2[1]+10,p1[2]+15,0,0,180]
         print("pointtopExtra =",pointtopExtra)
 
         #RightCycle
-        pointright1=[(p4[0]/6)-8,p2[1],p1[2]+45,0,21.998,180]
+        pointright1=[(p4[0]/3)-8,p2[1],p1[2]+45,0,21.998,180]
         print("pointright1 =",pointright1)
-        pointright1pre=[(p4[0]/6)-1-4,p2[1],p1[2]+45,0,21.998,180]
+        pointright1pre=[(p4[0]/3)-1-4,p2[1],p1[2]+45,0,21.998,180]
         print("pointright1pre =",pointright1pre)
-        pointright12=[(p4[0]/6)-8,p2[1]-1-1,p1[2]+45,0,21.998,180]
+        pointright12=[(p4[0]/3)-8,p2[1]-1-1,p1[2]+45,0,21.998,180]
         print("pointright12 =",pointright12)
-        pointright2=[(p4[0]/6)-8,p4[0],p1[2]+45,0,21.998,180]
+        pointright2=[(p4[0]/3)-8,p4[0],p1[2]+45,0,21.998,180]
         print("pointright2 =",pointright2)
-        pointright2pre=[(p4[0]/6)-1-4-10,p4[0],p1[2]+45,0,21.998,180]
+        pointright2pre=[(p4[0]/3)-1-4-10,p4[0],p1[2]+45,0,21.998,180]
         print("pointright2pre =",pointright2pre)
         homelast=[0,0,-50,0,0,180]
         print("homelast =",homelast)
@@ -163,7 +163,7 @@ def mod1tool2outedge(force,cps):
         #Converyer Points for X axis
         cx=p4[0]
         print("cx=",cx)
-        incDistance=(p1[0]-p4[0])/6
+        incDistance=(p1[0]-p4[0])/3
         print("incDistance=",incDistance)
         cx1=incDistance
         print("cx1=",cx1)
@@ -186,7 +186,7 @@ def mod1tool2outedge(force,cps):
         #Converyer Points for X axis
         tcx=p4[0]
         print("tcx=",tcx)
-        tincDistance=(p1[0]-p4[0])/6
+        tincDistance=(p1[0]-p4[0])/3
         print("tincDistance=",tincDistance)
         tcx1=tincDistance
         print("tcx1=",tcx1)
@@ -448,7 +448,7 @@ def mod1tool2outedge(force,cps):
         perform_process_bottom(cps, config, points1=pointsb,force=force)
         
         # Bottom Cycles 2-6
-        cx_points = [cx1,cx2,cx3,cx4,cx5]
+        cx_points = [cx1, cx2]
 
         for cx in cx_points:
             communicate(cps=cps, config=config, point=point2air, 
@@ -483,7 +483,7 @@ def mod1tool2outedge(force,cps):
         communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         
         # #Top Cycle 2
-        cx_points = [tcx5,tcx4,tcx3,tcx2,tcx1,tcx]
+        cx_points = [tcx2, tcx1, tcx]
 
         for cx in cx_points:
             
@@ -532,3 +532,4 @@ def mod1tool2outedge(force,cps):
 if __name__ == "__main__":
     mod1tool2outedge(force=3)
     
+

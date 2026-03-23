@@ -136,19 +136,31 @@ def model1bottomsmall(force,cps):
 
     #Bootom Points Movement
     #7th axis position
-    length=(p1[0]-p4[0])/2
+    length = p1[0]-p4[0]
     print("length=",length)
+    
+    bigger = False
+    
+    if length > 1350:
+        length_chunk=length/3
+        print("length_chunk=",length_chunk)
+        bigger = True
+    else:
+        length_chunk=length/2
+        print("length_chunk=",length_chunk)   
+        bigger = False 
+    
     x1=p3[0]
     print("x1=",x1)
-    x2=length*1
+    x2=length_chunk*1
     print("x2=",x2)
-    x3=length*2
+    x3=length_chunk*2
     print("x3=",x3)
-    x4=length*3
+    x4=length_chunk*3
     print("x4=",x4)
-    x5=length*4
+    x5=length_chunk*4
     print("x5=",x5)
-    x6=length*5
+    x6=length_chunk*5
     print("x6=",x6)
 
     prehoming=[0,0,-20,180,0,0]
@@ -161,9 +173,9 @@ def model1bottomsmall(force,cps):
     print("prepointybottomb1=",prepointybottomb1)
     pointybottomb12m=[p4[0]+2,pointybottomb,z,180,0,0]
     print("pointybottomb12m=",pointybottomb12m)
-    pointybottomb2m=[length/1,pointybottomb,z,180,0,0]
+    pointybottomb2m=[length_chunk/1,pointybottomb,z,180,0,0]
     print("pointybottomb2m=",pointybottomb2m)
-    prepointybottomb2m=[length/1,pointybottomb,-10,180,0,0]
+    prepointybottomb2m=[length_chunk/1,pointybottomb,-10,180,0,0]
     print("prepointybottomb2m=",prepointybottomb2m)
 
 
@@ -172,11 +184,11 @@ def model1bottomsmall(force,cps):
     print("pointybottoma1=",pointybottoma1)
     prepointybottoma1=[p4[0],pointybottoma,-10,180,0,0]
     print("prepointybottoma1=",prepointybottoma1)
-    pointybottoma12m=[length/1+2,pointybottoma,z,180,0,0]
+    pointybottoma12m=[length_chunk/1+2,pointybottoma,z,180,0,0]
     print("pointybottoma12m=",pointybottoma12m)
-    pointybottoma2m=[length/1,pointybottoma,z,180,0,0]
+    pointybottoma2m=[length_chunk/1,pointybottoma,z,180,0,0]
     print("pointybottoma2m=",pointybottoma2m)
-    prepointybottoma2m=[length/1,pointybottoma,-10,180,0,0]
+    prepointybottoma2m=[length_chunk/1,pointybottoma,-10,180,0,0]
     print("prepointybottoma2m=",prepointybottoma2m)
 
 
@@ -316,19 +328,38 @@ def model1bottomsmall(force,cps):
         robot_thread.join()
         axis_thread.join()
 
-    #Bottom Cycle at x2 (U pattern: bottom -> top)
-    communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-    perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+    if not bigger:
+        #Bottom Cycle at x2 (U pattern: bottom -> top)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
+        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
-    #Shift to x1 and repeat U pattern
-    run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-    perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        #Shift to x1 and repeat U pattern
+        run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
+        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
+        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
-    #Last cycle
-    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        #Last cycle
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
+    else:
+        #Bottom Cycle at x3 (U pattern: bottom -> top)
+        communicate(cps=cps,config=config,seventh=x3,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
+        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        
+        #Shift to x2 and repeat U pattern
+        run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
+        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
+        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        
+        #Shift to x1 and repeat U pattern
+        run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
+        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
+        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        
+        #Last cycle
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)  
     
     # #Bottom Cycle a
     # communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)

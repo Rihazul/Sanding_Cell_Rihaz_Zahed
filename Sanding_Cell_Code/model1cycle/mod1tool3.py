@@ -42,7 +42,7 @@ def load_json_config():
 
 
 
-def mod1tool3pocket1(force,cps):
+def mod1tool1pocket1(force,cps):
     # Load configuration from YAML
     config = load_config()
 
@@ -94,10 +94,10 @@ def mod1tool3pocket1(force,cps):
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=37
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
-    outeroffset1=(p16[0])/2
+    outeroffset1=(p16[0])
     print("outeroffset=",outeroffset1)
    
      
@@ -117,7 +117,7 @@ def mod1tool3pocket1(force,cps):
     #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/2
+    seventhdistance=(p5[0] - p8[0])
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
@@ -138,8 +138,8 @@ def mod1tool3pocket1(force,cps):
     prebpoint1st=[0, point8[1], -55, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/2, point5[1], -55, 180, 0, 0]
-    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -55, 180, 0, 0]
+    bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -187,9 +187,9 @@ def mod1tool3pocket1(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1]+3, z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distancetop/2, point7[1]+3, z, 180, 0, 0]
+    tpoint2nd = [-distancetop, point7[1]+3, z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distancetop/2, point7[1]+3, -55, 180, 0, 0]
+    pretpoint2nd = [-distancetop, point7[1]+3, -55, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -438,12 +438,7 @@ def mod1tool3pocket1(force,cps):
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # # #Cycles With Loops
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
-    
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+    # Single pass only (no extra seventh-axis shifts)
 
     #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -451,18 +446,13 @@ def mod1tool3pocket1(force,cps):
     #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
 
-    # #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    # #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    # Single pass only (no extra seventh-axis shifts)
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
     communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
-def mod1tool3pocket2(force,cps):
+def mod1tool1pocket2(force,cps):
     # Load configuration from YAML
     config = load_config()
 
@@ -513,10 +503,10 @@ def mod1tool3pocket2(force,cps):
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=37
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
-    outeroffset1=(p16[0])/2
+    outeroffset1=(p16[0])
     print("outeroffset=",outeroffset1)
    
      
@@ -536,7 +526,7 @@ def mod1tool3pocket2(force,cps):
     #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/2
+    seventhdistance=(p5[0] - p8[0])
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
@@ -557,8 +547,8 @@ def mod1tool3pocket2(force,cps):
     prebpoint1st=[0, point8[1], -55, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/2, point5[1], -55, 180, 0, 0]
-    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -55, 180, 0, 0]
+    bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -606,9 +596,9 @@ def mod1tool3pocket2(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1]+3, z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distancetop/2, point7[1]+3, z, 180, 0, 0]
+    tpoint2nd = [-distancetop, point7[1]+3, z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distancetop/2, point7[1]+3, -55, 180, 0, 0]
+    pretpoint2nd = [-distancetop, point7[1]+3, -55, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -857,12 +847,7 @@ def mod1tool3pocket2(force,cps):
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # # #Cycles With Loops
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
-    
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+    # Single pass only (no extra seventh-axis shifts)
 
     #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -870,18 +855,13 @@ def mod1tool3pocket2(force,cps):
     #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
 
-    # #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    # #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    # Single pass only (no extra seventh-axis shifts)
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
     communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
-def mod1tool3pocket3(force,cps):
+def mod1tool1pocket3(force,cps):
     # Load configuration from YAML
     config = load_config()
 
@@ -932,10 +912,10 @@ def mod1tool3pocket3(force,cps):
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=37
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
-    outeroffset1=(p16[0])/2
+    outeroffset1=(p16[0])
     print("outeroffset=",outeroffset1)
    
      
@@ -955,7 +935,7 @@ def mod1tool3pocket3(force,cps):
     #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/2
+    seventhdistance=(p5[0] - p8[0])
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
@@ -976,8 +956,8 @@ def mod1tool3pocket3(force,cps):
     prebpoint1st=[0, point8[1], -55, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/2, point5[1], -55, 180, 0, 0]
-    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -55, 180, 0, 0]
+    bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -1025,9 +1005,9 @@ def mod1tool3pocket3(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1]+3, z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distancetop/2, point7[1]+3, z, 180, 0, 0]
+    tpoint2nd = [-distancetop, point7[1]+3, z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distancetop/2, point7[1]+3, -55, 180, 0, 0]
+    pretpoint2nd = [-distancetop, point7[1]+3, -55, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -1276,12 +1256,7 @@ def mod1tool3pocket3(force,cps):
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # # #Cycles With Loops
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
-    
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+    # Single pass only (no extra seventh-axis shifts)
 
     #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -1289,18 +1264,13 @@ def mod1tool3pocket3(force,cps):
     #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
 
-    # #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    # #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    # Single pass only (no extra seventh-axis shifts)
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
     communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
-def mod1tool3(force,cps):
+def mod1tool1(force,cps):
     config = load_config()
 
     #Set up logger
@@ -1315,18 +1285,19 @@ def mod1tool3(force,cps):
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
 
-    mod1tool3pocket1(force,cps)
+    mod1tool1pocket1(force,cps)
     time.sleep(0.5)
-    mod1tool3pocket2(force,cps)
+    mod1tool1pocket2(force,cps)
     time.sleep(0.5)
-    mod1tool3pocket3(force,cps)
+    mod1tool1pocket3(force,cps)
     time.sleep(0.5)
     communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
 
 if __name__ == "__main__":
     # Call the function with an appropriate force value
     # Replace 10 with your desired force value
-    # mod1tool3pocket1(5)
-    # mod1tool3pocket2(5)
-    # mod1tool3pocket3(5)
-    mod1tool3(5)
+    # mod1tool1pocket1(5)
+    # mod1tool1pocket2(5)
+    # mod1tool1pocket3(5)
+    mod1tool1(5)
+
