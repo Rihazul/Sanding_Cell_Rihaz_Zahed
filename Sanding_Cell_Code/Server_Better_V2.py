@@ -5916,6 +5916,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         wait=True,
     )
     # drop (for safety, to open the valve)
+    waitForBlending(cps=cps, config=config)
     toolValve1(cps, valveState="drop", config=config)
     # touch the tool (slowly)
     communicate(
@@ -5929,6 +5930,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         wait=True,
     )
     # pick the tool
+    waitForBlending(cps=cps, config=config)
     toolValve1(cps, valveState="pick", config=config)
     if not _verify_tool_attached(cps, toolNumber, config):
         return False
@@ -6003,7 +6005,8 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         speed=drop_slow,
         wait=True,
     )
-    # drop the tool
+    # drop the tool (wait for blending to avoid mid-motion release)
+    waitForBlending(cps=cps, config=config)
     toolValve1(cps, valveState="drop", config=config)
     # come back to tool's home
     communicate(
