@@ -12,7 +12,7 @@ from model1cycle.mod1pocketside import mod1tool1siderun
 from model1cycle.mod1zigzag import mod1zigzag
 from model1cycle.mod1tool2edge import mod1tool2outedge
 from model1cycle.mod1tool2sideb import mod1tool2sidesrun
-from model1cycle.mod1tool3 import mod1tool1, mod1tool3
+from model1cycle.mod1tool3 import mod1tool1
 from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepToolupdated,getToolUpdated
 from modules.CPS import CPSClient
 import time
