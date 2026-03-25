@@ -13,6 +13,7 @@ from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibra
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from Table2Model.exportpointsmodule import exported_points
 from model2cycle.testmodel2pocketoutb import testmodel2pocketoutbig
+from model2cycle.testmodeltool2edgeb import tool2edgebig
 
 
 def load_config():
@@ -521,10 +522,10 @@ def testmodel2tool2edgerun(force,cps):
     if xlen == "null":
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
-        if xlen > 1000:
-            testmodel2pocketoutbig(force,cps)
+        if xlen > 600:
+            tool2edgebig(force, cps)
         else:
-            testmodel2tool2small(force,cps)
+            testmodel2tool2small(force, cps)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
     

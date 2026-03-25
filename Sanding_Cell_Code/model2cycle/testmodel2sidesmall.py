@@ -170,29 +170,25 @@ def testmodel2siderun(force,cps):
         print("bottompointsa=",bottompointsa)
 
 
-        def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
+        def perform_process_bottom_u(cps, config, points1, force):
+            force_applied = False
+            vibration_on = False
+            force_points = {tuple(pointybottomb12m), tuple(pointybottoma12m)}
+            vib_points = {tuple(pointybottomb2m), tuple(pointybottoma1)}
+
             for point in points1:
-                if point==pointybottomb12m:putForceZplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcpReal'],
-                ucs=config['coords']['ucsTable2'],
-                config=config
-                )
-                if point==pointybottomb2m:turn_vibration_on(cps)
+                if (not force_applied) and tuple(point) in force_points:
+                    putForceZplus(
+                        cps=cps,
+                        force=force,
+                        tcp=config['coords']['tcpReal'],
+                        ucs=config['coords']['ucsTable2'],
+                        config=config
+                    )
+                    force_applied = True
+                if (not vibration_on) and tuple(point) in vib_points:
+                    turn_vibration_on(cps)
+                    vibration_on = True
                 communicate(
                     cps=cps,
                     config=config,
@@ -203,54 +199,10 @@ def testmodel2siderun(force,cps):
                     speed=0.6,
                     wait=False
                 )
-            
-            # Wait for blending and turn off vibration
+
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-        
-        def perform_process_bottoma(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==pointybottoma12m:putForceZplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcpReal'],
-                ucs=config['coords']['ucsTable2'],
-                config=config
-                )
-                if point==pointybottoma1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
+            releaseForce(cps=cps, config=config)
         
         def run_single_movement(robot_point, seventh_axis_point, cps, config):
             lock = threading.Lock()
@@ -300,23 +252,28 @@ def testmodel2siderun(force,cps):
             robot_thread.join()
             axis_thread.join()
 
-        # #Bottom Cycle b
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        #last cycle
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-
-        
-        #Bottom Cycle a
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
-        run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
-
-        #last cycle
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        # One-pass U turn: keep 7th axis fixed for short distance
+        u_points = bottompointsb + bottompointsa
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=x1,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            wait=True
+        )
+        perform_process_bottom_u(cps, config, points1=u_points, force=force)
+        communicate(
+            cps=cps,
+            config=config,
+            point=prehoming,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speeed,
+            wait=True
+        )
         # cps.HRIF_DisConnect(0)
 
     p1 = exported_points["p1"]
@@ -326,14 +283,14 @@ def testmodel2siderun(force,cps):
     if xlen == "null":
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
-        if xlen > 1000:
-            testmodel2sidebig(force,cps)
-            time.sleep(0.5)
+        if xlen > 600:
             testmodel2pocketoutbig(force,cps)
-        else:
-            testmodel2sidesmall(force,cps)
             time.sleep(0.5)
+            testmodel2sidebig(force,cps)            
+        else:
             testmodelpocketoutsmall(force,cps)
+            time.sleep(0.5)
+            testmodel2sidesmall(force,cps)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
     

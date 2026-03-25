@@ -129,20 +129,12 @@ def testmodel2sidebig(force,cps):
 
     #Bootom Points Movement
     #7th axis position
-    length=(p1[0]-p4[0])/5
-    print("length=",length)
+    length_full=(p1[0]-p4[0])
+    print("length_full=",length_full)
     x1=p3[0]
     print("x1=",x1)
-    x2=length*1
+    x2=length_full/2
     print("x2=",x2)
-    x3=length*2
-    print("x3=",x3)
-    x4=length*3
-    print("x4=",x4)
-    x5=length*4
-    print("x5=",x5)
-    x6=length*5
-    print("x6=",x6)
 
     prehoming=[0,0,-20,180,0,0]
 
@@ -154,9 +146,9 @@ def testmodel2sidebig(force,cps):
     print("prepointybottomb1=",prepointybottomb1)
     pointybottomb12m=[p4[0]+2,pointybottomb,z,180,0,0]
     print("pointybottomb12m=",pointybottomb12m)
-    pointybottomb2m=[length/5,pointybottomb,z,180,0,0]
+    pointybottomb2m=[length_full/2,pointybottomb,z,180,0,0]
     print("pointybottomb2m=",pointybottomb2m)
-    prepointybottomb2m=[length/5,pointybottomb,-10,180,0,0]
+    prepointybottomb2m=[length_full/2,pointybottomb,-10,180,0,0]
     print("prepointybottomb2m=",prepointybottomb2m)
 
 
@@ -165,11 +157,11 @@ def testmodel2sidebig(force,cps):
     print("pointybottoma1=",pointybottoma1)
     prepointybottoma1=[p4[0],pointybottoma,-10,180,0,0]
     print("prepointybottoma1=",prepointybottoma1)
-    pointybottoma12m=[length/5+2,pointybottoma,z,180,0,0]
+    pointybottoma12m=[length_full/2+2,pointybottoma,z,180,0,0]
     print("pointybottoma12m=",pointybottoma12m)
-    pointybottoma2m=[length/5,pointybottoma,z,180,0,0]
+    pointybottoma2m=[length_full/2,pointybottoma,z,180,0,0]
     print("pointybottoma2m=",pointybottoma2m)
-    prepointybottoma2m=[length/5,pointybottoma,-10,180,0,0]
+    prepointybottoma2m=[length_full/2,pointybottoma,-10,180,0,0]
     print("prepointybottoma2m=",prepointybottoma2m)
 
 
@@ -179,29 +171,25 @@ def testmodel2sidebig(force,cps):
     print("bottompointsa=",bottompointsa)
 
 
-    def perform_process_bottom(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcpReal'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
+    def perform_process_bottom_u(cps, config, points1,force):
+        force_applied = False
+        vibration_on = False
+        force_points = {tuple(pointybottomb12m), tuple(pointybottoma12m)}
+        vib_points = {tuple(pointybottomb2m), tuple(pointybottoma1)}
+
         for point in points1:
-            if point==pointybottomb12m:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==pointybottomb2m:turn_vibration_on(cps)
+            if (not force_applied) and tuple(point) in force_points:
+                putForceZplus(
+                    cps=cps,
+                    force=force,
+                    tcp=config['coords']['tcpReal'],
+                    ucs=config['coords']['ucsTable2'],
+                    config=config
+                )
+                force_applied = True
+            if (not vibration_on) and tuple(point) in vib_points:
+                turn_vibration_on(cps)
+                vibration_on = True
             communicate(
                 cps=cps,
                 config=config,
@@ -212,54 +200,10 @@ def testmodel2sidebig(force,cps):
                 speed=0.6,
                 wait=False
             )
-        
-        # Wait for blending and turn off vibration
+
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
-        
-        # Release Force Control
-        releaseForce(cps=cps, config=config) 
-    
-    def perform_process_bottoma(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcpReal'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        for point in points1:
-            if point==pointybottoma12m:putForceZplus(
-            cps=cps,
-            force=force,
-            tcp=config['coords']['tcpReal'],
-            ucs=config['coords']['ucsTable2'],
-            config=config
-            )
-            if point==pointybottoma1:turn_vibration_on(cps)
-            communicate(
-                cps=cps,
-                config=config,
-                point=point,
-                tcp=config['coords']['tcpReal'],
-                ucs=config['coords']['ucsTable2'],
-                seventh=-1,
-                speed=0.6,
-                wait=False
-            )
-        
-        # Wait for blending and turn off vibration
-        waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        
-        # Release Force Control
-        releaseForce(cps=cps, config=config) 
+        releaseForce(cps=cps, config=config)
     
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
         lock = threading.Lock()
@@ -309,28 +253,14 @@ def testmodel2sidebig(force,cps):
         robot_thread.join()
         axis_thread.join()
 
-    #Bottom Cycle b
+    # Two-pass U pattern for big side:
+    u_points = bottompointsb + bottompointsa
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-    # run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
-    # perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-    seventh_axis_points = [x2, x3, x4, x5, x6]
+    perform_process_bottom_u(cps, config, points1=u_points,force=force)
 
-    for point in seventh_axis_points:
-        run_single_movement(robot_point=prehoming, seventh_axis_point=point, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=bottompointsb, force=force)
-    #last cycle
-    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    # #Bottom Cycle a
-    communicate(cps=cps,config=config,seventh=x6,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+    run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
+    perform_process_bottom_u(cps, config, points1=u_points,force=force)
 
-    seventh_axis_points = [x5, x4, x3, x2, x1]
-    for point in seventh_axis_points:
-        run_single_movement(robot_point=prehoming, seventh_axis_point=point, cps=cps, config=config)
-        perform_process_bottoma(cps, config, points1=bottompointsa, force=force)
-
-    #last cycle
     communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
     
