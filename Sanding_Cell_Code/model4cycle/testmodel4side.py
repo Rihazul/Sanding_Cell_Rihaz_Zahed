@@ -119,7 +119,7 @@ def testmodel4sidesmallfunctionbig(force,cps):
     #Conveyer Movement for the Bottom Portion
     x0=0
     print("x0=",x0)
-    x1=width/6
+    x1=width/5
     print("x1=",x1)
     x2=x1*2
     print("x2=",x2)
@@ -129,8 +129,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
     print("x4=",x4)
     x5=x1*5
     print("x5=",x5)
-    x6=x1*6
-    print("x6=",x6)
+    x5=x1*5
+    print("x5=",x5)
     # x7=x1*7
     # print("x7=",x7)
     # x8=x1*8
@@ -141,11 +141,11 @@ def testmodel4sidesmallfunctionbig(force,cps):
     #Bootom Points
     pointbottom1=[p4[0]+framewidth/2,p4[1]+framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
     print("pointbottom1=",pointbottom1)
-    pointbottom2=[width/6-framewidth/2,p4[1]+framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
+    pointbottom2=[width/5-framewidth/2,p4[1]+framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
     print("pointbottom2=",pointbottom2)
     pointbottom1pre=[p4[0]+framewidth/2,p4[1]+framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
     print("pointbottom1pre=",pointbottom1pre)
-    pointbottom2pre=[width/6-framewidth/2,p4[1]+framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
+    pointbottom2pre=[width/5-framewidth/2,p4[1]+framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
     print("pointbottom2pre=",pointbottom2pre)
     pointbottom12=[p4[0]+framewidth/2+2,p4[1]+framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
     print("pointbottom12=",pointbottom12)
@@ -153,26 +153,26 @@ def testmodel4sidesmallfunctionbig(force,cps):
     print("pointbottomair=",pointbottomair)
 
     #Left Side Points
-    pointleft1=[width/6-framewidth/2,p4[1]+framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
+    pointleft1=[width/5-framewidth/2,p4[1]+framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
     print("pointleft1=",pointleft1)
-    pointleft2=[width/6-framewidth/2,p3[1]-framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
+    pointleft2=[width/5-framewidth/2,p3[1]-framewidth/2,p4[2]-6,p4[3],p4[4],p4[5]]
     print("pointleft2=",pointleft2)
-    pointleft12=[width/6-framewidth/2,p4[1]+framewidth/2+2,p4[2]-6,p4[3],p4[4],p4[5]]
+    pointleft12=[width/5-framewidth/2,p4[1]+framewidth/2+2,p4[2]-6,p4[3],p4[4],p4[5]]
     print("pointleft12=",pointleft12)
-    pointleft2pre=[width/6-framewidth/2,p3[1]-framewidth/2,p4[2]-5-10,p4[3],p4[4],p4[5]]
+    pointleft2pre=[width/5-framewidth/2,p3[1]-framewidth/2,p4[2]-5-10,p4[3],p4[4],p4[5]]
     print("pointleft2air=",pointleft2pre)
 
     #Pointstop
     #Top Points
-    pointtop1=[width/6-framewidth/2,p3[1]-framewidth/2,p4[2]-8,p4[3],p4[4],p4[5]]
+    pointtop1=[width/5-framewidth/2,p3[1]-framewidth/2,p4[2]-8,p4[3],p4[4],p4[5]]
     print("pointtop1=",pointtop1)
-    pointtop12=[width/6-framewidth/2-2,p3[1]-framewidth/2,p4[2]-8,p4[3],p4[4],p4[5]]
+    pointtop12=[width/5-framewidth/2-2,p3[1]-framewidth/2,p4[2]-8,p4[3],p4[4],p4[5]]
     print("pointtop12=",pointtop12)
-    pointtop2=[-(width/6-framewidth/2),p3[1]-framewidth/2,p4[2]-8,p4[3],p4[4],p4[5]]
+    pointtop2=[-(width/5-framewidth/2),p3[1]-framewidth/2,p4[2]-8,p4[3],p4[4],p4[5]]
     print("pointtop2=",pointtop2)
-    pointtop2pre=[-(width/6-framewidth/2),p3[1]-framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
+    pointtop2pre=[-(width/5-framewidth/2),p3[1]-framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
     print("pointtop2pre=",pointtop2pre)
-    pointtopair=[width/6-framewidth/2,p3[1]-framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
+    pointtopair=[width/5-framewidth/2,p3[1]-framewidth/2,p4[2]-15,p4[3],p4[4],p4[5]]
     print("pointtopair=",pointtopair)
 
 
@@ -191,7 +191,7 @@ def testmodel4sidesmallfunctionbig(force,cps):
 
     pointsbottom=[pointbottom1pre,pointbottom1,pointbottom12,pointbottom2,pointbottom2pre]
     print("pointsbottom=",pointsbottom)
-    conveyerbottoms=[x0,x1,x2,x3,x4,x5,x6]
+    conveyerbottoms=[x0,x1,x2,x3,x4,x5]
     print("conveyerbottoms=",conveyerbottoms)
     pointslefts=[pointleft1,pointleft12,pointleft2,pointleft2pre]
     print("pointslefts=",pointslefts)
@@ -462,7 +462,7 @@ def testmodel4sidesmallfunctionbig(force,cps):
     perform_process_bottom(cps, config, points1=pointsbottom)
     # run_single_movement(robot_point=pointbottomair, seventh_axis_point=x1, cps=cps, config=config)
     # perform_process_bottom(cps, config, points1=pointsbottom)
-    for i in range(1, 6):
+    for i in range(1, 5):
         current_x = eval(f"x{i}")
         print(f"Processing bottom cycle at position x{i} = {current_x}")
         run_single_movement(robot_point=pointbottomair, seventh_axis_point=current_x, cps=cps, config=config)
@@ -473,7 +473,7 @@ def testmodel4sidesmallfunctionbig(force,cps):
     #Top Cycle Movement
     perform_process_topreal(cps, config, points1=pointstops)
 
-    for i in [3, 1]:  # Process x3 first, then x1 (change to [1, 3] for original order)
+    for i in [4, 2]:  # Process x4 first, then x2
         current_x = eval(f"x{i}")
         print(f"Processing bottom cycle at position x{i} = {current_x}")
         run_single_movement(robot_point=pointtopair, seventh_axis_point=current_x, cps=cps, config=config)

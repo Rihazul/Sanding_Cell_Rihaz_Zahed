@@ -351,6 +351,25 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
             current_prepoint = eval(f"prepointp{i}")
             current_zigzag = eval(f"zigzag_pathp{i}")
 
+            # Apply overlap offsets to hide seam line between passes
+            seam_offset = -25.0 if i == 1 else 25.0
+
+            if seam_offset and current_prepoint:
+                current_prepoint = [
+                    current_prepoint[0] + seam_offset,
+                    current_prepoint[1],
+                    current_prepoint[2],
+                    current_prepoint[3],
+                    current_prepoint[4],
+                    current_prepoint[5],
+                ]
+
+            if seam_offset and current_zigzag:
+                current_zigzag = [
+                    [pt[0] + seam_offset, pt[1], pt[2], pt[3], pt[4], pt[5]]
+                    for pt in current_zigzag
+                ]
+
             # Original sequence with dynamic variables
             communicate(
                 cps=cps, config=config, 

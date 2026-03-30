@@ -119,7 +119,7 @@ def testmodel4tool3b(force,cps):
     #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/5
+    seventhdistance=(p5[0] - p8[0])/4
     print("seventhdistance:", seventhdistance)
     x2=outeroffset+outeroffset1+seventhdistance
     print("x2:", x2)
@@ -129,8 +129,6 @@ def testmodel4tool3b(force,cps):
     print("x4:", x4)
     x5=outeroffset+outeroffset1+(seventhdistance*4)
     print("x5:", x5)
-    x6=outeroffset+outeroffset1+(seventhdistance*5)
-    print("x6:", x6)
 
     # #7th axis movement Top
     # tx1=p8[0]
@@ -162,8 +160,8 @@ def testmodel4tool3b(force,cps):
     prebpoint1st=[0, point8[1], -55, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/5, point5[1], -55, 180, 0, 0]
-    bpoint2nd=[distance/5, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance/4, point5[1], -55, 180, 0, 0]
+    bpoint2nd=[distance/4, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -211,9 +209,9 @@ def testmodel4tool3b(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1]+3, z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distancetop/5, point7[1]+3, z, 180, 0, 0]
+    tpoint2nd = [-distancetop/4, point7[1]+3, z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distancetop/5, point7[1]+3, -55, 180, 0, 0]
+    pretpoint2nd = [-distancetop/4, point7[1]+3, -55, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -470,7 +468,7 @@ def testmodel4tool3b(force,cps):
         perform_process_bottom(cps, config, points1=bpoints, force=force) 
     
     # # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x6, cps=cps, config=config)
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x5, cps=cps, config=config)
 
     # #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
