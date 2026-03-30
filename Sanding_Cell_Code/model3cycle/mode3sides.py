@@ -87,17 +87,11 @@ def mod3sidesmall(force,cps):
     #Conveyer
     x=p4[0]
     print("x=",x)
-    increment=p1[0]/3
+    increment=p1[0]/2
     x1=increment
     print("x1=",x1)
     x2=increment*2
     print("x2=",x2)
-    x3=increment*3
-    print("x3=",x3)
-    x4=increment*4
-    print("x4=",x4)
-    x5=increment*5
-    print("x5=",x5)
 
     #Middle Conveyer movement
     xmiddle=p9[0]
@@ -111,15 +105,15 @@ def mod3sidesmall(force,cps):
     #Bottom Section
     point4=[p4[0]+tool3x-9.749,p4[1]+tool3y-19.243,p4[2]-4,p4[3],p4[4],p4[5]]
     print("point4=",point4)
-    point1=[p1[0]/3,p4[1]+tool3y-19.243,p4[2]-4,p4[3],p4[4],p4[5]]
+    point1=[p1[0]/2,p4[1]+tool3y-19.243,p4[2]-4,p4[3],p4[4],p4[5]]
     print("point1=",point1)
     point41=[p4[0]+tool3x-9.749+2,p4[1]+tool3y-19.243,p4[2]-4,p4[3],p4[4],p4[5]]
     print("point41=",point41)
     point4pre=[p4[0]+tool3x-9.749,p4[1]+tool3y-19.243,p4[2]-1-3-10,p4[3],p4[4],p4[5]]
     print("point4pre=",point4pre)
-    point1pre=[p1[0]/3,p4[1]+tool3y-19.243,p4[2]-1-3-10,p4[3],p4[4],p4[5]]
+    point1pre=[p1[0]/2,p4[1]+tool3y-19.243,p4[2]-1-3-10,p4[3],p4[4],p4[5]]
     print("point1pre=",point1pre)
-    point1air=[p1[0]/3,p4[1]+tool3y-19.243,p4[2]-1-10,p4[3],p4[4],p4[5]]
+    point1air=[p1[0]/2,p4[1]+tool3y-19.243,p4[2]-1-10,p4[3],p4[4],p4[5]]
     print("point1air=",point1air)
     point4air=[p4[0]+tool3x-9.749,p4[1]+tool3y-19.243,p4[2]-1-10,p4[3],p4[4],p4[5]]
     print("point4air=",point4air)
@@ -139,11 +133,11 @@ def mod3sidesmall(force,cps):
     print("pointl23=",pointl23)
 
     #Top1
-    pointtop2=[p2[0]/3-32.4,p2[1]-27.04,p2[2]-4,p2[3],p2[4],p2[5]]
+    pointtop2=[p2[0]/2-32.4,p2[1]-27.04,p2[2]-4,p2[3],p2[4],p2[5]]
     print("pointtop2=",pointtop2)
-    pointtop21=[p2[0]/3-32.4-1-1,p2[1]-27.04,p2[2]-4,p2[3],p2[4],p2[5]]
+    pointtop21=[p2[0]/2-32.4-1-1,p2[1]-27.04,p2[2]-4,p2[3],p2[4],p2[5]]
     print("pointtop21=",pointtop21)
-    pointtop2pre=[p2[0]/3-32.4,p2[1]-27.04,p2[2]-1-3-10,p2[3],p2[4],p2[5]]
+    pointtop2pre=[p2[0]/2-32.4,p2[1]-27.04,p2[2]-1-3-10,p2[3],p2[4],p2[5]]
     print("pointtop2pre=",pointtop2pre)
     pointtop1=[0,p2[1]-27.04,p2[2]-4,p2[3],p2[4],p2[5]]
     print("pointtop1=",pointtop1)
@@ -151,7 +145,7 @@ def mod3sidesmall(force,cps):
     print("pointtop1pre=",pointtop1pre)
     pointtop1air=[0,p2[1]-27.04,p2[2]-1-3-6,p2[3],p2[4],p2[5]]
     print("pointtop1air=",pointtop1air)
-    pointtop2air=[p2[0]/3-32.4,p2[1]-27.04,p2[2]-1-9,p2[3],p2[4],p2[5]]
+    pointtop2air=[p2[0]/2-32.4,p2[1]-27.04,p2[2]-1-9,p2[3],p2[4],p2[5]]
     print("pointtop2air=",pointtop2air)
 
     #Right Points
@@ -459,28 +453,12 @@ def mod3sidesmall(force,cps):
     perform_process_top(cps, config, points1=points1)
     communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     run_single_movement(robot_point=point4air, seventh_axis_point=x2, cps=cps, config=config)
-    #Bottom3
-    perform_process_top(cps, config, points1=points1)
-    communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    run_single_movement(robot_point=point4air, seventh_axis_point=x3, cps=cps, config=config)
-    # #Bottom4
-    # perform_process_top(cps, config, points1=points1)
-    # communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    # run_single_movement(robot_point=point4air, seventh_axis_point=x4, cps=cps, config=config)
-    # #Bottom5
-    # perform_process_top(cps, config, points1=points1)
-    # communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    # run_single_movement(robot_point=point4air, seventh_axis_point=x3, cps=cps, config=config)
+    # Two passes only (x and x1)
     #Left Side Cycle
     perform_process_left(cps, config, points1=pointsleft)
     communicate(cps=cps,config=config,point=pointl3air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     # #Top Cycle
     #Top Cycle 1
-    run_single_movement(robot_point=pointtop2air, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_topreal(cps, config, points1=pointstop)
-    communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-
-    #Top Cycle 2
     run_single_movement(robot_point=pointtop2air, seventh_axis_point=x1, cps=cps, config=config)
     perform_process_topreal(cps, config, points1=pointstop)
     communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)

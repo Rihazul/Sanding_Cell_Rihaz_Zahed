@@ -84,66 +84,66 @@ def mod3tool2edgesbig(force,cps):
         print("point1=",point1)
         point12=[p4[0]+2,p4[1]-8,p4[2]+45-3,0,21.998,-90]
         print("point12=",point12)
-        point2=[p1[0]/5,p1[1]-8,p1[2]+45-3,0,21.998,-90]
+        point2=[p1[0]/4,p1[1]-8,p1[2]+45-3,0,21.998,-90]
         print("point2=",point2)
-        point2before=[(p1[0]/5)-1,p1[1]+1,p1[2]+45-3,0,21.998,-90]
+        point2before=[(p1[0]/4)-1,p1[1]+1,p1[2]+45-3,0,21.998,-90]
         print("point2before=",point2before)
-        point2pre=[p1[0]/5,p1[1]-5-5-10-5,p1[2]+45-3,0,21.998,-90]
+        point2pre=[p1[0]/4,p1[1]-5-5-10-5,p1[2]+45-3,0,21.998,-90]
         print("point2pre=",point2pre)
-        point2air=[p1[0]/5,p1[1]-20,p1[2]+45-3,0,21.998,-90]
+        point2air=[p1[0]/4,p1[1]-20,p1[2]+45-3,0,21.998,-90]
         print("point2air=",point2air)
         point1Combo=[0,p1[1]-20,p1[2]+45-3,0,21.998,-90]
         print("point1Combo=",point1Combo)
         #Bottom Extra point
-        point2bottomextra=[p1[0]/5+30,p1[1]-20,p1[2]+45,0,0,0]
+        point2bottomextra=[p1[0]/4+30,p1[1]-20,p1[2]+45,0,0,0]
         print("point2bottomextra=",point2bottomextra)
 
         #Left Points
-        pointleft1=[(p1[0]/5)+8,frameOutside/2,p1[2]+45-3,0,21.998,0]
+        pointleft1=[(p1[0]/4)+8,frameOutside/2,p1[2]+45-3,0,21.998,0]
         print("pointleft1=",pointleft1)
-        pointleft1pre=[(p1[0]/5)+2+5,frameOutside/2,p1[2]+45-3,0,21.998,0]
+        pointleft1pre=[(p1[0]/4)+2+5,frameOutside/2,p1[2]+45-3,0,21.998,0]
         print("pointleft1pre=",pointleft1pre)
-        pointleft12=[(p1[0]/5)+8,(frameOutside/2)+2,p1[2]+45-3,0,21.998,0]
+        pointleft12=[(p1[0]/4)+8,(frameOutside/2)+2,p1[2]+45-3,0,21.998,0]
         print("pointleft12=",pointleft12)
-        pointleft2=[(p1[0]/5)+8,p2[1]-(frameOutside/2),p1[2]+45-3,0,21.998,0]
+        pointleft2=[(p1[0]/4)+8,p2[1]-(frameOutside/2),p1[2]+45-3,0,21.998,0]
         print("pointleft2=",pointleft2)
-        pointleft2pre=[(p1[0]/5)+2+5+10,p2[1]-(frameOutside/2),p1[2]+45-3,0,21.998,0]
+        pointleft2pre=[(p1[0]/4)+2+5+10,p2[1]-(frameOutside/2),p1[2]+45-3,0,21.998,0]
         print("pointleft2pre=",pointleft2pre)
         #Left Extra Points
-        pointLeftExtra=[(p1[0]/5)+21,p2[1]+20,p1[2]+15,0,0,90]
+        pointLeftExtra=[(p1[0]/4)+21,p2[1]+20,p1[2]+15,0,0,90]
         print("pointLeftExtra=",pointLeftExtra)
 
         
         #Top Cycle Points
-        pointtop1=[(p1[0]/5),p2[1]+8,p1[2]+45-3,0,21.998,90]
+        pointtop1=[(p1[0]/4),p2[1]+8,p1[2]+45-3,0,21.998,90]
         print("pointtop1=",pointtop1)
-        pointtop1pre=[(p1[0]/5),p2[1]+2+8,p1[2]+45-3,0,21.998,90]
+        pointtop1pre=[(p1[0]/4),p2[1]+2+8,p1[2]+45-3,0,21.998,90]
         print("pointtop1pre=",pointtop1pre)
-        pointtop12=[(p1[0]/5)-2,p2[1]+8,p1[2]+45-3,0,21.998,90]
+        pointtop12=[(p1[0]/4)-2,p2[1]+8,p1[2]+45-3,0,21.998,90]
         print("pointtop12=",pointtop12)
-        pointtop2=[(p4[0]/5),p2[1]+8,p1[2]+45-3,0,21.998,90]
+        pointtop2=[(p4[0]/4),p2[1]+8,p1[2]+45-3,0,21.998,90]
         print("pointtop2=",pointtop2)
-        pointtop2pre=[(p4[0]/5),p2[1]+2+8+10+5,p1[2]+45-3,0,21.998,90]
+        pointtop2pre=[(p4[0]/4),p2[1]+2+8+10+5,p1[2]+45-3,0,21.998,90]
         print("pointtop2pre =",pointtop2pre)
-        pointtop2air=[(p4[0]/5),p2[1]+2+3+10,p1[2]+45-3,0,21.998,90]
+        pointtop2air=[(p4[0]/4),p2[1]+2+3+10,p1[2]+45-3,0,21.998,90]
         print("pointtop2air =",pointtop2air)
-        pointtop1Combo=[(p1[0]/5),p2[1]+2+3+10,p1[2]+45-3,0,21.998,90]
+        pointtop1Combo=[(p1[0]/4),p2[1]+2+3+10,p1[2]+45-3,0,21.998,90]
         print("pointtop1Combo =",pointtop1Combo)
         
         #Top Cycle Points Extra
-        pointtopExtra=[(p4[0]/5)-6,p2[1]+2+3+10,p1[2]+15,0,0,180]
+        pointtopExtra=[(p4[0]/4)-6,p2[1]+2+3+10,p1[2]+15,0,0,180]
         print("pointtopExtra =",pointtopExtra)
         
         #For Right Side
-        pointright1=[(p4[0]/5)-8,p2[1],p1[2]+45-2,0,21.998,180]
+        pointright1=[(p4[0]/4)-8,p2[1],p1[2]+45-2,0,21.998,180]
         print("pointright1 =",pointright1)
-        pointright1pre=[(p4[0]/5)-1-4,p2[1],p1[2]+45-2,0,21.998,180]
+        pointright1pre=[(p4[0]/4)-1-4,p2[1],p1[2]+45-2,0,21.998,180]
         print("pointright1pre =",pointright1pre)
-        pointright12=[(p4[0]/5)-8,p2[1]-2,p1[2]+45-2,0,21.998,180]
+        pointright12=[(p4[0]/4)-8,p2[1]-2,p1[2]+45-2,0,21.998,180]
         print("pointright12 =",pointright12)
-        pointright2=[(p4[0]/5)-8,p4[0],p1[2]+45-2,0,21.998,180]
+        pointright2=[(p4[0]/4)-8,p4[0],p1[2]+45-2,0,21.998,180]
         print("pointright2 =",pointright2)
-        pointright2pre=[(p4[0]/5)-1-4-5,p4[0],p1[2]+45-2,0,21.998,180]
+        pointright2pre=[(p4[0]/4)-1-4-5,p4[0],p1[2]+45-2,0,21.998,180]
         print("pointright2pre =",pointright2pre)
         homelast=[0,0,-50,0,0,180]
         print("homelast =",homelast)
@@ -152,7 +152,7 @@ def mod3tool2edgesbig(force,cps):
         #Converyer Points for X axis
         cx=p4[0]
         print("cx=",cx)
-        incDistance=(p1[0]-p4[0])/5
+        incDistance=(p1[0]-p4[0])/4
         print("incDistance=",incDistance)
         cx1=incDistance
         print("cx1=",cx1)
@@ -162,8 +162,6 @@ def mod3tool2edgesbig(force,cps):
         print("cx3=",cx3)
         cx4=incDistance*4
         print("cx4=",cx4)
-        cx5=incDistance*5
-        print("cx5=",cx5)
 
         #Array of points
         pointsb=[point1pre,point1,point12,point2,point2pre]
@@ -406,10 +404,6 @@ def mod3tool2edgesbig(force,cps):
         communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         run_single_movement(robot_point=point1Combo, seventh_axis_point=cx3, cps=cps, config=config)
         perform_process_bottom(cps, config, points1=pointsb,force=force)
-        #Bottom Cycle 5
-        communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-        run_single_movement(robot_point=point1Combo, seventh_axis_point=cx4, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=pointsb,force=force)
         communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
         #Bottom Extra for Adjustment
@@ -423,17 +417,13 @@ def mod3tool2edgesbig(force,cps):
         perform_process_top(cps, config, points1=pointstop,force=force)
         #Top Cycle 2
         communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-        run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx3, cps=cps, config=config)
+        run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx2, cps=cps, config=config)
         perform_process_top(cps, config, points1=pointstop,force=force)
         #Top Cycle 3
         communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-        run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx2, cps=cps, config=config)
-        perform_process_top(cps, config, points1=pointstop,force=force)
-        #Top Cycle 4
-        communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx1, cps=cps, config=config)
         perform_process_top(cps, config, points1=pointstop,force=force)
-        #Top Cycle 5
+        #Top Cycle 4
         communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx, cps=cps, config=config)
         perform_process_top(cps, config, points1=pointstop,force=force)
