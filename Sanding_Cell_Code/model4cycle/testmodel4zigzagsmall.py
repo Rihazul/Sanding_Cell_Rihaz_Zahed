@@ -317,9 +317,9 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
                     ]
             return zigzag_coords,prepoint
 
-        def generate_edge_paths(x_coords, y_coords, z_coords, edge_offset=1.75):
+        def generate_edge_path(x_coords, y_coords, z_coords, edge_offset=1.75, orientation="vertical"):
             if not (x_coords and y_coords and z_coords):
-                return ([], None), ([], None)
+                return [], None
 
             tool3y = 50.8
             tool3x = 38.1
@@ -336,7 +336,7 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
             ]
             edge_Point1 = [
                 (x_coords[0]) / 2 + tool3x + edge_offset,
-                y_coords[0] + tool3y + edge_offset * 2,
+                y_coords[0] + tool3y + edge_offset ,
             ]
             edge_Point4 = [
                 x_coords[3] - tool3x - edge_offset,
@@ -348,25 +348,33 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
             y_min = min(edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1])
             y_max = max(edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1])
 
-            x_mid = (x_min + x_max) / 2.0
+            orientation_mode = (orientation or "vertical").lower()
+            if orientation_mode not in ("horizontal", "vertical"):
+                orientation_mode = "vertical"
 
-            top_left = [x_min, y_max, z_edge, rx, ry, rz]
-            top_right = [x_max, y_max, z_edge, rx, ry, rz]
-            bottom_left = [x_min, y_min, z_edge, rx, ry, rz]
-            bottom_right = [x_max, y_min, z_edge, rx, ry, rz]
-            top_mid = [x_mid, y_max, z_edge, rx, ry, rz]
-            bottom_mid = [x_mid, y_min, z_edge, rx, ry, rz]
+            if orientation_mode == "horizontal":
+                edge_points = [
+                    [x_min, y_max, z_edge, rx, ry, rz],
+                    [x_max, y_max, z_edge, rx, ry, rz],
+                    [x_max, y_min, z_edge, rx, ry, rz],
+                    [x_min, y_min, z_edge, rx, ry, rz],
+                    [x_min, y_max, z_edge, rx, ry, rz],
+                ]
+            else:
+                edge_points = [
+                    [x_max, y_min, z_edge, rx, ry, rz],
+                    [x_min, y_min, z_edge, rx, ry, rz],
+                    [x_min, y_max, z_edge, rx, ry, rz],
+                    [x_max, y_max, z_edge, rx, ry, rz],
+                    [x_max, y_min, z_edge, rx, ry, rz],
+                ]
 
-            edge_pass1 = [top_mid, top_right, bottom_right, bottom_mid]
-            edge_pass2 = [bottom_mid, bottom_left, top_left, top_mid]
-
-            for point in edge_pass1 + edge_pass2:
+            for point in edge_points:
                 point[0] = abs(point[0])
                 point[1] = abs(point[1])
 
-            start1 = edge_pass1[0] if edge_pass1 else None
-            start2 = edge_pass2[0] if edge_pass2 else None
-            return (edge_pass1, start1), (edge_pass2, start2)
+            start_point = edge_points[0] if edge_points else None
+            return edge_points, start_point
         #3rd Cycle for Door 1
         # zigzag_path,prepoint= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=5,innerOffsetX=5)
         # print("zigzag_path=",zigzag_path)
@@ -404,11 +412,12 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         # zigzag_pathp6,prepointp6= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=5)
         # print("zigzag_pathp6=",zigzag_pathp6)
         # print("prepointp6:", prepointp6)
-        (edge_pathp1, edge_startp1), (edge_pathp2, edge_startp2) = generate_edge_paths(
+        edge_pathp, edge_startp = generate_edge_path(
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
             edge_offset=edge_offset,
+            orientation=zigzag_orientation,
         )
         
 
@@ -490,8 +499,6 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
                 speed=speeed, wait=True
             )
             # # turn_vibration_on(cps)
-            edge_pathp = edge_pathp1 if i == 1 else edge_pathp2
-            edge_startp = edge_startp1 if i == 1 else edge_startp2
             if edge_coverage and edge_startp:
                 edge_prepoint = [
                     edge_startp[0] + 0.5,
