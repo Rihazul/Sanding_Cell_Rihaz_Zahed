@@ -136,7 +136,7 @@ def smalldoor1zizag(
             # Parameters (adjust as needed)
             tool3y = 50.8   # Tool offset in Y
             tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 20  # Step size in X (instead of Y)
+            innerSandingOffset = 50  # Step size in X (instead of Y)
             xframe_1 = 0
             xframe_2 = 0
 
@@ -160,7 +160,7 @@ def smalldoor1zizag(
                 # For Pocket4, corners (P13, P14, P15, P16):
                 modified_Point2 = [
                     (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset* (-0.5)),
+                    y_coords[1] - tool3y - (innerOffset),
                 ]
                 modified_Point3 = [
                     x_coords[2] - tool3x - innerOffset,
@@ -315,7 +315,7 @@ def smalldoor1zizag(
 
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -413,12 +413,7 @@ def smalldoor1zizag(
         # IP = config['server']['cpip']
         # port = config['server']['cps']
         # ret = cps.HRIF_Connect(0, IP, port)
-
-        #Establish connection with robot
-        cps = CPSClient()
-        IP = config['server']['cpip']
-        port = config['server']['cps']
-        ret = cps.HRIF_Connect(0, IP, port)
+        # Using cps from caller; connection handled upstream.
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
@@ -676,11 +671,11 @@ def smalldoor1zizag(
             return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
@@ -941,7 +936,7 @@ def smalldoor2zizag(
                 # For Pocket4, corners (P13, P14, P15, P16):
                 modified_Point2 = [
                     (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset* (-0.5)),
+                    y_coords[1] - tool3y - (innerOffset),
                 ]
                 modified_Point3 = [
                     x_coords[2] - tool3x - innerOffset,
@@ -1096,7 +1091,7 @@ def smalldoor2zizag(
 
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -1194,12 +1189,7 @@ def smalldoor2zizag(
         # IP = config['server']['cpip']
         # port = config['server']['cps']
         # ret = cps.HRIF_Connect(0, IP, port)
-
-        #Establish connection with robot
-        cps = CPSClient()
-        IP = config['server']['cpip']
-        port = config['server']['cps']
-        ret = cps.HRIF_Connect(0, IP, port)
+        # Using cps from caller; connection handled upstream.
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
@@ -1457,11 +1447,11 @@ def smalldoor2zizag(
             return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
@@ -1722,7 +1712,7 @@ def smalldoor3zizag(
                 # For Pocket4, corners (P13, P14, P15, P16):
                 modified_Point2 = [
                     (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset* (-0.5)),
+                    y_coords[1] - tool3y - (innerOffset),
                 ]
                 modified_Point3 = [
                     x_coords[2] - tool3x - innerOffset,
@@ -1877,7 +1867,7 @@ def smalldoor3zizag(
 
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -1975,12 +1965,7 @@ def smalldoor3zizag(
         # IP = config['server']['cpip']
         # port = config['server']['cps']
         # ret = cps.HRIF_Connect(0, IP, port)
-
-        #Establish connection with robot
-        cps = CPSClient()
-        IP = config['server']['cpip']
-        port = config['server']['cps']
-        ret = cps.HRIF_Connect(0, IP, port)
+        # Using cps from caller; connection handled upstream.
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
@@ -2238,11 +2223,11 @@ def smalldoor3zizag(
             return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
@@ -2503,7 +2488,7 @@ def smalldoor4zizag(
                 # For Pocket4, corners (P13, P14, P15, P16):
                 modified_Point2 = [
                     (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset* (-0.5)),
+                    y_coords[1] - tool3y - (innerOffset),
                 ]
                 modified_Point3 = [
                     x_coords[2] - tool3x - innerOffset,
@@ -2658,7 +2643,7 @@ def smalldoor4zizag(
 
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
@@ -2756,12 +2741,7 @@ def smalldoor4zizag(
         # IP = config['server']['cpip']
         # port = config['server']['cps']
         # ret = cps.HRIF_Connect(0, IP, port)
-
-        #Establish connection with robot
-        cps = CPSClient()
-        IP = config['server']['cpip']
-        port = config['server']['cps']
-        ret = cps.HRIF_Connect(0, IP, port)
+        # Using cps from caller; connection handled upstream.
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
@@ -3019,11 +2999,11 @@ def smalldoor4zizag(
             return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
