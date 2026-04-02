@@ -383,7 +383,7 @@ def model5zigzagsmalldoor1(force,innerSandingOffset,cps):
     # print("Prepoint2:", prepoint2)
 
     #Second Pocket 1st Cycle
-    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=2.5,innerOffsetX=5,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
     print("zigzag_pathp=",zigzag_pathp1)
     print("prepointp:", prepointp1)
     # #Second Pocket 2nd Cycle
@@ -875,7 +875,7 @@ def model5zigzagsmalldoor2(force,innerSandingOffset,cps):
     # print("Prepoint2:", prepoint2)
 
     #Second Pocket 1st Cycle
-    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=2.5,innerOffsetX=5,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+    zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
     print("zigzag_pathp=",zigzag_pathp1)
     print("prepointp:", prepointp1)
     #Second Pocket 2nd Cycle

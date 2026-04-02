@@ -389,11 +389,11 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         # print("Prepoint2:", prepoint2)
 
         #Second Pocket 1st Cycle
-        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+        zigzag_pathp1,prepointp1= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=5,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         # #Second Pocket 3rd Cycle

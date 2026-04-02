@@ -332,11 +332,11 @@ def mod3zigbig(force,innerSandingOffset,cps):
             edge_offset=edge_offset,
         )
         #2nd Cycle for Door 1
-        zigzag_path1,prepoint1= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=17,innerOffsetX=17,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+        zigzag_path1,prepoint1= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
         print("zigzag_path=",zigzag_path1)
         print("Prepoint:", prepoint1)
         #1st Cycle for Door 1
-        zigzag_path2,prepoint2= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=17,innerOffsetX=17,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+        zigzag_path2,prepoint2= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
         print("zigzag_path2=",zigzag_path2)
         print("Prepoint2:", prepoint2)
 
@@ -347,11 +347,11 @@ def mod3zigbig(force,innerSandingOffset,cps):
             edge_offset=edge_offset,
         )
         #Second Pocket 1st Cycle
-        zigzag_pathp,prepointp= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=17,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+        zigzag_pathp,prepointp= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
         print("zigzag_pathp=",zigzag_pathp)
         print("prepointp:", prepointp)
         #Second Pocket 2nd Cycle
-        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17,innerOffsetX=17,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
+        zigzag_pathp2,prepointp2= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=15,innerOffsetX=15,innerSandingOffset=innerSandingOffset, orientation=zigzag_orientation)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
 

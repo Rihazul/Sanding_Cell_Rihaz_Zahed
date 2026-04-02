@@ -328,8 +328,8 @@ def mod3zigsmall(force,innerSandingOffset,cps):
         x_coords=x_coords,
         y_coords=y_coords,
         z_coords=z_coords,
-        innerOffset=17,
-        innerOffsetX=17,
+        innerOffset=15,
+        innerOffsetX=15,
         innerSandingOffset=innerSandingOffset,
         orientation=zigzag_orientation,
     )
@@ -341,8 +341,8 @@ def mod3zigsmall(force,innerSandingOffset,cps):
         x_coords=x_coords1,
         y_coords=y_coords1,
         z_coords=z_coords1,
-        innerOffset=17,
-        innerOffsetX=17,
+        innerOffset=15,
+        innerOffsetX=15,
         innerSandingOffset=innerSandingOffset,
         orientation=zigzag_orientation,
     )
