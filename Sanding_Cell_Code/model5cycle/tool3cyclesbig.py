@@ -92,7 +92,7 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     # print("p12=",p12)
     z=-40
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=36
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
     outeroffset1=p71[0]
@@ -115,18 +115,12 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/5
+    seventhdistance=(p5[0] - p8[0])/2
     print("seventhdistance:", seventhdistance)
     x2=outeroffset+outeroffset1+seventhdistance
     print("x2:", x2)
     x3=outeroffset+outeroffset1+(seventhdistance*2)
     print("x3:", x3)
-    x4=outeroffset+outeroffset1+(seventhdistance*3)
-    print("x4:", x4)
-    x5=outeroffset+outeroffset1+(seventhdistance*4)
-    print("x5:", x5)
-    x6=outeroffset+outeroffset1+(seventhdistance*5)
-    print("x6:", x6)
 
     # #7th axis movement Top
     # tx1=p8[0]
@@ -158,8 +152,8 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     prebpoint1st=[0, point8[1], -55, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/5, point5[1], -55, 180, 0, 0]
-    bpoint2nd=[distance/5, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance/2, point5[1], -55, 180, 0, 0]
+    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -207,9 +201,9 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1]+3, z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distancetop/5, point7[1]+3, z, 180, 0, 0]
+    tpoint2nd = [-distancetop/2, point7[1]+3, z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distancetop/5, point7[1]+3, -55, 180, 0, 0]
+    pretpoint2nd = [-distancetop/2, point7[1]+3, -55, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -458,14 +452,14 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     # # # #Cycles With Loops
     # # run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
     # # perform_process_bottom(cps, config, points1=bpoints,force=force)
-    x_points = [x2, x3, x4, x5]  # List of points to iterate through
+    x_points = [x2]  # List of points to iterate through
 
     for x_point in x_points:
         run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x_point, cps=cps, config=config)
         perform_process_bottom(cps, config, points1=bpoints, force=force) 
     
     # # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x6, cps=cps, config=config)
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
 
     # #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -476,7 +470,7 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     # # #Cycles
     # run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
     # perform_process_top(cps, config, points1=toppoints,force=force)
-    x_points = [x5, x4, x3, x2]  # Manually ordered from x5 to x2
+    x_points = [x2]  # Manually ordered from x2 to x2
 
     for x_point in x_points:
         run_single_movement(robot_point=htoppoints, seventh_axis_point=x_point, cps=cps, config=config)
@@ -538,7 +532,7 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     # print("p12=",p12)
     z=-40
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=36
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
     outeroffset1=p71[0]
@@ -561,18 +555,12 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/5
+    seventhdistance=(p5[0] - p8[0])/2
     print("seventhdistance:", seventhdistance)
     x2=x1+seventhdistance
     print("x2:", x2)
     x3=x1+(seventhdistance*2)
     print("x3:", x3)
-    x4=x1+(seventhdistance*3)
-    print("x4:", x4)
-    x5=x1+(seventhdistance*4)
-    print("x5:", x5)
-    x6=x1+(seventhdistance*5)
-    print("x6:", x6)
 
     # #7th axis movement Top
     # tx1=p8[0]
@@ -604,8 +592,8 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     prebpoint1st=[0, point8[1], -55, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/5, point5[1], -55, 180, 0, 0]
-    bpoint2nd=[distance/5, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance/2, point5[1], -55, 180, 0, 0]
+    bpoint2nd=[distance/2, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -653,9 +641,9 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1]+3, z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distancetop/5, point7[1]+3, z, 180, 0, 0]
+    tpoint2nd = [-distancetop/2, point7[1]+3, z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distancetop/5, point7[1]+3, -55, 180, 0, 0]
+    pretpoint2nd = [-distancetop/2, point7[1]+3, -55, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -904,14 +892,14 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     # # # #Cycles With Loops
     # # run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
     # # perform_process_bottom(cps, config, points1=bpoints,force=force)
-    x_points = [x2, x3, x4, x5]  # List of points to iterate through
+    x_points = [x2]  # List of points to iterate through
 
     for x_point in x_points:
         run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x_point, cps=cps, config=config)
         perform_process_bottom(cps, config, points1=bpoints, force=force) 
     
     # # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x6, cps=cps, config=config)
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
 
     # #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -922,7 +910,7 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     # # #Cycles
     # run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
     # perform_process_top(cps, config, points1=toppoints,force=force)
-    x_points = [x5, x4, x3, x2]  # Manually ordered from x5 to x2
+    x_points = [x2]  # Manually ordered from x2 to x2
 
     for x_point in x_points:
         run_single_movement(robot_point=htoppoints, seventh_axis_point=x_point, cps=cps, config=config)

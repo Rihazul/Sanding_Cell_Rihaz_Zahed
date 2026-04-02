@@ -97,7 +97,7 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     # print("p12=",p12)
     z=-40
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=36
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
     outeroffset1=p71[0]/2
@@ -438,12 +438,7 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # # #Cycles With Loops
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
-    
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+    # Single-pass: no extra bottom cycles
 
     #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -451,12 +446,7 @@ def testmodel5sidesmallfunctionfirst(force,cps):
     #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
 
-    # #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    # #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    # Single-pass: no extra top cycles
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
@@ -511,7 +501,7 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     # print("p12=",p12)
     z=-40
     #Outer Pocket Offset
-    outeroffset=23
+    outeroffset=36
     print("outeroffset=",outeroffset)
     #Outeroffsetorg
     outeroffset1=(p81[0]-p91[0])/2
@@ -855,12 +845,7 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
-    # # #Cycles With Loops
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=bpoints,force=force)
-    
-    # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
+    # Single-pass: no extra bottom cycles
 
     #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -868,12 +853,7 @@ def testmodel5sidesmallfunctionsecond(force,cps):
     #Top Cycles
     perform_process_top(cps, config, points1=toppoints,force=force)
 
-    # #Cycles
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
-    perform_process_top(cps, config, points1=toppoints,force=force)
-
-    # #Extra Cycle
-    run_single_movement(robot_point=htoppoints, seventh_axis_point=x1, cps=cps, config=config)
+    # Single-pass: no extra top cycles
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
@@ -921,6 +901,6 @@ def tool3run(force,cps):
 if __name__ == "__main__":
     # Call the function with an appropriate force value
     # Replace 10 with your desired force value
-    mod5zigzagsmall(5)
+    #mod5zigzagsmall(5)
     
-
+    tool3run(5,cps)

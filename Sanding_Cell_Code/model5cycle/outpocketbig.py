@@ -135,7 +135,7 @@ def model5outpocketbig(force,cps):
    #7th axis movement
     x1=p8[0]
     print("x1:", x1)
-    seventhdistance=(p5[0] - p8[0])/5
+    seventhdistance=(p5[0] - p8[0])/3
     print("seventhdistance:", seventhdistance)
     x2=outeroffset+seventhdistance
     print("x2:", x2)
@@ -143,10 +143,6 @@ def model5outpocketbig(force,cps):
     print("x3:", x3)
     x4=outeroffset+seventhdistance*3
     print("x4:", x4)
-    x5=outeroffset+seventhdistance*4
-    print("x5:", x5)
-    x6=outeroffset+seventhdistance*5
-    print("x6:", x6)
 
 
 
@@ -161,8 +157,8 @@ def model5outpocketbig(force,cps):
     prebpoint1st=[0, point8[1], -10, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance/5, point5[1], -10, 180, 0, 0]
-    bpoint2nd=[distance/5, point5[1], z, 180, 0, 0]
+    prebpoint2nd=[distance/3, point5[1], -10, 180, 0, 0]
+    bpoint2nd=[distance/3, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     bpointmiddle=[0+2, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
@@ -209,9 +205,9 @@ def model5outpocketbig(force,cps):
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [0+2, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    tpoint2nd = [-distance/5, point7[1], z, 180, 0, 0]
+    tpoint2nd = [-distance/3, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [-distance/5, point7[1], -10, 180, 0, 0]
+    pretpoint2nd = [-distance/3, point7[1], -10, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -535,14 +531,14 @@ def model5outpocketbig(force,cps):
     # #Cycles With Loops
     # run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
     # perform_process_bottom(cps, config, points1=bpoints,force=force)
-    x_points = [x2, x3, x4, x5]  # Ordered from x2 to x5
+    x_points = [x2, x3]  # Ordered from x2 to x3
 
     for x_point in x_points:
         run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x_point, cps=cps, config=config)
         perform_process_bottom(cps, config, points1=bpoints, force=force)
 
     # #BottomExtra Cycle
-    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x6, cps=cps, config=config)
+    run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x4, cps=cps, config=config)
 
     #LeftPoints
     perform_process_left(cps, config, points1=leftpoints,force=force)
@@ -552,7 +548,7 @@ def model5outpocketbig(force,cps):
     #Cycles
     # run_single_movement(robot_point=htoppoints, seventh_axis_point=x2, cps=cps, config=config)
     # perform_process_top(cps, config, points1=toppoints,force=force)
-    x_points = [x5, x4, x3, x2]  # Manually ordered from x5 to x2
+    x_points = [x3, x2]  # Manually ordered from x3 to x2
 
     for x_point in x_points:
         run_single_movement(robot_point=htoppoints, seventh_axis_point=x_point, cps=cps, config=config)

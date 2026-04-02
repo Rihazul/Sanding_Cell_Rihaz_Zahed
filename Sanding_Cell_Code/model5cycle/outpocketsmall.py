@@ -138,10 +138,8 @@ def model5outpocketsrun(force,cps):
         print("x1:", x1)
         seventhdistance=(p5[0] - p8[0])/2
         print("seventhdistance:", seventhdistance)
-        x2=outeroffset+seventhdistance
+        x2=outeroffset+seventhdistance*2
         print("x2:", x2)
-        x3=outeroffset+seventhdistance*2
-        print("x3:", x3)
 
 
 
@@ -531,9 +529,6 @@ def model5outpocketsrun(force,cps):
         # #Cycles With Loops
         run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x2, cps=cps, config=config)
         perform_process_bottom(cps, config, points1=bpoints,force=force)
-
-        # #BottomExtra Cycle
-        run_single_movement(robot_point=hbpoint1st, seventh_axis_point=x3, cps=cps, config=config)
 
         #LeftPoints
         perform_process_left(cps, config, points1=leftpoints,force=force)
