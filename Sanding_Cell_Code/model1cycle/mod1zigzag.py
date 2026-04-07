@@ -512,6 +512,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
         )
+        time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
         
         edge_path = list(edge_points or [])
@@ -529,7 +530,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=speeed,
-                wait=False
+                wait=True
             )
 
         if zigzag_points:
@@ -542,7 +543,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
                     speed=speeed,
-                    wait=False
+                    wait=True
                 )
 
         # Wait for blending 
@@ -901,6 +902,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
         )
+        time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
         
         edge_path = list(edge_points or [])
@@ -918,7 +920,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=speeed,
-                wait=False
+                wait=True
             )
 
         if zigzag_points:
@@ -931,7 +933,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
                     speed=speeed,
-                    wait=False
+                    wait=True
                 )
 
         # Wait for blending 
@@ -1290,6 +1292,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
         )
+        time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
         
         edge_path = list(edge_points or [])
@@ -1307,7 +1310,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=speeed,
-                wait=False
+                wait=True
             )
 
         if zigzag_points:
@@ -1320,7 +1323,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
                     speed=speeed,
-                    wait=False
+                    wait=True
                 )
 
         # Wait for blending and turn off vibration
