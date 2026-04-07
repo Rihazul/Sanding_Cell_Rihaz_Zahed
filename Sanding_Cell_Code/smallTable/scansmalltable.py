@@ -42,13 +42,25 @@ def save_scan_results_to_json(data, output_dir=None):
     # Get current timestamp for the data
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     
-    x_vals = data.get('xVals', [])
-    y_vals = data.get('yVals', [])
+    def _ensure_list(value):
+        return value if isinstance(value, list) else []
+
+    def _normalize_points_list(points_list):
+        normalized = []
+        for entry in _ensure_list(points_list):
+            if isinstance(entry, dict):
+                normalized.append({str(k): v for k, v in entry.items()})
+            else:
+                normalized.append({})
+        return normalized
+
+    x_vals = _ensure_list(data.get('xVals'))
+    y_vals = _ensure_list(data.get('yVals'))
     door_profiles = []
     total_doors = max(len(x_vals), len(y_vals))
     for idx in range(total_doors):
-        x_entry = x_vals[idx] if idx < len(x_vals) else {}
-        y_entry = y_vals[idx] if idx < len(y_vals) else {}
+        x_entry = x_vals[idx] if idx < len(x_vals) and isinstance(x_vals[idx], dict) else {}
+        y_entry = y_vals[idx] if idx < len(y_vals) and isinstance(y_vals[idx], dict) else {}
         door_profiles.append(
             {
                 'doorNumber': idx + 1,
@@ -65,11 +77,11 @@ def save_scan_results_to_json(data, output_dir=None):
     # Convert data to a format suitable for JSON serialization
     json_data = {
         'timestamp': timestamp,
-        'robo7thPos': data['robo7thPos'],
-        'framePoints': [{str(k): v for k, v in points.items()} for points in data['framePoints']],
-        'pocketPoints': [{str(k): v for k, v in points.items()} for points in data['pocketPoints']],
-        'outerCornerPoints': [{str(k): v for k, v in points.items()} for points in data['outerCornerPoints']],
-        'innerCornerPoints': [{str(k): v for k, v in points.items()} for points in data['innerCornerPoints']],
+        'robo7thPos': _ensure_list(data.get('robo7thPos')),
+        'framePoints': _normalize_points_list(data.get('framePoints')),
+        'pocketPoints': _normalize_points_list(data.get('pocketPoints')),
+        'outerCornerPoints': _normalize_points_list(data.get('outerCornerPoints')),
+        'innerCornerPoints': _normalize_points_list(data.get('innerCornerPoints')),
         'xVals': x_vals,
         'yVals': y_vals,
         'doorProfiles': door_profiles,

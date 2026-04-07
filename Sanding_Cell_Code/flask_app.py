@@ -41,6 +41,7 @@ from smallTable.smallmodelfinal2 import sandingModelBTableA
 from smallTable.smallmodelfinal3 import sandingModelCTableA
 from smallTable.smallmodelfinal4 import sandingModelDETableA
 from smallTable.smallmodelfinal5 import sandingModelETableA
+from smallTable.smallmodelfinalF import sandingModelFTableA
 from smallTable.scansmalltable import scanTableA
 from smallTable.scanhoming import scanhoming
 from smallTable.homingtotal import homingtotal
@@ -92,11 +93,45 @@ modelMethodMapTableA = {
     "modelC": sandingModelCTableA,
     "modelD": sandingModelDETableA,
     "modelE": sandingModelETableA,
+    "modelF": sandingModelFTableA,
 }
 
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _scan_indicates_model_f():
+    scan_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "smallTable",
+        "static",
+        "scan_results.json",
+    )
+    try:
+        with open(scan_path, "r") as file:
+            data = json.load(file)
+    except Exception:
+        return False
+
+    door_profiles = data.get("doorProfiles")
+    if not isinstance(door_profiles, list) or not door_profiles:
+        return False
+
+    considered = 0
+    for entry in door_profiles:
+        if not isinstance(entry, dict):
+            continue
+        profile = entry.get("profile")
+        if profile is None:
+            continue
+        considered += 1
+        if profile != "uniform_depth_no_pocket":
+            return False
+
+    if considered == 0:
+        return False
+    return True
 
 ############################################################################################
 client_process = None
@@ -503,9 +538,17 @@ def start_TableA_process():
             selected_model = next((d.get('model') for d in doors if isinstance(d, dict) and d.get('model')), None)
             # If the frontend sends model keys like modelA/modelB..., use that.
         if not selected_model or selected_model == 'None':
-            return jsonify({"error": "Invalid request, no model found for TableA"}), 400
+            if _scan_indicates_model_f():
+                selected_model = "modelF"
+            else:
+                return jsonify({"error": "Invalid request, no model found for TableA"}), 400
         # Make it available to any downstream code that still expects TableA.model
         tableData['model'] = selected_model
+
+    if selected_model != "modelF" and _scan_indicates_model_f():
+        print("Scan indicates no pocket; switching to modelF.")
+        selected_model = "modelF"
+        tableData["model"] = selected_model
     
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)

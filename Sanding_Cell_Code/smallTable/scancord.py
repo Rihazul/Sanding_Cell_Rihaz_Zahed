@@ -44,8 +44,14 @@ def read_scan_results(default_on_error=False):
         with open(json_path, "r") as file:
             data = json.load(file)
 
+        def _ensure_list(value):
+            return value if isinstance(value, list) else []
+
+        def _ensure_dict(value):
+            return value if isinstance(value, dict) else {}
+
         # Extract 7th axis positions for each door
-        robo7thPos = data.get("robo7thPos", [])
+        robo7thPos = _ensure_list(data.get("robo7thPos"))
         door_positions = {
             "7thx1": robo7thPos[0] if len(robo7thPos) > 0 else "null",
             "7thx2": robo7thPos[1] if len(robo7thPos) > 1 else "null",
@@ -55,11 +61,11 @@ def read_scan_results(default_on_error=False):
 
         # Extract frame points for each door
         frame_points = {}
-        framePoints_data = data.get("framePoints", [])
+        framePoints_data = _ensure_list(data.get("framePoints"))
 
         # Door 1 (index 0)
         if len(framePoints_data) > 0:
-            door1_data = framePoints_data[0]
+            door1_data = _ensure_dict(framePoints_data[0])
             frame_points["fr1door0"] = door1_data.get("0", ["null", "null", "null"])
             frame_points["fr1door1"] = door1_data.get("1", ["null", "null", "null"])
             frame_points["fr1door2"] = door1_data.get("2", ["null", "null", "null"])
@@ -70,7 +76,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 2 (index 1)
         if len(framePoints_data) > 1:
-            door2_data = framePoints_data[1]
+            door2_data = _ensure_dict(framePoints_data[1])
             frame_points["fr2door0"] = door2_data.get("0", ["null", "null", "null"])
             frame_points["fr2door1"] = door2_data.get("1", ["null", "null", "null"])
             frame_points["fr2door2"] = door2_data.get("2", ["null", "null", "null"])
@@ -81,7 +87,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 3 (index 2)
         if len(framePoints_data) > 2:
-            door3_data = framePoints_data[2]
+            door3_data = _ensure_dict(framePoints_data[2])
             frame_points["fr3door0"] = door3_data.get("0", ["null", "null", "null"])
             frame_points["fr3door1"] = door3_data.get("1", ["null", "null", "null"])
             frame_points["fr3door2"] = door3_data.get("2", ["null", "null", "null"])
@@ -92,7 +98,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 4 (index 3)
         if len(framePoints_data) > 3:
-            door4_data = framePoints_data[3]
+            door4_data = _ensure_dict(framePoints_data[3])
             frame_points["fr4door0"] = door4_data.get("0", ["null", "null", "null"])
             frame_points["fr4door1"] = door4_data.get("1", ["null", "null", "null"])
             frame_points["fr4door2"] = door4_data.get("2", ["null", "null", "null"])
@@ -103,11 +109,11 @@ def read_scan_results(default_on_error=False):
 
         # Extract inner corner points for each door
         inner_corner_points = {}
-        innerCornerPoints_data = data.get("innerCornerPoints", [])
+        innerCornerPoints_data = _ensure_list(data.get("innerCornerPoints"))
 
         # Door 1 (index 0)
         if len(innerCornerPoints_data) > 0:
-            door1_inner_data = innerCornerPoints_data[0]
+            door1_inner_data = _ensure_dict(innerCornerPoints_data[0])
             inner_corner_points["in1door0"] = door1_inner_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -126,7 +132,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 2 (index 1)
         if len(innerCornerPoints_data) > 1:
-            door2_inner_data = innerCornerPoints_data[1]
+            door2_inner_data = _ensure_dict(innerCornerPoints_data[1])
             inner_corner_points["in2door0"] = door2_inner_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -145,7 +151,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 3 (index 2)
         if len(innerCornerPoints_data) > 2:
-            door3_inner_data = innerCornerPoints_data[2]
+            door3_inner_data = _ensure_dict(innerCornerPoints_data[2])
             inner_corner_points["in3door0"] = door3_inner_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -164,7 +170,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 4 (index 3)
         if len(innerCornerPoints_data) > 3:
-            door4_inner_data = innerCornerPoints_data[3]
+            door4_inner_data = _ensure_dict(innerCornerPoints_data[3])
             inner_corner_points["in4door0"] = door4_inner_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -183,11 +189,11 @@ def read_scan_results(default_on_error=False):
 
         # Extract outer corner points for each door
         outer_corner_points = {}
-        outerCornerPoints_data = data.get("outerCornerPoints", [])
+        outerCornerPoints_data = _ensure_list(data.get("outerCornerPoints"))
 
         # Door 1 (index 0)
         if len(outerCornerPoints_data) > 0:
-            door1_outer_data = outerCornerPoints_data[0]
+            door1_outer_data = _ensure_dict(outerCornerPoints_data[0])
             outer_corner_points["out1door0"] = door1_outer_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -206,7 +212,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 2 (index 1)
         if len(outerCornerPoints_data) > 1:
-            door2_outer_data = outerCornerPoints_data[1]
+            door2_outer_data = _ensure_dict(outerCornerPoints_data[1])
             outer_corner_points["out2door0"] = door2_outer_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -225,7 +231,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 3 (index 2)
         if len(outerCornerPoints_data) > 2:
-            door3_outer_data = outerCornerPoints_data[2]
+            door3_outer_data = _ensure_dict(outerCornerPoints_data[2])
             outer_corner_points["out3door0"] = door3_outer_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -244,7 +250,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 4 (index 3)
         if len(outerCornerPoints_data) > 3:
-            door4_outer_data = outerCornerPoints_data[3]
+            door4_outer_data = _ensure_dict(outerCornerPoints_data[3])
             outer_corner_points["out4door0"] = door4_outer_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -263,11 +269,11 @@ def read_scan_results(default_on_error=False):
 
         # Extract pocket points for each door
         pocket_points = {}
-        pocketPoints_data = data.get("pocketPoints", [])
+        pocketPoints_data = _ensure_list(data.get("pocketPoints"))
 
         # Door 1 (index 0)
         if len(pocketPoints_data) > 0:
-            door1_pocket_data = pocketPoints_data[0]
+            door1_pocket_data = _ensure_dict(pocketPoints_data[0])
             pocket_points["pocket1door0"] = door1_pocket_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -286,7 +292,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 2 (index 1)
         if len(pocketPoints_data) > 1:
-            door2_pocket_data = pocketPoints_data[1]
+            door2_pocket_data = _ensure_dict(pocketPoints_data[1])
             pocket_points["pocket2door0"] = door2_pocket_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -305,7 +311,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 3 (index 2)
         if len(pocketPoints_data) > 2:
-            door3_pocket_data = pocketPoints_data[2]
+            door3_pocket_data = _ensure_dict(pocketPoints_data[2])
             pocket_points["pocket3door0"] = door3_pocket_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -324,7 +330,7 @@ def read_scan_results(default_on_error=False):
 
         # Door 4 (index 3)
         if len(pocketPoints_data) > 3:
-            door4_pocket_data = pocketPoints_data[3]
+            door4_pocket_data = _ensure_dict(pocketPoints_data[3])
             pocket_points["pocket4door0"] = door4_pocket_data.get(
                 "0", ["null", "null", "null"]
             )
@@ -342,16 +348,25 @@ def read_scan_results(default_on_error=False):
                 pocket_points[f"pocket4door{corner}"] = ["null", "null", "null"]
 
         # Process x and y values for each door
-        x_vals = data.get("xVals", [])
-        y_vals = data.get("yVals", [])
+        x_vals = _ensure_list(data.get("xVals"))
+        y_vals = _ensure_list(data.get("yVals"))
+        door_profiles = _ensure_list(data.get("doorProfiles"))
 
-        # Ensure xVals has 4 entries, fill with default values if needed
+        # Normalize xVals entries and ensure 4 entries
+        for idx, entry in enumerate(x_vals):
+            if not isinstance(entry, dict):
+                x_vals[idx] = {"xlen": "null", "xframe_1": "null", "xframe_2": "null"}
         while len(x_vals) < 4:
             x_vals.append({"xlen": "null", "xframe_1": "null", "xframe_2": "null"})
 
-        # Ensure yVals has 4 entries, fill with default values if needed
+        # Normalize yVals entries and ensure 4 entries
+        for idx, entry in enumerate(y_vals):
+            if not isinstance(entry, dict):
+                y_vals[idx] = {"ylen": "null", "yframe_1": "null", "yframe_2": "null"}
         while len(y_vals) < 4:
             y_vals.append({"ylen": "null", "yframe_1": "null", "yframe_2": "null"})
+        if not isinstance(door_profiles, list):
+            door_profiles = []
 
         # Combine all data into one result dictionary
         result = {
@@ -363,6 +378,7 @@ def read_scan_results(default_on_error=False):
             "timestamp": data.get("timestamp", ""),
             "xVals": x_vals,
             "yVals": y_vals,
+            "doorProfiles": door_profiles,
         }
 
         return result
@@ -429,6 +445,18 @@ def get_default_values():
     for _ in range(4):
         x_vals.append({"xlen": "null", "xframe_1": "null", "xframe_2": "null"})
         y_vals.append({"ylen": "null", "yframe_1": "null", "yframe_2": "null"})
+    door_profiles = []
+    for door in range(1, 5):
+        door_profiles.append(
+            {
+                "doorNumber": door,
+                "profile": "unknown",
+                "xProfileType": "unknown",
+                "yProfileType": "unknown",
+                "xPocketDetected": False,
+                "yPocketDetected": False,
+            }
+        )
 
     # Combine all default values into one result dictionary
     result = {
@@ -440,6 +468,7 @@ def get_default_values():
         "timestamp": "",
         "xVals": x_vals,
         "yVals": y_vals,
+        "doorProfiles": door_profiles,
     }
 
     return result
