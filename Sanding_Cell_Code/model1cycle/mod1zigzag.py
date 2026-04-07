@@ -60,7 +60,7 @@ def _generate_zigzag_edge_path(
     innerSandingOffset,
     orientation="vertical",
     edge_coverage=False,
-    edge_offset=1.75,
+    edge_offset=31,
 ):
     """Generate zigzag points with optional perimeter edge coverage."""
     if not (x_coords and y_coords and z_coords):
@@ -473,7 +473,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
     #Second Pocket 1st Cycle
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
-        innerOffset=10, innerOffsetX=10, innerSandingOffset=innerSandingOffset,
+        innerOffset=31, innerOffsetX=31, innerSandingOffset=innerSandingOffset,
         orientation=zigzag_orientation, edge_coverage=True
     )
     print("edge_pathp=", edge_pathp1)
@@ -907,7 +907,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
     #Second Pocket 1st Cycle
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
-        innerOffset=10, innerOffsetX=10, innerSandingOffset=innerSandingOffset,
+        innerOffset=31, innerOffsetX=31, innerSandingOffset=innerSandingOffset,
         orientation=zigzag_orientation, edge_coverage=True
     )
     print("edge_pathp=", edge_pathp1)
@@ -1342,7 +1342,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     #Second Pocket 1st Cycle
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
-        innerOffset=10, innerOffsetX=10, innerSandingOffset=innerSandingOffset,
+        innerOffset=31, innerOffsetX=31, innerSandingOffset=innerSandingOffset,
         orientation=zigzag_orientation, edge_coverage=True
     )
     print("edge_pathp=", edge_pathp1)
