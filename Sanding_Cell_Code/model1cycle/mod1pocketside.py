@@ -332,7 +332,7 @@ def model1pocket1side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -351,7 +351,7 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -385,7 +385,7 @@ def model1pocket1side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -404,7 +404,7 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -438,7 +438,7 @@ def model1pocket1side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -457,7 +457,7 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -491,7 +491,7 @@ def model1pocket1side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -510,7 +510,7 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -549,7 +549,7 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -892,7 +892,7 @@ def model1pocket2side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -911,7 +911,7 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -945,7 +945,7 @@ def model1pocket2side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -964,7 +964,7 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -998,7 +998,7 @@ def model1pocket2side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -1017,7 +1017,7 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1051,7 +1051,7 @@ def model1pocket2side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -1070,7 +1070,7 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1109,7 +1109,7 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1501,7 +1501,7 @@ def model1pocket3side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -1520,7 +1520,7 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1554,7 +1554,7 @@ def model1pocket3side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -1573,7 +1573,7 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1607,7 +1607,7 @@ def model1pocket3side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -1626,7 +1626,7 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1660,7 +1660,7 @@ def model1pocket3side(force,cps):
                         tcp=config['coords']['tcpReal'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6,
+                        speed=0.6 * 0.5,
                         wait=True
                     )
                     ensure_force()
@@ -1679,7 +1679,7 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1718,7 +1718,7 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=0.6 * 0.5,
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
