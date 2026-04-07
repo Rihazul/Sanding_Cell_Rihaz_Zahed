@@ -250,7 +250,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
 
     
     json_config = load_json_config()
-    speeed = float(json_config['robotSpeed'])
+    speeed = float(json_config['sandingSpeed'])
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
 
     # Hard-coded points for Pocket4
@@ -278,10 +278,10 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("point16=",point16)
 
     #Second Pocket Points
-    point5=[-p5[0],p5[1],p5[2]-4,p5[3],p5[4],p5[5]]
-    point6=[-p6[0],p6[1],p6[2]-4,p6[3],p6[4],p6[5]]
-    point7=[-p7[0],p7[1],p7[2]-4,p7[3],p7[4],p7[5]]
-    point8=[-p8[0],p8[1],p8[2]-4,p8[3],p8[4],p8[5]]
+    point5=[-p5[0],p5[1],p5[2]-15,p5[3],p5[4],p5[5]]
+    point6=[-p6[0],p6[1],p6[2]-15,p6[3],p6[4],p6[5]]
+    point7=[-p7[0],p7[1],p7[2]-15,p7[3],p7[4],p7[5]]
+    point8=[-p8[0],p8[1],p8[2]-15,p8[3],p8[4],p8[5]]
     print("point5=",point5)
     print("point6=",point6)
     print("point7=",point7)
@@ -528,7 +528,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speeed,
                 wait=False
             )
 
@@ -640,7 +640,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
 
     json_config = load_json_config()
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
-    speeed=0.7
+    speeed= float(json_config['sandingSpeed'])
 
     # Hard-coded points for Pocket4
     # Format: [x, y, z, rotX, rotY, rotZ]
@@ -667,10 +667,10 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("point16=",point16)
 
     #Second Pocket Points
-    point5=[-p5[0],p5[1],p5[2]-4,p5[3],p5[4],p5[5]]
-    point6=[-p6[0],p6[1],p6[2]-4,p6[3],p6[4],p6[5]]
-    point7=[-p7[0],p7[1],p7[2]-4,p7[3],p7[4],p7[5]]
-    point8=[-p8[0],p8[1],p8[2]-4,p8[3],p8[4],p8[5]]
+    point5=[-p5[0],p5[1],p5[2]-15,p5[3],p5[4],p5[5]]
+    point6=[-p6[0],p6[1],p6[2]-15,p6[3],p6[4],p6[5]]
+    point7=[-p7[0],p7[1],p7[2]-15,p7[3],p7[4],p7[5]]
+    point8=[-p8[0],p8[1],p8[2]-15,p8[3],p8[4],p8[5]]
     print("point5=",point5)
     print("point6=",point6)
     print("point7=",point7)
@@ -917,7 +917,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speeed,
                 wait=False
             )
 
@@ -1020,7 +1020,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
 
     json_config = load_json_config()
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
-    speeed=0.7
+    speeed = float(json_config['sandingSpeed'])
 
     # print("p9:",p9)
     # print("p10:",p10)
@@ -1057,10 +1057,10 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     # print("point16=",point16)
 
     #Second Pocket Points
-    point5=[-p5[0],p5[1],p5[2]-4,p5[3],p5[4],p5[5]]
-    point6=[-p6[0],p6[1],p6[2]-4,p6[3],p6[4],p6[5]]
-    point7=[-p7[0],p7[1],p7[2]-4,p7[3],p7[4],p7[5]]
-    point8=[-p8[0],p8[1],p8[2]-4,p8[3],p8[4],p8[5]]
+    point5=[-p5[0],p5[1],p5[2]-15,p5[3],p5[4],p5[5]]
+    point6=[-p6[0],p6[1],p6[2]-15,p6[3],p6[4],p6[5]]
+    point7=[-p7[0],p7[1],p7[2]-15,p7[3],p7[4],p7[5]]
+    point8=[-p8[0],p8[1],p8[2]-15,p8[3],p8[4],p8[5]]
     print("point5=",point5)
     print("point6=",point6)
     print("point7=",point7)
@@ -1306,7 +1306,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speeed,
                 wait=False
             )
 
