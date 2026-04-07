@@ -86,26 +86,41 @@ def plot_data(inverseOverlapping):
                 zorder=5,
             )
 
-    def plot_frame_midpoint_path(ax, x_coords, y_coords, color):
-        if len(x_coords) < 4 or len(y_coords) < 4:
-            return
-        mids = []
-        for i in range(4):
-            j = (i + 1) % 4
-            mids.append(
-                ((x_coords[i] + x_coords[j]) / 2.0, (y_coords[i] + y_coords[j]) / 2.0)
-            )
+    def compute_frame_tool_path(results):
+        required = ["Point1", "Point3", "Point4", "Point7"]
+        if any(results.get(k) is None for k in required):
+            return []
+        p1 = results["Point1"]
+        p3 = results["Point3"]
+        p4 = results["Point4"]
+        p7 = results["Point7"]
 
-        top_mid = max(mids, key=lambda p: p[1])
-        bottom_mid = min(mids, key=lambda p: p[1])
-        left_mid = min(mids, key=lambda p: p[0])
-        right_mid = max(mids, key=lambda p: p[0])
+        width = p1[0] - p3[0]
+        framewidth = p7[0] - p3[0]
 
-        path = [top_mid, right_mid, bottom_mid, left_mid, top_mid]
-        xs = [p[0] for p in path]
-        ys = [p[1] for p in path]
-        ax.plot(xs, ys, color=color, linestyle="-", label="Pocket1 Frame Path", zorder=2)
-        add_direction_arrows(ax, xs, ys, color, every=1, zorder=3)
+        z = -6
+        pointbottom1 = [p4[0] + framewidth / 2.0, p4[1] + framewidth / 2.0, z]
+        pointbottom2 = [width / 2.0 - framewidth / 2.0, p4[1] + framewidth / 2.0, z]
+        pointbottom12 = [p4[0] + framewidth / 2.0 + 2, p4[1] + framewidth / 2.0, z]
+        pointsbottom = [pointbottom1, pointbottom12, pointbottom2]
+
+        pointleft1 = [width / 2.0 - framewidth / 2.0, p4[1] + framewidth / 2.0, z]
+        pointleft2 = [width / 2.0 - framewidth / 2.0, p3[1] - framewidth / 2.0, z]
+        pointleft12 = [width / 2.0 - framewidth / 2.0, p4[1] + framewidth / 2.0 + 2, z]
+        pointslefts = [pointleft1, pointleft12, pointleft2]
+
+        pointtop1 = [width / 2.0 - framewidth / 2.0, p3[1] - framewidth / 2.0, z]
+        pointtop12 = [width / 2.0 - framewidth / 2.0 - 2, p3[1] - framewidth / 2.0, z]
+        pointtop2 = [0, p3[1] - framewidth / 2.0, z]
+        pointstops = [pointtop1, pointtop12, pointtop2]
+
+        point2right = [p4[0] + framewidth / 2.0, p3[1] - framewidth / 2.0, z]
+        point21right = [p4[0] + framewidth / 2.0, p3[1] - framewidth / 2.0 - 2, z]
+        point1right = [p4[0] + framewidth / 2.0, p4[1] + framewidth / 2.0, z]
+        pointsrights = [point2right, point21right, point1right]
+
+        path = pointsbottom + pointslefts + pointstops + pointsrights
+        return [(p[0], p[1]) for p in path]
     
     # Loop through all pockets
     for pocket_name, point_names in pockets.items():
@@ -141,7 +156,19 @@ def plot_data(inverseOverlapping):
             )
             annotate_corner_values(ax, x_coords, y_coords, boundary_color)
             if pocket_name == "Pocket1":
-                plot_frame_midpoint_path(ax, x_coords, y_coords, boundary_color)
+                frame_path = compute_frame_tool_path(results)
+                if frame_path:
+                    fx = [p[0] for p in frame_path]
+                    fy = [p[1] for p in frame_path]
+                    ax.plot(
+                        fx,
+                        fy,
+                        color=boundary_color,
+                        linestyle="-",
+                        label="Pocket1 Frame Path",
+                        zorder=2,
+                    )
+                    add_direction_arrows(ax, fx, fy, boundary_color, every=1, zorder=3)
             
             # Print the boundary points
             print(f"\n{pocket_name} boundary points:")
