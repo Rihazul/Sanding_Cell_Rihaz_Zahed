@@ -94,61 +94,6 @@ def plot_data(inverseOverlapping):
                 zorder=5,
             )
 
-    def compute_frame_tool_path(results):
-        required = ["Point13", "Point14", "Point15", "Point16"]
-        if any(results.get(k) is None for k in required):
-            return []
-        p13 = results["Point13"]
-        p14 = results["Point14"]
-        p15 = results["Point15"]
-        p16 = results["Point16"]
-        z = -4
-
-        framesize = p16[0]
-        outeroffset = framesize / 2.0
-
-        p5 = [p13[0] + outeroffset, p13[1] - outeroffset, z]
-        p6 = [p14[0] + outeroffset, p14[1] + outeroffset, z]
-        p7 = [p15[0] - outeroffset, p15[1] + outeroffset, z]
-        p8 = [p16[0] - outeroffset, p16[1] - outeroffset, z]
-
-        distance = p5[0] - p8[0]
-        base_x = p8[0]
-        point8 = p8
-        point5 = p5
-        point6 = p6
-        point7 = p7
-
-        bpoint1st = [base_x + 0, point8[1], z]
-        bpoint2nd = [base_x + distance, point5[1], z]
-        mid_x = (bpoint1st[0] + bpoint2nd[0]) / 2.0
-        bpointmiddle = [mid_x, point8[1], z]
-        bottom_right_to_mid = [bpoint1st, bpointmiddle]
-        bottom_mid_to_left = [bpointmiddle, bpoint2nd]
-
-        lpoint1st = [base_x + distance, point5[1], z]
-        lpoint2nd = [base_x + distance, point6[1], z]
-        leftpoints = [lpoint1st, lpoint2nd]
-
-        tpoint1st = [base_x + 0, point6[1], z]
-        topointmiddle = [mid_x, point6[1], z]
-        tpoint2nd = [base_x + distance, point7[1], z]
-        top_mid_to_right = [topointmiddle, tpoint1st]
-        top_left_to_mid = [tpoint2nd, topointmiddle]
-
-        rpoint1st = [base_x + 0, point7[1], z]
-        rpoint2nd = [base_x + 0, point8[1], z]
-        rightpoints = [rpoint1st, rpoint2nd]
-
-        path = (
-            top_mid_to_right
-            + rightpoints
-            + bottom_right_to_mid
-            + bottom_mid_to_left
-            + leftpoints
-            + top_left_to_mid
-        )
-        return [(p[0], p[1]) for p in path]
 
     # Loop through all pockets
     for pocket_name, point_names in pockets.items():
@@ -194,20 +139,7 @@ def plot_data(inverseOverlapping):
                 color=boundary_color,
             )
             annotate_corner_values(ax, x_coords, y_coords, boundary_color)
-            if pocket_name == "Pocket1":
-                frame_path = compute_frame_tool_path(results)
-                if frame_path:
-                    fx = [p[0] for p in frame_path]
-                    fy = [p[1] for p in frame_path]
-                    ax.plot(
-                        fx,
-                        fy,
-                        color=boundary_color,
-                        linestyle="-",
-                        label="Pocket1 Frame Path",
-                        zorder=2,
-                    )
-                    add_direction_arrows(ax, fx, fy, boundary_color, every=1, zorder=3)
+            # Frame/pocket side tool path removed per request.
             
             # Print the boundary points
             print(f"\n{pocket_name} boundary points:")
