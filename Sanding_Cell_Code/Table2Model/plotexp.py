@@ -51,6 +51,30 @@ def plot_data(inverseOverlapping):
     fig, ax = plt.subplots(figsize=(10, 6))
     plt.subplots_adjust(bottom=0.2)
 
+    def add_direction_arrows(ax, xs, ys, color, every=2, zorder=3):
+        if len(xs) < 2 or len(ys) < 2:
+            return
+        for i in range(0, min(len(xs), len(ys)) - 1, every):
+            ax.annotate(
+                "",
+                xy=(xs[i + 1], ys[i + 1]),
+                xytext=(xs[i], ys[i]),
+                arrowprops=dict(arrowstyle="->", color=color, lw=1),
+                zorder=zorder,
+            )
+
+    def plot_corner_points(ax, x_coords, y_coords, label, color):
+        ax.scatter(
+            x_coords,
+            y_coords,
+            s=50,
+            marker="s",
+            facecolors="none",
+            edgecolors=color,
+            label=label,
+            zorder=4,
+        )
+
     # Loop through all pockets
     for pocket_name, point_names in pockets.items():
         x_coords = []
@@ -68,13 +92,25 @@ def plot_data(inverseOverlapping):
         # Plot the pocket boundary (if points are valid)
         if x_coords and y_coords:
             # Close the loop with first point
-            ax.plot(
+            boundary_line, = ax.plot(
                 x_coords + [x_coords[0]],
                 y_coords + [y_coords[0]],
                 label=f"{pocket_name} Boundary",
                 linestyle="--",
                 marker="x",
             )
+            boundary_color = boundary_line.get_color()
+            plot_corner_points(
+                ax,
+                x_coords,
+                y_coords,
+                label=f"{pocket_name} Corners",
+                color=boundary_color,
+            )
+            if pocket_name == "Pocket1":
+                boundary_x = x_coords + [x_coords[0]]
+                boundary_y = y_coords + [y_coords[0]]
+                add_direction_arrows(ax, boundary_x, boundary_y, boundary_color, every=1, zorder=2)
             
             # Print the boundary points
             print(f"\n{pocket_name} boundary points:")
@@ -138,7 +174,12 @@ def plot_data(inverseOverlapping):
             # ------------------------------------------------------------
             zigzag_x = [p[0] for p in all_paths]
             zigzag_y = [p[1] for p in all_paths]
-            ax.plot(zigzag_x, zigzag_y, label=f"{pocket_name} Zigzag Path", marker="o")
+            zigzag_line, = ax.plot(
+                zigzag_x, zigzag_y, label=f"{pocket_name} Zigzag Path", marker="o"
+            )
+            add_direction_arrows(
+                ax, zigzag_x, zigzag_y, zigzag_line.get_color(), every=2, zorder=3
+            )
             
             # Print the zigzag path points
             print(f"\n{pocket_name} Zigzag path points (left-to-right):")
