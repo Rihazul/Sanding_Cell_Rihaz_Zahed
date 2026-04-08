@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import yaml
 import math
 import time
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,turn_tool_spin_on,turn_tool_spin_off
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
 from Table1Model.exportpointsmodule import exported_points
@@ -514,6 +514,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         )
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
+        turn_tool_spin_on(cps)
         
         edge_path = list(edge_points or [])
         zigzag_points = list(points1 or [])
@@ -552,6 +553,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force and turn off vibration after path is complete
         releaseForce(cps=cps, config=config)
         turn_vibration_off(cps)
+        turn_tool_spin_off(cps)
         
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
@@ -904,6 +906,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         )
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
+        turn_tool_spin_on(cps)
         
         edge_path = list(edge_points or [])
         zigzag_points = list(points1 or [])
@@ -942,6 +945,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force and turn off vibration after path is complete
         releaseForce(cps=cps, config=config)
         turn_vibration_off(cps)
+        turn_tool_spin_off(cps)
     
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
@@ -1294,6 +1298,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         )
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
+        turn_tool_spin_on(cps)
         
         edge_path = list(edge_points or [])
         zigzag_points = list(points1 or [])
@@ -1332,6 +1337,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         # #Release force and turn off vibration after path is complete
         releaseForce(cps=cps, config=config)
         turn_vibration_off(cps)
+        turn_tool_spin_off(cps)
     
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)

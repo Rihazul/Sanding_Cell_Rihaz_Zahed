@@ -6184,6 +6184,37 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         wait=True,
     )
 
+def turn_tool_spin_on(cps, debug=False):
+    """
+    Turns the tool spin on by setting nBit=5 to nVal=0.
+    """
+    boxID = 0  # Default box ID
+    nBit = 7  # Bit controlling tool spin
+    nVal = 1  # 0 = On (as per your request)
+    nRet = -1
+    if not debug:
+        nRet = cps.HRIF_SetBoxDO(boxID, nBit, nVal)
+
+    if nRet == 0:
+        print("Tool spin turned ON successfully.")
+    else:
+        print(f"Error turning ON tool spin. Error code: {nRet}")
+        
+def turn_tool_spin_off(cps, debug=False):
+    """
+    Turns the tool spin off by setting nBit=5 to nVal=1.
+    """
+    boxID = 0  # Default box ID
+    nBit = 7  # Bit controlling tool spin
+    nVal = 0  # 1 = Off (as per your request)
+    nRet = -1
+    if not debug:
+        nRet = cps.HRIF_SetBoxDO(boxID, nBit, nVal)
+
+    if nRet == 0:
+        print("Tool spin turned OFF successfully.")
+    else:
+        print(f"Error turning OFF tool spin. Error code: {nRet}")
 
 def turn_vibration_on(cps, debug=False):
     """
