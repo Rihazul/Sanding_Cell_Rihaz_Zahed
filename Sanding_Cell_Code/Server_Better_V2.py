@@ -98,20 +98,36 @@ def msg_to_frontend(api_url, message):
 
 # Global stop flag shared by long-running operations.
 STOP_REQUESTED = False
+STOP_FLAG_PATH = os.path.join(os.path.dirname(__file__), '.stop_requested')
 
 
 def request_stop():
     global STOP_REQUESTED
     STOP_REQUESTED = True
+    try:
+        with open(STOP_FLAG_PATH, 'w') as f:
+            f.write('1')
+    except Exception:
+        pass
 
 
 def clear_stop():
     global STOP_REQUESTED
     STOP_REQUESTED = False
+    try:
+        if os.path.exists(STOP_FLAG_PATH):
+            os.remove(STOP_FLAG_PATH)
+    except Exception:
+        pass
 
 
 def stop_requested() -> bool:
-    return STOP_REQUESTED
+    if STOP_REQUESTED:
+        return True
+    try:
+        return os.path.exists(STOP_FLAG_PATH)
+    except Exception:
+        return STOP_REQUESTED
 
 
 def _read_box_bit(cps, reader, bit_index):
