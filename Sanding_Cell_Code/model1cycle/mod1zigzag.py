@@ -15,8 +15,6 @@ from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
 from Table1Model.exportpointsmodule import exported_points
 
-global robot_speed
-robot_speed = float(json_config['robotSpeed'])
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -30,6 +28,9 @@ def load_json_config():
         config = json.load(file)
     return config
 
+global robot_speed
+json_config = load_json_config()
+robot_speed = float(json_config['robotSpeed'])
 
 def _get_zigzag_mode_and_edge(json_config):
     """Read zigzag orientation/edge settings with safe defaults."""
@@ -252,7 +253,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
     print("p8:",p8)
 
     
-    json_config = load_json_config()
+    
     speeed = float(json_config['sandingSpeed'])
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
 
@@ -644,7 +645,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
     print("p7:",p7)
     print("p8:",p8)
 
-    json_config = load_json_config()
+    
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed= float(json_config['sandingSpeed'])
 
@@ -1027,7 +1028,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
     p7 = exported_points["p15"]
     p8= exported_points["p16"]
 
-    json_config = load_json_config()
+    
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed = float(json_config['sandingSpeed'])
 
