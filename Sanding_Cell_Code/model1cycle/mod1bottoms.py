@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 import threading
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_tool_spin_on,turn_vibration_off,turn_tool_spin_off,putForce,releaseForce,putForceZplus
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from Table1Model.exportpointsmodule import exported_points
 
@@ -47,7 +47,7 @@ def model1bottomsmall(force,cps):
     # Load configuration from YAML
     config = load_config()
 
-
+    speeed = float(json_config['sandingSpeed'])
 
 
     #Set up logger
@@ -103,7 +103,7 @@ def model1bottomsmall(force,cps):
     print("p15=",p15)
     print("p16=",p16)
     json_config = load_json_config()
-    speeed = float(json_config['robotSpeed'])
+    robot_speed = float(json_config['robotSpeed'])
     z=-4
 
 
@@ -220,7 +220,11 @@ def model1bottomsmall(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-            if point==pointybottomb2m:turn_vibration_on(cps)
+            if point==pointybottomb2m:
+
+                turn_vibration_on(cps)
+
+                turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -228,13 +232,14 @@ def model1bottomsmall(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speeed,
                 wait=False
             )
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
+        turn_tool_spin_off(cps)
         
         # Release Force Control
         releaseForce(cps=cps, config=config) 
@@ -261,7 +266,11 @@ def model1bottomsmall(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-            if point==pointybottoma1:turn_vibration_on(cps)
+            if point==pointybottoma1:
+
+                turn_vibration_on(cps)
+
+                turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -269,13 +278,14 @@ def model1bottomsmall(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speeed,
                 wait=False
             )
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
+        turn_tool_spin_off(cps)
         
         # Release Force Control
         releaseForce(cps=cps, config=config) 
@@ -301,7 +311,7 @@ def model1bottomsmall(force,cps):
                     tcp=config['coords']['tcpReal'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
+                    speed=robot_speed,
                     wait=True
                 )
 
@@ -313,7 +323,7 @@ def model1bottomsmall(force,cps):
                     seventh=seventh_axis_point,
                     tcp=config['coords']['tcpReal'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
+                    speed=robot_speed,
                     wait=True
                 )
 
@@ -330,7 +340,7 @@ def model1bottomsmall(force,cps):
 
     if not bigger:
         #Bottom Cycle at x2 (U pattern: bottom -> top)
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=robot_speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompointsb,force=force)
         perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
@@ -340,11 +350,11 @@ def model1bottomsmall(force,cps):
         perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
         #Last cycle
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed,wait=True)
 
     else:
         #Bottom Cycle at x3 (U pattern: bottom -> top)
-        communicate(cps=cps,config=config,seventh=x3,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=x3,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=robot_speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompointsb,force=force)
         perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
         
@@ -359,7 +369,7 @@ def model1bottomsmall(force,cps):
         perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
         
         #Last cycle
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)  
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed,wait=True)  
     
     # #Bottom Cycle a
     # communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)

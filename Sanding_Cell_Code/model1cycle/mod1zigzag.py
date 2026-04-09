@@ -15,6 +15,9 @@ from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
 from Table1Model.exportpointsmodule import exported_points
 
+global robot_speed
+robot_speed = float(json_config['robotSpeed'])
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -570,7 +573,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
             seventh=current_tcx, 
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         communicate(
             cps=cps, config=config, 
@@ -578,7 +581,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         # # turn_vibration_on(cps)
         communicate(
@@ -587,7 +590,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         # # turn_vibration_on(cps)
         perform_process_top(
@@ -600,7 +603,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
     #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
 
@@ -962,7 +965,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
             seventh=current_tcx, 
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         communicate(
             cps=cps, config=config, 
@@ -970,7 +973,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         # # turn_vibration_on(cps)
         communicate(
@@ -979,7 +982,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         # # turn_vibration_on(cps)
         perform_process_top(
@@ -992,7 +995,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
     #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
 
@@ -1354,7 +1357,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
             seventh=current_tcx, 
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         communicate(
             cps=cps, config=config, 
@@ -1362,7 +1365,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         # # turn_vibration_on(cps)
         communicate(
@@ -1371,7 +1374,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
         # # turn_vibration_on(cps)
         perform_process_top(
@@ -1384,7 +1387,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
             tcp=config['coords']['tcpReal'], 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=speeed, wait=True
+            speed=robot_speed, wait=True
         )
     #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
 

@@ -162,16 +162,16 @@ def model1pocket1side(force,cps):
     distance= p5[0] - p8[0]
     print("distance:", distance)
     #Bottom Final Points
-    prebpoint1st=[0, point8[1], -15, 180, 0, 0]
+    prebpoint1st=[0, point8[1], -25, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance, point5[1], -15, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -25, 180, 0, 0]
     bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
     bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
-    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -15, 180, 0, 0]
+    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -25, 180, 0, 0]
     print("prebpointmiddle:", prebpointmiddle)
 
 
@@ -190,11 +190,11 @@ def model1pocket1side(force,cps):
     #Left Final Points
     lpoint1st = [distance, point5[1], z, 180, 0, 0]
     print("lpoint1st:", lpoint1st)
-    prelpoint1st = [distance, point5[1], -15, 180, 0, 0]
+    prelpoint1st = [distance, point5[1], -25, 180, 0, 0]
     print("prelpoint1st:", prelpoint1st)
     lpoint2nd = [distance, point6[1], z, 180, 0, 0]
     print("lpoint2nd:", lpoint2nd)
-    prelpoint2nd = [distance, point6[1], -15, 180, 0, 0]
+    prelpoint2nd = [distance, point6[1], -25, 180, 0, 0]
     print("prelpoint2nd:", prelpoint2nd)
     lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
@@ -214,15 +214,15 @@ def model1pocket1side(force,cps):
     #Top Final Pooints
     tpoint1st = [0, point6[1], z, 180, 0, 0]
     print("tpoint1st:", tpoint1st)
-    pretpoint1st = [0, point6[1], -15, 180, 0, 0]
+    pretpoint1st = [0, point6[1], -25, 180, 0, 0]
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [mid_x, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -15, 180, 0, 0]
+    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -25, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
     tpoint2nd = [distance, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [distance, point7[1], -15, 180, 0, 0]
+    pretpoint2nd = [distance, point7[1], -25, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -241,9 +241,9 @@ def model1pocket1side(force,cps):
     print("rpoint1st:", rpoint1st)
     rpoint2nd = [0, point8[1], z, 180, 0, 0]
     print("rpoint2nd:", rpoint2nd)
-    prepoint1st = [0, point7[1], -15, 180, 0, 0]
+    prepoint1st = [0, point7[1], -25, 180, 0, 0]
     print("prepoint1st:", prepoint1st)
-    prepoint2nd = [0, point8[1], -15, 180, 0, 0]
+    prepoint2nd = [0, point8[1], -25, 180, 0, 0]
     print("prepoint2nd:", prepoint2nd)
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
@@ -274,9 +274,9 @@ def model1pocket1side(force,cps):
 
 
     #processing Middle Points
-    premiddle1=[0 + outeroffset, p10[1] - outeroffset, -15, 180, 0, 0]
+    premiddle1=[0 + outeroffset, p10[1] - outeroffset, -25, 180, 0, 0]
     print("premiddle1=", premiddle1)
-    premiddle2=[0 + outeroffset, p9[1] + outeroffset, -15, 180, 0, 0]
+    premiddle2=[0 + outeroffset, p9[1] + outeroffset, -25, 180, 0, 0]
     print("premiddle2=", premiddle2)
 
 
@@ -338,17 +338,11 @@ def model1pocket1side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -363,9 +357,6 @@ def model1pocket1side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
         # Vibration on
@@ -398,17 +389,11 @@ def model1pocket1side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -423,9 +408,6 @@ def model1pocket1side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
         # Vibration on
@@ -458,17 +440,11 @@ def model1pocket1side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -483,9 +459,6 @@ def model1pocket1side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
         # Vibration on
@@ -518,17 +491,11 @@ def model1pocket1side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -543,9 +510,6 @@ def model1pocket1side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
@@ -569,11 +533,8 @@ def model1pocket1side(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-            if point==pmiddile1:
+    
 
-                turn_vibration_on(cps)
-
-                turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -587,9 +548,6 @@ def model1pocket1side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
         import time
 
@@ -600,6 +558,17 @@ def model1pocket1side(force,cps):
         Moves seventh axis first, then repositions the robot.
         This avoids the frame shift that happens when both move at once.
         """
+        # Lift to prepoint before moving the 7th axis so the tool clears the surface.
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=0.8,
+            wait=True
+        )
         communicate(
             cps=cps,
             config=config,
@@ -623,6 +592,9 @@ def model1pocket1side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    ensure_force()
+    turn_vibration_on(cps)
+    turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
@@ -636,6 +608,9 @@ def model1pocket1side(force,cps):
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    turn_tool_spin_off(cps)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -755,16 +730,16 @@ def model1pocket2side(force,cps):
     distance= p5[0] - p8[0]
     print("distance:", distance)
     #Bottom Final Points
-    prebpoint1st=[0, point8[1], -15, 180, 0, 0]
+    prebpoint1st=[0, point8[1], -25, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance, point5[1], -15, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -25, 180, 0, 0]
     bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
     bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
-    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -15, 180, 0, 0]
+    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -25, 180, 0, 0]
     print("prebpointmiddle:", prebpointmiddle)
 
 
@@ -783,11 +758,11 @@ def model1pocket2side(force,cps):
     #Left Final Points
     lpoint1st = [distance, point5[1], z, 180, 0, 0]
     print("lpoint1st:", lpoint1st)
-    prelpoint1st = [distance, point5[1], -15, 180, 0, 0]
+    prelpoint1st = [distance, point5[1], -25, 180, 0, 0]
     print("prelpoint1st:", prelpoint1st)
     lpoint2nd = [distance, point6[1], z, 180, 0, 0]
     print("lpoint2nd:", lpoint2nd)
-    prelpoint2nd = [distance, point6[1], -15, 180, 0, 0]
+    prelpoint2nd = [distance, point6[1], -25, 180, 0, 0]
     print("prelpoint2nd:", prelpoint2nd)
     lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
@@ -807,15 +782,15 @@ def model1pocket2side(force,cps):
     #Top Final Pooints
     tpoint1st = [0, point6[1], z, 180, 0, 0]
     print("tpoint1st:", tpoint1st)
-    pretpoint1st = [0, point6[1], -15, 180, 0, 0]
+    pretpoint1st = [0, point6[1], -25, 180, 0, 0]
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [mid_x, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -15, 180, 0, 0]
+    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -25, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
     tpoint2nd = [distance, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [distance, point7[1], -15, 180, 0, 0]
+    pretpoint2nd = [distance, point7[1], -25, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -834,9 +809,9 @@ def model1pocket2side(force,cps):
     print("rpoint1st:", rpoint1st)
     rpoint2nd = [0, point8[1], z, 180, 0, 0]
     print("rpoint2nd:", rpoint2nd)
-    prepoint1st = [0, point7[1], -15, 180, 0, 0]
+    prepoint1st = [0, point7[1], -25, 180, 0, 0]
     print("prepoint1st:", prepoint1st)
-    prepoint2nd = [0, point8[1], -15, 180, 0, 0]
+    prepoint2nd = [0, point8[1], -25, 180, 0, 0]
     print("prepoint2nd:", prepoint2nd)
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
@@ -867,9 +842,9 @@ def model1pocket2side(force,cps):
 
 
     #processing Middle Points
-    premiddle1=[0 + outeroffset, p10[1] - outeroffset, -15, 180, 0, 0]
+    premiddle1=[0 + outeroffset, p10[1] - outeroffset, -25, 180, 0, 0]
     print("premiddle1=", premiddle1)
-    premiddle2=[0 + outeroffset, p9[1] + outeroffset, -15, 180, 0, 0]
+    premiddle2=[0 + outeroffset, p9[1] + outeroffset, -25, 180, 0, 0]
     print("premiddle2=", premiddle2)
 
 
@@ -931,17 +906,11 @@ def model1pocket2side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -956,9 +925,6 @@ def model1pocket2side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
         # Vibration on
@@ -991,17 +957,11 @@ def model1pocket2side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1016,9 +976,6 @@ def model1pocket2side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
         # Vibration on
@@ -1051,17 +1008,11 @@ def model1pocket2side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1076,9 +1027,6 @@ def model1pocket2side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
         # Vibration on
@@ -1111,17 +1059,11 @@ def model1pocket2side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1136,9 +1078,6 @@ def model1pocket2side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
@@ -1162,11 +1101,8 @@ def model1pocket2side(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-            if point==pmiddile1:
+           
 
-                turn_vibration_on(cps)
-
-                turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -1180,15 +1116,23 @@ def model1pocket2side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
         Moves seventh axis first, then repositions the robot.
         This avoids the frame shift that happens when both move at once.
         """
+        # Lift to prepoint before moving the 7th axis so the tool clears the surface.
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=0.8,
+            wait=True
+        )
         communicate(
             cps=cps,
             config=config,
@@ -1264,6 +1208,9 @@ def model1pocket2side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    ensure_force()
+    turn_vibration_on(cps)
+    turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
@@ -1277,6 +1224,9 @@ def model1pocket2side(force,cps):
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    turn_tool_spin_off(cps)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
@@ -1397,16 +1347,16 @@ def model1pocket3side(force,cps):
     distance= p5[0] - p8[0]
     print("distance:", distance)
     #Bottom Final Points
-    prebpoint1st=[0, point8[1], -15, 180, 0, 0]
+    prebpoint1st=[0, point8[1], -25, 180, 0, 0]
     bpoint1st=[0, point8[1], z, 180, 0, 0]
     print("bpoint1st:", bpoint1st)
-    prebpoint2nd=[distance, point5[1], -15, 180, 0, 0]
+    prebpoint2nd=[distance, point5[1], -25, 180, 0, 0]
     bpoint2nd=[distance, point5[1], z, 180, 0, 0]
     print("bpoint2nd:", bpoint2nd)
     mid_x=(bpoint1st[0] + bpoint2nd[0]) / 2
     bpointmiddle=[mid_x, point8[1], z, 180, 0, 0]
     print("bpointmiddle:", bpointmiddle)
-    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -15, 180, 0, 0]
+    prebpointmiddle=[bpointmiddle[0], bpointmiddle[1], -25, 180, 0, 0]
     print("prebpointmiddle:", prebpointmiddle)
 
 
@@ -1425,11 +1375,11 @@ def model1pocket3side(force,cps):
     #Left Final Points
     lpoint1st = [distance, point5[1], z, 180, 0, 0]
     print("lpoint1st:", lpoint1st)
-    prelpoint1st = [distance, point5[1], -15, 180, 0, 0]
+    prelpoint1st = [distance, point5[1], -25, 180, 0, 0]
     print("prelpoint1st:", prelpoint1st)
     lpoint2nd = [distance, point6[1], z, 180, 0, 0]
     print("lpoint2nd:", lpoint2nd)
-    prelpoint2nd = [distance, point6[1], -15, 180, 0, 0]
+    prelpoint2nd = [distance, point6[1], -25, 180, 0, 0]
     print("prelpoint2nd:", prelpoint2nd)
     lpointmiddle = [distance, point5[1] + 2, z, 180, 0, 0]
     print("lpointmiddle:", lpointmiddle)
@@ -1449,15 +1399,15 @@ def model1pocket3side(force,cps):
     #Top Final Pooints
     tpoint1st = [0, point6[1], z, 180, 0, 0]
     print("tpoint1st:", tpoint1st)
-    pretpoint1st = [0, point6[1], -15, 180, 0, 0]
+    pretpoint1st = [0, point6[1], -25, 180, 0, 0]
     print("pretpoint1st:", pretpoint1st)
     topointmiddle = [mid_x, point6[1], z, 180, 0, 0]
     print("topointmiddle:", topointmiddle)
-    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -15, 180, 0, 0]
+    pretpointmiddle = [topointmiddle[0], topointmiddle[1], -25, 180, 0, 0]
     print("pretpointmiddle:", pretpointmiddle)
     tpoint2nd = [distance, point7[1], z, 180, 0, 0]
     print("tpoint2nd:", tpoint2nd)
-    pretpoint2nd = [distance, point7[1], -15, 180, 0, 0]
+    pretpoint2nd = [distance, point7[1], -25, 180, 0, 0]
     print("pretpoint2nd:", pretpoint2nd)
 
 
@@ -1476,9 +1426,9 @@ def model1pocket3side(force,cps):
     print("rpoint1st:", rpoint1st)
     rpoint2nd = [0, point8[1], z, 180, 0, 0]
     print("rpoint2nd:", rpoint2nd)
-    prepoint1st = [0, point7[1], -15, 180, 0, 0]
+    prepoint1st = [0, point7[1], -25, 180, 0, 0]
     print("prepoint1st:", prepoint1st)
-    prepoint2nd = [0, point8[1], -15, 180, 0, 0]
+    prepoint2nd = [0, point8[1], -25, 180, 0, 0]
     print("prepoint2nd:", prepoint2nd)
     rpointmiddle = [0, point7[1] - 2, z, 180, 0, 0]
     print("rpointmiddle:", rpointmiddle)
@@ -1509,9 +1459,9 @@ def model1pocket3side(force,cps):
 
 
     #processing Middle Points
-    premiddle1=[0 + outeroffset, p10[1] - outeroffset, -15, 180, 0, 0]
+    premiddle1=[0 + outeroffset, p10[1] - outeroffset, -25, 180, 0, 0]
     print("premiddle1=", premiddle1)
-    premiddle2=[0 + outeroffset, p9[1] + outeroffset, -15, 180, 0, 0]
+    premiddle2=[0 + outeroffset, p9[1] + outeroffset, -25, 180, 0, 0]
     print("premiddle2=", premiddle2)
 
 
@@ -1573,17 +1523,11 @@ def model1pocket3side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1598,9 +1542,6 @@ def model1pocket3side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
         # Vibration on
@@ -1633,17 +1574,11 @@ def model1pocket3side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1658,9 +1593,6 @@ def model1pocket3side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
         # Vibration on
@@ -1693,17 +1625,11 @@ def model1pocket3side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1718,9 +1644,6 @@ def model1pocket3side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
         # Vibration on
@@ -1753,17 +1676,11 @@ def model1pocket3side(force,cps):
                     ensure_force()
                     if not vibration_started:
 
-                        turn_vibration_on(cps)
-
-                        turn_tool_spin_on(cps)
                         vibration_started = True
                     continue
                 ensure_force()
                 if not vibration_started:
 
-                    turn_vibration_on(cps)
-
-                    turn_tool_spin_on(cps)
                     vibration_started = True
             communicate(
                 cps=cps,
@@ -1778,9 +1695,6 @@ def model1pocket3side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def perform_process_middle(cps, config, points1,force):
         # Vibration on
@@ -1804,11 +1718,8 @@ def model1pocket3side(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-            if point==pmiddile1:
+            
 
-                turn_vibration_on(cps)
-
-                turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -1822,15 +1733,23 @@ def model1pocket3side(force,cps):
         
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
-        turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
-        
         # Release Force Control
     def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
         Moves seventh axis first, then repositions the robot.
         This avoids the frame shift that happens when both move at once.
         """
+        # Lift to prepoint before moving the 7th axis so the tool clears the surface.
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcpReal'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=0.8,
+            wait=True
+        )
         communicate(
             cps=cps,
             config=config,
@@ -1905,6 +1824,9 @@ def model1pocket3side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    ensure_force()
+    turn_vibration_on(cps)
+    turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
@@ -1918,6 +1840,9 @@ def model1pocket3side(force,cps):
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
     force_active = False
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    turn_tool_spin_off(cps)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
