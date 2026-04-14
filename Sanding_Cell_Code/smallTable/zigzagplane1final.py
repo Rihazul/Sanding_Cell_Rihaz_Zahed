@@ -326,13 +326,19 @@ def finalize_spiral_path(
     # Reuse the existing config/cps to avoid reinitializing connections.
     robot_state = RobotState(config=config , cps_client=cps)
 
-    # Wait for PATH_READY
-    start = time.time()
-    state = []
-    while True:
+    def _read_path_l_state():
         st = []
-        ret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
-        if ret == 0 and len(st) > 3 and st[2] == "3" and st[3] == "0":
+        ret_local = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
+        l_state = str(st[2]).strip() if len(st) > 2 else None
+        l_err = str(st[3]).strip() if len(st) > 3 else None
+        return ret_local, st, l_state, l_err
+
+    # Wait for path calculation/ready state.
+    # Some controllers report L-state "2" as ready; others can move quickly to "3".
+    start = time.time()
+    while True:
+        ret, st, l_state, l_err = _read_path_l_state()
+        if ret == 0 and l_err == "0" and l_state in ("2", "3"):
             break
         elapsed = time.time() - start
         if elapsed > 120.0:
@@ -358,22 +364,37 @@ def finalize_spiral_path(
             )
             force_applied = True
             time.sleep(force_settle_s)
-    
-        ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-        print(f"[Spiral] Robot returned {ret} after MovePathL,")
+
+        ret, st, l_state, l_err = _read_path_l_state()
         if ret != 0:
+            print(f"[Spiral] Failed to read path state before MovePathL: ret={ret}")
             return False
-        move_start = time.time()
-    
-        # Wait briefly for motion to start, then turn vibration on.
+        if l_err != "0":
+            print(f"[Spiral] Path reported error before MovePathL: {st}")
+            return False
+
         motion_started = False
-        motion_wait_start = time.time()
-        while time.time() - motion_wait_start < 1.0:
-            if robot_state.fetch_and_update_flags():
-                if robot_state.state["flags"].get("in_motion"):
-                    motion_started = True
-                    break
-            time.sleep(0.02)
+        if l_state == "3":
+            # Avoid re-triggering MovePathL while the track is already executing.
+            print(f"[Spiral] Path already running (state={l_state}); skipping MovePathL trigger.")
+            motion_started = True
+        else:
+            ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+            print(f"[Spiral] Robot returned {ret} after MovePathL,")
+            if ret != 0:
+                return False
+
+        move_start = time.time()
+
+        # Wait briefly for motion to start, then turn vibration on.
+        if not motion_started:
+            motion_wait_start = time.time()
+            while time.time() - motion_wait_start < 1.0:
+                if robot_state.fetch_and_update_flags():
+                    if robot_state.state["flags"].get("in_motion"):
+                        motion_started = True
+                        break
+                time.sleep(0.02)
         
         turn_vibration_on(cps)
         vibration_on = True
