@@ -335,11 +335,12 @@ def finalize_spiral_path(
         return ret_local, st, l_state, l_err
 
     # Wait for path calculation/ready state.
-    # Some controllers report L-state "2" as ready; others can move quickly to "3".
+    # PathL state map in SDK comments: 2=Calculating, 3=Calculation completed.
+    # Some controllers can also report 4 during fast transitions around execution.
     start = time.time()
     while True:
         ret, st, l_state, l_err = _read_path_l_state()
-        if ret == 0 and l_err == "0" and l_state in ("2", "3"):
+        if ret == 0 and l_err == "0" and l_state in ("2", "3", "4"):
             break
         elapsed = time.time() - start
         if elapsed > 120.0:
@@ -375,8 +376,9 @@ def finalize_spiral_path(
             return False
 
         motion_started = False
-        if l_state == "3":
-            # Avoid re-triggering MovePathL while the track is already executing.
+        if l_state in ("3", "4"):
+            # Avoid re-triggering MovePathL while the track is already in a
+            # controller-complete/active transition state.
             print(f"[Spiral] Path already running (state={l_state}); skipping MovePathL trigger.")
             motion_started = True
         else:
@@ -386,7 +388,7 @@ def finalize_spiral_path(
                 # Some controllers can return a transient command-state error if
                 # the path just transitioned to running; treat that as started.
                 _, st_after, l_state_after, l_err_after = _read_path_l_state()
-                if l_err_after == "0" and l_state_after == "3":
+                if l_err_after == "0" and l_state_after in ("3", "4"):
                     print(
                         "[Spiral] MovePathL returned nonzero but path is running; "
                         f"continuing (ret={ret}, state={st_after})."
