@@ -1386,14 +1386,14 @@ def smalldoor1zizag(
                         init_path=not path_initialized,
                         orientation=orientation
                     )
-                    if not success:
-                        push_failed = True
-                        break
+                    # if not success:
+                    #     push_failed = True
+                    #     break
 
-                    path_initialized = True
-                    total_count += count
+                    # path_initialized = True
+                    # total_count += count
 
-                if path_initialized and not push_failed:
+                # if path_initialized and not push_failed:
                     timeout = compute_timeout(
                         total_points=total_count, velocity=300.0 * 10.0 / 45.0
                     )
