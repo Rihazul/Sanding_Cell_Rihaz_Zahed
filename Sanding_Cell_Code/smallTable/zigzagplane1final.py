@@ -315,6 +315,7 @@ def finalize_spiral_path(
     force: Optional[float] = None,
     config: Optional[dict] = None,
     force_settle_s: float = 0.2,
+    manage_force_cycle: bool = True,
 ) -> bool:
     """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
@@ -353,7 +354,7 @@ def finalize_spiral_path(
     motion_last_change = time.time()
 
     try:
-        if force is not None and config is not None:
+        if manage_force_cycle and force is not None and config is not None:
             # Apply force *after* path is ready
             putForceZminus(
                 cps=cps,
@@ -382,7 +383,17 @@ def finalize_spiral_path(
             ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
             print(f"[Spiral] Robot returned {ret} after MovePathL,")
             if ret != 0:
-                return False
+                # Some controllers can return a transient command-state error if
+                # the path just transitioned to running; treat that as started.
+                _, st_after, l_state_after, l_err_after = _read_path_l_state()
+                if l_err_after == "0" and l_state_after == "3":
+                    print(
+                        "[Spiral] MovePathL returned nonzero but path is running; "
+                        f"continuing (ret={ret}, state={st_after})."
+                    )
+                    motion_started = True
+                else:
+                    return False
 
         move_start = time.time()
 
@@ -396,8 +407,9 @@ def finalize_spiral_path(
                         break
                 time.sleep(0.02)
         
-        turn_vibration_on(cps)
-        vibration_on = True
+        if manage_force_cycle:
+            turn_vibration_on(cps)
+            vibration_on = True
 
         # Wait for completion (track path state + robot flags)
         ok = True
@@ -555,9 +567,9 @@ def finalize_spiral_path(
             time.sleep(0.02)
 
     finally:
-        if vibration_on:
+        if manage_force_cycle and vibration_on:
             turn_vibration_off(cps)
-        if force_applied:
+        if manage_force_cycle and force_applied:
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
     return ok
@@ -1268,11 +1280,6 @@ def smalldoor1zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
-                spiral_track_name = f"small_{uuid.uuid4().hex[:6]}"
-                path_initialized = False
-                push_failed = False
-                total_count = 0
-
                 # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
@@ -1392,6 +1399,7 @@ def smalldoor1zizag(
                 # turn_vibration_off(cps)
                 # releaseForce(cps=cps, config=config)
                 
+                    segment_track_name = f"small_{uuid.uuid4().hex[:6]}"
                     print("Spiral move from A to B:", point_A, "->", point_B)
                     success, count = run_spiral_between_points(
                         cps=cps,
@@ -1400,36 +1408,32 @@ def smalldoor1zizag(
                         end_pose=point_B,
                         radius=12.0,
                         angle_step_deg=45.0,
-                        track_name=spiral_track_name,
+                        track_name=segment_track_name,
                         velocity=150.0,
                         accel=300.0,
                         jerk=3000.0,
-                        init_path=not path_initialized,
+                        init_path=True,
                         orientation=orientation
                     )
-                    # if not success:
-                    #     push_failed = True
-                    #     break
+                    if not success:
+                        raise RuntimeError("[Spiral] run_spiral_between_points failed for door 1.")
 
-                    # path_initialized = True
-                    # total_count += count
-
-                # if path_initialized and not push_failed:
                     timeout = compute_timeout(
-                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                        total_points=int(count or 0), velocity=300.0 * 10.0 / 45.0
                     )
                     # Keep a short anti-false-positive runtime guard without
                     # adding visible delay at the final point.
                     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
                     finalized = finalize_spiral_path(
                         cps,
-                        spiral_track_name,
+                        segment_track_name,
                         box_id=0,
                         robot_id=0,
                         completion_timeout=timeout,
                         min_runtime_s=min_runtime_s,
                         force= force,
-                        config= config
+                        config= config,
+                        manage_force_cycle=False,
                     )
                     if not finalized:
                         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
