@@ -336,11 +336,11 @@ def finalize_spiral_path(
 
     # Wait for path calculation/ready state.
     # PathL state map in SDK comments: 2=Calculating, 3=Calculation completed.
-    # Some controllers can also report 4 during fast transitions around execution.
+    # MovePathL should be sent only once state reaches 3.
     start = time.time()
     while True:
         ret, st, l_state, l_err = _read_path_l_state()
-        if ret == 0 and l_err == "0" and l_state in ("2", "3", "4"):
+        if ret == 0 and l_err == "0" and l_state == "3":
             break
         elapsed = time.time() - start
         if elapsed > 120.0:
@@ -376,26 +376,41 @@ def finalize_spiral_path(
             return False
 
         motion_started = False
-        if l_state in ("3", "4"):
-            # Avoid re-triggering MovePathL while the track is already in a
-            # controller-complete/active transition state.
-            print(f"[Spiral] Path already running (state={l_state}); skipping MovePathL trigger.")
-            motion_started = True
-        else:
+        move_started = False
+        last_move_ret = None
+        for attempt in range(6):
             ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-            print(f"[Spiral] Robot returned {ret} after MovePathL,")
-            if ret != 0:
-                # Some controllers can return a transient command-state error if
-                # the path just transitioned to running; treat that as started.
-                _, st_after, l_state_after, l_err_after = _read_path_l_state()
-                if l_err_after == "0" and l_state_after in ("3", "4"):
-                    print(
-                        "[Spiral] MovePathL returned nonzero but path is running; "
-                        f"continuing (ret={ret}, state={st_after})."
-                    )
-                    motion_started = True
-                else:
-                    return False
+            last_move_ret = ret
+            print(f"[Spiral] Robot returned {ret} after MovePathL (attempt {attempt + 1}/6)")
+            if ret == 0:
+                move_started = True
+                break
+
+            _, st_after, l_state_after, l_err_after = _read_path_l_state()
+            in_motion_now = False
+            if robot_state.fetch_and_update_flags():
+                in_motion_now = bool(robot_state.state.get("flags", {}).get("in_motion"))
+
+            if in_motion_now:
+                print(
+                    "[Spiral] MovePathL returned nonzero but robot is in motion; "
+                    f"continuing (ret={ret}, state={st_after})."
+                )
+                motion_started = True
+                move_started = True
+                break
+
+            # 20041 is usually a transient path-status timing mismatch.
+            if ret == 20041 and l_err_after == "0":
+                time.sleep(0.05)
+                continue
+
+            print(f"[Spiral] MovePathL failed (ret={ret}, state={st_after}, path_err={l_err_after})")
+            return False
+
+        if not move_started:
+            print(f"[Spiral] MovePathL failed after retries (last_ret={last_move_ret}).")
+            return False
 
         move_start = time.time()
 
