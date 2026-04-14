@@ -1264,9 +1264,9 @@ def smalldoor1zizag(
                     speed=float(json_config["sandingSpeed"]),
                     wait=True
                 )
-                locked_orient = list(zigzag_points[0][3:6])
-                if FORCE_SPIRAL_ORIENT:
-                    locked_orient = list(FORCE_SPIRAL_ORIENT)
+                # locked_orient = list(zigzag_points[0][3:6])
+                # if FORCE_SPIRAL_ORIENT:
+                #     locked_orient = list(FORCE_SPIRAL_ORIENT)
                 putForceZminus(
                     cps=cps,
                     force=force,
@@ -1276,148 +1276,148 @@ def smalldoor1zizag(
                     search_linear_velocity=force_seek_linear,
                     blending_timeout_s=force_blending_timeout,
                 )
-                if FORCE_SPIRAL_ORIENT is None:
-                    locked_orient = _capture_locked_orient(
-                        cps,
-                        config,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        fallback_orient=locked_orient,
-                        settle_s=0.05,
-                    )
-                else:
-                    if config.get("logger"):
-                        config["logger"].info(f"[Orientation] forced for spiral: {locked_orient}")
-                    else:
-                        print(f"[Orientation] forced for spiral: {locked_orient}")
+                # if FORCE_SPIRAL_ORIENT is None:
+                #     locked_orient = _capture_locked_orient(
+                #         cps,
+                #         config,
+                #         tcp=config["coords"]["tcptool3plane1"],
+                #         ucs=config["coords"]["ucsTable1"],
+                #         fallback_orient=locked_orient,
+                #         settle_s=0.05,
+                #     )
+                # else:
+                #     if config.get("logger"):
+                #         config["logger"].info(f"[Orientation] forced for spiral: {locked_orient}")
+                #     else:
+                #         print(f"[Orientation] forced for spiral: {locked_orient}")
                 turn_vibration_on(cps)
-                use_waypoint2 = True
-                wp2_cfg = Waypoint2Config(
-                    speed=150.0,
-                    accel=300.0,
-                    radius=8.0,
-                    min_seg_len=5.0,
-                    min_angle_deg=12.0,
-                    max_angle_deg=170.0,
-                    use_arc=True,
-                    use_wp2_for_line=True,
-                    enforce_orientation="start",
-                    wait_timeout_s=20.0,
-                    cmd_id_prefix="zig",
-                    line_cmd_id_prefix="zigL",
-                )
-                throttle_every = 8
-                throttle_sleep_s = 0.01
-                move_kwargs = {
-                    "cps": cps,
-                    "config": config,
-                    "tcp": config["coords"]["tcptool3plane1"],
-                    "ucs": config["coords"]["ucsTable1"],
-                    "seventh": -1,
-                    "speed": float(json_config["sandingSpeed"]),
-                    "speed_mode": "linear",
-                    "wait": True,
-                }
-                zigzag_points = [
-                    [p[0], p[1], p[2], locked_orient[0], locked_orient[1], locked_orient[2]]
-                    for p in zigzag_points
-                ]
-                bounds = None
-                bounds_points = edge_points if edge_points else zigzag_points
-                if bounds_points:
-                    xs = [p[0] for p in bounds_points]
-                    ys = [p[1] for p in bounds_points]
-                    bounds = (min(xs), max(xs), min(ys), max(ys))
+                # use_waypoint2 = True
+                # wp2_cfg = Waypoint2Config(
+                #     speed=150.0,
+                #     accel=300.0,
+                #     radius=8.0,
+                #     min_seg_len=5.0,
+                #     min_angle_deg=12.0,
+                #     max_angle_deg=170.0,
+                #     use_arc=True,
+                #     use_wp2_for_line=True,
+                #     enforce_orientation="start",
+                #     wait_timeout_s=20.0,
+                #     cmd_id_prefix="zig",
+                #     line_cmd_id_prefix="zigL",
+                # )
+                # throttle_every = 8
+                # throttle_sleep_s = 0.01
+                # move_kwargs = {
+                #     "cps": cps,
+                #     "config": config,
+                #     "tcp": config["coords"]["tcptool3plane1"],
+                #     "ucs": config["coords"]["ucsTable1"],
+                #     "seventh": -1,
+                #     "speed": float(json_config["sandingSpeed"]),
+                #     "speed_mode": "linear",
+                #     "wait": True,
+                # }
+                # zigzag_points = [
+                #     [p[0], p[1], p[2], locked_orient[0], locked_orient[1], locked_orient[2]]
+                #     for p in zigzag_points
+                # ]
+                # bounds = None
+                # bounds_points = edge_points if edge_points else zigzag_points
+                # if bounds_points:
+                #     xs = [p[0] for p in bounds_points]
+                #     ys = [p[1] for p in bounds_points]
+                #     bounds = (min(xs), max(xs), min(ys), max(ys))
                 for index, _ in enumerate(zigzag_points):
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
                     point_B = zigzag_points[index + 1]
 
-                    if use_waypoint2:
-                        wp2_segments = generate_arc_line_segments_between(
-                            point_A,
-                            point_B,
-                            radius=12.0,
-                            arc_step_deg=120.0,
-                            pitch=12.0,
-                            clockwise=True,
-                            bounds=bounds,
-                            safety_margin=5.0,
-                            min_radius=1.0,
-                        )
-                        last_pair = index == (len(zigzag_points) - 2)
-                        for seg_idx, seg_points in enumerate(wp2_segments):
-                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
-                            wp2_result = execute_waypoint2_path(
-                                cps,
-                                seg_points,
-                                tcp=config["coords"]["tcptool3plane1"],
-                                ucs=config["coords"]["ucsTable1"],
-                                cfg=wp2_cfg,
-                                wait_each=False,
-                                wait_end=wait_end,
-                                throttle_every=throttle_every,
-                                throttle_sleep_s=throttle_sleep_s,
-                                move_l_fn=communicate,
-                                move_l_kwargs=move_kwargs,
-                                logger=config.get("logger"),
-                            )
-                            if not wp2_result.get("ok", False):
-                                raise RuntimeError("[WayPoint2] Segment execution failed.")
-                        continue
+                    # if use_waypoint2:
+                    #     wp2_segments = generate_arc_line_segments_between(
+                    #         point_A,
+                    #         point_B,
+                    #         radius=12.0,
+                    #         arc_step_deg=120.0,
+                    #         pitch=12.0,
+                    #         clockwise=True,
+                    #         bounds=bounds,
+                    #         safety_margin=5.0,
+                    #         min_radius=1.0,
+                    #     )
+                    #     last_pair = index == (len(zigzag_points) - 2)
+                    #     for seg_idx, seg_points in enumerate(wp2_segments):
+                    #         wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
+                    #         wp2_result = execute_waypoint2_path(
+                    #             cps,
+                    #             seg_points,
+                    #             tcp=config["coords"]["tcptool3plane1"],
+                    #             ucs=config["coords"]["ucsTable1"],
+                    #             cfg=wp2_cfg,
+                    #             wait_each=False,
+                    #             wait_end=wait_end,
+                    #             throttle_every=throttle_every,
+                    #             throttle_sleep_s=throttle_sleep_s,
+                    #             move_l_fn=communicate,
+                    #             move_l_kwargs=move_kwargs,
+                    #             logger=config.get("logger"),
+                    #         )
+                    #         if not wp2_result.get("ok", False):
+                    #             raise RuntimeError("[WayPoint2] Segment execution failed.")
+                    #     continue
                     
-                #motion done for zigzag, now turn off vibration and release force before next steps        
-                turn_vibration_off(cps)
-                releaseForce(cps=cps, config=config)
+                # #motion done for zigzag, now turn off vibration and release force before next steps        
+                # turn_vibration_off(cps)
+                # releaseForce(cps=cps, config=config)
                 
-                #     print("Spiral move from A to B:", point_A, "->", point_B)
-                #     success, count = run_spiral_between_points(
-                #         cps=cps,
-                #         config=config,
-                #         start_pose=point_A,
-                #         end_pose=point_B,
-                #         radius=12.0,
-                #         angle_step_deg=45.0,
-                #         track_name=spiral_track_name,
-                #         velocity=150.0,
-                #         accel=300.0,
-                #         jerk=3000.0,
-                #         init_path=not path_initialized,
-                #         orientation=orientation
-                #     )
-                #     if not success:
-                #         push_failed = True
-                #         break
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    success, count = run_spiral_between_points(
+                        cps=cps,
+                        config=config,
+                        start_pose=point_A,
+                        end_pose=point_B,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        track_name=spiral_track_name,
+                        velocity=150.0,
+                        accel=300.0,
+                        jerk=3000.0,
+                        init_path=not path_initialized,
+                        orientation=orientation
+                    )
+                    if not success:
+                        push_failed = True
+                        break
 
-                #     path_initialized = True
-                #     total_count += count
+                    path_initialized = True
+                    total_count += count
 
-                # if path_initialized and not push_failed:
-                #     timeout = compute_timeout(
-                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
-                #     )
-                #     # Keep a short anti-false-positive runtime guard without
-                #     # adding visible delay at the final point.
-                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                #     finalized = finalize_spiral_path(
-                #         cps,
-                #         spiral_track_name,
-                #         box_id=0,
-                #         robot_id=0,
-                #         completion_timeout=timeout,
-                #         min_runtime_s=min_runtime_s,
-                #         force= force,
-                #         config= config
-                #     )
-                #     if not finalized:
-                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
+                if path_initialized and not push_failed:
+                    timeout = compute_timeout(
+                        total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                    )
+                    # Keep a short anti-false-positive runtime guard without
+                    # adding visible delay at the final point.
+                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                    finalized = finalize_spiral_path(
+                        cps,
+                        spiral_track_name,
+                        box_id=0,
+                        robot_id=0,
+                        completion_timeout=timeout,
+                        min_runtime_s=min_runtime_s,
+                        force= force,
+                        config= config
+                    )
+                    if not finalized:
+                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
-            #turn_vibration_off(cps)
+            waitForBlending(cps=cps, config=config)
+            turn_vibration_off(cps)
             # Release force
-            #releaseForce(cps=cps, config=config)
+            releaseForce(cps=cps, config=config)
 
         if split and edge_coverage_pathp1:
             edge_start = edge_coverage_pathp1[0]
