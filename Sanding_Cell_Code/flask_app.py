@@ -895,6 +895,7 @@ def tool_toggle():
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
+            force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
             # Validate Drop Conditions
             drop_conditions = [
                 (cps.HRIF_ReadBoxCI, 0, 0, 1),
@@ -911,6 +912,27 @@ def tool_toggle():
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
             else:
+                # Recovery path for post-crash or flaky DI4 sensor on Tool 3.
+                if tool_num == 3:
+                    ci0, ci1, ci2 = [], [], []
+                    r0 = cps.HRIF_ReadBoxCI(0, 0, ci0)
+                    r1 = cps.HRIF_ReadBoxCI(0, 1, ci1)
+                    r2 = cps.HRIF_ReadBoxCI(0, 2, ci2)
+                    ci_match_tool3 = (
+                        r0 == 0 and r1 == 0 and r2 == 0
+                        and ci0 and ci1 and ci2
+                        and ci0[0] == "1" and ci1[0] == "0" and ci2[0] == "0"
+                    )
+                    if force_keep or ci_match_tool3:
+                        keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                        tool_override_state[3] = False
+                        socketio.emit('flash_message', {
+                            "message": "Kept Tool 3 via recovery path (sensor mismatch bypassed)"
+                        })
+                        return jsonify({
+                            "status": "success",
+                            "message": "Tool 3 kept via recovery path"
+                        })
                 socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"error": "Drop conditions not met"}), 400
@@ -1213,7 +1235,7 @@ def check_tool3_attachment_condition(cps):
         (cps.HRIF_ReadBoxCI, 0, 0, 1),
         (cps.HRIF_ReadBoxCI, 0, 1, 0),
         (cps.HRIF_ReadBoxCI, 0, 2, 0),
-        (cps.HRIF_ReadBoxDI, 0, 4, 1),
+        (cps.HRIF_ReadBoxDI, 0, 4, 0),
     ]
 
     all_met = True
