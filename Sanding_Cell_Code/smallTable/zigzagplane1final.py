@@ -25,6 +25,7 @@ from Server_Better_V2 import (
     releaseForce,
     putForceZplus,
     putForceZminus,
+    stop_requested,
 )
 from smallTable.waypoint2 import (
     Waypoint2Config,
@@ -339,6 +340,9 @@ def finalize_spiral_path(
     # MovePathL should be sent only once state reaches 3.
     start = time.time()
     while True:
+        if stop_requested():
+            print("[Spiral] Stop requested while waiting for PATH_READY; aborting segment.")
+            return False
         ret, st, l_state, l_err = _read_path_l_state()
         if ret == 0 and l_err == "0" and l_state == "3":
             break
@@ -374,13 +378,46 @@ def finalize_spiral_path(
             print(f"[Spiral] Path reported error before MovePathL: {st}")
             return False
 
+        # Small readiness gate before issuing MovePathL.
+        # Prevents 40093 when a previous segment is still finishing.
+        prelaunch_wait_start = time.time()
+        while True:
+            if stop_requested():
+                print("[Spiral] Stop requested before MovePathL prelaunch gate; aborting segment.")
+                return False
+            fsm_state, _ = RobotState._read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
+            in_motion = None
+            point_motion_done = False
+            in_position = False
+            if robot_state.fetch_and_update_flags():
+                flags_now = robot_state.state.get("flags", {})
+                in_motion = bool(flags_now.get("in_motion"))
+                point_motion_done = bool(flags_now.get("point_motion_done"))
+                in_position = bool(flags_now.get("in_position"))
+
+            ready_for_new_move = (
+                (in_motion is False)
+                and (fsm_state in (32, 33) or point_motion_done or in_position)
+            )
+            if ready_for_new_move:
+                break
+            if (time.time() - prelaunch_wait_start) > 1.2:
+                break
+            time.sleep(0.03)
+
         motion_started = False
         move_started = False
         last_move_ret = None
-        for attempt in range(6):
+        for attempt in range(8):
+            if stop_requested():
+                print("[Spiral] Stop requested before MovePathL; aborting segment.")
+                return False
+            pre_in_motion = None
+            if robot_state.fetch_and_update_flags():
+                pre_in_motion = bool(robot_state.state.get("flags", {}).get("in_motion"))
             ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
             last_move_ret = ret
-            print(f"[Spiral] Robot returned {ret} after MovePathL (attempt {attempt + 1}/6)")
+            print(f"[Spiral] Robot returned {ret} after MovePathL (attempt {attempt + 1}/8)")
             if ret == 0:
                 move_started = True
                 break
@@ -390,19 +427,30 @@ def finalize_spiral_path(
             if robot_state.fetch_and_update_flags():
                 in_motion_now = bool(robot_state.state.get("flags", {}).get("in_motion"))
 
-            if in_motion_now:
+            # 40093 means controller reports path execution is still busy.
+            # This command did not launch the new path; wait and retry.
+            if ret == 40093:
                 print(
-                    "[Spiral] MovePathL returned nonzero but robot is in motion; "
-                    f"continuing (ret={ret}, state={st_after})."
+                    "[Spiral] Controller busy (ret=40093); waiting before retrying MovePathL."
                 )
-                motion_started = True
-                move_started = True
-                break
+                time.sleep(0.12)
+                continue
 
             # 20041 is usually a transient path-status timing mismatch.
             if ret == 20041 and l_err_after == "0":
                 time.sleep(0.05)
                 continue
+
+            # If command returned non-zero but we observed a clean transition into motion
+            # from a previously idle state, accept it as started.
+            if (pre_in_motion is False) and in_motion_now:
+                print(
+                    "[Spiral] MovePathL returned nonzero but motion transitioned idle->moving; "
+                    f"continuing (ret={ret}, state={st_after})."
+                )
+                motion_started = True
+                move_started = True
+                break
 
             print(f"[Spiral] MovePathL failed (ret={ret}, state={st_after}, path_err={l_err_after})")
             return False
@@ -446,6 +494,10 @@ def finalize_spiral_path(
             )
 
         while True:
+            if stop_requested():
+                print("[Spiral] Stop requested during MovePathL completion wait; aborting segment.")
+                ok = False
+                break
             pstate = []
             pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
             if pret != 0:
@@ -482,12 +534,12 @@ def finalize_spiral_path(
             fsm_standby = fsm_state == 33
 
             # Some controllers can keep in_motion=True after path completion.
-            # Accept done+in_position with stale in_motion only near expected end.
+            # Only accept that stale in_motion case when FSM has left "Moving".
             stale_in_motion_done = (
                 (in_motion_now is True)
                 and point_motion_done
                 and in_position
-                and elapsed_move >= max(float(min_runtime_s), estimate_timeout * 0.85)
+                and fsm_state in (32, 33)
             )
             done_by_flags = (
                 point_motion_done
@@ -1345,6 +1397,8 @@ def smalldoor1zizag(
                 #     ys = [p[1] for p in bounds_points]
                 #     bounds = (min(xs), max(xs), min(ys), max(ys))
                 for index, _ in enumerate(zigzag_points):
+                    if stop_requested():
+                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
@@ -1825,6 +1879,8 @@ def smalldoor2zizag(
                     bounds = (min(xs), max(xs), min(ys), max(ys))
                     
                 for index, _ in enumerate(zigzag_points):
+                    if stop_requested():
+                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
@@ -2309,6 +2365,8 @@ def smalldoor3zizag(
                     bounds = (min(xs), max(xs), min(ys), max(ys))
                 
                 for index, _ in enumerate(zigzag_points):
+                    if stop_requested():
+                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
@@ -2793,6 +2851,8 @@ def smalldoor4zizag(
                     bounds = (min(xs), max(xs), min(ys), max(ys))
                     
                 for index, _ in enumerate(zigzag_points):
+                    if stop_requested():
+                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break

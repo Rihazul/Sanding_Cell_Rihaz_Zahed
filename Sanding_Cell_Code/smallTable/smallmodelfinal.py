@@ -56,6 +56,7 @@ from Server_Better_V2 import (
     setup_logger,
     getTool11,
     communicate,
+    stop_requested,
 )
 from modules.CPS import CPSClient
 import time
@@ -138,6 +139,8 @@ def run_zigzag_cycles(
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
     for i in range(count):
+        if stop_requested():
+            raise RuntimeError("[Spiral] Stop requested.")
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(
             force=force,
@@ -148,6 +151,8 @@ def run_zigzag_cycles(
             spiral_settings=spiral_settings,
         )
         if i < count - 1:
+            if stop_requested():
+                raise RuntimeError("[Spiral] Stop requested.")
             print("Pausing 3 seconds...")
             time.sleep(3)
 
