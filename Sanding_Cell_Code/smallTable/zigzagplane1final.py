@@ -25,7 +25,6 @@ from Server_Better_V2 import (
     releaseForce,
     putForceZplus,
     putForceZminus,
-    stop_requested,
 )
 from smallTable.waypoint2 import (
     Waypoint2Config,
@@ -340,9 +339,6 @@ def finalize_spiral_path(
     # MovePathL should be sent only once state reaches 3.
     start = time.time()
     while True:
-        if stop_requested():
-            print("[Spiral] Stop requested while waiting for PATH_READY; aborting segment.")
-            return False
         ret, st, l_state, l_err = _read_path_l_state()
         if ret == 0 and l_err == "0" and l_state == "3":
             break
@@ -356,6 +352,7 @@ def finalize_spiral_path(
     vibration_on = False
     force_applied = False
     ok = False
+    motion_last_change = time.time()
 
     try:
         if manage_force_cycle and force is not None and config is not None:
@@ -378,46 +375,13 @@ def finalize_spiral_path(
             print(f"[Spiral] Path reported error before MovePathL: {st}")
             return False
 
-        # Small readiness gate before issuing MovePathL.
-        # Prevents 40093 when a previous segment is still finishing.
-        prelaunch_wait_start = time.time()
-        while True:
-            if stop_requested():
-                print("[Spiral] Stop requested before MovePathL prelaunch gate; aborting segment.")
-                return False
-            fsm_state, _ = RobotState._read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
-            in_motion = None
-            point_motion_done = False
-            in_position = False
-            if robot_state.fetch_and_update_flags():
-                flags_now = robot_state.state.get("flags", {})
-                in_motion = bool(flags_now.get("in_motion"))
-                point_motion_done = bool(flags_now.get("point_motion_done"))
-                in_position = bool(flags_now.get("in_position"))
-
-            ready_for_new_move = (
-                (in_motion is False)
-                and (fsm_state in (32, 33) or point_motion_done or in_position)
-            )
-            if ready_for_new_move:
-                break
-            if (time.time() - prelaunch_wait_start) > 1.2:
-                break
-            time.sleep(0.03)
-
         motion_started = False
         move_started = False
         last_move_ret = None
-        for attempt in range(8):
-            if stop_requested():
-                print("[Spiral] Stop requested before MovePathL; aborting segment.")
-                return False
-            pre_in_motion = None
-            if robot_state.fetch_and_update_flags():
-                pre_in_motion = bool(robot_state.state.get("flags", {}).get("in_motion"))
+        for attempt in range(6):
             ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
             last_move_ret = ret
-            print(f"[Spiral] Robot returned {ret} after MovePathL (attempt {attempt + 1}/8)")
+            print(f"[Spiral] Robot returned {ret} after MovePathL (attempt {attempt + 1}/6)")
             if ret == 0:
                 move_started = True
                 break
@@ -427,30 +391,19 @@ def finalize_spiral_path(
             if robot_state.fetch_and_update_flags():
                 in_motion_now = bool(robot_state.state.get("flags", {}).get("in_motion"))
 
-            # 40093 means controller reports path execution is still busy.
-            # This command did not launch the new path; wait and retry.
-            if ret == 40093:
+            if in_motion_now:
                 print(
-                    "[Spiral] Controller busy (ret=40093); waiting before retrying MovePathL."
-                )
-                time.sleep(0.12)
-                continue
-
-            # 20041 is usually a transient path-status timing mismatch.
-            if ret == 20041 and l_err_after == "0":
-                time.sleep(0.05)
-                continue
-
-            # If command returned non-zero but we observed a clean transition into motion
-            # from a previously idle state, accept it as started.
-            if (pre_in_motion is False) and in_motion_now:
-                print(
-                    "[Spiral] MovePathL returned nonzero but motion transitioned idle->moving; "
+                    "[Spiral] MovePathL returned nonzero but robot is in motion; "
                     f"continuing (ret={ret}, state={st_after})."
                 )
                 motion_started = True
                 move_started = True
                 break
+
+            # 20041 is usually a transient path-status timing mismatch.
+            if ret == 20041 and l_err_after == "0":
+                time.sleep(0.05)
+                continue
 
             print(f"[Spiral] MovePathL failed (ret={ret}, state={st_after}, path_err={l_err_after})")
             return False
@@ -482,22 +435,18 @@ def finalize_spiral_path(
         # Safety watchdog is only for abnormal hangs; estimate itself remains the target.
         safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
         timeout_notice_logged = False
-        done_stable_s = 0.12
-        done_stable_start = None
-        last_done_reason = None
+        timeout_stall_start = None
+        # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
+        position_noise_mm = 0.6
+        orientation_noise_deg = 0.8
+        settle_window_s = 0.15
+        near_end_ratio = 0.93
         motion_seen = motion_started
-
-        def _as_motion_done(value) -> bool:
-            return (
-                (isinstance(value, bool) and value)
-                or str(value).strip().lower() in ("1", "true", "ok")
-            )
-
+        last_cart = None
+        pre_move_cart = None
+        if robot_state.fetch_and_update_pos():
+            pre_move_cart = list(robot_state.state.get("cartesian_position", []))
         while True:
-            if stop_requested():
-                print("[Spiral] Stop requested during MovePathL completion wait; aborting segment.")
-                ok = False
-                break
             pstate = []
             pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
             if pret != 0:
@@ -511,80 +460,81 @@ def finalize_spiral_path(
             elapsed_move = time.time() - move_start
 
             flags = {}
-            in_motion_now = None
-            point_motion_done = False
-            in_position = False
             if robot_state.fetch_and_update_flags():
                 flags = robot_state.state.get("flags", {})
-                in_motion_now = bool(flags.get("in_motion"))
-                point_motion_done = bool(flags.get("point_motion_done"))
-                in_position = bool(flags.get("in_position"))
-                if in_motion_now:
+                if flags.get("in_motion"):
                     motion_seen = True
+                # Fast-path completion check: controller confirms motion done and in-position.
+                if (
+                    motion_seen
+                    and not flags.get("in_motion", True)
+                    and flags.get("point_motion_done", False)
+                    and flags.get("in_position", False)
+                    and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+                ):
+                    print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
+                    break
 
-            # Controller-level completion signal.
+            # Controller-level motion completion can become true slightly earlier than
+            # state-flags convergence, which helps reduce end-point dwell.
             motion_done = []
             mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
-            motion_done_api = False
             if mret == 0 and motion_done:
-                motion_done_api = _as_motion_done(motion_done[-1])
-
-            # FSM standby is a third independent completion signal.
-            fsm_state, _ = RobotState._read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
-            fsm_standby = fsm_state == 33
-
-            # Some controllers can keep in_motion=True after path completion.
-            # Only accept that stale in_motion case when FSM has left "Moving".
-            stale_in_motion_done = (
-                (in_motion_now is True)
-                and point_motion_done
-                and in_position
-                and fsm_state in (32, 33)
-            )
-            done_by_flags = (
-                point_motion_done
-                and in_position
-                and ((in_motion_now is False) or stale_in_motion_done)
-            )
-            done_by_is_motion_done = (
-                motion_done_api
-                and (in_motion_now is False or in_motion_now is None)
-            )
-            done_by_fsm = (
-                fsm_standby
-                and (in_motion_now is False or in_motion_now is None)
-            )
-
-            # Some short paths may finish before we ever sample in_motion=True.
-            observed_or_short = motion_seen or elapsed_move >= 0.25
-            min_runtime_reached = elapsed_move >= max(0.0, float(min_runtime_s))
-            completion_signal = (
-                done_by_flags
-                or done_by_is_motion_done
-                or done_by_fsm
-            )
-
-            if observed_or_short and min_runtime_reached and completion_signal:
-                if done_stable_start is None:
-                    done_stable_start = time.time()
-                    if done_by_flags:
-                        if stale_in_motion_done:
-                            last_done_reason = "flags_done+in_position(stale_in_motion)"
-                        else:
-                            last_done_reason = "flags_done+in_position"
-                    elif done_by_is_motion_done:
-                        last_done_reason = "is_motion_done"
-                    else:
-                        last_done_reason = "fsm_standby"
-                elif (time.time() - done_stable_start) >= done_stable_s:
-                    print(
-                        f"[Spiral] Completion confirmed by {last_done_reason} "
-                        f"for {done_stable_s:.2f}s; exiting wait loop."
-                    )
+                last_done = motion_done[-1]
+                done = (
+                    (isinstance(last_done, bool) and last_done)
+                    or str(last_done).strip().lower() in ("1", "true", "ok")
+                )
+                if done and motion_seen and elapsed_move >= max(0.0, float(min_runtime_s)):
+                    print("[Spiral] IsMotionDone=1; exiting wait loop.")
                     break
-            else:
-                done_stable_start = None
-                last_done_reason = None
+
+            if robot_state.fetch_and_update_pos():
+                curr_cart = list(robot_state.state.get("cartesian_position", []))
+                if (
+                    not motion_seen
+                    and pre_move_cart
+                    and len(curr_cart) >= 6
+                    and len(pre_move_cart) >= 6
+                    and (
+                        any(
+                            abs(a - b) > position_noise_mm
+                            for a, b in zip(curr_cart[:3], pre_move_cart[:3])
+                        )
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
+                        )
+                    )
+                ):
+                    motion_seen = True
+                if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
+                    moved = (
+                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
+                        )
+                    )
+                    if moved:
+                        motion_seen = True
+                        motion_last_change = time.time()
+                else:
+                    motion_last_change = time.time()
+                last_cart = curr_cart
+
+            # Fallback completion check once motion has started.
+            in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
+            near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
+            progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
+            if (
+                motion_seen
+                and near_expected_end
+                and (time.time() - motion_last_change) >= settle_window_s
+                and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+            ):
+                print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
+                # break
 
             elapsed = time.time() - start
             if elapsed > estimate_timeout:
@@ -595,12 +545,39 @@ def finalize_spiral_path(
                     )
                     timeout_notice_logged = True
 
-                if elapsed > safety_timeout:
+                # If motion updates have stopped near the expected end, finish immediately
+                # even when controller in-motion flag is stale.
+                if motion_seen and near_expected_end and not progress_recent:
+                    print("[Spiral] Motion progress stopped near end; exiting wait loop.")
+                    # break
+
+                if progress_recent:
+                    timeout_stall_start = None
+                else:
+                    if timeout_stall_start is None:
+                        timeout_stall_start = time.time()
+
+                stalled_too_long = (
+                    timeout_stall_start is not None
+                    and (time.time() - timeout_stall_start) >= 3.0
+                )
+                if elapsed > safety_timeout or stalled_too_long:
+                    # Controller states can lag after path completion; if cartesian pose is settled
+                    # and we're past the expected end, treat it as completed instead of failing.
+                    if (
+                        motion_seen
+                        and near_expected_end
+                        and (time.time() - motion_last_change) >= settle_window_s
+                    ):
+                        print(
+                            f"[Spiral] Safety timeout reached but pose is settled for "
+                            f"{settle_window_s:.2f}s; treating as complete."
+                        )
+                        break
                     print(
                         f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
                         f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
-                        f"flags={flags}, fsm={fsm_state}, path_state={pstate}, "
-                        f"is_motion_done={motion_done_api}"
+                        f"stalled={stalled_too_long}, Path state: {pstate}"
                     )
                     ok = False
                     break
@@ -740,23 +717,23 @@ def generate_zigzag_path(
             # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
             # For edge coverage, we only want tool3x and tool3y, not the inner offsets
             edge_Point1 = [
-                x_coords[0] + tool3x + 0.5,
-                y_coords[0] + tool3y + 0.5,
+                x_coords[0] + tool3x + 1.75,
+                y_coords[0] + tool3y + 1.75,
                 z_zigzag,
             ]
             edge_Point2 = [
-                x_coords[1] + tool3x + 0.5,
-                y_coords[1] - tool3y - 0.5,
+                x_coords[1] + tool3x + 1.75,
+                y_coords[1] - tool3y - 1.75,
                 z_zigzag,
             ]
             edge_Point3 = [
-                x_coords[2] - tool3x - 0.5,
-                y_coords[2] - tool3y - 0.5,
+                x_coords[2] - tool3x - 1.75,
+                y_coords[2] - tool3y - 1.75,
                 z_zigzag,
             ]
             edge_Point4 = [
-                x_coords[3] - tool3x - 0.5,
-                y_coords[3] + tool3y + 0.5,
+                x_coords[3] - tool3x - 1.75,
+                y_coords[3] + tool3y + 1.75,
                 z_zigzag,
             ]
 
@@ -1397,8 +1374,6 @@ def smalldoor1zizag(
                 #     ys = [p[1] for p in bounds_points]
                 #     bounds = (min(xs), max(xs), min(ys), max(ys))
                 for index, _ in enumerate(zigzag_points):
-                    if stop_requested():
-                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
@@ -1879,8 +1854,6 @@ def smalldoor2zizag(
                     bounds = (min(xs), max(xs), min(ys), max(ys))
                     
                 for index, _ in enumerate(zigzag_points):
-                    if stop_requested():
-                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
@@ -2365,8 +2338,6 @@ def smalldoor3zizag(
                     bounds = (min(xs), max(xs), min(ys), max(ys))
                 
                 for index, _ in enumerate(zigzag_points):
-                    if stop_requested():
-                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
@@ -2851,8 +2822,6 @@ def smalldoor4zizag(
                     bounds = (min(xs), max(xs), min(ys), max(ys))
                     
                 for index, _ in enumerate(zigzag_points):
-                    if stop_requested():
-                        raise RuntimeError("[Spiral] Stop requested.")
                     point_A = zigzag_points[index]
                     if index + 1 >= len(zigzag_points):
                         break
