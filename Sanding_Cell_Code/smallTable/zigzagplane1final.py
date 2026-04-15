@@ -561,7 +561,7 @@ def finalize_spiral_path(
                     timeout_stall_start is not None
                     and (time.time() - timeout_stall_start) >= 3.0
                 )
-                if elapsed > safety_timeout or stalled_too_long:
+                if elapsed > safety_timeout:
                     # Controller states can lag after path completion; if cartesian pose is settled
                     # and we're past the expected end, treat it as completed instead of failing.
                     # if (
