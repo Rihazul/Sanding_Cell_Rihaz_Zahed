@@ -527,14 +527,14 @@ def finalize_spiral_path(
             in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
             near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
             progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
-            if (
-                motion_seen
-                and near_expected_end
-                and (time.time() - motion_last_change) >= settle_window_s
-                and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
-            ):
-                print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
-                # break
+            # if (
+            #     motion_seen
+            #     and near_expected_end
+            #     and (time.time() - motion_last_change) >= settle_window_s
+            #     and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+            # ):
+            #     print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
+            #     # break
 
             elapsed = time.time() - start
             if elapsed > estimate_timeout:
@@ -545,11 +545,11 @@ def finalize_spiral_path(
                     )
                     timeout_notice_logged = True
 
-                # If motion updates have stopped near the expected end, finish immediately
-                # even when controller in-motion flag is stale.
-                if motion_seen and near_expected_end and not progress_recent:
-                    print("[Spiral] Motion progress stopped near end; exiting wait loop.")
-                    # break
+                # # If motion updates have stopped near the expected end, finish immediately
+                # # even when controller in-motion flag is stale.
+                # if motion_seen and near_expected_end and not progress_recent:
+                #     print("[Spiral] Motion progress stopped near end; exiting wait loop.")
+                #     # break
 
                 if progress_recent:
                     timeout_stall_start = None
