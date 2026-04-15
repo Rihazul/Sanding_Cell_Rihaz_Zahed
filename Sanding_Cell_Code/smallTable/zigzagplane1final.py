@@ -564,16 +564,16 @@ def finalize_spiral_path(
                 if elapsed > safety_timeout or stalled_too_long:
                     # Controller states can lag after path completion; if cartesian pose is settled
                     # and we're past the expected end, treat it as completed instead of failing.
-                    if (
-                        motion_seen
-                        and near_expected_end
-                        and (time.time() - motion_last_change) >= settle_window_s
-                    ):
-                        print(
-                            f"[Spiral] Safety timeout reached but pose is settled for "
-                            f"{settle_window_s:.2f}s; treating as complete."
-                        )
-                        break
+                    # if (
+                    #     motion_seen
+                    #     and near_expected_end
+                    #     and (time.time() - motion_last_change) >= settle_window_s
+                    # ):
+                    #     print(
+                    #         f"[Spiral] Safety timeout reached but pose is settled for "
+                    #         f"{settle_window_s:.2f}s; treating as complete."
+                    #     )
+                    #     break
                     print(
                         f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
                         f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
