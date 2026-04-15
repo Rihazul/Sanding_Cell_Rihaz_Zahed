@@ -481,10 +481,18 @@ def finalize_spiral_path(
             fsm_state, _ = RobotState._read_robot_fsm(cps, box_id=box_id, robot_id=robot_id)
             fsm_standby = fsm_state == 33
 
-            done_by_flags = (
-                (in_motion_now is False)
+            # Some controllers can keep in_motion=True after path completion.
+            # Accept done+in_position with stale in_motion only near expected end.
+            stale_in_motion_done = (
+                (in_motion_now is True)
                 and point_motion_done
                 and in_position
+                and elapsed_move >= max(float(min_runtime_s), estimate_timeout * 0.85)
+            )
+            done_by_flags = (
+                point_motion_done
+                and in_position
+                and ((in_motion_now is False) or stale_in_motion_done)
             )
             done_by_is_motion_done = (
                 motion_done_api
@@ -508,7 +516,10 @@ def finalize_spiral_path(
                 if done_stable_start is None:
                     done_stable_start = time.time()
                     if done_by_flags:
-                        last_done_reason = "flags_done+in_position"
+                        if stale_in_motion_done:
+                            last_done_reason = "flags_done+in_position(stale_in_motion)"
+                        else:
+                            last_done_reason = "flags_done+in_position"
                     elif done_by_is_motion_done:
                         last_done_reason = "is_motion_done"
                     else:
