@@ -531,7 +531,7 @@ def finalize_spiral_path(
         move_started = False
         move_started_by_ret0 = False
         last_move_ret = None
-        max_move_attempts = 20
+        max_move_attempts = 120
         for attempt in range(max_move_attempts):
             if stop_requested():
                 print("[Spiral] Stop requested before MovePathL; aborting segment.")
@@ -550,7 +550,9 @@ def finalize_spiral_path(
 
             _, st_after, _, l_err_after = _read_path_l_state()
             if ret in (40093, 20041) and l_err_after == "0":
-                time.sleep(0.12 if ret == 40093 else 0.05)
+                # 40093 often means another motion is still winding down.
+                # Back off longer to avoid flooding MovePathL retries.
+                time.sleep(0.20 if ret == 40093 else 0.08)
                 continue
 
             print(
@@ -606,8 +608,6 @@ def finalize_spiral_path(
                     track_progress = float(track_result[0])
                 except (TypeError, ValueError):
                     track_progress = None
-            done_by_track = (track_progress is not None) and (track_progress >= 0.999999)
-
             # Read IsMotionDone.
             motion_done = []
             motion_done_api = False
@@ -631,7 +631,19 @@ def finalize_spiral_path(
                 and in_position
                 and (in_motion_now is False)
             )
-            done_by_is_motion_done = move_started_by_ret0 and motion_done_api
+            done_by_is_motion_done = (
+                move_started_by_ret0
+                and motion_done_api
+                and (in_motion_now is False or in_motion_now is None)
+            )
+            done_by_track_raw = (track_progress is not None) and (track_progress >= 0.999999)
+            # Guard against false-positive track completion while controller still
+            # reports active motion.
+            done_by_track = done_by_track_raw and (
+                done_by_is_motion_done
+                or done_by_flags
+                or (in_motion_now is False)
+            )
 
             completion_signal = done_by_track or done_by_is_motion_done or done_by_flags
             if min_runtime_reached and completion_signal:
@@ -1478,11 +1490,14 @@ def smalldoor1zizag(
                 #     xs = [p[0] for p in bounds_points]
                 #     ys = [p[1] for p in bounds_points]
                 #     bounds = (min(xs), max(xs), min(ys), max(ys))
-                for index, _ in enumerate(zigzag_points):
-                    point_A = zigzag_points[index]
-                    if index + 1 >= len(zigzag_points):
-                        break
-                    point_B = zigzag_points[index + 1]
+                if len(zigzag_points) < 2:
+                    print("[Spiral] Not enough zigzag points for path execution.")
+                else:
+                    full_track_name = f"small_{uuid.uuid4().hex[:6]}"
+                    total_points = 0
+                    for index in range(len(zigzag_points) - 1):
+                        point_A = zigzag_points[index]
+                        point_B = zigzag_points[index + 1]
 
                     # if use_waypoint2:
                     #     wp2_segments = generate_arc_line_segments_between(
@@ -1521,42 +1536,42 @@ def smalldoor1zizag(
                 # turn_vibration_off(cps)
                 # releaseForce(cps=cps, config=config)
                 
-                    segment_track_name = f"small_{uuid.uuid4().hex[:6]}"
-                    print("Spiral move from A to B:", point_A, "->", point_B)
-                    success, count = run_spiral_between_points(
-                        cps=cps,
-                        config=config,
-                        start_pose=point_A,
-                        end_pose=point_B,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        track_name=segment_track_name,
-                        velocity=150.0,
-                        accel=300.0,
-                        jerk=3000.0,
-                        init_path=True,
-                        orientation=orientation
-                    )
-                    if not success:
-                        raise RuntimeError("[Spiral] run_spiral_between_points failed for door 1.")
+                        print("Spiral move from A to B:", point_A, "->", point_B)
+                        success, count = run_spiral_between_points(
+                            cps=cps,
+                            config=config,
+                            start_pose=point_A,
+                            end_pose=point_B,
+                            radius=12.0,
+                            angle_step_deg=60.0,
+                            track_name=full_track_name,
+                            velocity=110.0,
+                            accel=200.0,
+                            jerk=2800.0,
+                            init_path=(index == 0),
+                            orientation=orientation
+                        )
+                        if not success:
+                            raise RuntimeError("[Spiral] run_spiral_between_points failed for door 1.")
+                        total_points += int(count or 0)
 
                     timeout = compute_timeout(
-                        total_points=int(count or 0), velocity=300.0 * 10.0 / 45.0
+                        total_points=total_points, velocity=300.0 * 10.0 / 45.0
                     )
                     # Keep a short anti-false-positive runtime guard without
                     # adding visible delay at the final point.
                     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
                     finalized = finalize_spiral_path(
                         cps,
-                        segment_track_name,
+                        full_track_name,
                         box_id=0,
                         robot_id=0,
                         completion_timeout=timeout,
                         min_runtime_s=min_runtime_s,
-                        force= force,
-                        config= config,
+                        force=force,
+                        config=config,
                         manage_force_cycle=False,
-                        expected_start_pose=point_A,
+                        expected_start_pose=zigzag_points[0],
                     )
                     if not finalized:
                         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
