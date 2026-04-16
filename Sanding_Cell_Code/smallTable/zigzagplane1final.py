@@ -337,41 +337,88 @@ def finalize_spiral_path(
     # Optional telemetry from 3.19 interface to help diagnose state transitions.
     path_info = []
     info_ret = cps.HRIF_ReadPathInfo(box_id, robot_id, track_name, path_info)
-    if info_ret == 0 and len(path_info) >= 13:
+
+    def _try_parse_pose(values) -> Optional[list]:
+        if values is None:
+            return None
+        if isinstance(values, (list, tuple)):
+            if len(values) < 6:
+                return None
+            try:
+                return [float(v) for v in values[:6]]
+            except (TypeError, ValueError):
+                return None
+        if isinstance(values, str):
+            normalized = values
+            for sep in ("[", "]", "(", ")", ";", "/", "|"):
+                normalized = normalized.replace(sep, ",")
+            parts = [p.strip() for p in normalized.split(",") if p.strip()]
+            if len(parts) < 6:
+                return None
+            try:
+                return [float(v) for v in parts[:6]]
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _parse_path_info(info: list) -> dict:
+        """
+        Parse HRIF_ReadPathInfo payload according manufacturer mapping.
+        Supports both:
+        - compact field mode (coords packed as strings)
+        - comma-expanded mode caused by SDK split(',') behavior
+        """
+        parsed = {
+            "raw_type": None,
+            "status_l": None,
+            "error_l": None,
+            "point_count": None,
+            "first_pose": None,
+            "mode": "unknown",
+        }
+        if not info:
+            return parsed
+
+        # Compact form from docs:
+        # [0..9] scalars, [10] ucs, [11] tcp, [12] points, [13] first point
+        if len(info) >= 14:
+            parsed["raw_type"] = str(info[0]).strip()
+            parsed["status_l"] = str(info[3]).strip() if len(info) > 3 else None
+            parsed["error_l"] = str(info[4]).strip() if len(info) > 4 else None
+            try:
+                parsed["point_count"] = int(float(str(info[12]).strip()))
+            except (TypeError, ValueError):
+                parsed["point_count"] = None
+            parsed["first_pose"] = _try_parse_pose(info[13] if len(info) > 13 else None)
+            parsed["mode"] = "compact"
+
+        # Expanded mode:
+        # [0..9] scalars + 6 ucs + 6 tcp + [22] points + [23..28] first pose
+        if len(info) >= 29:
+            parsed["raw_type"] = str(info[0]).strip()
+            parsed["status_l"] = str(info[3]).strip() if len(info) > 3 else None
+            parsed["error_l"] = str(info[4]).strip() if len(info) > 4 else None
+            try:
+                parsed["point_count"] = int(float(str(info[22]).strip()))
+            except (TypeError, ValueError):
+                parsed["point_count"] = None
+            parsed["first_pose"] = _try_parse_pose(info[23:29])
+            parsed["mode"] = "expanded"
+
+        return parsed
+
+    path_info_parsed = _parse_path_info(path_info)
+    if info_ret == 0:
         print(
-            "[Spiral][PathInfo] raw_type={} pathL_state={} points={}".format(
-                path_info[0] if len(path_info) > 0 else "?",
-                path_info[3] if len(path_info) > 3 else "?",
-                path_info[12] if len(path_info) > 12 else "?",
+            "[Spiral][PathInfo] mode={} len={} raw_type={} stateL={} errL={} points={}".format(
+                path_info_parsed.get("mode"),
+                len(path_info),
+                path_info_parsed.get("raw_type"),
+                path_info_parsed.get("status_l"),
+                path_info_parsed.get("error_l"),
+                path_info_parsed.get("point_count"),
             )
         )
-
-    def _parse_path_first_pose(info) -> Optional[list]:
-        if not info:
-            return None
-        if len(info) >= 19:
-            try:
-                return [float(v) for v in info[13:19]]
-            except (TypeError, ValueError):
-                pass
-        if len(info) > 13:
-            payload = info[13]
-            if isinstance(payload, (list, tuple)) and len(payload) >= 6:
-                try:
-                    return [float(v) for v in payload[:6]]
-                except (TypeError, ValueError):
-                    return None
-            if isinstance(payload, str):
-                normalized = payload
-                for sep in ("[", "]", "(", ")", ";", "/", "|"):
-                    normalized = normalized.replace(sep, ",")
-                parts = [p.strip() for p in normalized.split(",") if p.strip()]
-                if len(parts) >= 6:
-                    try:
-                        return [float(v) for v in parts[:6]]
-                    except (TypeError, ValueError):
-                        return None
-        return None
 
     def _read_path_l_state():
         st = []
@@ -403,8 +450,23 @@ def finalize_spiral_path(
         time.sleep(0.05)
 
     # Move to trajectory start position before execution (manufacturer flow).
-    first_pose = _parse_path_first_pose(path_info)
-    start_pose_target = first_pose if first_pose is not None else expected_start_pose
+    first_pose = path_info_parsed.get("first_pose")
+    start_pose_target = None
+    if expected_start_pose is not None and len(expected_start_pose) >= 6:
+        start_pose_target = list(expected_start_pose[:6])
+        if first_pose is not None and len(first_pose) >= 6:
+            try:
+                ref_pos_err = max(abs(a - b) for a, b in zip(first_pose[:3], start_pose_target[:3]))
+                ref_ori_err = max(abs(a - b) for a, b in zip(first_pose[3:6], start_pose_target[3:6]))
+                if ref_pos_err > 50.0 or ref_ori_err > 20.0:
+                    print(
+                        "[Spiral] Ignoring ReadPathInfo first-point due mismatch with expected start "
+                        f"(pos_err={ref_pos_err:.3f}mm ori_err={ref_ori_err:.3f}deg)."
+                    )
+            except Exception:
+                pass
+    elif first_pose is not None and len(first_pose) >= 6:
+        start_pose_target = list(first_pose[:6])
     if start_pose_target is not None and len(start_pose_target) >= 6 and config is not None:
         tcp_name = config["coords"].get("tcptool3plane1")
         ucs_name = config["coords"].get("ucsTable1")
@@ -415,26 +477,36 @@ def finalize_spiral_path(
             need_align = pos_err > float(start_pos_tol_mm) or ori_err > float(start_ori_tol_deg)
             if need_align:
                 if not manage_force_cycle:
+                    # Under externally managed force, allow small/medium offsets from compliance.
+                    # Abort only on gross mismatch that indicates wrong start target.
+                    if pos_err <= 50.0 and ori_err <= 20.0:
+                        print(
+                            "[Spiral] Start offset detected under external force cycle; "
+                            f"continuing without alignment (pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
+                        )
+                        need_align = False
+                    else:
+                        print(
+                            "[Spiral] Not at trajectory start while force cycle is externally managed; "
+                            f"pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg. Aborting segment."
+                        )
+                        return False
+                if need_align:
                     print(
-                        "[Spiral] Not at trajectory start while force cycle is externally managed; "
-                        f"pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg. Aborting segment."
+                        "[Spiral] Aligning to trajectory start before MovePathL "
+                        f"(pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
                     )
-                    return False
-                print(
-                    "[Spiral] Aligning to trajectory start before MovePathL "
-                    f"(pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
-                )
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=list(start_pose_target[:6]),
-                    tcp=tcp_name,
-                    ucs=ucs_name,
-                    seventh=-1,
-                    speed=0.8,
-                    wait=True,
-                    speed_mode="linear",
-                )
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=list(start_pose_target[:6]),
+                        tcp=tcp_name,
+                        ucs=ucs_name,
+                        seventh=-1,
+                        speed=0.8,
+                        wait=True,
+                        speed_mode="linear",
+                    )
 
     vibration_on = False
     force_applied = False
