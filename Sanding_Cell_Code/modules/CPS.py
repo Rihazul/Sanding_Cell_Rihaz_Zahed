@@ -6,7 +6,7 @@
 *	
 *	FileName:CPS.py
 *	Descriptio:Python SDK
-*   version:1.1.1.0
+*   version:1.1.5.0
 *	Modification Records:
 * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 *   SDK Version                    Date                                                      Add                                                            Modify                                                       Delete
@@ -136,13 +136,22 @@
                                                                                              HRIF_SetDftTCP
                                                                                              HRIF_SetPathRefJoints
 * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-* V1.1.0.0                           2025.09.12                                                                                                                Modify connection
+* V1.1.0.0                           2025.09.12                                                                                                               Modify connection
 * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-* V1.1.0.1                          2025.11.04                                               Bilingual Annotations                                                                
+* V1.1.0.1                           2025.11.04                                              Bilingual Annotations
 * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-* V1.1.1.0                          2025.11.24                                               HRIF_SetIOBeforeTarget
+* V1.1.1.0                           2025.11.24                                              HRIF_SetIOBeforeTarget
 * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-* V1.1.2.0                          2026.01.19                                               HRIF_MoveJS
+* V1.1.2.0                           2026.01.19                                              HRIF_MoveJS
+* ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+* V1.1.3.0                           2026.02.26                                              HRIF_SetPathJVel
+* ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+* V1.1.4.0                           2026.03.02                                              HRIF_SmoothStop
+* ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+* V1.1.5.0                           2026.03.09                                              HRIF_InitServoEsJ
+                                                                                             HRIF_StartServoEsJ
+                                                                                             HRIF_StartServoEsJPro
+                                                                                             HRIF_PushServoEsJ
 * ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
  '''
@@ -1196,6 +1205,25 @@ class CPSClient(object):
         command += str(rbtID) + ',;'
         return self.g_clients[boxID].sendAndRecv(command, result)
 
+    '''
+    *	@index : 19
+    *	@param brief: Robot stop motion smoothly
+    *	@param boxID : Control box ID
+    *	@param rbtID : Robot ID         
+    *   @param dAccRatio : Acceleration ratio (0.1~1)
+    *   @param dJerkRatio : Jerk ratio (0.1~1)
+    *	
+    *	@return : nRet=0 : Function call succeeded
+    *             nRet>0 : Error code of function call
+    '''
+    def HRIF_SmoothStop(self, boxID, rbtID, dAccRatio, dJerkRatio):
+        result = []
+        command = 'SmoothStop,'
+        command += str(rbtID) + ','
+        command += str(dAccRatio) + ','
+        command += str(dJerkRatio) + ',;'
+        return self.g_clients[boxID].sendAndRecv(command, result)
+
     #
     # part 3 Interfaces for script
     #
@@ -1394,7 +1422,6 @@ class CPSClient(object):
         for i in range(8):
             command += str(i) +','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
 
     '''
@@ -1411,7 +1438,6 @@ class CPSClient(object):
         for i in range(8):
             command += str(i) +','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
@@ -1428,7 +1454,6 @@ class CPSClient(object):
         for i in range(8):
             command += str(i) +','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
@@ -1445,7 +1470,6 @@ class CPSClient(object):
         for i in range(8):
             command += str(i) +','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
@@ -2031,7 +2055,6 @@ class CPSClient(object):
         command = 'ReadMaxRange,'
         command += str(rbtID) +','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
@@ -2051,7 +2074,6 @@ class CPSClient(object):
         command = 'ReadMaxRange,'
         command += str(rbtID) +','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
 
     '''
@@ -3266,7 +3288,6 @@ class CPSClient(object):
         for i in range(6):
             command += str(dPcs[i]) + ','
         command += ';'
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
 
     '''
@@ -3554,7 +3575,6 @@ class CPSClient(object):
         command += str(rbtID) +','
         command += str(TCP) + ','
         command += ';'
-        print(command)
         result = []
         return self.g_clients[boxID].sendAndRecv(command, result)
     
@@ -3575,10 +3595,9 @@ class CPSClient(object):
     def HRIF_ReadActCoord(self, boxID, rbtID, TCP, UCS, result):
         command = 'ReadActCoord,'
         command += str(rbtID) + ','
-        command += TCP + ','
         command += UCS + ','
+        command += TCP + ','
         command += ";"
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
@@ -3595,13 +3614,12 @@ class CPSClient(object):
     *	@return : nRet=0 : Function call succeeded
     *             nRet>0 : Error code of function call
     '''
-    def HRIF_ReadActCoord_nJ(self,boxID, rbtID,TCP,UCS, result):
+    def HRIF_ReadActCoord_nJ(self, boxID, rbtID, TCP, UCS, result):
         command = 'ReadActCoord,'
         command += str(rbtID) + ','
-        command += TCP + ','
         command += UCS + ','
+        command += TCP + ','
         command += ";"
-        print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
 
 
@@ -4065,7 +4083,6 @@ class CPSClient(object):
         for i in range(0, 6):
             command += str(df[i]) + ','
         command += ';'
-        # print(command)
         return self.g_clients[boxID].sendAndRecv(command, result)
 
     '''
@@ -6233,16 +6250,37 @@ class CPSClient(object):
         for i in range(6):
             command += str(dAcs[i]) + ','
         command += ';'
-        print(command)
+        result = []
+        return self.g_clients[boxID].sendAndRecv(command, result)
+
+    '''
+        *	@index : 24
+        *	@param brief: Set trajectory motion joint speed and acceleration
+        *	@param boxID: Control box ID
+        *	@param rbtID: Robot ID
+        *	@param sPathName : Path name
+        *	@param dJointVel : Path joint Velocity
+        *	@param dJointAcc : Path joint acceleration
+        *	
+        *	@return : nRet=0 : Function call succeeded
+        *             nRet>0 : Error code of function call
+    '''
+    def HRIF_SetPathJVel(self, boxID, rbtID, sPathName, dJointVel, dJointAcc):
+        command = 'SetPathJVel,'
+        command += str(rbtID) + ','
+        command += sPathName + ','
+        command += str(dJointVel) + ','
+        command += str(dJointAcc) + ','
+        command += ';'
         result = []
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
-    *	@index : 24
+    *	@index : 25
     *	@param brief: Start MovePathJ for online implementation planning
     *	@param boxID: Control box ID
     *	@param rbtID: Robot ID
-    *	@param dVel : Joint velocitie
+    *	@param dVel : Joint velocity
     *   @param dAcc : Joint acceleration
     *   @param dTol : Filter parameter
     *	@param RawACSpoints : Target joint pose
@@ -6292,11 +6330,11 @@ class CPSClient(object):
         return self.g_clients[boxID].sendAndRecv(command, result)
     
     '''
-    *	@index : 25
+    *	@index : 26
     *	@param brief: Obtain the index number of the current point position of MovePathJOL motion and the total number of points in the trajectory motion
     *	@param boxID: Control box ID
     *	@param rbtID: Robot ID
-    *	@param dVel : Joint velocitie
+    *	@param dVel : Joint velocity
     *   @param dAcc : Joint acceleration
     *   @param dTol : Filter parameter
     *	@param RawACSpoints : Target joint pose
@@ -6478,6 +6516,28 @@ class CPSClient(object):
 
     '''
     *	@index : 8
+    *	@param brief: Start move for servoEsJ
+    *	@param boxID: Control box ID
+    *	@param rbtID: Robot ID
+    *	@param dStiffnessFactor : Stiffness Gain Coefficient
+    *	@param dInterval : Time interval for sending points inside the controller
+    *	@param dLookaheadTime : LookaheadTime (s)
+    *	
+    *	@return : nRet=0 : Function call succeeded
+    *             nRet>0 : Error code of function call
+    '''
+    def HRIF_StartServoEsJPro(self, boxID, rbtID, dStiffnessFactor, dInterval, dLookaheadTime):
+        result = []
+        command = 'StartServoEsJPro,'
+        command += str(rbtID) + ','
+        command += str(dStiffnessFactor) + ','
+        command += str(dInterval) + ','
+        command += str(dLookaheadTime) + ','
+        command += ';'
+        return self.g_clients[boxID].sendAndRecv(command, result)
+
+    '''
+    *	@index : 9
     *	@param brief: Push points list for servoEsJ
     *	@param boxID: Control box ID
     *	@param rbtID: Robot ID
@@ -6498,11 +6558,13 @@ class CPSClient(object):
         return self.g_clients[boxID].sendAndRecv(command, result)
 
     '''
-    *	@index : 9
+    *	@index : 10
     *	@param brief: Read servoEsJ state with call interval more than 20 ms
     *	@param boxID: Control box ID
     *	@param rbtID: Robot ID
     *	@param result[0] : Pushing point is allowed or not; 0 for allowed, 1 for not allowed
+    *	@param result[1] : Index of the currently running point
+    *	@param result[2] : Current number of points
     *	
     *	@return : nRet=0 : Function call succeeded
     *             nRet>0 : Error code of function call
