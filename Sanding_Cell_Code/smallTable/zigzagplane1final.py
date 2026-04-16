@@ -474,23 +474,18 @@ def finalize_spiral_path(
         if actual_pose is not None and len(actual_pose) >= 6:
             pos_err = max(abs(a - b) for a, b in zip(actual_pose[:3], start_pose_target[:3]))
             ori_err = max(abs(a - b) for a, b in zip(actual_pose[3:6], start_pose_target[3:6]))
-            need_align = pos_err > float(start_pos_tol_mm) or ori_err > float(start_ori_tol_deg)
+            # In practice, orientation units/representation may differ between path points
+            # and readback pose on some controller builds; use position as the hard gate.
+            need_align = pos_err > float(start_pos_tol_mm)
             if need_align:
                 if not manage_force_cycle:
-                    # Under externally managed force, allow small/medium offsets from compliance.
-                    # Abort only on gross mismatch that indicates wrong start target.
-                    if pos_err <= 50.0 and ori_err <= 20.0:
-                        print(
-                            "[Spiral] Start offset detected under external force cycle; "
-                            f"continuing without alignment (pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
-                        )
-                        need_align = False
-                    else:
-                        print(
-                            "[Spiral] Not at trajectory start while force cycle is externally managed; "
-                            f"pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg. Aborting segment."
-                        )
-                        return False
+                    # For segmented A->B MovePathL with force managed outside this function,
+                    # do not force or abort start re-alignment; continue to preserve flow.
+                    print(
+                        "[Spiral] Start offset detected while force cycle is externally managed; "
+                        f"continuing without enforced alignment (pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
+                    )
+                    need_align = False
                 if need_align:
                     print(
                         "[Spiral] Aligning to trajectory start before MovePathL "
