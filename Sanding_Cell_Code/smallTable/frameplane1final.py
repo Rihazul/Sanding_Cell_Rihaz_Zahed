@@ -572,6 +572,9 @@ def smalldoor1side(force,cps):
                 wait=True,
             )   
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -595,42 +598,53 @@ def smalldoor1side(force,cps):
                     end_pose[5],
                 ]
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
-                )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
-            
-            if path_initialized and not push_failed:
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
 
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
+            
+            # if path_initialized and not push_failed:
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
+
             # Wait for blending and turn off vibration
-            #waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
@@ -782,6 +796,9 @@ def smalldoor1side(force,cps):
             enable_force = False
             enable_vibration = False
             
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in sanding_points
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -817,46 +834,57 @@ def smalldoor1side(force,cps):
                     continue
 
 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            #waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -896,6 +924,9 @@ def smalldoor1side(force,cps):
             enable_force = False
             enable_vibration = False
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -914,46 +945,57 @@ def smalldoor1side(force,cps):
                 except (TypeError, ValueError):
                     continue
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            #waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1005,9 +1047,10 @@ def smalldoor1side(force,cps):
         
         communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        # Ensure explicit tool lift before 7th-axis transition to top section.
+        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -1124,6 +1167,9 @@ def smalldoor2side(force,cps):
             enable_force = False
             enable_vibration = False
             
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in sanding_points
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -1135,47 +1181,58 @@ def smalldoor2side(force,cps):
                 if point == bottom3:
                     enable_vibration = True
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
                     
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1318,6 +1375,9 @@ def smalldoor2side(force,cps):
             enable_vibration = False
 
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -1329,48 +1389,59 @@ def smalldoor2side(force,cps):
                 if point == bottom0:
                     enable_vibration = True
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
-            
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
 
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
+            
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
+
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1409,6 +1480,9 @@ def smalldoor2side(force,cps):
             enable_force = False
             enable_vibration = False
             
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -1420,47 +1494,58 @@ def smalldoor2side(force,cps):
                 if point == toppoint2:
                     enable_vibration = True
                     
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
                 
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1511,9 +1596,11 @@ def smalldoor2side(force,cps):
             axis_thread.join()
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
+        # Ensure explicit tool lift before 7th-axis transition to top section.
+        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -1629,6 +1716,9 @@ def smalldoor3side(force,cps):
             enable_force = False
             enable_vibration = False
             
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -1640,46 +1730,57 @@ def smalldoor3side(force,cps):
                 if point == bottom3:
                     enable_vibration = True
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
                 
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1821,6 +1922,9 @@ def smalldoor3side(force,cps):
             enable_force = False
             enable_vibration = False
             
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points)-1):
                 point = sanding_points[i]
@@ -1832,48 +1936,59 @@ def smalldoor3side(force,cps):
                 if point == bottom0:
                     enable_vibration = True
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
                     
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -1911,6 +2026,9 @@ def smalldoor3side(force,cps):
             enable_force = False
             enable_vibration = False
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -1922,46 +2040,57 @@ def smalldoor3side(force,cps):
                 if point == toppoint2:
                     enable_vibration = True
                     
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -2012,9 +2141,11 @@ def smalldoor3side(force,cps):
             axis_thread.join()
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
+        # Ensure explicit tool lift before 7th-axis transition to top section.
+        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -2128,6 +2259,9 @@ def smalldoor4side(force,cps):
             enable_force = False
             enable_vibration = False
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -2139,46 +2273,57 @@ def smalldoor4side(force,cps):
                 if point == bottom3:
                     enable_vibration = True
                 
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -2321,6 +2466,9 @@ def smalldoor4side(force,cps):
             enable_vibration = False
             
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -2332,46 +2480,57 @@ def smalldoor4side(force,cps):
                 if point == bottom0:
                     enable_vibration = True
             
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -2409,6 +2568,9 @@ def smalldoor4side(force,cps):
             enable_force = False
             enable_vibration = False
 
+            # Start linear sanding mode (MoveL point-to-point)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
                 point = sanding_points[i]
@@ -2420,47 +2582,58 @@ def smalldoor4side(force,cps):
                 if point == toppoint2:
                     enable_vibration = True
                     
-                success, count = run_spiral_between_points(
+                communicate(
                     cps=cps,
                     config=config,
-                    start_pose=start_pose,
-                    end_pose=end_pose,
-                    radius=12.0,
-                    angle_step_deg=45.0,
-                    track_name=spiral_track_name,
-                    velocity=150.0,
-                    accel=300.0,
-                    jerk=3000.0,
-                    init_path=not path_initialized,
+                    point=end_pose,
+                    tcp=config["coords"]["tcptool3plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=0.6,
+                    wait=True,
                 )
-                if not success:
-                    push_failed = True
-                    break
-                path_initialized = True
-                total_count += count
+
+            #     success, count = run_spiral_between_points(
+            #         cps=cps,
+            #         config=config,
+            #         start_pose=start_pose,
+            #         end_pose=end_pose,
+            #         radius=12.0,
+            #         angle_step_deg=45.0,
+            #         track_name=spiral_track_name,
+            #         velocity=150.0,
+            #         accel=300.0,
+            #         jerk=3000.0,
+            #         init_path=not path_initialized,
+            #     )
+            #     if not success:
+            #         push_failed = True
+            #         break
+            #     path_initialized = True
+            #     total_count += count
             
-            if path_initialized and not push_failed:
-                if enable_force:
-                    pass  # force handled in finalize
-                if enable_vibration:
-                    pass  # vibration handled in finalize
+            # if path_initialized and not push_failed:
+            #     if enable_force:
+            #         pass  # force handled in finalize
+            #     if enable_vibration:
+            #         pass  # vibration handled in finalize
                     
-                timeout = compute_timeout(
-                    total_points=total_count, velocity=150.0
-                )
-                finalize_spiral_path(
-                    cps,
-                    spiral_track_name,
-                    box_id=0,
-                    robot_id=0,
-                    completion_timeout=timeout,
-                    force=force,
-                    force_func=putForceZminus,
-                    config=config,
-                )
+            #     timeout = compute_timeout(
+            #         total_points=total_count, velocity=150.0
+            #     )
+            #     finalize_spiral_path(
+            #         cps,
+            #         spiral_track_name,
+            #         box_id=0,
+            #         robot_id=0,
+            #         completion_timeout=timeout,
+            #         force=force,
+            #         force_func=putForceZminus,
+            #         config=config,
+            #     )
             
             # Wait for blending and turn off vibration
-            # waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             
             # Release Force Control
@@ -2511,9 +2684,11 @@ def smalldoor4side(force,cps):
             axis_thread.join()
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
-        #communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        run_single_movement(robot_point=toppoint5pre, seventh_axis_point=conx2, cps=cps, config=config)
-        #communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
+        # Ensure explicit tool lift before 7th-axis transition to top section.
+        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -2550,6 +2725,8 @@ if __name__ == "__main__":
     smalldoor3side(force=5)
     #smalldoor4side(force=5)
     
+
+
 
 
 
