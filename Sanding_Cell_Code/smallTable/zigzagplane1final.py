@@ -189,17 +189,20 @@ def generate_spiral_between_points(
     x1, y1, _, _, _, _ = end_pose[:6]
     if radius is None:
         radius = DEFAULT_SPIRAL_RADIUS
-    if y0 == y1 and orientation == "vertical":
-        turns = 1
-    elif x0 == x1 and orientation == "horizontal":
-        turns = 1
+    if turns is None:
+        if y0 == y1 and orientation == "vertical":
+            turns = 1
+        elif x0 == x1 and orientation == "horizontal":
+            turns = 1
+        else:
+            dist = max(abs(x1 - x0), abs(y1 - y0))
+            # factor = 1.0
+            # if orientation == "vertical":
+            #     factor= 1.3
+            # turns = int((4.0/260.0) * float(dist) * float(factor))
+            turns = math.ceil(dist / (radius * 2.0))
     else:
-        dist = max(abs(x1 - x0), abs(y1 - y0))
-        # factor = 1.0
-        # if orientation == "vertical":
-        #     factor= 1.3
-        # turns = int((4.0/260.0) * float(dist) * float(factor))
-        turns = math.ceil(dist/(radius*2.0))
+        turns = max(1, int(turns))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -1576,13 +1579,26 @@ def smalldoor1zizag(
                     # if not finalized:
                     #     raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
-                    points = generate_spiral_between_points(point_A, point_B, radius=12.0, angle_step_deg=60.0)
+                    segment_dist = math.hypot(point_B[0] - point_A[0], point_B[1] - point_A[1])
+                    segment_turns = max(2, math.ceil(segment_dist / 50.0))
+                    points = generate_spiral_between_points(
+                        point_A,
+                        point_B,
+                        turns=segment_turns,
+                        radius=12.0,
+                        angle_step_deg=45.0,
+                        max_points=140,
+                        orientation=orientation,
+                    )
                     if len(points) % 6 != 0:
                         raise ValueError(
                             f"[Spiral] Point list misaligned for MoveL (len={len(points)})"
                         )
 
                     point_poses = [points[i : i + 6] for i in range(0, len(points), 6)]
+                    print(
+                        f"[Spiral MoveL] dist={segment_dist:.2f}mm turns={segment_turns} poses={len(point_poses)}"
+                    )
 
                     for idx, point in enumerate(point_poses):
                         is_last_point = idx == (len(point_poses) - 1)
