@@ -1537,44 +1537,60 @@ def smalldoor1zizag(
                 # releaseForce(cps=cps, config=config)
                 
                         print("Spiral move from A to B:", point_A, "->", point_B)
-                        success, count = run_spiral_between_points(
+                    #     success, count = run_spiral_between_points(
+                    #         cps=cps,
+                    #         config=config,
+                    #         start_pose=point_A,
+                    #         end_pose=point_B,
+                    #         radius=12.0,
+                    #         angle_step_deg=60.0,
+                    #         track_name=full_track_name,
+                    #         velocity=110.0,
+                    #         accel=200.0,
+                    #         jerk=2800.0,
+                    #         init_path=(index == 0),
+                    #         orientation=orientation
+                    #     )
+                    #     if not success:
+                    #         raise RuntimeError("[Spiral] run_spiral_between_points failed for door 1.")
+                    #     total_points += int(count or 0)
+
+                    # timeout = compute_timeout(
+                    #     total_points=total_points, velocity=300.0 * 10.0 / 45.0
+                    # )
+                    # # Keep a short anti-false-positive runtime guard without
+                    # # adding visible delay at the final point.
+                    # min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                    # finalized = finalize_spiral_path(
+                    #     cps,
+                    #     full_track_name,
+                    #     box_id=0,
+                    #     robot_id=0,
+                    #     completion_timeout=timeout,
+                    #     min_runtime_s=min_runtime_s,
+                    #     force=force,
+                    #     config=config,
+                    #     manage_force_cycle=False,
+                    #     expected_start_pose=zigzag_points[0],
+                    # )
+                    # if not finalized:
+                    #     raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
+                    
+                    points = generate_spiral_between_points(point_A, point_B, radius=12.0, angle_step_deg=60.0)
+                    
+                    for idx, point in enumerate(points):
+                        is_last_point = idx == (len(points) - 1)
+                        communicate(
                             cps=cps,
                             config=config,
-                            start_pose=point_A,
-                            end_pose=point_B,
-                            radius=12.0,
-                            angle_step_deg=60.0,
-                            track_name=full_track_name,
-                            velocity=110.0,
-                            accel=200.0,
-                            jerk=2800.0,
-                            init_path=(index == 0),
-                            orientation=orientation
+                            point=point,
+                            tcp=config["coords"]["tcptool3plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=float(json_config["sandingSpeed"]),
+                            speed_mode="linear",
+                            wait=is_last_point
                         )
-                        if not success:
-                            raise RuntimeError("[Spiral] run_spiral_between_points failed for door 1.")
-                        total_points += int(count or 0)
-
-                    timeout = compute_timeout(
-                        total_points=total_points, velocity=300.0 * 10.0 / 45.0
-                    )
-                    # Keep a short anti-false-positive runtime guard without
-                    # adding visible delay at the final point.
-                    min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    finalized = finalize_spiral_path(
-                        cps,
-                        full_track_name,
-                        box_id=0,
-                        robot_id=0,
-                        completion_timeout=timeout,
-                        min_runtime_s=min_runtime_s,
-                        force=force,
-                        config=config,
-                        manage_force_cycle=False,
-                        expected_start_pose=zigzag_points[0],
-                    )
-                    if not finalized:
-                        raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
