@@ -36,6 +36,226 @@ def load_json_config():
     return config
 
 
+def _generate_zigzag_path_shared(x_coords, y_coords, z_coords, innerOffset, innerOffsetX, orientation="vertical", movement="zigzag", innerSandingOffset=50, edge_coverage=False):
+    prepoint = None
+    zigzag_coords = []
+    
+    # Parameters (adjust as needed)
+    tool3y = 50.8   # Tool offset in Y
+    tool3x = 38.1   # Tool offset in X
+    innerSandingOffset = float(innerSandingOffset)  # Step size in X (instead of Y)
+    xframe_1 = 0
+    xframe_2 = 0
+
+    # 1) Collect boundary coordinates as [x, y, z]
+    boundary_coords = []
+    for i in range(len(x_coords)):
+        boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
+
+    # Close the loop by duplicating the first point at the end
+    if boundary_coords:
+        boundary_coords.append(boundary_coords[0][:])  # copy for safety
+
+    # 2) Compute the zigzag path (offset corners + zigzag)
+    zigzag_coords = []
+
+    # Ensure we have valid coordinates
+    if x_coords and y_coords and z_coords:
+        # We'll assume the pocket's Z-level is the same as the first boundary point
+        z_zigzag = boundary_coords[0][2]
+
+        # For Pocket4, corners (P13, P14, P15, P16):
+        modified_Point2 = [
+            (x_coords[1])/1 + tool3x + innerOffsetX,
+            y_coords[1] - tool3y - (innerOffset),
+        ]
+        modified_Point3 = [
+            x_coords[2] - tool3x - innerOffset,
+            y_coords[2] - tool3y - innerOffset,
+        ]
+        modified_Point1 = [
+            (x_coords[0])/1 + tool3x + innerOffsetX,
+            y_coords[0] + tool3y + innerOffset,
+        ]
+        modified_Point4 = [
+            x_coords[3] - tool3x - innerOffset,
+            y_coords[3] + tool3y + innerOffset,
+        ]
+        print("modified_Point1:", modified_Point1)
+        print("modified_Point2:", modified_Point2)
+        print("modified_Point3:", modified_Point3)
+        print("modified_Point4:", modified_Point4)
+
+        # Calculate available horizontal dimension
+        xlen1 = abs(modified_Point3[0] - modified_Point1[0])
+        xinner = xlen1 - xframe_1 - xframe_2
+        print("xinner=", xinner)
+
+        # Bounding box for horizontal orientation
+        x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
+        x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
+        y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
+        y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
+
+        orientation_mode = (orientation or "vertical").lower()
+
+        # Edge coverage path around the boundary (single pass)
+        edge_coverage_coords = []
+        edge_prepoint = None
+        edge_offset = 1.75
+        if edge_coverage:
+            edge_Point1 = [
+                x_coords[0] + tool3x + edge_offset,
+                y_coords[0] + tool3y + edge_offset,
+            ]
+            edge_Point2 = [
+                x_coords[1] + tool3x + edge_offset,
+                y_coords[1] - tool3y - edge_offset,
+            ]
+            edge_Point3 = [
+                x_coords[2] - tool3x - edge_offset,
+                y_coords[2] - tool3y - edge_offset,
+            ]
+            edge_Point4 = [
+                x_coords[3] - tool3x - edge_offset,
+                y_coords[3] + tool3y + edge_offset,
+            ]
+
+            if orientation_mode == "horizontal":
+                edge_coverage_coords = [
+                    [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
+                    [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
+                    [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
+                    [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
+                    [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
+                ]
+            else:
+                edge_coverage_coords = [
+                    [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
+                    [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
+                    [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
+                    [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
+                    [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
+                ]
+
+        if orientation_mode == "horizontal":
+            yinner = abs(y_max - y_min)
+            if yinner > 0:
+                num_steps = math.floor(yinner / innerSandingOffset)
+                if num_steps == 0:
+                    num_steps = 1
+                adjusted_step = yinner / num_steps
+
+                offset = 0.0
+                toggle = 0
+
+                # Build zigzag rows from top (max y) to bottom (min y)
+                while offset <= yinner + 1e-9:  # small floating-point tolerance
+                    current_y = y_max - offset
+                    row_points = [
+                        [x_min, current_y, z_zigzag, 0, 0, 0],
+                        [x_max, current_y, z_zigzag, 0, 0, 0],
+                    ]
+                    # Reverse every other row to create a zigzag
+                    if toggle:
+                        row_points.reverse()
+
+                    zigzag_coords.extend(row_points)
+                    offset += adjusted_step
+                    toggle = 1 - toggle
+            else:
+                # Fallback: single row when height is too small
+                zigzag_coords.extend(
+                    [
+                        [x_min, y_max, z_zigzag, 0, 0, 0],
+                        [x_max, y_max, z_zigzag, 0, 0, 0],
+                    ]
+                )
+        else:
+            if xinner > 0:
+                # Determine how many "columns" in the zigzag
+                num_steps = math.ceil(xinner / innerSandingOffset)
+                adjusted_step = xinner / num_steps
+
+                offset = 0.0
+                toggle = 0
+
+                # Build zigzag path from left to right
+                while offset <= xinner + 1e-9:  # small floating-point tolerance
+                    row_points = [
+                        [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
+                        [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                    ]
+                    # Reverse every other row to create a zigzag
+                    if toggle:
+                        row_points.reverse()
+
+                    zigzag_coords.extend(row_points)
+                    offset += adjusted_step
+                    toggle = 1 - toggle
+
+        # Update only the y coordinate to its absolute value
+        for point in zigzag_coords:
+            point[1] = abs(point[1])
+            point[0] = abs(point[0])
+
+        # Update edge coverage coords to absolute values
+        for point in edge_coverage_coords:
+            point[1] = abs(point[1])
+            point[0] = abs(point[0])
+
+        if edge_coverage_coords:
+            edge_prepoint = [
+                abs(edge_coverage_coords[0][0]) + 0.5,
+                edge_coverage_coords[0][1],
+                z_zigzag,
+                0,
+                0,
+                0,
+            ]
+
+        if orientation_mode == "horizontal":
+            prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
+        else:
+            prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
+    return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
+
+
+def _perform_process_top_shared(cps, config, points1, force, tcp, ucs, speed=0.6):
+    # Vibration on
+    
+    
+    # Force Control Activated
+    putForceZminus(
+        cps=cps,
+        force=force,
+        tcp=tcp,
+        ucs=ucs,
+        config=config
+    )
+    turn_vibration_on(cps)
+    
+    # Communicate to each point in points1
+    for point in points1:
+        communicate(
+            cps=cps,
+            config=config,
+            point=point,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=speed,
+            wait=False
+        )
+    
+    # Wait for blending and turn off vibration
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    #Release force
+    releaseForce(cps=cps, config=config)
+
+
+
 def smalldoor1zizag(
     force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
 ):
@@ -130,228 +350,33 @@ def smalldoor1zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
-
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=9,innerOffsetX=1, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=17,innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-
 
         # Original sequence with dynamic variables
         communicate(
@@ -491,227 +516,37 @@ def smalldoor1zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-        
 
         # Edge coverage (single pass)
         if edge_pathp1:
@@ -902,228 +737,33 @@ def smalldoor2zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
-
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=17,innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-
 
         # Original sequence with dynamic variables
         communicate(
@@ -1263,227 +903,37 @@ def smalldoor2zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-        
 
         # Edge coverage (single pass)
         if edge_pathp1:
@@ -1674,228 +1124,33 @@ def smalldoor3zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
-
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=17,innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-
 
         # Original sequence with dynamic variables
         communicate(
@@ -2035,227 +1290,37 @@ def smalldoor3zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-        
 
         # Edge coverage (single pass)
         if edge_pathp1:
@@ -2446,228 +1511,33 @@ def smalldoor4zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/1 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - (innerOffset),
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/1 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-                print("modified_Point1:", modified_Point1)
-                print("modified_Point2:", modified_Point2)
-                print("modified_Point3:", modified_Point3)
-                print("modified_Point4:", modified_Point4)
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
-
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=5,innerOffsetX=2, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,innerOffset=17,innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-
 
         # Original sequence with dynamic variables
         communicate(
@@ -2807,227 +1677,37 @@ def smalldoor4zizag(
         #zigzag_coords = []
 
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX, edge_coverage=False):
-            prepoint = None
-            zigzag_coords = []
-            
-            # Parameters (adjust as needed)
-            tool3y = 50.8   # Tool offset in Y
-            tool3x = 38.1   # Tool offset in X
-            innerSandingOffset = 50  # Step size in X (instead of Y)
-            xframe_1 = 0
-            xframe_2 = 0
-
-            # 1) Collect boundary coordinates as [x, y, z]
-            boundary_coords = []
-            for i in range(len(x_coords)):
-                boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-            # Close the loop by duplicating the first point at the end
-            if boundary_coords:
-                boundary_coords.append(boundary_coords[0][:])  # copy for safety
-
-            # 2) Compute the zigzag path (offset corners + zigzag)
-            zigzag_coords = []
-
-            # Ensure we have valid coordinates
-            if x_coords and y_coords and z_coords:
-                # We'll assume the pocket's Z-level is the same as the first boundary point
-                z_zigzag = boundary_coords[0][2]
-
-                # For Pocket4, corners (P13, P14, P15, P16):
-                modified_Point2 = [
-                    (x_coords[1])/2 + tool3x + innerOffsetX,
-                    y_coords[1] - tool3y - innerOffset,
-                ]
-                modified_Point3 = [
-                    x_coords[2] - tool3x - innerOffset,
-                    y_coords[2] - tool3y - innerOffset,
-                ]
-                modified_Point1 = [
-                    (x_coords[0])/2 + tool3x + innerOffsetX,
-                    y_coords[0] + tool3y + innerOffset,
-                ]
-                modified_Point4 = [
-                    x_coords[3] - tool3x - innerOffset,
-                    y_coords[3] + tool3y + innerOffset,
-                ]
-
-                # Calculate available horizontal dimension
-                xlen1 = abs(modified_Point3[0] - modified_Point1[0])
-                xinner = xlen1 - xframe_1 - xframe_2
-                print("xinner=", xinner)
-
-                # Bounding box for horizontal orientation
-                x_min = min(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
-                y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-                y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
-
-                orientation_mode = (orientation or "vertical").lower()
-
-                # Edge coverage path around the boundary (single pass)
-                edge_coverage_coords = []
-                edge_prepoint = None
-                edge_offset = 1.75
-                if edge_coverage:
-                    edge_Point1 = [
-                        x_coords[0] + tool3x + edge_offset,
-                        y_coords[0] + tool3y + edge_offset,
-                    ]
-                    edge_Point2 = [
-                        x_coords[1] + tool3x + edge_offset,
-                        y_coords[1] - tool3y - edge_offset,
-                    ]
-                    edge_Point3 = [
-                        x_coords[2] - tool3x - edge_offset,
-                        y_coords[2] - tool3y - edge_offset,
-                    ]
-                    edge_Point4 = [
-                        x_coords[3] - tool3x - edge_offset,
-                        y_coords[3] + tool3y + edge_offset,
-                    ]
-
-                    if orientation_mode == "horizontal":
-                        edge_coverage_coords = [
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                        ]
-                    else:
-                        edge_coverage_coords = [
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                            [edge_Point1[0], edge_Point1[1], z_zigzag, 0, 0, 0],
-                            [edge_Point2[0], edge_Point2[1], z_zigzag, 0, 0, 0],
-                            [edge_Point3[0], edge_Point3[1], z_zigzag, 0, 0, 0],
-                            [edge_Point4[0], edge_Point4[1], z_zigzag, 0, 0, 0],
-                        ]
-
-                if orientation_mode == "horizontal":
-                    yinner = abs(y_max - y_min)
-                    if yinner > 0:
-                        num_steps = math.floor(yinner / innerSandingOffset)
-                        if num_steps == 0:
-                            num_steps = 1
-                        adjusted_step = yinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag rows from top (max y) to bottom (min y)
-                        while offset <= yinner + 1e-9:  # small floating-point tolerance
-                            current_y = y_max - offset
-                            row_points = [
-                                [x_min, current_y, z_zigzag, 0, 0, 0],
-                                [x_max, current_y, z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-                    else:
-                        # Fallback: single row when height is too small
-                        zigzag_coords.extend(
-                            [
-                                [x_min, y_max, z_zigzag, 0, 0, 0],
-                                [x_max, y_max, z_zigzag, 0, 0, 0],
-                            ]
-                        )
-                else:
-                    if xinner > 0:
-                        # Determine how many "columns" in the zigzag
-                        num_steps = math.ceil(xinner / innerSandingOffset)
-                        adjusted_step = xinner / num_steps
-
-                        offset = 0.0
-                        toggle = 0
-
-                        # Build zigzag path from left to right
-                        while offset <= xinner + 1e-9:  # small floating-point tolerance
-                            row_points = [
-                                [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                                [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
-                            ]
-                            # Reverse every other row to create a zigzag
-                            if toggle:
-                                row_points.reverse()
-
-                            zigzag_coords.extend(row_points)
-                            offset += adjusted_step
-                            toggle = 1 - toggle
-
-                # Update only the y coordinate to its absolute value
-                for point in zigzag_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                # Update edge coverage coords to absolute values
-                for point in edge_coverage_coords:
-                    point[1] = abs(point[1])
-                    point[0] = abs(point[0])
-
-                if edge_coverage_coords:
-                    edge_prepoint = [
-                        abs(edge_coverage_coords[0][0]) + 0.5,
-                        edge_coverage_coords[0][1],
-                        z_zigzag,
-                        0,
-                        0,
-                        0,
-                    ]
-
-                if orientation_mode == "horizontal":
-                    prepoint = [abs(x_min) + 0.5, y_max, z_zigzag, 0, 0, 0]
-                else:
-                    prepoint = [abs(modified_Point1[0]) + 0.5, modified_Point1[1], z_zigzag, 0, 0, 0]
-            return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
+            return _generate_zigzag_path_shared(
+                x_coords=x_coords,
+                y_coords=y_coords,
+                z_coords=z_coords,
+                innerOffset=innerOffset,
+                innerOffsetX=innerOffsetX,
+                orientation=orientation,
+                movement=movement,
+                innerSandingOffset=67.5,
+                edge_coverage=edge_coverage,
+            )
 
         #Second Pocket 1st Cycle
-        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=-10, edge_coverage=True)
+        edge_pathp1, zigzag_pathp1, prepointp1, edge_prepointp1 = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4, edge_coverage=True)
         print("zigzag_pathp=",zigzag_pathp1)
         print("prepointp:", prepointp1)
         #Second Pocket 2nd Cycle
-        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=10)
+        _, zigzag_pathp2, prepointp2, _ = generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=17, innerOffsetX=29.4)
         print("zigzag_pathp2=",zigzag_pathp2)
         print("prepointp2:", prepointp2)
         
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            
-            
-            # Force Control Activated
-            putForceZminus(
+            _perform_process_top_shared(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=force,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                config=config
+                speed=0.6,
             )
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=0.6,
-                    wait=False
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            #Release force
-            releaseForce(cps=cps, config=config)
-        
 
         # Edge coverage (single pass)
         if edge_pathp1:
