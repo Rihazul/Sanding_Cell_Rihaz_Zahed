@@ -36,7 +36,7 @@ def load_json_config():
     return config
 
 
-def _generate_zigzag_path_shared(x_coords, y_coords, z_coords, innerOffset, innerOffsetX, orientation="vertical", movement="zigzag", innerSandingOffset=50, edge_coverage=False):
+def _generate_zigzag_path_shared(x_coords, y_coords, z_coords, innerOffset, innerOffsetX, orientation="vertical", movement="zigzag", innerSandingOffset=50, edge_coverage=False, x_length_divisor=1.0):
     prepoint = None
     zigzag_coords = []
     
@@ -52,6 +52,13 @@ def _generate_zigzag_path_shared(x_coords, y_coords, z_coords, innerOffset, inne
     for i in range(len(x_coords)):
         boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
 
+    try:
+        x_length_divisor = float(x_length_divisor)
+        if x_length_divisor == 0:
+            x_length_divisor = 1.0
+    except (TypeError, ValueError):
+        x_length_divisor = 1.0
+
     # Close the loop by duplicating the first point at the end
     if boundary_coords:
         boundary_coords.append(boundary_coords[0][:])  # copy for safety
@@ -66,7 +73,7 @@ def _generate_zigzag_path_shared(x_coords, y_coords, z_coords, innerOffset, inne
 
         # For Pocket4, corners (P13, P14, P15, P16):
         modified_Point2 = [
-            (x_coords[1])/1 + tool3x + innerOffsetX,
+            (x_coords[1]) / x_length_divisor + tool3x + innerOffsetX,
             y_coords[1] - tool3y - (innerOffset),
         ]
         modified_Point3 = [
@@ -74,7 +81,7 @@ def _generate_zigzag_path_shared(x_coords, y_coords, z_coords, innerOffset, inne
             y_coords[2] - tool3y - innerOffset,
         ]
         modified_Point1 = [
-            (x_coords[0])/1 + tool3x + innerOffsetX,
+            (x_coords[0]) / x_length_divisor + tool3x + innerOffsetX,
             y_coords[0] + tool3y + innerOffset,
         ]
         modified_Point4 = [
@@ -526,6 +533,7 @@ def smalldoor1zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
+                x_length_divisor=2.0,
             )
 
         #Second Pocket 1st Cycle
@@ -913,6 +921,7 @@ def smalldoor2zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
+                x_length_divisor=2.0,
             )
 
         #Second Pocket 1st Cycle
@@ -1300,6 +1309,7 @@ def smalldoor3zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
+                x_length_divisor=2.0,
             )
 
         #Second Pocket 1st Cycle
@@ -1687,6 +1697,7 @@ def smalldoor4zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
+                x_length_divisor=2.0,
             )
 
         #Second Pocket 1st Cycle
