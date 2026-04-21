@@ -1577,9 +1577,15 @@ def smalldoor1zizag(
                     #     raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
                     points = generate_spiral_between_points(point_A, point_B, radius=12.0, angle_step_deg=60.0)
-                    
-                    for idx, point in enumerate(points):
-                        is_last_point = idx == (len(points) - 1)
+                    if len(points) % 6 != 0:
+                        raise ValueError(
+                            f"[Spiral] Point list misaligned for MoveL (len={len(points)})"
+                        )
+
+                    point_poses = [points[i : i + 6] for i in range(0, len(points), 6)]
+
+                    for idx, point in enumerate(point_poses):
+                        is_last_point = idx == (len(point_poses) - 1)
                         communicate(
                             cps=cps,
                             config=config,
