@@ -25,7 +25,6 @@ from Server_Better_V2 import (
     releaseForce,
     putForceZplus,
     putForceZminus,
-    stop_requested,
 )
 from smallTable.waypoint2 import (
     Waypoint2Config,
@@ -183,26 +182,23 @@ def generate_spiral_between_points(
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
     Keeps orientation from start_pose, interpolates center XY between poses,
-    and adds a perpendicular oscillation at each step.
+    and adds radial offsets for each step.
     """
     x0, y0, z0, rx, ry, rz = start_pose[:6]
     x1, y1, _, _, _, _ = end_pose[:6]
     if radius is None:
         radius = DEFAULT_SPIRAL_RADIUS
-    if turns is None:
-        if y0 == y1 and orientation == "vertical":
-            turns = 1
-        elif x0 == x1 and orientation == "horizontal":
-            turns = 1
-        else:
-            dist = max(abs(x1 - x0), abs(y1 - y0))
-            # factor = 1.0
-            # if orientation == "vertical":
-            #     factor= 1.3
-            # turns = int((4.0/260.0) * float(dist) * float(factor))
-            turns = math.ceil(dist / (radius * 2.0))
+    if y0 == y1 and orientation == "vertical":
+        turns = 1
+    elif x0 == x1 and orientation == "horizontal":
+        turns = 1
     else:
-        turns = max(1, int(turns))
+        dist = max(abs(x1 - x0), abs(y1 - y0))
+        # factor = 1.0
+        # if orientation == "vertical":
+        #     factor= 1.3
+        # turns = int((4.0/260.0) * float(dist) * float(factor))
+        turns = math.ceil(dist/(radius*2.0))
 
     # Always map speed -> turns so higher speed yields fewer turns
 
@@ -213,18 +209,6 @@ def generate_spiral_between_points(
         total_steps = max(1, total_steps)
     points = list(start_pose[:6])  # start point
 
-    dx = x1 - x0
-    dy = y1 - y0
-    seg_len = math.hypot(dx, dy)
-    if seg_len <= 1e-9:
-        return points
-
-    # Unit tangent from A->B and in-plane unit normal.
-    ux = dx / seg_len
-    uy = dy / seg_len
-    nx = -uy
-    ny = ux
-
     for step in range(1, total_steps + 1):
         t = step / total_steps
         cx = x0 + (x1 - x0) * t
@@ -232,17 +216,11 @@ def generate_spiral_between_points(
         theta_deg = step * angle_step_deg
         theta = math.radians(theta_deg)
 
-        # Apply spiral/weave only perpendicular to A->B so progress
-        # along the segment remains monotonic (no inverse-V backtracking).
-        lateral = radius * math.sin(theta)
-        px = cx + lateral * nx
-        py = cy + lateral * ny
+        px = cx + radius * math.cos(theta)
+        py = cy + radius * math.sin(theta)
         pz = z0  # hold Z while spiraling along Y
 
         points.extend([px, py, pz, rx, ry, rz])
-
-    # Snap exact endpoint for numerical stability and exact segment closure.
-    points[-6:] = [x1, y1, z0, rx, ry, rz]
 
     return points
 
@@ -337,199 +315,40 @@ def finalize_spiral_path(
     force: Optional[float] = None,
     config: Optional[dict] = None,
     force_settle_s: float = 0.2,
-    manage_force_cycle: bool = True,
-    expected_start_pose: Optional[list] = None,
-    start_pos_tol_mm: float = 0.8,
-    start_ori_tol_deg: float = 1.2,
-    delete_path_after: bool = True,
 ) -> bool:
-    """
-    3.19 flow:
-      EndPushPathPoints -> ReadPathState(ready=3) -> MovePathL -> monitor with
-      ReadTrackProcess + IsMotionDone (+ flags as fallback).
-    """
+    """End push, wait for readiness, execute MovePathL, and wait for completion."""
     ret = cps.HRIF_EndPushPathPoints(box_id, robot_id, track_name)
     print("[Spiral][EndPush] ret =", ret)
     if ret != 0:
         return False
 
-    robot_state = RobotState(config=config, cps_client=cps)
+    # Create a lightweight state helper for motion monitoring.
+    # Reuse the existing config/cps to avoid reinitializing connections.
+    robot_state = RobotState(config=config , cps_client=cps)
 
-    # Optional telemetry from 3.19 interface to help diagnose state transitions.
-    path_info = []
-    info_ret = cps.HRIF_ReadPathInfo(box_id, robot_id, track_name, path_info)
-
-    def _try_parse_pose(values) -> Optional[list]:
-        if values is None:
-            return None
-        if isinstance(values, (list, tuple)):
-            if len(values) < 6:
-                return None
-            try:
-                return [float(v) for v in values[:6]]
-            except (TypeError, ValueError):
-                return None
-        if isinstance(values, str):
-            normalized = values
-            for sep in ("[", "]", "(", ")", ";", "/", "|"):
-                normalized = normalized.replace(sep, ",")
-            parts = [p.strip() for p in normalized.split(",") if p.strip()]
-            if len(parts) < 6:
-                return None
-            try:
-                return [float(v) for v in parts[:6]]
-            except (TypeError, ValueError):
-                return None
-        return None
-
-    def _parse_path_info(info: list) -> dict:
-        """
-        Parse HRIF_ReadPathInfo payload according manufacturer mapping.
-        Supports both:
-        - compact field mode (coords packed as strings)
-        - comma-expanded mode caused by SDK split(',') behavior
-        """
-        parsed = {
-            "raw_type": None,
-            "status_l": None,
-            "error_l": None,
-            "point_count": None,
-            "first_pose": None,
-            "mode": "unknown",
-        }
-        if not info:
-            return parsed
-
-        # Compact form from docs:
-        # [0..9] scalars, [10] ucs, [11] tcp, [12] points, [13] first point
-        if len(info) >= 14:
-            parsed["raw_type"] = str(info[0]).strip()
-            parsed["status_l"] = str(info[3]).strip() if len(info) > 3 else None
-            parsed["error_l"] = str(info[4]).strip() if len(info) > 4 else None
-            try:
-                parsed["point_count"] = int(float(str(info[12]).strip()))
-            except (TypeError, ValueError):
-                parsed["point_count"] = None
-            parsed["first_pose"] = _try_parse_pose(info[13] if len(info) > 13 else None)
-            parsed["mode"] = "compact"
-
-        # Expanded mode:
-        # [0..9] scalars + 6 ucs + 6 tcp + [22] points + [23..28] first pose
-        if len(info) >= 29:
-            parsed["raw_type"] = str(info[0]).strip()
-            parsed["status_l"] = str(info[3]).strip() if len(info) > 3 else None
-            parsed["error_l"] = str(info[4]).strip() if len(info) > 4 else None
-            try:
-                parsed["point_count"] = int(float(str(info[22]).strip()))
-            except (TypeError, ValueError):
-                parsed["point_count"] = None
-            parsed["first_pose"] = _try_parse_pose(info[23:29])
-            parsed["mode"] = "expanded"
-
-        return parsed
-
-    path_info_parsed = _parse_path_info(path_info)
-    if info_ret == 0:
-        print(
-            "[Spiral][PathInfo] mode={} len={} raw_type={} stateL={} errL={} points={}".format(
-                path_info_parsed.get("mode"),
-                len(path_info),
-                path_info_parsed.get("raw_type"),
-                path_info_parsed.get("status_l"),
-                path_info_parsed.get("error_l"),
-                path_info_parsed.get("point_count"),
-            )
-        )
-
-    def _read_path_l_state():
-        st = []
-        ret_local = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
-        l_state = str(st[2]).strip() if len(st) > 2 else None
-        l_err = str(st[3]).strip() if len(st) > 3 else None
-        return ret_local, st, l_state, l_err
-
-    def _as_motion_done(value) -> bool:
-        return (isinstance(value, bool) and value) or str(value).strip().lower() in (
-            "1",
-            "true",
-            "ok",
-        )
-
-    # Wait until path is ready (state 3, error 0).
-    ready_start = time.time()
+    # Wait for PATH_READY
+    start = time.time()
+    state = []
     while True:
-        if stop_requested():
-            print("[Spiral] Stop requested while waiting for PATH_READY; aborting segment.")
-            return False
-        ret, st, l_state, l_err = _read_path_l_state()
-        if ret == 0 and l_err == "0" and l_state == "3":
+        st = []
+        ret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, st)
+        if ret == 0 and len(st) > 3 and st[2] == "3" and st[3] == "0":
             break
-        elapsed = time.time() - ready_start
+        elapsed = time.time() - start
         if elapsed > 120.0:
             print(f"[Spiral] Timeout waiting for PATH_READY after {elapsed:.1f}s:", st)
             return False
-        time.sleep(0.05)
-
-    # Move to trajectory start position before execution (manufacturer flow).
-    first_pose = path_info_parsed.get("first_pose")
-    start_pose_target = None
-    if expected_start_pose is not None and len(expected_start_pose) >= 6:
-        start_pose_target = list(expected_start_pose[:6])
-        if first_pose is not None and len(first_pose) >= 6:
-            try:
-                ref_pos_err = max(abs(a - b) for a, b in zip(first_pose[:3], start_pose_target[:3]))
-                ref_ori_err = max(abs(a - b) for a, b in zip(first_pose[3:6], start_pose_target[3:6]))
-                if ref_pos_err > 50.0 or ref_ori_err > 20.0:
-                    print(
-                        "[Spiral] Ignoring ReadPathInfo first-point due mismatch with expected start "
-                        f"(pos_err={ref_pos_err:.3f}mm ori_err={ref_ori_err:.3f}deg)."
-                    )
-            except Exception:
-                pass
-    elif first_pose is not None and len(first_pose) >= 6:
-        start_pose_target = list(first_pose[:6])
-    if start_pose_target is not None and len(start_pose_target) >= 6 and config is not None:
-        tcp_name = config["coords"].get("tcptool3plane1")
-        ucs_name = config["coords"].get("ucsTable1")
-        actual_pose = _read_act_coord_pose(cps, tcp_name, ucs_name)
-        if actual_pose is not None and len(actual_pose) >= 6:
-            pos_err = max(abs(a - b) for a, b in zip(actual_pose[:3], start_pose_target[:3]))
-            ori_err = max(abs(a - b) for a, b in zip(actual_pose[3:6], start_pose_target[3:6]))
-            # In practice, orientation units/representation may differ between path points
-            # and readback pose on some controller builds; use position as the hard gate.
-            need_align = pos_err > float(start_pos_tol_mm)
-            if need_align:
-                if not manage_force_cycle:
-                    # For segmented A->B MovePathL with force managed outside this function,
-                    # do not force or abort start re-alignment; continue to preserve flow.
-                    print(
-                        "[Spiral] Start offset detected while force cycle is externally managed; "
-                        f"continuing without enforced alignment (pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
-                    )
-                    need_align = False
-                if need_align:
-                    print(
-                        "[Spiral] Aligning to trajectory start before MovePathL "
-                        f"(pos_err={pos_err:.3f}mm ori_err={ori_err:.3f}deg)."
-                    )
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=list(start_pose_target[:6]),
-                        tcp=tcp_name,
-                        ucs=ucs_name,
-                        seventh=-1,
-                        speed=0.8,
-                        wait=True,
-                        speed_mode="linear",
-                    )
-
+        time.sleep(0.1)
+        print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
+    
     vibration_on = False
     force_applied = False
     ok = False
+    motion_last_change = time.time()
 
     try:
-        if manage_force_cycle and force is not None and config is not None:
+        if force is not None and config is not None:
+            # Apply force *after* path is ready
             putForceZminus(
                 cps=cps,
                 force=force,
@@ -539,73 +358,45 @@ def finalize_spiral_path(
             )
             force_applied = True
             time.sleep(force_settle_s)
-
-        ret, st, _, l_err = _read_path_l_state()
+    
+        ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
+        print(f"[Spiral] Robot returned {ret} after MovePathL,")
         if ret != 0:
-            print(f"[Spiral] Failed to read path state before MovePathL: ret={ret}")
             return False
-        if l_err != "0":
-            print(f"[Spiral] Path reported error before MovePathL: {st}")
-            return False
-
-        # Execute path. 40093/20041 are treated as retryable timing/busy states.
-        move_started = False
-        move_started_by_ret0 = False
-        last_move_ret = None
-        max_move_attempts = 120
-        for attempt in range(max_move_attempts):
-            if stop_requested():
-                print("[Spiral] Stop requested before MovePathL; aborting segment.")
-                return False
-
-            ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
-            last_move_ret = ret
-            print(
-                f"[Spiral] Robot returned {ret} after MovePathL "
-                f"(attempt {attempt + 1}/{max_move_attempts})"
-            )
-            if ret == 0:
-                move_started = True
-                move_started_by_ret0 = True
-                break
-
-            _, st_after, _, l_err_after = _read_path_l_state()
-            if ret in (40093, 20041) and l_err_after == "0":
-                # 40093 often means another motion is still winding down.
-                # Back off longer to avoid flooding MovePathL retries.
-                time.sleep(0.20 if ret == 40093 else 0.08)
-                continue
-
-            print(
-                f"[Spiral] MovePathL failed (ret={ret}, state={st_after}, path_err={l_err_after})"
-            )
-            return False
-
-        if not move_started:
-            print(f"[Spiral] MovePathL failed after retries (last_ret={last_move_ret}).")
-            return False
-
-        if manage_force_cycle:
-            turn_vibration_on(cps)
-            vibration_on = True
-
-        # Monitor execution with controller-native signals.
-        ok = True
         move_start = time.time()
-        start = move_start
+    
+        # Wait briefly for motion to start, then turn vibration on.
+        motion_started = False
+        motion_wait_start = time.time()
+        while time.time() - motion_wait_start < 1.0:
+            if robot_state.fetch_and_update_flags():
+                if robot_state.state["flags"].get("in_motion"):
+                    motion_started = True
+                    break
+            time.sleep(0.02)
+        
+        turn_vibration_on(cps)
+        vibration_on = True
+
+        # Wait for completion (track path state + robot flags)
+        ok = True
+        start = time.time()
         estimate_timeout = float(completion_timeout)
+        # Safety watchdog is only for abnormal hangs; estimate itself remains the target.
         safety_timeout = estimate_timeout + max(8.0, min(30.0, estimate_timeout * 0.3))
         timeout_notice_logged = False
-        done_stable_s = 0.12
-        done_stable_start = None
-        last_done_reason = None
-
+        timeout_stall_start = None
+        # Tolerances tuned to avoid waiting on noisy force-hold jitter at the last point.
+        position_noise_mm = 0.6
+        orientation_noise_deg = 0.8
+        settle_window_s = 0.15
+        near_end_ratio = 0.93
+        motion_seen = motion_started
+        last_cart = None
+        pre_move_cart = None
+        if robot_state.fetch_and_update_pos():
+            pre_move_cart = list(robot_state.state.get("cartesian_position", []))
         while True:
-            if stop_requested():
-                print("[Spiral] Stop requested during MovePathL wait; aborting segment.")
-                ok = False
-                break
-
             pstate = []
             pret = cps.HRIF_ReadPathState(box_id, robot_id, track_name, pstate)
             if pret != 0:
@@ -616,116 +407,137 @@ def finalize_spiral_path(
                 print(f"[Spiral] Path reported error: {pstate}")
                 ok = False
                 break
-
             elapsed_move = time.time() - move_start
-            min_runtime_reached = elapsed_move >= max(0.0, float(min_runtime_s))
 
-            # Read controller progress (0..1).
-            track_result = []
-            track_progress = None
-            tre = cps.HRIF_ReadTrackProcess(box_id, robot_id, track_result)
-            if tre == 0 and len(track_result) > 0:
-                try:
-                    track_progress = float(track_result[0])
-                except (TypeError, ValueError):
-                    track_progress = None
-            # Read IsMotionDone.
-            motion_done = []
-            motion_done_api = False
-            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
-            if mret == 0 and motion_done:
-                motion_done_api = _as_motion_done(motion_done[-1])
-
-            # Read flags.
             flags = {}
-            in_motion_now = None
-            point_motion_done = False
-            in_position = False
             if robot_state.fetch_and_update_flags():
                 flags = robot_state.state.get("flags", {})
-                in_motion_now = bool(flags.get("in_motion"))
-                point_motion_done = bool(flags.get("point_motion_done"))
-                in_position = bool(flags.get("in_position"))
-
-            done_by_flags = (
-                point_motion_done
-                and in_position
-                and (in_motion_now is False)
-            )
-            done_by_is_motion_done = (
-                move_started_by_ret0
-                and motion_done_api
-                and (in_motion_now is False or in_motion_now is None)
-            )
-            done_by_track_raw = (track_progress is not None) and (track_progress >= 0.999999)
-            # Guard against false-positive track completion while controller still
-            # reports active motion.
-            done_by_track = done_by_track_raw and (
-                done_by_is_motion_done
-                or done_by_flags
-                or (in_motion_now is False)
-            )
-
-            completion_signal = done_by_track or done_by_is_motion_done or done_by_flags
-            if min_runtime_reached and completion_signal:
-                if done_stable_start is None:
-                    done_stable_start = time.time()
-                    if done_by_track:
-                        if in_motion_now is True and point_motion_done and in_position:
-                            last_done_reason = "track_process(stale_in_motion_flag)"
-                        else:
-                            last_done_reason = "track_process"
-                    elif done_by_is_motion_done:
-                        last_done_reason = "is_motion_done"
-                    else:
-                        last_done_reason = "flags_done+in_position+in_motion_false"
-                elif (time.time() - done_stable_start) >= done_stable_s:
-                    print(
-                        f"[Spiral] Completion confirmed by {last_done_reason} "
-                        f"for {done_stable_s:.2f}s; exiting wait loop."
-                    )
+                if flags.get("in_motion"):
+                    motion_seen = True
+                # Fast-path completion check: controller confirms motion done and in-position.
+                if (
+                    motion_seen
+                    and not flags.get("in_motion", True)
+                    and flags.get("point_motion_done", False)
+                    and flags.get("in_position", False)
+                    and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+                ):
+                    print("[Spiral] Motion done + in-position flags observed; exiting wait loop.")
                     break
-            else:
-                done_stable_start = None
-                last_done_reason = None
 
-            elapsed = time.time() - start
-            if elapsed > estimate_timeout and not timeout_notice_logged:
-                print(
-                    f"[Spiral] Estimated runtime reached: elapsed={elapsed:.1f}s, "
-                    f"estimate={estimate_timeout:.1f}s; waiting for true completion."
+            # Controller-level motion completion can become true slightly earlier than
+            # state-flags convergence, which helps reduce end-point dwell.
+            motion_done = []
+            mret = cps.HRIF_IsMotionDone(box_id, robot_id, motion_done)
+            if mret == 0 and motion_done:
+                last_done = motion_done[-1]
+                done = (
+                    (isinstance(last_done, bool) and last_done)
+                    or str(last_done).strip().lower() in ("1", "true", "ok")
                 )
-                timeout_notice_logged = True
-
-            if elapsed > safety_timeout:
-                # Final guard: accept only if a controller-backed completion signal exists.
-                safe_done = done_by_track or done_by_is_motion_done or done_by_flags
-                if move_started_by_ret0 and safe_done:
-                    print(
-                        "[Spiral] Safety timeout reached with confirmed completion signal; "
-                        "treating as complete."
-                    )
+                if done and motion_seen and elapsed_move >= max(0.0, float(min_runtime_s)):
+                    print("[Spiral] IsMotionDone=1; exiting wait loop.")
                     break
-                print(
-                    f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
-                    f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
-                    f"path_state={pstate}, track={track_result}, flags={flags}, "
-                    f"is_motion_done={motion_done_api}"
-                )
-                ok = False
+
+            if robot_state.fetch_and_update_pos():
+                curr_cart = list(robot_state.state.get("cartesian_position", []))
+                if (
+                    not motion_seen
+                    and pre_move_cart
+                    and len(curr_cart) >= 6
+                    and len(pre_move_cart) >= 6
+                    and (
+                        any(
+                            abs(a - b) > position_noise_mm
+                            for a, b in zip(curr_cart[:3], pre_move_cart[:3])
+                        )
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], pre_move_cart[3:6])
+                        )
+                    )
+                ):
+                    motion_seen = True
+                if last_cart and len(curr_cart) >= 6 and len(last_cart) >= 6:
+                    moved = (
+                        any(abs(a - b) > position_noise_mm for a, b in zip(curr_cart[:3], last_cart[:3]))
+                        or any(
+                            abs(a - b) > orientation_noise_deg
+                            for a, b in zip(curr_cart[3:6], last_cart[3:6])
+                        )
+                    )
+                    if moved:
+                        motion_seen = True
+                        motion_last_change = time.time()
+                else:
+                    motion_last_change = time.time()
+                last_cart = curr_cart
+
+            # Fallback completion check once motion has started.
+            in_motion_flag = flags.get("in_motion") if "in_motion" in flags else None
+            near_expected_end = elapsed_move >= max(1.0, estimate_timeout * near_end_ratio)
+            progress_recent = motion_seen and ((time.time() - motion_last_change) < settle_window_s)
+            if (
+                motion_seen
+                and near_expected_end
+                and (time.time() - motion_last_change) >= settle_window_s
+                and (time.time() - move_start) >= max(0.0, float(min_runtime_s))
+            ):
+                print(f"[Spiral] Cartesian settled for {settle_window_s:.2f}s near end; exiting wait loop.")
                 break
 
+            elapsed = time.time() - start
+            if elapsed > estimate_timeout:
+                if not timeout_notice_logged:
+                    print(
+                        f"[Spiral] Estimated runtime reached: elapsed={elapsed:.1f}s, "
+                        f"estimate={estimate_timeout:.1f}s; waiting for true completion."
+                    )
+                    timeout_notice_logged = True
+
+                # If motion updates have stopped near the expected end, finish immediately
+                # even when controller in-motion flag is stale.
+                if motion_seen and near_expected_end and not progress_recent:
+                    print("[Spiral] Motion progress stopped near end; exiting wait loop.")
+                    break
+
+                if progress_recent:
+                    timeout_stall_start = None
+                else:
+                    if timeout_stall_start is None:
+                        timeout_stall_start = time.time()
+
+                stalled_too_long = (
+                    timeout_stall_start is not None
+                    and (time.time() - timeout_stall_start) >= 3.0
+                )
+                if elapsed > safety_timeout or stalled_too_long:
+                    # Controller states can lag after path completion; if cartesian pose is settled
+                    # and we're past the expected end, treat it as completed instead of failing.
+                    if (
+                        motion_seen
+                        and near_expected_end
+                        and (time.time() - motion_last_change) >= settle_window_s
+                    ):
+                        print(
+                            f"[Spiral] Safety timeout reached but pose is settled for "
+                            f"{settle_window_s:.2f}s; treating as complete."
+                        )
+                        break
+                    print(
+                        f"Timeout waiting for idle. elapsed={elapsed:.1f}s, "
+                        f"estimate={estimate_timeout:.1f}s, safety={safety_timeout:.1f}s, "
+                        f"stalled={stalled_too_long}, Path state: {pstate}"
+                    )
+                    ok = False
+                    break
             time.sleep(0.02)
 
     finally:
-        if manage_force_cycle and vibration_on:
+        if vibration_on:
             turn_vibration_off(cps)
-        if manage_force_cycle and force_applied:
+        if force_applied:
             releaseForce(cps=cps, config=config, wait_for_blending=False)
-        if delete_path_after:
-            del_ret = cps.HRIF_DelPath(box_id, robot_id, track_name)
-            if del_ret != 0:
-                print(f"[Spiral] HRIF_DelPath failed for {track_name}: ret={del_ret}")
 
     return ok
 
@@ -740,7 +552,7 @@ def generate_zigzag_path(
     x_max_offset: float = 0.0,
     orientation="horizontal",
     movement="zigzag",
-    innerSandingOffset=50,
+    innerSandingOffset=67.5,
     edge_coverage=False
 ):
     """
@@ -1324,7 +1136,7 @@ def smalldoor1zizag(
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
-            innerOffsetX=17,
+            innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
@@ -1335,7 +1147,7 @@ def smalldoor1zizag(
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
-            innerOffsetX=17,
+            innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
             innerSandingOffset=50,
@@ -1349,7 +1161,7 @@ def smalldoor1zizag(
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 x_max_offset=middle_overlap,
                 orientation=orientation,
                 movement=movement,
@@ -1361,7 +1173,7 @@ def smalldoor1zizag(
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 x_min_offset=-middle_overlap,
                 orientation=orientation,
                 movement=movement,
@@ -1435,6 +1247,11 @@ def smalldoor1zizag(
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
+                spiral_track_name = f"small_{uuid.uuid4().hex[:6]}"
+                path_initialized = False
+                push_failed = False
+                total_count = 0
+
                 # Move to first zigzag point to ensure proper transition from edge coverage
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
@@ -1511,14 +1328,11 @@ def smalldoor1zizag(
                 #     xs = [p[0] for p in bounds_points]
                 #     ys = [p[1] for p in bounds_points]
                 #     bounds = (min(xs), max(xs), min(ys), max(ys))
-                if len(zigzag_points) < 2:
-                    print("[Spiral] Not enough zigzag points for path execution.")
-                else:
-                    full_track_name = f"small_{uuid.uuid4().hex[:6]}"
-                    total_points = 0
-                    for index in range(len(zigzag_points) - 1):
-                        point_A = zigzag_points[index]
-                        point_B = zigzag_points[index + 1]
+                for index, _ in enumerate(zigzag_points):
+                    point_A = zigzag_points[index]
+                    if index + 1 >= len(zigzag_points):
+                        break
+                    point_B = zigzag_points[index + 1]
 
                     # if use_waypoint2:
                     #     wp2_segments = generate_arc_line_segments_between(
@@ -1557,96 +1371,59 @@ def smalldoor1zizag(
                 # turn_vibration_off(cps)
                 # releaseForce(cps=cps, config=config)
                 
-                        print("Spiral move from A to B:", point_A, "->", point_B)
-                    #     success, count = run_spiral_between_points(
-                    #         cps=cps,
-                    #         config=config,
-                    #         start_pose=point_A,
-                    #         end_pose=point_B,
-                    #         radius=12.0,
-                    #         angle_step_deg=60.0,
-                    #         track_name=full_track_name,
-                    #         velocity=110.0,
-                    #         accel=200.0,
-                    #         jerk=2800.0,
-                    #         init_path=(index == 0),
-                    #         orientation=orientation
-                    #     )
-                    #     if not success:
-                    #         raise RuntimeError("[Spiral] run_spiral_between_points failed for door 1.")
-                    #     total_points += int(count or 0)
+                    print("Spiral move from A to B:", point_A, "->", point_B)
+                #     success, count = run_spiral_between_points(
+                #         cps=cps,
+                #         config=config,
+                #         start_pose=point_A,
+                #         end_pose=point_B,
+                #         radius=12.0,
+                #         angle_step_deg=45.0,
+                #         track_name=spiral_track_name,
+                #         velocity=150.0,
+                #         accel=300.0,
+                #         jerk=3000.0,
+                #         init_path=not path_initialized,
+                #         orientation=orientation
+                #     )
+                #     if not success:
+                #         push_failed = True
+                #         break
 
-                    # timeout = compute_timeout(
-                    #     total_points=total_points, velocity=300.0 * 10.0 / 45.0
-                    # )
-                    # # Keep a short anti-false-positive runtime guard without
-                    # # adding visible delay at the final point.
-                    # min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
-                    # finalized = finalize_spiral_path(
-                    #     cps,
-                    #     full_track_name,
-                    #     box_id=0,
-                    #     robot_id=0,
-                    #     completion_timeout=timeout,
-                    #     min_runtime_s=min_runtime_s,
-                    #     force=force,
-                    #     config=config,
-                    #     manage_force_cycle=False,
-                    #     expected_start_pose=zigzag_points[0],
-                    # )
-                    # if not finalized:
-                    #     raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
-                    
-                    segment_dist = math.hypot(point_B[0] - point_A[0], point_B[1] - point_A[1])
-                    spiral_radius = 12.0
-                    angle_step_deg = 45.0
-                    segment_turns = max(2, math.ceil(segment_dist / 50.0))
-                    nominal_steps = max(1, int(segment_turns * (360.0 / angle_step_deg)))
-                    spiral_travel_mm = 2.0 * math.pi * spiral_radius * segment_turns
-                    approx_path_len_mm = math.hypot(segment_dist, spiral_travel_mm)
-                    target_point_spacing_mm = 6.0
-                    segment_max_points = max(
-                        nominal_steps,
-                        int(math.ceil(approx_path_len_mm / target_point_spacing_mm)),
-                    )
-                    points = generate_spiral_between_points(
-                        point_A,
-                        point_B,
-                        turns=segment_turns,
-                        radius=spiral_radius,
-                        angle_step_deg=angle_step_deg,
-                        max_points=segment_max_points,
-                        orientation=orientation,
-                    )
-                    if len(points) % 6 != 0:
-                        raise ValueError(
-                            f"[Spiral] Point list misaligned for MoveL (len={len(points)})"
-                        )
+                #     path_initialized = True
+                #     total_count += count
 
-                    point_poses = [points[i : i + 6] for i in range(0, len(points), 6)]
-                    print(
-                        f"[Spiral MoveL] dist={segment_dist:.2f}mm turns={segment_turns} "
-                        f"max_points={segment_max_points} poses={len(point_poses)}"
+                # if path_initialized and not push_failed:
+                #     timeout = compute_timeout(
+                #         total_points=total_count, velocity=300.0 * 10.0 / 45.0
+                #     )
+                #     # Keep a short anti-false-positive runtime guard without
+                #     # adding visible delay at the final point.
+                #     min_runtime_s = max(0.15, min(0.6, timeout * 0.05))
+                #     finalized = finalize_spiral_path(
+                #         cps,
+                #         spiral_track_name,
+                #         box_id=0,
+                #         robot_id=0,
+                #         completion_timeout=timeout,
+                #         min_runtime_s=min_runtime_s,
+                #         force= force,
+                #         config= config
+                #     )
+                #     if not finalized:
+                #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
+                
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=index,
+                        tcp=config["coords"]["tcptool3plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=float(json_config["sandingSpeed"]),
+                        speed_mode="linear",
+                        wait=False
                     )
-
-                    original_transition_radius = config["coords"].get("transitionRadius")
-                    config["coords"]["transitionRadius"] = 0.0
-                    try:
-                        for idx, point in enumerate(point_poses):
-                            communicate(
-                                cps=cps,
-                                config=config,
-                                point=point,
-                                tcp=config["coords"]["tcptool3plane1"],
-                                ucs=config["coords"]["ucsTable1"],
-                                seventh=-1,
-                                speed=float(json_config["sandingSpeed"]),
-                                speed_mode="linear",
-                                wait=True,
-                            )
-                    finally:
-                        if original_transition_radius is not None:
-                            config["coords"]["transitionRadius"] = original_transition_radius
                     
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
