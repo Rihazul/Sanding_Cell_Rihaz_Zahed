@@ -269,6 +269,18 @@ def is_door_available(doors):
         return False
 
 
+def unique_sorted_doors(*door_groups):
+    """Return unique valid door ids as sorted ints."""
+    doors = set()
+    for group in door_groups:
+        for door in group:
+            try:
+                doors.add(int(door))
+            except (TypeError, ValueError):
+                continue
+    return sorted(doors)
+
+
 def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     # Check Conditions
     if ci0 is None or ci1 is None or ci2 is None:
@@ -297,6 +309,20 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         return True
 
     print(f"Tool {tool_in_hand} detected; dropping before picking tool {tool_num}.")
+    seventh_result = communicate(
+        cps=cps,
+        config=config,
+        seventh=0,
+        tcp=config["coords"]["tcptool1plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        speed=0.3,
+        wait=True,
+        require_seventh_ok=True,
+    )
+    if seventh_result is None:
+        raise RuntimeError(
+            f"Failed to move 7th axis to tool station before dropping tool {tool_in_hand}."
+        )
     keepTool11(cps, toolNumber=tool_in_hand, config=config)
     return False
 
@@ -454,373 +480,203 @@ def sandingModelATableA():
         ci2_local = read_ci_bit(cps, 2)
         return ci0_local, ci1_local, ci2_local
 
+    def decode_tool_in_hand(ci0_local, ci1_local, ci2_local):
+        """Decode tool number from CI bits; return None when hand is empty."""
+        if ci0_local is None or ci1_local is None or ci2_local is None:
+            raise RuntimeError("Failed to read one or more CI bits.")
+        if ci0_local == 1 and ci1_local == 0 and ci2_local == 0:
+            return 3
+        if ci0_local == 0 and ci1_local == 1 and ci2_local == 0:
+            return 2
+        if ci0_local == 0 and ci1_local == 1 and ci2_local == 1:
+            return 1
+        if ci0_local == 0 and ci1_local == 0 and ci2_local == 0:
+            return None
+        raise RuntimeError(
+            f"Unrecognized CI combination: CI0={ci0_local}, CI1={ci1_local}, CI2={ci2_local}"
+        )
+
+    def move_to_safe_point():
+        communicate(
+            cps=cps,
+            point=config["point"]["safePoint"],
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            seventh=-1,
+            config=config,
+            speed=speeed,
+            wait=True,
+        )
+
+    def move_seventh_to_tool_station():
+        seventh_result = communicate(
+            cps=cps,
+            config=config,
+            seventh=0,
+            tcp=config["coords"]["tcptool1plane1"],
+            ucs=config["coords"]["ucsTable1"],
+            speed=0.3,
+            wait=True,
+            require_seventh_ok=True,
+        )
+        if seventh_result is None:
+            raise RuntimeError("Failed to move 7th axis to tool station.")
+
+    def ensure_tool_in_hand(tool_num):
+        """Ensure requested tool is mounted; drop wrong one if needed."""
+        ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
+        has_requested_tool = check_tool(
+            cps=cps,
+            config=config,
+            tool_num=tool_num,
+            ci0=ci0_local,
+            ci1=ci1_local,
+            ci2=ci2_local,
+        )
+        if not has_requested_tool:
+            move_to_safe_point()
+            picked = getTool11(cps, toolNumber=tool_num, config=config, startFromSafe=True)
+            if picked is False:
+                raise RuntimeError(f"Failed to pick tool {tool_num}.")
+        move_to_safe_point()
+
     """Main control function"""
     try:
-        if (
-            is_door_available(side_cycles_doors)
-            or is_door_available(zig_zag_cycle_doors)
-            or is_door_available(pocket_cycle_doors)
-        ) and (
+        has_any_task = (
             any_cycles(frame_by_door)
             or any_cycles(zigzag_by_door)
             or any_cycles(pocket_by_door)
-        ):
-            ci0, ci1, ci2 = read_ci_triplet(cps)
-            has_tool3 = check_tool(
-                cps=cps, config=config, tool_num=3, ci0=ci0, ci1=ci1, ci2=ci2
+            or any_cycles(tool2edge_by_door)
+            or any_cycles(tool2side_by_door)
+            or any_cycles(tool3_by_door)
+        )
+
+        if has_any_task:
+            move_to_safe_point()
+
+        all_selected_doors = unique_sorted_doors(
+            side_cycles_doors,
+            zig_zag_cycle_doors,
+            pocket_cycle_doors,
+            tool2sideedge_cycle_doors,
+            tool2side_cycle_doors,
+            tl3sideedge_door,
+        )
+        work_executed = False
+
+        for door_number in all_selected_doors:
+            frame_cfg = frame_by_door.get(door_number, {})
+            frame_cycle = int(frame_cfg.get("cycle", 0))
+
+            zigzag_cfg = zigzag_by_door.get(door_number, {})
+            zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
+
+            pocket_cfg = pocket_by_door.get(door_number, {})
+            pocket_cycle = int(pocket_cfg.get("cycle", 0))
+
+            side_cfg = tool2side_by_door.get(door_number, {})
+            side_cycle = int(side_cfg.get("cycle", 0))
+
+            edge_cfg = tool2edge_by_door.get(door_number, {})
+            edge_cycle = int(edge_cfg.get("cycle", 0))
+
+            tool1_cfg = tool3_by_door.get(door_number, {})
+            tool1_cycle = int(tool1_cfg.get("cycle", 0))
+
+            door_has_work = (
+                frame_cycle > 0
+                or zigzag_cycle > 0
+                or pocket_cycle > 0
+                or side_cycle > 0
+                or edge_cycle > 0
+                or tool1_cycle > 0
             )
+            if not door_has_work:
+                continue
 
-            # Intitial Position
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
+            print(f"\n=== DOOR {door_number} START ===")
 
-            # Pick Tool 3
-            if not has_tool3:
-                getTool11(cps, toolNumber=3, config=config)
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
-
-            for door_number in side_cycles_doors:
-                cfg = frame_by_door.get(int(door_number), {})
-                run_side_cycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    cps,
-                )
-
-            # Run side cycles
-            # run_side_cycles(side_cycles1,force_side_cycles1,door_number1)
-            # run_side_cycles(side_cycles2,force_side_cycles2,door_number2)
-            # run_side_cycles(side_cycles3,force_side_cycles3,door_number3)
-            # run_side_cycles(side_cycles4,force_side_cycles4,door_number4)
-            
-            
-            #zigzag and spiral cycles
-            for door_number in zig_zag_cycle_doors:
-                cfg = zigzag_by_door.get(int(door_number), {})
-                # Map UI toggles/config to orientation/movement
-                orientation = str(cfg.get("orientation") or "vertical").lower()
-                edge_flag = cfg.get("edge")
-                if edge_flag is None:
-                    edge_flag = cfg.get("edgeCoverage")
-                movement = "rect" if edge_flag else "zigzag"
-                run_zigzag_cycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    z,
-                    cps,
-                    orientation=orientation,
-                    movement=movement,
-                    spiral_settings=spiral_settings,
-                )
-
-            # Run Zigzag cycles
-            # run_zigzag_cycles(zig_cycle1, force_zigzag1, zig_door1, z)
-            # run_zigzag_cycles(zig_cycle2, force_zigzag2, zig_door2, z)
-            # run_zigzag_cycles(zig_cycle3, force_zigzag3, zig_door3, z)
-            # run_zigzag_cycles(zig_cycle4, force_zigzag4, zig_door4, z)
-
-            # Run Pocket cycles
-            for door_number in pocket_cycle_doors:
-                cfg = pocket_by_door.get(int(door_number), {})
-                run_pocket_cycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    z1,
-                    cps,
-                )
-
-            # Leave the working area before any optional tool-change/drop action.
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
-            has_followup_after_tool3 = (
-                any_cycles(tool2edge_by_door)
-                or any_cycles(tool2side_by_door)
-                or any_cycles(tool3_by_door)
-            )
-
-            if has_followup_after_tool3:
-                seventh_result = communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=0,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=0.3,
-                    wait=True,
-                    require_seventh_ok=True,
-                )
-                if seventh_result is None:
-                    raise RuntimeError("Failed to move 7th axis to tool station before dropping tool 3.")
-                # Use blocking tool-drop path to prevent mid-motion valve release.
-                keepTool11(cps, toolNumber=3, config=config, goToSafe=True)
-            else:
-                if keep_tool_after_task:
-                    print("Task completed: keeping Tool 3 mounted.")
-                else:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        seventh=0,
-                        tcp=config["coords"]["tcptool1plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        speed=0.3,
-                        wait=True,
+            # Tool 3 operations for this door: frame -> zigzag -> pocket
+            if frame_cycle > 0 or zigzag_cycle > 0 or pocket_cycle > 0:
+                ensure_tool_in_hand(3)
+                if frame_cycle > 0:
+                    run_side_cycles(
+                        frame_cycle,
+                        int(frame_cfg.get("force", 0)),
+                        door_number,
+                        cps,
                     )
-                    keepTool11(cps, toolNumber=3, config=config)
-                    communicate(
-                        cps=cps,
-                        point=config["point"]["safePoint"],
-                        tcp=config["coords"]["tcpDefault"],
-                        ucs=config["coords"]["ucsDefault"],
-                        seventh=-1,
-                        config=config,
-                        speed=speeed,
-                        wait=True,
+                    work_executed = True
+                if zigzag_cycle > 0:
+                    orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
+                    edge_flag = zigzag_cfg.get("edge")
+                    if edge_flag is None:
+                        edge_flag = zigzag_cfg.get("edgeCoverage")
+                    movement = "rect" if edge_flag else "zigzag"
+                    run_zigzag_cycles(
+                        zigzag_cycle,
+                        int(zigzag_cfg.get("force", 0)),
+                        door_number,
+                        z,
+                        cps,
+                        orientation=orientation,
+                        movement=movement,
+                        spiral_settings=spiral_settings,
                     )
-
-            print("\nAll operations completed for Tool1 successfully!")
-
-        if (
-            is_door_available(tool2side_cycle_doors)
-            or is_door_available(tool2sideedge_cycle_doors)
-        ) and (any_cycles(tool2edge_by_door) or any_cycles(tool2side_by_door)):
-            ci0, ci1, ci2 = read_ci_triplet(cps)
-            has_tool2 = check_tool(
-                cps=cps, config=config, tool_num=2, ci0=ci0, ci1=ci1, ci2=ci2
-            )
-            # Pick Tool 2
-            # getTool11(cps, toolNumber=2, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            previous_tool3_work_done = (
-                any_cycles(frame_by_door)
-                or any_cycles(zigzag_by_door)
-                or any_cycles(pocket_by_door)
-            )
-            if not has_tool2:
-                communicate(
-                    cps=cps,
-                    point=config["point"]["safePoint"],
-                    tcp=config["coords"]["tcpDefault"],
-                    ucs=config["coords"]["ucsDefault"],
-                    seventh=-1,
-                    config=config,
-                    speed=speeed,
-                    wait=True,
-                )
-                # If we just dropped tool 3, we are already at the safe tool station.
-                getTool11(
-                    cps,
-                    toolNumber=2,
-                    config=config,
-                    startFromSafe=not previous_tool3_work_done,
-                )
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
-
-            # Tool2 Outside cycle
-            for door_number in tool2side_cycle_doors:
-                cfg = tool2side_by_door.get(int(door_number), {})
-                run_tool2side_cycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    cps,
-                )
-
-            # run_tool2side_cycles(tl2side_cycle1, tl2side_force1, tl2side_door1)
-            # run_tool2side_cycles(tl2side_cycle2, tl2side_force2, tl2side_door2)
-            # run_tool2side_cycles(tl2side_cycle3, tl2side_force3, tl2side_door3)
-            # run_tool2side_cycles(tl2side_cycle4, tl2side_force4, tl2side_door4)
-
-            # Tool2 Outside Edge Cycle
-            for door_number in tool2sideedge_cycle_doors:
-                cfg = tool2edge_by_door.get(int(door_number), {})
-                run_tool2side_edgecycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    cps,
-                )
-
-            # run_tool2side_edgecycles(tl2sideedge_cycle1, tl2sideedge_force1, tl2sideedge_door1)
-            # run_tool2side_edgecycles(tl2sideedge_cycle2, tl2sideedge_force2, tl2sideedge_door2)
-            # run_tool2side_edgecycles(tl2sideedge_cycle3, tl2sideedge_force3, tl2sideedge_door3)
-            # run_tool2side_edgecycles(tl2sideedge_cycle4, tl2sideedge_force4, tl2sideedge_door4)
-
-            # Leave the working area before any optional tool-change/drop action.
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            # keepTool11(cps, toolNumber=2, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
-            has_followup_after_tool2 = any_cycles(tool3_by_door)
-            if has_followup_after_tool2:
-                seventh_result = communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=0,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=0.3,
-                    wait=True,
-                    require_seventh_ok=True,
-                )
-                if seventh_result is None:
-                    raise RuntimeError("Failed to move 7th axis to tool station before dropping tool 2.")
-                # Use blocking tool-drop path to prevent mid-motion valve release.
-                keepTool11(cps, toolNumber=2, config=config, goToSafe=True)
-            else:
-                if keep_tool_after_task:
-                    print("Task completed: keeping Tool 2 mounted.")
-                else:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        seventh=0,
-                        tcp=config["coords"]["tcptool1plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        speed=0.3,
-                        wait=True,
+                    work_executed = True
+                if pocket_cycle > 0:
+                    run_pocket_cycles(
+                        pocket_cycle,
+                        int(pocket_cfg.get("force", 0)),
+                        door_number,
+                        z1,
+                        cps,
                     )
-                    keepTool11(cps, toolNumber=2, config=config)
-                    communicate(
-                        cps=cps,
-                        point=config["point"]["safePoint"],
-                        tcp=config["coords"]["tcpDefault"],
-                        ucs=config["coords"]["ucsDefault"],
-                        seventh=-1,
-                        config=config,
-                        speed=speeed,
-                        wait=True,
+                    work_executed = True
+
+            # Tool 2 operations for this door: side -> outside edge
+            if side_cycle > 0 or edge_cycle > 0:
+                ensure_tool_in_hand(2)
+                if side_cycle > 0:
+                    run_tool2side_cycles(
+                        side_cycle,
+                        int(side_cfg.get("force", 0)),
+                        door_number,
+                        cps,
                     )
+                    work_executed = True
+                if edge_cycle > 0:
+                    run_tool2side_edgecycles(
+                        edge_cycle,
+                        int(edge_cfg.get("force", 0)),
+                        door_number,
+                        cps,
+                    )
+                    work_executed = True
 
-        if is_door_available(tl3sideedge_door) and any_cycles(tool3_by_door):
-            ci0, ci1, ci2 = read_ci_triplet(cps)
-            has_tool1 = check_tool(
-                cps=cps, config=config, tool_num=1, ci0=ci0, ci1=ci1, ci2=ci2
-            )
-            # Pick Tool 1
-            print("taking tool 1")
-            # getTool11(cps, toolNumber=1, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.2, wait=True)
-            previous_tool2_or_tool3_work_done = (
-                any_cycles(tool2edge_by_door)
-                or any_cycles(tool2side_by_door)
-                or any_cycles(frame_by_door)
-                or any_cycles(zigzag_by_door)
-            )
-            if not has_tool1:
-                communicate(
-                    cps=cps,
-                    point=config["point"]["safePoint"],
-                    tcp=config["coords"]["tcpDefault"],
-                    ucs=config["coords"]["ucsDefault"],
-                    seventh=-1,
-                    config=config,
-                    speed=speeed,
-                    wait=True,
-                )
-                getTool11(
-                    cps,
-                    toolNumber=1,
-                    config=config,
-                    startFromSafe=not previous_tool2_or_tool3_work_done,
-                )
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
+            # Tool 1 operations for this door: 3D
+            if tool1_cycle > 0:
+                ensure_tool_in_hand(1)
+                run_tool3_cycles(tool1_cycle, door_number, z2, cps)
+                work_executed = True
 
-            # #Tool 1 3D Cycle
-            # run_tool3_cycles(tool3_3dcycle,force_tool3_3d)  # <-- Fixed indentation
-            for door_number in tl3sideedge_door:
-                cfg = tool3_by_door.get(int(door_number), {})
-                run_tool3_cycles(int(cfg.get("cycle", 0)), int(door_number), z2, cps)
+            print(f"=== DOOR {door_number} COMPLETE ===")
 
-            # Leave the working area before any optional final tool drop.
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=speeed,
-                wait=True,
-            )
+        if work_executed:
+            move_to_safe_point()
             if keep_tool_after_task:
-                print("Task completed: keeping Tool 1 mounted.")
+                print("Task completed: keeping current tool mounted.")
             else:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=0,
-                    tcp=config["coords"]["tcptool1plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    speed=0.3,
-                    wait=True,
-                )
-                keepTool11(cps, toolNumber=1, config=config)
-                communicate(
-                    cps=cps,
-                    point=config["point"]["safePoint"],
-                    tcp=config["coords"]["tcpDefault"],
-                    ucs=config["coords"]["ucsDefault"],
-                    seventh=-1,
-                    config=config,
-                    speed=speeed,
-                    wait=True,
-                )
+                ci0, ci1, ci2 = read_ci_triplet(cps)
+                tool_in_hand = decode_tool_in_hand(ci0, ci1, ci2)
+                if tool_in_hand is not None:
+                    move_seventh_to_tool_station()
+                    keepTool11(cps, toolNumber=tool_in_hand, config=config)
+                    move_to_safe_point()
+                else:
+                    print("Task completed: no mounted tool to drop.")
+        elif has_any_task:
+            print("No valid door cycles found to execute.")
 
     except Exception as e:
         print(f"\nExecution error: {str(e)}")

@@ -17,9 +17,10 @@ import json
 
 def waitForBlending(cps, config, timeout_s=7):
     start_time = time.time()
+    status_ok = True
     while True:
         if stop_requested():
-            return
+            return False
         result = []
         nret = cps.HRIF_IsBlendingDone(0, 0, result)
         done = False
@@ -30,6 +31,7 @@ def waitForBlending(cps, config, timeout_s=7):
                 config["logger"].warning(
                     f"[waitForBlending] HRIF_IsBlendingDone error (ret={nret}); continuing."
                 )
+                status_ok = False
             break
         if result:
             last = result[-1]
@@ -45,11 +47,12 @@ def waitForBlending(cps, config, timeout_s=7):
                 config["logger"].warning(
                     f"[waitForBlending] Timed out after {timeout_s}s; continuing."
                 )
+            status_ok = False
             break
     # Keep a minimal settle delay; larger fixed sleeps add visible latency
     # between chained point-to-point moves.
     time.sleep(0.02)
-    return
+    return status_ok
     # result = [False]
     # start_time = time.time()
     #
@@ -86,9 +89,9 @@ def load_json_config():
     return config
 
 
-def msg_to_frontend(api_url, message):
+def msg_to_frontend(api_url, message, timeout_s=0.8):
     try:
-        response = requests.post(api_url, json={"message": message})
+        response = requests.post(api_url, json={"message": message}, timeout=timeout_s)
         response.raise_for_status()  # Raise exception for HTTP errors
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -250,6 +253,60 @@ def _verify_tool_attached(cps, tool_number, config):
         message=(
             f"Tool {tool_number} not detected after pick (detected {detected_label}). "
             f"{sensor_msg}. Check the tool station or sensors."
+        ),
+    )
+    return False
+
+
+def _verify_tool_released(cps, config, expected_tool_number=None):
+    timeout_s = None
+    poll_s = None
+    try:
+        timeout_s = float(config.get("tool", {}).get("signalWaitTimeoutSeconds"))
+    except (TypeError, ValueError):
+        timeout_s = None
+    try:
+        poll_s = float(config.get("tool", {}).get("signalPollIntervalSeconds"))
+    except (TypeError, ValueError):
+        poll_s = None
+
+    if timeout_s is None:
+        timeout_s = 2.0
+    if poll_s is None or poll_s <= 0:
+        poll_s = 0.05
+
+    start = time.monotonic()
+    detected = None
+    while True:
+        detected = _get_tool_in_hand(cps)
+        if detected == 0:
+            return True
+        if time.monotonic() - start >= timeout_s:
+            break
+        time.sleep(poll_s)
+
+    sensors = _read_tool_sensors(cps)
+    sensor_msg = (
+        f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
+        f"DI4={sensors['di4']} DI5={sensors['di5']} DI7={sensors['di7']}"
+    )
+    if detected is None:
+        detected_label = "unknown (sensor read failed)"
+    elif detected == 0:
+        detected_label = "none"
+    else:
+        detected_label = f"tool {detected}"
+
+    expected_msg = (
+        f" (expected release of tool {expected_tool_number})"
+        if expected_tool_number is not None
+        else ""
+    )
+    msg_to_frontend(
+        api_url=config["server"]["frontEnd_messaging_url"],
+        message=(
+            f"Tool release not confirmed{expected_msg}. "
+            f"Detected {detected_label}. {sensor_msg}"
         ),
     )
     return False
@@ -2234,6 +2291,22 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
     def homingFunction(cps, config):
         result = [-1, -1, -1, -1]
+        door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+        homing_blend_timeout_s = max(
+            0.2, float(door_cfg.get("homingBlendTimeoutSeconds", 2.0))
+        )
+        motor_connect_settle_s = max(
+            0.01, float(door_cfg.get("homingMotorConnectDelaySec", 0.08))
+        )
+        motor_stop_settle_s = max(
+            0.01, float(door_cfg.get("homingMotorStopDelaySec", 0.1))
+        )
+        origin_command_settle_s = max(
+            0.01, float(door_cfg.get("homingOriginCommandDelaySec", 0.25))
+        )
+        origin_poll_s = max(
+            0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.1))
+        )
 
         if not setUCS_TCP(
             cps,
@@ -2317,7 +2390,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=config["door"]["homingSpeed"],
             wait=False,
         )
-        waitForBlending(cps=cps, config=config)
+        waitForBlending(cps=cps, config=config, timeout_s=homing_blend_timeout_s)
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -2326,7 +2399,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             return
         # connect the 7th axis motor
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
-        time.sleep(0.2)
+        time.sleep(motor_connect_settle_s)
         if result[1] != "OK":
             config["logger"].error(
                 "[HomingFunc] Could not connect to the motor. Exiting..."
@@ -2340,12 +2413,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         config["logger"].info("[HomingFunc] step 2: Go to the homing switch")
         # communicate(cps=cps, tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=0, config=config, speed=config['door']['homingSpeed'])
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-        time.sleep(0.3)
+        time.sleep(motor_stop_settle_s)
         print(f"****** motor stop nret: {nret}; result: {result}")
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
         # nret = cps.HRIF_HRApp(0, 'HR_Motor','MotorMovePosition', ["J7", "-22.0"], result)
         # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
-        time.sleep(1)
+        time.sleep(origin_command_settle_s)
         print(f"****** move origin nret: {nret}; result: {result}")
         result = [-1, -1, "-1"]
         # for waiting till the motor moves to the position
@@ -2358,7 +2431,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 return
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
             print(f"****** result: {result}")
-            time.sleep(0.5)
+            time.sleep(origin_poll_s)
         # Move to the configured J7 home position after origin.
         if stop_requested():
             msg_to_frontend(
@@ -5932,7 +6005,12 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         wait=True,
     )
     # drop (for safety, to open the valve)
-    waitForBlending(cps=cps, config=config)
+    if not waitForBlending(cps=cps, config=config):
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Aborting pick: robot blending did not complete before valve open.",
+        )
+        raise RuntimeError("Blending timeout/error before tool pick pre-drop.")
     toolValve1(cps, valveState="drop", config=config)
     # touch the tool (slowly)
     communicate(
@@ -5946,7 +6024,12 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         wait=True,
     )
     # pick the tool
-    waitForBlending(cps=cps, config=config)
+    if not waitForBlending(cps=cps, config=config):
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Aborting pick: robot blending did not complete before valve close.",
+        )
+        raise RuntimeError("Blending timeout/error before tool pick.")
     toolValve1(cps, valveState="pick", config=config)
     if not _verify_tool_attached(cps, toolNumber, config):
         return False
@@ -6022,8 +6105,15 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         wait=True,
     )
     # drop the tool (wait for blending to avoid mid-motion release)
-    waitForBlending(cps=cps, config=config)
+    if not waitForBlending(cps=cps, config=config):
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Aborting drop: robot blending did not complete before valve open.",
+        )
+        raise RuntimeError("Blending timeout/error before tool drop.")
     toolValve1(cps, valveState="drop", config=config)
+    if not _verify_tool_released(cps=cps, config=config, expected_tool_number=toolNumber):
+        raise RuntimeError("Tool release not confirmed after drop command.")
     # come back to tool's home
     communicate(
         cps=cps,
@@ -6327,6 +6417,22 @@ def moveOnlyJ6r(cps, J6, config, wait=True):
 
 def homingFunction1(cps, config):
     result = [-1, -1, -1, -1]
+    door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+    homing_blend_timeout_s = max(
+        0.2, float(door_cfg.get("homingBlendTimeoutSeconds", 2.0))
+    )
+    motor_connect_settle_s = max(
+        0.01, float(door_cfg.get("homingMotorConnectDelaySec", 0.08))
+    )
+    motor_stop_settle_s = max(
+        0.01, float(door_cfg.get("homingMotorStopDelaySec", 0.1))
+    )
+    origin_command_settle_s = max(
+        0.01, float(door_cfg.get("homingOriginCommandDelaySec", 0.25))
+    )
+    origin_poll_s = max(
+        0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.1))
+    )
 
     setUCS_TCP(
         cps,
@@ -6362,10 +6468,10 @@ def homingFunction1(cps, config):
         speed=config["door"]["homingSpeed"],
         wait=False,
     )
-    waitForBlending(cps=cps, config=config)
+    waitForBlending(cps=cps, config=config, timeout_s=homing_blend_timeout_s)
     # connect the 7th axis motor
     nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
-    time.sleep(0.2)
+    time.sleep(motor_connect_settle_s)
     if result[1] != "OK":
         config["logger"].error(
             "[HomingFunc] Could not connect to the motor. Exiting..."
@@ -6379,18 +6485,18 @@ def homingFunction1(cps, config):
     config["logger"].info("[HomingFunc] step 2: Go to the homing switch")
     # communicate(cps=cps, tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=0, config=config, speed=config['door']['homingSpeed'])
     nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-    time.sleep(0.3)
+    time.sleep(motor_stop_settle_s)
     print(f"****** motor stop nret: {nret}; result: {result}")
     nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
     # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
-    time.sleep(1)
+    time.sleep(origin_command_settle_s)
     print(f"****** move origin nret: {nret}; result: {result}")
     result = [-1, -1, "-1"]
     # for waiting till the motor moves to the position
     while result[2] != "0":
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
         print(f"****** result: {result}")
-        time.sleep(0.5)
+        time.sleep(origin_poll_s)
     # seventhGoToPos(cps, position=0, speed=UISettings['control']['linearAxisSpeed'] * config['7thAxis']['speed'], config=config)
     config["logger"].info("[HomingFunc] DONE! Success to reach 0th position")
     msg_to_frontend(
