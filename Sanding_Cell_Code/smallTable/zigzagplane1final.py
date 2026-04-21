@@ -1371,7 +1371,7 @@ def smalldoor1zizag(
                 # turn_vibration_off(cps)
                 # releaseForce(cps=cps, config=config)
                 
-                    print("Spiral move from A to B:", point_A, "->", point_B)
+                    print("Linear move from A to B:", point_A, "->", point_B)
                 #     success, count = run_spiral_between_points(
                 #         cps=cps,
                 #         config=config,
@@ -1413,16 +1413,17 @@ def smalldoor1zizag(
                 #     if not finalized:
                 #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                 
+                    is_last_segment = index == (len(zigzag_points) - 2)
                     communicate(
                         cps=cps,
                         config=config,
-                        point=index,
+                        point=point_B,
                         tcp=config["coords"]["tcptool3plane1"],
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=float(json_config["sandingSpeed"]),
                         speed_mode="linear",
-                        wait=False
+                        wait=is_last_segment
                     )
                     
             # Wait for blending and turn off vibration
@@ -1829,38 +1830,18 @@ def smalldoor2zizag(
                         break
                     point_B = zigzag_points[index + 1]
 
-                    if use_waypoint2:
-                        wp2_segments = generate_arc_line_segments_between(
-                            point_A,
-                            point_B,
-                            radius=12.0,
-                            arc_step_deg=120.0,
-                            pitch=12.0,
-                            clockwise=True,
-                            bounds=bounds,
-                            safety_margin=5.0,
-                            min_radius=1.0,
-                        )
-                        last_pair = index == (len(zigzag_points) - 2)
-                        for seg_idx, seg_points in enumerate(wp2_segments):
-                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
-                            wp2_result = execute_waypoint2_path(
-                                cps,
-                                seg_points,
-                                tcp=config["coords"]["tcptool3plane1"],
-                                ucs=config["coords"]["ucsTable1"],
-                                cfg=wp2_cfg,
-                                wait_each=False,
-                                wait_end=wait_end,
-                                throttle_every=throttle_every,
-                                throttle_sleep_s=throttle_sleep_s,
-                                move_l_fn=communicate,
-                                move_l_kwargs=move_kwargs,
-                                logger=config.get("logger"),
-                            )
-                            if not wp2_result.get("ok", False):
-                                raise RuntimeError("[WayPoint2] Segment execution failed.")
-                        continue
+                    is_last_segment = index == (len(zigzag_points) - 2)
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point_B,
+                        tcp=config["coords"]["tcptool3plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=float(json_config["sandingSpeed"]),
+                        speed_mode="linear",
+                        wait=is_last_segment,
+                    )
                     
                 #motion done for zigzag, now turn off vibration and release force before next steps        
                 turn_vibration_off(cps)
@@ -2313,38 +2294,18 @@ def smalldoor3zizag(
                         break
                     point_B = zigzag_points[index + 1]
                     
-                    if use_waypoint2:
-                        wp2_segments = generate_arc_line_segments_between(
-                            point_A,
-                            point_B,
-                            radius=12.0,
-                            arc_step_deg=120.0,
-                            pitch=12.0,
-                            clockwise=True,
-                            bounds=bounds,
-                            safety_margin=5.0,
-                            min_radius=1.0,
-                        )
-                        last_pair = index == (len(zigzag_points) - 2)
-                        for seg_idx, seg_points in enumerate(wp2_segments):
-                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
-                            wp2_result = execute_waypoint2_path(
-                                cps,
-                                seg_points,
-                                tcp=config["coords"]["tcptool3plane1"],
-                                ucs=config["coords"]["ucsTable1"],
-                                cfg=wp2_cfg,
-                                wait_each=False,
-                                wait_end=wait_end,
-                                throttle_every=throttle_every,
-                                throttle_sleep_s=throttle_sleep_s,
-                                move_l_fn=communicate,
-                                move_l_kwargs=move_kwargs,
-                                logger=config.get("logger"),
-                            )
-                            if not wp2_result.get("ok", False):
-                                raise RuntimeError("[WayPoint2] Segment execution failed.")
-                        continue
+                    is_last_segment = index == (len(zigzag_points) - 2)
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point_B,
+                        tcp=config["coords"]["tcptool3plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=float(json_config["sandingSpeed"]),
+                        speed_mode="linear",
+                        wait=is_last_segment,
+                    )
                     
                 #motion done for zigzag, now turn off vibration and release force before next steps        
                 turn_vibration_off(cps)
@@ -2797,38 +2758,18 @@ def smalldoor4zizag(
                         break
                     point_B = zigzag_points[index + 1]
 
-                    if use_waypoint2:
-                        wp2_segments = generate_arc_line_segments_between(
-                            point_A,
-                            point_B,
-                            radius=12.0,
-                            arc_step_deg=120.0,
-                            pitch=12.0,
-                            clockwise=True,
-                            bounds=bounds,
-                            safety_margin=5.0,
-                            min_radius=1.0,
-                        )
-                        last_pair = index == (len(zigzag_points) - 2)
-                        for seg_idx, seg_points in enumerate(wp2_segments):
-                            wait_end = last_pair and seg_idx == (len(wp2_segments) - 1)
-                            wp2_result = execute_waypoint2_path(
-                                cps,
-                                seg_points,
-                                tcp=config["coords"]["tcptool3plane1"],
-                                ucs=config["coords"]["ucsTable1"],
-                                cfg=wp2_cfg,
-                                wait_each=False,
-                                wait_end=wait_end,
-                                throttle_every=throttle_every,
-                                throttle_sleep_s=throttle_sleep_s,
-                                move_l_fn=communicate,
-                                move_l_kwargs=move_kwargs,
-                                logger=config.get("logger"),
-                            )
-                            if not wp2_result.get("ok", False):
-                                raise RuntimeError("[WayPoint2] Segment execution failed.")
-                        continue
+                    is_last_segment = index == (len(zigzag_points) - 2)
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point_B,
+                        tcp=config["coords"]["tcptool3plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=float(json_config["sandingSpeed"]),
+                        speed_mode="linear",
+                        wait=is_last_segment,
+                    )
                     
                 #motion done for zigzag, now turn off vibration and release force before next steps        
                 turn_vibration_off(cps)
