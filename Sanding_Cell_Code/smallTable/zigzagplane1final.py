@@ -548,8 +548,6 @@ def generate_zigzag_path(
     z_coords,
     innerOffset,
     innerOffsetX,
-    x_min_offset: float = 0.0,
-    x_max_offset: float = 0.0,
     orientation="horizontal",
     movement="zigzag",
     innerSandingOffset=67.5,
@@ -636,10 +634,6 @@ def generate_zigzag_path(
             modified_Point3[1],
             modified_Point4[1],
         )
-
-        # Optional x-bound expansion/contraction (used for split overlap in horizontal zigzag)
-        x_min += float(x_min_offset)
-        x_max += float(x_max_offset)
 
         # Calculate available horizontal dimension
         xinner = abs(x_max - x_min)
@@ -1129,7 +1123,6 @@ def smalldoor1zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -1162,7 +1155,6 @@ def smalldoor1zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=29.4,
-                x_max_offset=middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=67.5,
@@ -1174,7 +1166,6 @@ def smalldoor1zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=29.4,
-                x_min_offset=-middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=67.5,
@@ -1625,7 +1616,6 @@ def smalldoor2zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -1658,7 +1648,6 @@ def smalldoor2zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=17,
-                x_max_offset=middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=50,
@@ -1670,7 +1659,6 @@ def smalldoor2zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=17,
-                x_min_offset=-middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=50,
@@ -2089,7 +2077,6 @@ def smalldoor3zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -2122,7 +2109,6 @@ def smalldoor3zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=17,
-                x_max_offset=middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=50,
@@ -2134,7 +2120,6 @@ def smalldoor3zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=17,
-                x_min_offset=-middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=50,
@@ -2552,7 +2537,6 @@ def smalldoor4zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-        middle_overlap = inner_sanding_offset * 0.5
 
         edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
             x_coords=x_coords1,
@@ -2585,7 +2569,6 @@ def smalldoor4zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=17,
-                x_max_offset=middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=50,
@@ -2597,7 +2580,6 @@ def smalldoor4zizag(
                 z_coords=z_coords1,
                 innerOffset=17,
                 innerOffsetX=17,
-                x_min_offset=-middle_overlap,
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=50,
