@@ -1139,7 +1139,7 @@ def smalldoor1zizag(
             innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=50,
+            innerSandingOffset=67.5,
             edge_coverage=True  # Enable edge coverage with MoveL before spiral
         )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
@@ -1150,7 +1150,7 @@ def smalldoor1zizag(
             innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=50,
+            innerSandingOffset=67.5,
             edge_coverage=False
         )
         zigzag_pathp1_left = zigzag_pathp1
@@ -1165,7 +1165,7 @@ def smalldoor1zizag(
                 x_max_offset=middle_overlap,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
+                innerSandingOffset=67.5,
                 edge_coverage=False,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
@@ -1177,7 +1177,7 @@ def smalldoor1zizag(
                 x_min_offset=-middle_overlap,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
+                innerSandingOffset=67.5,
                 edge_coverage=False,
             )
         print("edge_coverage_pathp1=", edge_coverage_pathp1)
