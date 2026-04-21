@@ -183,7 +183,7 @@ def generate_spiral_between_points(
     """
     Build a spiral path between two cartesian poses (X, Y, Z, Rx, Ry, Rz).
     Keeps orientation from start_pose, interpolates center XY between poses,
-    and adds radial offsets for each step.
+    and adds a perpendicular oscillation at each step.
     """
     x0, y0, z0, rx, ry, rz = start_pose[:6]
     x1, y1, _, _, _, _ = end_pose[:6]
@@ -213,6 +213,18 @@ def generate_spiral_between_points(
         total_steps = max(1, total_steps)
     points = list(start_pose[:6])  # start point
 
+    dx = x1 - x0
+    dy = y1 - y0
+    seg_len = math.hypot(dx, dy)
+    if seg_len <= 1e-9:
+        return points
+
+    # Unit tangent from A->B and in-plane unit normal.
+    ux = dx / seg_len
+    uy = dy / seg_len
+    nx = -uy
+    ny = ux
+
     for step in range(1, total_steps + 1):
         t = step / total_steps
         cx = x0 + (x1 - x0) * t
@@ -220,11 +232,17 @@ def generate_spiral_between_points(
         theta_deg = step * angle_step_deg
         theta = math.radians(theta_deg)
 
-        px = cx + radius * math.cos(theta)
-        py = cy + radius * math.sin(theta)
+        # Apply spiral/weave only perpendicular to A->B so progress
+        # along the segment remains monotonic (no inverse-V backtracking).
+        lateral = radius * math.sin(theta)
+        px = cx + lateral * nx
+        py = cy + lateral * ny
         pz = z0  # hold Z while spiraling along Y
 
         points.extend([px, py, pz, rx, ry, rz])
+
+    # Snap exact endpoint for numerical stability and exact segment closure.
+    points[-6:] = [x1, y1, z0, rx, ry, rz]
 
     return points
 
@@ -1580,14 +1598,24 @@ def smalldoor1zizag(
                     #     raise RuntimeError("[Spiral] finalize_spiral_path failed for door 1.")
                     
                     segment_dist = math.hypot(point_B[0] - point_A[0], point_B[1] - point_A[1])
+                    spiral_radius = 12.0
+                    angle_step_deg = 45.0
                     segment_turns = max(2, math.ceil(segment_dist / 50.0))
+                    nominal_steps = max(1, int(segment_turns * (360.0 / angle_step_deg)))
+                    spiral_travel_mm = 2.0 * math.pi * spiral_radius * segment_turns
+                    approx_path_len_mm = math.hypot(segment_dist, spiral_travel_mm)
+                    target_point_spacing_mm = 6.0
+                    segment_max_points = max(
+                        nominal_steps,
+                        int(math.ceil(approx_path_len_mm / target_point_spacing_mm)),
+                    )
                     points = generate_spiral_between_points(
                         point_A,
                         point_B,
                         turns=segment_turns,
-                        radius=12.0,
-                        angle_step_deg=45.0,
-                        max_points=140,
+                        radius=spiral_radius,
+                        angle_step_deg=angle_step_deg,
+                        max_points=segment_max_points,
                         orientation=orientation,
                     )
                     if len(points) % 6 != 0:
@@ -1597,22 +1625,28 @@ def smalldoor1zizag(
 
                     point_poses = [points[i : i + 6] for i in range(0, len(points), 6)]
                     print(
-                        f"[Spiral MoveL] dist={segment_dist:.2f}mm turns={segment_turns} poses={len(point_poses)}"
+                        f"[Spiral MoveL] dist={segment_dist:.2f}mm turns={segment_turns} "
+                        f"max_points={segment_max_points} poses={len(point_poses)}"
                     )
 
-                    for idx, point in enumerate(point_poses):
-                        is_last_point = idx == (len(point_poses) - 1)
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool3plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=float(json_config["sandingSpeed"]),
-                            speed_mode="linear",
-                            wait=is_last_point
-                        )
+                    original_transition_radius = config["coords"].get("transitionRadius")
+                    config["coords"]["transitionRadius"] = 0.0
+                    try:
+                        for idx, point in enumerate(point_poses):
+                            communicate(
+                                cps=cps,
+                                config=config,
+                                point=point,
+                                tcp=config["coords"]["tcptool3plane1"],
+                                ucs=config["coords"]["ucsTable1"],
+                                seventh=-1,
+                                speed=float(json_config["sandingSpeed"]),
+                                speed_mode="linear",
+                                wait=True,
+                            )
+                    finally:
+                        if original_transition_radius is not None:
+                            config["coords"]["transitionRadius"] = original_transition_radius
                     
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
