@@ -135,6 +135,7 @@ def _scan_indicates_model_f():
 
 ############################################################################################
 client_process = None
+client_thread = None
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, async_mode='threading')
@@ -380,6 +381,53 @@ def _run_homing_child(config_data_UI):
                 cps.HRIF_DisConnect(0)
             except Exception:
                 pass
+
+
+def _run_homing_inline(config_data_UI):
+    """Run homing in-process on the parent CPS connection (fast path)."""
+    global client_thread, j7_home_confirmed
+    try:
+        if "logger" not in config_data_UI:
+            config_data_UI["logger"] = setup_logger(config_data_UI["settings"]["debug"])
+
+        with robot_lock:
+            ret = ensure_cps_connected(force=True)
+            if ret != 0:
+                config_data_UI["logger"].error(f"[homing inline] CPS not ready (ret={ret})")
+                return
+            handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
+
+            # Optional legacy follow-up; preserve behavior parity with child path.
+            if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
+                homingtotal(cps=CPS, config=config_data_UI)
+    except Exception as e:
+        try:
+            config_data_UI["logger"].error(f"[homing inline] Exception: {e}")
+        except Exception:
+            print(f"[homing inline] Exception: {e}")
+    finally:
+        if process_state.get("last_action") == "homing":
+            j7_home_confirmed = True
+        process_state["status"] = "completed"
+        process_state["last_action"] = None
+        client_thread = None
+        socketio.emit('flash_message', {"message": "Process finished"})
+
+
+def _parent_cps_healthy_for_homing():
+    """Fast health probe to decide if inline homing can safely reuse parent CPS."""
+    with robot_lock:
+        ret = ensure_cps_connected(force=False)
+        if ret != 0:
+            return False
+        state = []
+        nret = CPS.HRIF_ReadRobotState(0, 0, state)
+        if nret != 0 or not isinstance(state, (list, tuple)) or len(state) < 13:
+            return False
+        # Avoid inline path when robot reports error / emergency-stop.
+        if state[2] == "1" or state[7] == "1":
+            return False
+    return True
 
 ############################################################################################
 # Home route to render the frontend interface. Add more routes if necessary!
@@ -753,10 +801,11 @@ def _disconnect_global_cps_for_child_start():
 
 @app.route("/stop", methods=["POST"])
 def stop_process():
-    global _cps_reconnect_grace_until, _last_stop_ts, client_process
+    global _cps_reconnect_grace_until, _last_stop_ts, client_process, client_thread
     had_process = bool(client_process and client_process.is_alive())
+    had_thread = bool(client_thread and client_thread.is_alive())
     scan_active = _inline_scan_active.is_set()
-    if not had_process and not scan_active:
+    if not had_process and not had_thread and not scan_active:
         enabled = _read_robot_enabled_flag()
         if enabled is False or enabled is None:
             msg = "Robot is not enabled or not connected. Stop is unavailable."
@@ -787,6 +836,20 @@ def stop_process():
         process_state['status'] = 'completed'
         client_process = None
         _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
+    elif had_thread:
+        th = client_thread
+        request_stop()
+        _halt_robot_motion_best_effort()
+        # Thread cannot be force-killed; rely on cooperative stop + motor stop.
+        th.join(timeout=STOP_JOIN_TIMEOUT_SECONDS + STOP_KILL_JOIN_TIMEOUT_SECONDS)
+        if th.is_alive():
+            print("Inline homing thread is still exiting after stop request.")
+        else:
+            print("Inline homing thread stopped.")
+        process_state['status'] = 'completed'
+        process_state['last_action'] = None
+        client_thread = None
+        _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
     elif scan_active:
         # Scan runs inline in /action and shares the global CPS socket.
         # Do not hard-reset CPS here; let scan exit cooperatively on stop flag.
@@ -809,7 +872,7 @@ def stop_process():
         _hard_reset_cps_runtime()
         _cps_reconnect_grace_until = time.monotonic() + max(CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS)
 
-    if had_process:
+    if had_process or had_thread:
         socketio.emit('flash_message', {"message": f"Stopped All Running Process!"})
         return jsonify({'status': 'success', 'message': 'Process terminated successfully'})
 
@@ -1568,8 +1631,10 @@ def handle_action():
         return stop_process()
 
     elif action == "homing":
-        global client_process, _last_child_exit_ts
-        if client_process and client_process.is_alive():
+        global client_process, client_thread, _last_child_exit_ts
+        process_running = bool(client_process and client_process.is_alive())
+        thread_running = bool(client_thread and client_thread.is_alive())
+        if process_running or thread_running:
             return jsonify({"error": "Process already running"}), 409
         clear_stop()
         config_data_UI = fetch_and_combine_data()
@@ -1590,24 +1655,39 @@ def handle_action():
             if min_gap_wait > 0:
                 time.sleep(min_gap_wait)
 
-        with robot_lock:
-            _hard_reset_cps_runtime()
-            _cps_reconnect_grace_until = time.monotonic() + max(CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS)
+        recent_stop_or_child = (
+            elapsed_since_stop < 5.0 or since_child_exit < CHILD_EXIT_SETTLE_SECONDS
+        )
 
-        if (elapsed_since_stop < 5.0 or since_child_exit < CHILD_EXIT_SETTLE_SECONDS) and not _wait_cps_ready_after_stop(config_data_UI):
-            process_state['status'] = 'completed'
-            return jsonify({
-                "error": "Robot controller is still releasing previous CPS session after stop. Try homing again."
-            }), 503
+        # Fast path: reuse parent CPS connection when transport is healthy and stable.
+        can_inline = (not recent_stop_or_child) and _parent_cps_healthy_for_homing()
 
         process_state['status'] = 'in_progress'
         process_state['last_action'] = 'homing'
         j7_home_confirmed = False
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
+
+        if can_inline:
+            client_thread = Thread(target=_run_homing_inline, args=(config_data_UI,), daemon=True)
+            client_thread.start()
+            return jsonify({'status': 'success', 'message': 'Action homing started (inline fast path)'})
+
+        # Safe fallback: force fresh CPS transport via child process.
+        with robot_lock:
+            _hard_reset_cps_runtime()
+            _cps_reconnect_grace_until = time.monotonic() + max(CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS)
+
+        if recent_stop_or_child and not _wait_cps_ready_after_stop(config_data_UI):
+            process_state['status'] = 'completed'
+            process_state['last_action'] = None
+            return jsonify({
+                "error": "Robot controller is still releasing previous CPS session after stop. Try homing again."
+            }), 503
+
         client_process = Process(target=_run_homing_child, args=(config_data_UI,))
         client_process.start()
         Thread(target=_track_process, args=(client_process,), daemon=True).start()
-        return jsonify({'status': 'success', 'message': 'Action homing received and executed'})
+        return jsonify({'status': 'success', 'message': 'Action homing started (reconnect fallback)'})
 
     elif action == "enable":
         with locked_cps(allow_when_busy=True) as ok:
