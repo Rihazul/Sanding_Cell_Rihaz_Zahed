@@ -33,6 +33,7 @@ coords:
   ucsTable2: "Plane_2" # This is the plane for table 2
   roboVelocity: 500 # Increased from 200 to 300 by rafat
   roboAcceleration: 550 # Increased from 250 to 350 by rafat
+  highSpeedAccelerationScale: 1.0 # Applies when speed > 1 in communicate()
   transitionRadius: 20 # Decreased from 10 to 5 by rafat
   # roboVelocity: 200
   # roboAcceleration: 250

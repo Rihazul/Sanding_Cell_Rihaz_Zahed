@@ -5664,20 +5664,33 @@ def communicate(
 
         # input("Is this fine?")
 
-        velocity = config["coords"]["roboVelocity"]
-        acceleration = config["coords"]["roboAcceleration"]
+        base_velocity = config["coords"]["roboVelocity"]
+        base_acceleration = config["coords"]["roboAcceleration"]
+        velocity = base_velocity
+        acceleration = base_acceleration
         if speed is not None:
             try:
                 speed_value = float(speed)
             except (TypeError, ValueError):
                 speed_value = None
             if speed_value is not None and speed_value > 0:
-                velocity = speed_value * velocity
+                velocity = speed_value * base_velocity
                 if speed_value <= 1:
-                    acceleration = (
-                        config["coords"]["roboAcceleration"]
-                        * speed_value
-                    )
+                    acceleration = base_acceleration * speed_value
+                else:
+                    # For speed > 1, acceleration can be tuned independently
+                    # from speed using coords.highSpeedAccelerationScale.
+                    try:
+                        accel_scale_over_one = float(
+                            config.get("coords", {}).get(
+                                "highSpeedAccelerationScale", 1.0
+                            )
+                        )
+                    except (TypeError, ValueError):
+                        accel_scale_over_one = 1.0
+                    if accel_scale_over_one <= 0:
+                        accel_scale_over_one = 1.0
+                    acceleration = base_acceleration * accel_scale_over_one
 
         if stop_requested():
             return
