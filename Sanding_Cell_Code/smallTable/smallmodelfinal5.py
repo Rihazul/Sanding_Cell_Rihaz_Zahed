@@ -175,29 +175,6 @@ def run_tool2side_edgecycles(count, force, door_num,cps):
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)
 
-def run_pocket_cycles(count,door_num, z,cps):
-    """Execute door function based on number"""
-    if count <= 0:  # Skip if count is 0 or negative
-        return
-    door_funcs = {
-        1: smalldoor1tool3,
-        # 2: smalldoor2tool3,
-        # 3: smalldoor3tool3,
-        # 4: smalldoor4tool3
-    }
-    
-    try:
-        door_func = door_funcs[door_num]
-    except KeyError:
-        raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
-
-    for i in range(count):
-        print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(z=z,cps=cps)
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
-
 def run_tool3_cycles(count,door_num, z,cps):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
