@@ -533,7 +533,7 @@ def smalldoor1zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
-                x_length_divisor=2.0,
+                x_length_divisor=1.0,
             )
 
         #Second Pocket 1st Cycle
@@ -590,7 +590,7 @@ def smalldoor1zizag(
                 seventh=-1, 
                 speed=speeed, wait=True
             )
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
+        for i in range(1, 2):  # Single-pass zigzag pocket
         # Get the current tcx (0-indexed)
             current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
             
@@ -925,7 +925,7 @@ def smalldoor2zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
-                x_length_divisor=2.0,
+                x_length_divisor=1.0,
             )
 
         #Second Pocket 1st Cycle
@@ -982,7 +982,7 @@ def smalldoor2zizag(
                 seventh=-1, 
                 speed=speeed, wait=True
             )
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
+        for i in range(1, 2):  # Single-pass zigzag pocket
         # Get the current tcx (0-indexed)
             current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
             
@@ -1317,7 +1317,7 @@ def smalldoor3zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
-                x_length_divisor=2.0,
+                x_length_divisor=1.0,
             )
 
         #Second Pocket 1st Cycle
@@ -1374,7 +1374,7 @@ def smalldoor3zizag(
                 seventh=-1, 
                 speed=speeed, wait=True
             )
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
+        for i in range(1, 2):  # Single-pass zigzag pocket
         # Get the current tcx (0-indexed)
             current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
             
@@ -1709,7 +1709,7 @@ def smalldoor4zizag(
                 movement=movement,
                 innerSandingOffset=67.5,
                 edge_coverage=edge_coverage,
-                x_length_divisor=2.0,
+                x_length_divisor=1.0,
             )
 
         #Second Pocket 1st Cycle
@@ -1766,7 +1766,7 @@ def smalldoor4zizag(
                 seventh=-1, 
                 speed=speeed, wait=True
             )
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
+        for i in range(1, 2):  # Single-pass zigzag pocket
         # Get the current tcx (0-indexed)
             current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
             
@@ -1837,3 +1837,4 @@ if __name__ == "__main__":
     # smalldoor2zizag(force=5,z=-6.5)
     # smalldoor3zizag(force=5,z=-6.5)
     #smalldoor4zizag(force=5,z=-6.5)# Uncommented to call smalldoor4zizag
+
