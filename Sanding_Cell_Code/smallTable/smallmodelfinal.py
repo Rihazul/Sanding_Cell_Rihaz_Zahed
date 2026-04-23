@@ -68,6 +68,8 @@ from cycle_data_utils import (
     get_tableA_task_by_door,
 )
 
+INTER_PASS_DELAY_SECONDS = 0.0
+
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -106,9 +108,9 @@ def run_side_cycles(count, force, door_num, cps):
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(force=force, cps=cps)
-        if i < count - 1:
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
+            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 # function for running zigzag and spiral tool path with tool 3
@@ -153,8 +155,9 @@ def run_zigzag_cycles(
         if i < count - 1:
             if stop_requested():
                 raise RuntimeError("[Spiral] Stop requested.")
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+            if INTER_PASS_DELAY_SECONDS > 0:
+                print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+                time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 def run_pocket_cycles(count, force, door_num, z, cps):
@@ -176,9 +179,9 @@ def run_pocket_cycles(count, force, door_num, z, cps):
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(force=force, z=z, cps=cps)
-        if i < count - 1:
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
+            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 #function for side with tool 2
@@ -201,9 +204,9 @@ def run_tool2side_cycles(count, force, door_num, cps):
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(force=force, cps=cps)
-        if i < count - 1:
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
+            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 #function for top edges between frame and outer side with tool 2
@@ -226,9 +229,9 @@ def run_tool2side_edgecycles(count, force, door_num, cps):
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(force=force, cps=cps)
-        if i < count - 1:
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
+            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 def run_tool3_cycles(count, door_num, z, cps):
@@ -250,9 +253,9 @@ def run_tool3_cycles(count, door_num, z, cps):
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(z=z, cps=cps)
-        if i < count - 1:
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
+            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 def load_json_config():

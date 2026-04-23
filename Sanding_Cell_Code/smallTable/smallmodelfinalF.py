@@ -20,6 +20,8 @@ from modules.CPS import CPSClient
 
 from cycle_data_utils import any_cycles, doors_with_cycles, get_spiral_settings, get_tableA_task_by_door
 
+INTER_PASS_DELAY_SECONDS = 0.0
+
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -69,9 +71,9 @@ def run_zigzag_cycles(
             movement=movement,
             spiral_settings=spiral_settings,
         )
-        if i < count - 1:
-            print("Pausing 3 seconds...")
-            time.sleep(3)
+        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
+            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
+            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
 def check_tool(cps, config, tool_num, ci0, ci1, ci2):

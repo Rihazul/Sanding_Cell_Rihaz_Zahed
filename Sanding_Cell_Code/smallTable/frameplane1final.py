@@ -11,7 +11,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Components.RobotState import RobotState
 import yaml
-import threading
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
@@ -1001,56 +1000,52 @@ def smalldoor1side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        def run_single_movement(robot_point, seventh_axis_point, cps, config):
+        def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Moves the robot and seventh axis using one robot point and one seventh-axis point.
+            Overlap transition safely:
+            1) start lift move (non-blocking),
+            2) move 7th axis while lift is in progress,
+            3) move to re-entry point on the new 7th-axis position.
 
-            :param robot_point: A single set of coordinates for the robot to move to.
+            :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
+            :param reentry_point: Robot point to approach after J7 transition.
             :param cps: The CPS object or any required instance used inside communicate().
             :param config: A configuration dictionary that contains coords, etc.
             """
-
-            def run_robot_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.2,
-                    wait=True
-                )
-
-            def run_axis_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    speed=0.2,
-                    wait=True
-                )
-
-            # Start each movement in its own thread
-            robot_thread = threading.Thread(target=run_robot_movement)
-            axis_thread = threading.Thread(target=run_axis_movement)
-
-            robot_thread.start()
-            axis_thread.start()
-
-            # Wait for both movements to finish before returning
-            robot_thread.join()
-            axis_thread.join()
+            communicate(
+                cps=cps,
+                config=config,
+                point=lift_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=False,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_axis_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                speed=speed,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=reentry_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=True,
+            )
         
         communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
-        # Ensure explicit tool lift before 7th-axis transition to top section.
-        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
-        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -1551,56 +1546,52 @@ def smalldoor2side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
             
-        def run_single_movement(robot_point, seventh_axis_point, cps, config):
+        def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Moves the robot and seventh axis using one robot point and one seventh-axis point.
+            Overlap transition safely:
+            1) start lift move (non-blocking),
+            2) move 7th axis while lift is in progress,
+            3) move to re-entry point on the new 7th-axis position.
 
-            :param robot_point: A single set of coordinates for the robot to move to.
+            :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
+            :param reentry_point: Robot point to approach after J7 transition.
             :param cps: The CPS object or any required instance used inside communicate().
             :param config: A configuration dictionary that contains coords, etc.
             """
-
-            def run_robot_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.2,
-                    wait=True
-                )
-
-            def run_axis_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    speed=0.2,
-                    wait=True
-                )
-
-            # Start each movement in its own thread
-            robot_thread = threading.Thread(target=run_robot_movement)
-            axis_thread = threading.Thread(target=run_axis_movement)
-
-            robot_thread.start()
-            axis_thread.start()
-
-            # Wait for both movements to finish before returning
-            robot_thread.join()
-            axis_thread.join()
+            communicate(
+                cps=cps,
+                config=config,
+                point=lift_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=False,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_axis_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                speed=speed,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=reentry_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=True,
+            )
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
-        # Ensure explicit tool lift before 7th-axis transition to top section.
-        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
-        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -2096,56 +2087,52 @@ def smalldoor3side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
             
-        def run_single_movement(robot_point, seventh_axis_point, cps, config):
+        def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Moves the robot and seventh axis using one robot point and one seventh-axis point.
+            Overlap transition safely:
+            1) start lift move (non-blocking),
+            2) move 7th axis while lift is in progress,
+            3) move to re-entry point on the new 7th-axis position.
 
-            :param robot_point: A single set of coordinates for the robot to move to.
+            :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
+            :param reentry_point: Robot point to approach after J7 transition.
             :param cps: The CPS object or any required instance used inside communicate().
             :param config: A configuration dictionary that contains coords, etc.
             """
-
-            def run_robot_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.2,
-                    wait=True
-                )
-
-            def run_axis_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    speed=0.2,
-                    wait=True
-                )
-
-            # Start each movement in its own thread
-            robot_thread = threading.Thread(target=run_robot_movement)
-            axis_thread = threading.Thread(target=run_axis_movement)
-
-            robot_thread.start()
-            axis_thread.start()
-
-            # Wait for both movements to finish before returning
-            robot_thread.join()
-            axis_thread.join()
+            communicate(
+                cps=cps,
+                config=config,
+                point=lift_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=False,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_axis_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                speed=speed,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=reentry_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=True,
+            )
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
-        # Ensure explicit tool lift before 7th-axis transition to top section.
-        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
-        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
@@ -2639,56 +2626,52 @@ def smalldoor4side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
         
-        def run_single_movement(robot_point, seventh_axis_point, cps, config):
+        def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Moves the robot and seventh axis using one robot point and one seventh-axis point.
+            Overlap transition safely:
+            1) start lift move (non-blocking),
+            2) move 7th axis while lift is in progress,
+            3) move to re-entry point on the new 7th-axis position.
 
-            :param robot_point: A single set of coordinates for the robot to move to.
+            :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
+            :param reentry_point: Robot point to approach after J7 transition.
             :param cps: The CPS object or any required instance used inside communicate().
             :param config: A configuration dictionary that contains coords, etc.
             """
-
-            def run_robot_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.2,
-                    wait=True
-                )
-
-            def run_axis_movement():
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    speed=0.2,
-                    wait=True
-                )
-
-            # Start each movement in its own thread
-            robot_thread = threading.Thread(target=run_robot_movement)
-            axis_thread = threading.Thread(target=run_axis_movement)
-
-            robot_thread.start()
-            axis_thread.start()
-
-            # Wait for both movements to finish before returning
-            robot_thread.join()
-            axis_thread.join()
+            communicate(
+                cps=cps,
+                config=config,
+                point=lift_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=False,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_axis_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                speed=speed,
+                wait=True,
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                point=reentry_point,
+                tcp=config['coords']['tcptool3plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=speed,
+                wait=True,
+            )
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
-        # Ensure explicit tool lift before 7th-axis transition to top section.
-        communicate(cps=cps,config=config,point=bottom5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
-        communicate(cps=cps,config=config,seventh=conx2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
-        communicate(cps=cps,config=config,point=toppoint5pre,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.2,wait=True)
+        run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
