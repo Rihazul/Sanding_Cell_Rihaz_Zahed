@@ -185,19 +185,19 @@ if current_process().name == "MainProcess":
 Tpos = 0
 velocity = 0.1
 robot_lock = threading.Lock()
-CPS_RECONNECT_GRACE_SECONDS = 3.0
+CPS_RECONNECT_GRACE_SECONDS = 1.5
 CPS_RECONNECT_MIN_INTERVAL_SECONDS = 1.0
 STOP_JOIN_TIMEOUT_SECONDS = 0.8
 STOP_KILL_JOIN_TIMEOUT_SECONDS = 0.4
-POST_STOP_GRACE_SECONDS = 2.0
+POST_STOP_GRACE_SECONDS = 1.0
 STOP_TO_HOMING_MIN_GAP_SECONDS = 0.15
-STOP_TO_HOMING_PROBE_TIMEOUT_SECONDS = 1.2
+STOP_TO_HOMING_PROBE_TIMEOUT_SECONDS = 0.6
 _cps_reconnect_grace_until = 0.0
 _cps_last_connect_attempt = 0.0
 _last_stop_ts = 0.0
 _inline_scan_active = threading.Event()
 _last_child_exit_ts = 0.0
-CHILD_EXIT_SETTLE_SECONDS = 1.2
+CHILD_EXIT_SETTLE_SECONDS = 0.6
 
 
 def _sanitize_cps_runtime():

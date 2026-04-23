@@ -2293,19 +2293,19 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         result = [-1, -1, -1, -1]
         door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
         homing_blend_timeout_s = max(
-            0.2, float(door_cfg.get("homingBlendTimeoutSeconds", 2.0))
+            0.2, float(door_cfg.get("homingBlendTimeoutSeconds", 1.0))
         )
         motor_connect_settle_s = max(
-            0.01, float(door_cfg.get("homingMotorConnectDelaySec", 0.08))
+            0.01, float(door_cfg.get("homingMotorConnectDelaySec", 0.04))
         )
         motor_stop_settle_s = max(
-            0.01, float(door_cfg.get("homingMotorStopDelaySec", 0.1))
+            0.01, float(door_cfg.get("homingMotorStopDelaySec", 0.05))
         )
         origin_command_settle_s = max(
-            0.01, float(door_cfg.get("homingOriginCommandDelaySec", 0.25))
+            0.01, float(door_cfg.get("homingOriginCommandDelaySec", 0.125))
         )
         origin_poll_s = max(
-            0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.1))
+            0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.05))
         )
         origin_wait_timeout_s = max(
             5.0, float(door_cfg.get("homingOriginWaitTimeoutSec", 60.0))
@@ -6512,19 +6512,19 @@ def homingFunction1(cps, config):
     result = [-1, -1, -1, -1]
     door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
     homing_blend_timeout_s = max(
-        0.2, float(door_cfg.get("homingBlendTimeoutSeconds", 2.0))
+        0.2, float(door_cfg.get("homingBlendTimeoutSeconds", 1.0))
     )
     motor_connect_settle_s = max(
-        0.01, float(door_cfg.get("homingMotorConnectDelaySec", 0.08))
+        0.01, float(door_cfg.get("homingMotorConnectDelaySec", 0.04))
     )
     motor_stop_settle_s = max(
-        0.01, float(door_cfg.get("homingMotorStopDelaySec", 0.1))
+        0.01, float(door_cfg.get("homingMotorStopDelaySec", 0.05))
     )
     origin_command_settle_s = max(
-        0.01, float(door_cfg.get("homingOriginCommandDelaySec", 0.25))
+        0.01, float(door_cfg.get("homingOriginCommandDelaySec", 0.125))
     )
     origin_poll_s = max(
-        0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.1))
+        0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.05))
     )
     origin_wait_timeout_s = max(
         5.0, float(door_cfg.get("homingOriginWaitTimeoutSec", 60.0))
