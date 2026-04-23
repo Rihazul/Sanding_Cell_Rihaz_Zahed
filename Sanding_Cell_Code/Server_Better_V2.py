@@ -5673,10 +5673,11 @@ def communicate(
                 speed_value = None
             if speed_value is not None and speed_value > 0:
                 velocity = speed_value * velocity
-                acceleration = (
-                    config["coords"]["roboAcceleration"]
-                    * speed_value
-                )
+                if speed_value <= 1:
+                    acceleration = (
+                        config["coords"]["roboAcceleration"]
+                        * speed_value
+                    )
 
         if stop_requested():
             return

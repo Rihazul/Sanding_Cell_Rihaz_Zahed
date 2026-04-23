@@ -147,13 +147,13 @@ tool:
   tool4height: 180 # actual is 160.274 # always subtract 120mm
 
   # Tool change motion speeds
-  manualPickFastSpeed: 0.9
+  manualPickFastSpeed: 1.8
   manualPickSlowSpeed: 0.3
-  manualDropFastSpeed: 0.9
+  manualDropFastSpeed: 1.8
   manualDropSlowSpeed: 0.3
-  autoPickFastSpeed: 0.9
+  autoPickFastSpeed: 1.8
   autoPickSlowSpeed: 0.3
-  autoDropFastSpeed: 0.9
+  autoDropFastSpeed: 1.8
   autoDropSlowSpeed: 0.3
   sensorSettleSeconds: 0.4
   signalWaitTimeoutSeconds: 2.0
