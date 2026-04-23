@@ -1515,24 +1515,8 @@ def smalldoor1zizag(
                 wait=True
             )
 
-    pocket_size = get_pocket_size(1, default_on_error=True)
-    pocket_y = pocket_size["ylen"]
-    pocket_x = pocket_size["xlen"]
-
-    print("pocket_y:", pocket_y)
-    print("pocket_x:", pocket_x)
-
-    # Check conditions
-    if pocket_y == "null" or pocket_x == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
-        smalldoor1zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
-    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
-        smalldoor1zizagsmall(force, z, cps, split=False)
-    else:
-        print(
-            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
-        )
+    print("[zigzag] Door 1 single-pass mode enabled (split disabled).")
+    smalldoor1zizagsmall(force, z, cps, split=False)
 
 
 def smalldoor2zizag(
@@ -1976,24 +1960,8 @@ def smalldoor2zizag(
                 wait=True
             )
 
-    pocket_size = get_pocket_size(2, default_on_error=True)
-    pocket_y = pocket_size["ylen"]
-    pocket_x = pocket_size["xlen"]
-
-    print("pocket_y:", pocket_y)
-    print("pocket_x:", pocket_x)
-
-    # Check conditions
-    if pocket_y == "null" or pocket_x == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
-        smalldoor2zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
-    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
-        smalldoor2zizagsmall(force, z, cps, split=False)
-    else:
-        print(
-            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
-        )
+    print("[zigzag] Door 2 single-pass mode enabled (split disabled).")
+    smalldoor2zizagsmall(force, z, cps, split=False)
 
 
 def smalldoor3zizag(
@@ -2436,24 +2404,8 @@ def smalldoor3zizag(
                 wait=True
             )
 
-    pocket_size = get_pocket_size(3, default_on_error=True)
-    pocket_y = pocket_size["ylen"]
-    pocket_x = pocket_size["xlen"]
-
-    print("pocket_y:", pocket_y)
-    print("pocket_x:", pocket_x)
-
-    # Check conditions
-    if pocket_y == "null" or pocket_x == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
-        smalldoor3zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
-    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
-        smalldoor3zizagsmall(force, z, cps, split=False)
-    else:
-        print(
-            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
-        )
+    print("[zigzag] Door 3 single-pass mode enabled (split disabled).")
+    smalldoor3zizagsmall(force, z, cps, split=False)
 
 
 def smalldoor4zizag(
@@ -2897,24 +2849,8 @@ def smalldoor4zizag(
                 wait=True
             )
 
-    pocket_size = get_pocket_size(4, default_on_error=True)
-    pocket_y = pocket_size["ylen"]
-    pocket_x = pocket_size["xlen"]
-
-    print("pocket_y:", pocket_y)
-    print("pocket_x:", pocket_x)
-
-    # Check conditions
-    if pocket_y == "null" or pocket_x == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(pocket_y, (int, float)) and isinstance(pocket_x, (int, float)):
-        smalldoor4zizagsmall(force, z, cps, split=pocket_y > 600 and pocket_x > 290)
-    elif isinstance(pocket_y, (int, float)) or isinstance(pocket_x, (int, float)):
-        smalldoor4zizagsmall(force, z, cps, split=False)
-    else:
-        print(
-            f"Invalid pocket size type: {type(pocket_x)}, {type(pocket_y)} - expected numbers or 'null'"
-        )
+    print("[zigzag] Door 4 single-pass mode enabled (split disabled).")
+    smalldoor4zizagsmall(force, z, cps, split=False)
 
 
 if __name__ == "__main__":
