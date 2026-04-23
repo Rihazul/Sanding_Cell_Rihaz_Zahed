@@ -15,7 +15,13 @@ import json
 # from smallTable.scansmalltable import scanTableA
 
 
-def waitForBlending(cps, config, timeout_s=7):
+def waitForBlending(cps, config, timeout_s=None):
+    door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+    if timeout_s is None:
+        # Default was 7s; reduce to 50% to shorten J7<->arm transition stalls.
+        timeout_s = float(door_cfg.get("blendTimeoutSeconds", 3.5))
+    timeout_s = max(0.2, float(timeout_s))
+    settle_s = max(0.005, float(door_cfg.get("blendSettleDelaySec", 0.01)))
     start_time = time.time()
     status_ok = True
     while True:
@@ -51,7 +57,7 @@ def waitForBlending(cps, config, timeout_s=7):
             break
     # Keep a minimal settle delay; larger fixed sleeps add visible latency
     # between chained point-to-point moves.
-    time.sleep(0.02)
+    time.sleep(settle_s)
     return status_ok
     # result = [False]
     # start_time = time.time()
@@ -2171,6 +2177,11 @@ def releaseForce(cps, config, wait_for_blending=True):
 
 
 def setUCS_TCP(cps, tcp, ucs, config):
+    door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+    coord_blend_timeout_s = max(
+        0.05, float(door_cfg.get("coordBlendTimeoutSeconds", 0.2))
+    )
+
     def coord_matches(current, by_name, target_name):
         """Compare coordinate identities robustly across SDK response formats."""
         if not isinstance(current, (list, tuple)) or len(current) == 0:
@@ -2252,7 +2263,7 @@ def setUCS_TCP(cps, tcp, ucs, config):
         ucsByName = []
         nRet = cps.HRIF_ReadUCSByName(0, 0, ucs, ucsByName)
         if not coord_matches(ucsByCurrent, ucsByName, ucs):
-            waitForBlending(cps, config, timeout_s=0.4)
+            waitForBlending(cps, config, timeout_s=coord_blend_timeout_s)
             if not set_coord_with_retry(
                 cps.HRIF_SetUCSByName, cps.HRIF_ReadCurUCS, ucsByName, "UCS", ucs
             ):
@@ -2268,7 +2279,7 @@ def setUCS_TCP(cps, tcp, ucs, config):
         tcpByName = []
         nRet = cps.HRIF_ReadTCPByName(0, 0, tcp, tcpByName)
         if not coord_matches(tcpByCurrent, tcpByName, tcp):
-            waitForBlending(cps, config, timeout_s=0.4)
+            waitForBlending(cps, config, timeout_s=coord_blend_timeout_s)
             if not set_coord_with_retry(
                 cps.HRIF_SetTCPByName, cps.HRIF_ReadCurTCP, tcpByName, "TCP", tcp
             ):
