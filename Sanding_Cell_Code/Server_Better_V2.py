@@ -2313,10 +2313,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
         def origin_done(state):
             """Robust completion check for MotorGetState response."""
-            if not isinstance(state, (list, tuple)) or len(state) == 0:
+            if not isinstance(state, (list, tuple)) or len(state) < 3:
                 return False
-            raw = state[2] if len(state) > 2 else state[0]
-            raw_s = str(raw).strip().lower()
+            raw_s = str(state[2]).strip().lower()
             # Common SDK variants for idle/done.
             if raw_s in ("idle", "done", "false"):
                 return True
@@ -2442,6 +2441,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # Wait until the motor reports origin complete.
         while not origin_done(result):
             if stop_requested():
+                try:
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                except Exception:
+                    pass
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message="Homing stopped by user.",
@@ -2454,6 +2457,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
             print(f"****** result: {result}")
             if (time.time() - origin_wait_start) >= origin_wait_timeout_s:
+                try:
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                except Exception:
+                    pass
                 config["logger"].error(
                     f"[HomingFunc] Timeout waiting for J7 origin complete after "
                     f"{origin_wait_timeout_s:.1f}s. Last state={result}"
@@ -2471,7 +2478,19 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 message="Homing stopped by user.",
             )
             return
-        home_j7 = float(config.get("UI", {}).get("seventhAxisHome", -65))
+        home_default = float(config.get("seventhAxis", {}).get("homePosition", -65))
+        home_j7 = float(config.get("UI", {}).get("seventhAxisHome", home_default))
+        home_abs_limit = float(config.get("seventhAxis", {}).get("homeAbsLimit", 2000.0))
+        if abs(home_j7) > home_abs_limit:
+            config["logger"].error(
+                f"[HomingFunc] Invalid seventhAxisHome={home_j7}. "
+                f"Allowed absolute limit={home_abs_limit}."
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing failed: invalid J7 home target value in settings.",
+            )
+            return
         config["logger"].info(
             f"[HomingFunc] Reached J7 origin; moving to home position {home_j7}mm"
         )
@@ -5738,19 +5757,36 @@ def communicate(
                 return bool(result) and str(result[0]) == "0"
             return nret == 0
 
-        def state_ok(state):
-            return (
-                isinstance(state, (list, tuple))
-                and len(state) >= 3
-                and str(state[0]) == "0"
-            )
+        def read_motion_state(state):
+            if not isinstance(state, (list, tuple)) or len(state) < 3:
+                return None
+            return str(state[2]).strip().lower()
+
+        def state_readable(state):
+            return read_motion_state(state) is not None
+
+        def state_done(state):
+            motion = read_motion_state(state)
+            if motion is None:
+                return False
+            if motion in ("idle", "done", "false", "stop", "stopped"):
+                return True
+            try:
+                return float(motion) == 0.0
+            except (TypeError, ValueError):
+                return False
 
         pluginRes = []
         result = []
+        door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+        move_poll_s = max(0.005, float(door_cfg.get("seventhAxisPollIntervalSec", 0.02)))
+        move_wait_timeout_s = max(
+            5.0, float(door_cfg.get("seventhAxisMoveTimeoutSec", 45.0))
+        )
 
         # Read state first; only reconnect J7 if state read is unavailable.
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-        if (nret not in (0, None)) or not state_ok(pluginRes):
+        if (nret not in (0, None)) or not state_readable(pluginRes):
             result = []
             nret_conn = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
             if not move_ok(nret_conn, result):
@@ -5767,7 +5803,7 @@ def communicate(
             for _ in range(8):
                 pluginRes = []
                 nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-                if (nret in (0, None)) and state_ok(pluginRes):
+                if (nret in (0, None)) and state_readable(pluginRes):
                     ready = True
                     break
                 time.sleep(0.02)
@@ -5781,7 +5817,7 @@ def communicate(
                 )
                 return False
 
-        if not state_ok(pluginRes):
+        if not state_readable(pluginRes):
             config["logger"].error(
                 f"[7thAxisMove] Failed to read J7 state before move (ret={nret}, res={pluginRes})."
             )
@@ -5840,6 +5876,8 @@ def communicate(
         )
         time.sleep(0.0001)
 
+        wait_start = time.time()
+        consecutive_state_errors = 0
         while wait:
             if stop_requested():
                 try:
@@ -5849,21 +5887,44 @@ def communicate(
                 return False
             pluginRes = []
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-            if (nret not in (0, None)) or len(pluginRes) < 3 or str(pluginRes[0]) != "0":
+            if (nret not in (0, None)) or not state_readable(pluginRes):
+                consecutive_state_errors += 1
+                if consecutive_state_errors >= 5:
+                    try:
+                        cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                    except Exception:
+                        pass
+                    config["logger"].error(
+                        f"[7thAxisMove] MotorGetState failed during move (ret={nret}, res={pluginRes})."
+                    )
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="7th axis state read failed during move. Movement stopped for safety.",
+                    )
+                    return False
+            else:
+                consecutive_state_errors = 0
+                if state_done(pluginRes):
+                    # Motor reports idle/done.
+                    break
+
+            if (time.time() - wait_start) >= move_wait_timeout_s:
+                try:
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                except Exception:
+                    pass
                 config["logger"].error(
-                    f"[7thAxisMove] MotorGetState failed (ret={nret}, res={pluginRes})."
+                    f"[7thAxisMove] Timeout waiting for J7 move to complete after "
+                    f"{move_wait_timeout_s:.1f}s (target={position}, last_state={pluginRes})."
                 )
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
-                    message="7th axis state read failed during move. Please verify J7.",
+                    message="7th axis move timeout. Movement stopped for safety.",
                 )
                 return False
 
             # Faster state polling reduces visible handoff latency.
-            time.sleep(0.005)
-            if pluginRes[2] == "0":
-                # means that the robot has reached the position
-                break
+            time.sleep(move_poll_s)
 
         config["logger"].info(f"[7thAxisMove] Reached position: {position}mm")
         return True
@@ -6470,10 +6531,9 @@ def homingFunction1(cps, config):
     )
 
     def origin_done(state):
-        if not isinstance(state, (list, tuple)) or len(state) == 0:
+        if not isinstance(state, (list, tuple)) or len(state) < 3:
             return False
-        raw = state[2] if len(state) > 2 else state[0]
-        raw_s = str(raw).strip().lower()
+        raw_s = str(state[2]).strip().lower()
         if raw_s in ("idle", "done", "false"):
             return True
         try:
@@ -6549,6 +6609,10 @@ def homingFunction1(cps, config):
             )
         print(f"****** result: {result}")
         if (time.time() - origin_wait_start) >= origin_wait_timeout_s:
+            try:
+                cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+            except Exception:
+                pass
             config["logger"].error(
                 f"[HomingFunc] Timeout waiting for J7 origin complete after "
                 f"{origin_wait_timeout_s:.1f}s. Last state={result}"
