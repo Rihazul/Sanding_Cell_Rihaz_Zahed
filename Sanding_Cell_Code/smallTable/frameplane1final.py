@@ -1002,10 +1002,11 @@ def smalldoor1side(force,cps):
 
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Overlap transition safely:
-            1) start lift move (non-blocking),
-            2) move 7th axis while lift is in progress,
-            3) move to re-entry point on the new 7th-axis position.
+            Transition safely between passes:
+            1) complete lift to clearance,
+            2) start 7th-axis motion without waiting,
+            3) reposition tool while 7th axis is moving,
+            4) ensure 7th-axis move is complete before next pass.
 
             :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
@@ -1021,7 +1022,7 @@ def smalldoor1side(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
-                wait=False,
+                wait=True,
             )
             communicate(
                 cps=cps,
@@ -1030,7 +1031,7 @@ def smalldoor1side(force,cps):
                 tcp=config['coords']['tcptool3plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
-                wait=True,
+                wait=False,
             )
             communicate(
                 cps=cps,
@@ -1548,10 +1549,11 @@ def smalldoor2side(force,cps):
             
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Overlap transition safely:
-            1) start lift move (non-blocking),
-            2) move 7th axis while lift is in progress,
-            3) move to re-entry point on the new 7th-axis position.
+            Transition safely between passes:
+            1) complete lift to clearance,
+            2) start 7th-axis motion without waiting,
+            3) reposition tool while 7th axis is moving,
+            4) ensure 7th-axis move is complete before next pass.
 
             :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
@@ -1567,7 +1569,7 @@ def smalldoor2side(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
-                wait=False,
+                wait=True,
             )
             communicate(
                 cps=cps,
@@ -1576,7 +1578,7 @@ def smalldoor2side(force,cps):
                 tcp=config['coords']['tcptool3plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
-                wait=True,
+                wait=False,
             )
             communicate(
                 cps=cps,
@@ -2089,10 +2091,11 @@ def smalldoor3side(force,cps):
             
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Overlap transition safely:
-            1) start lift move (non-blocking),
-            2) move 7th axis while lift is in progress,
-            3) move to re-entry point on the new 7th-axis position.
+            Transition safely between passes:
+            1) complete lift to clearance,
+            2) start 7th-axis motion without waiting,
+            3) reposition tool while 7th axis is moving,
+            4) ensure 7th-axis move is complete before next pass.
 
             :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
@@ -2108,7 +2111,7 @@ def smalldoor3side(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
-                wait=False,
+                wait=True,
             )
             communicate(
                 cps=cps,
@@ -2117,7 +2120,7 @@ def smalldoor3side(force,cps):
                 tcp=config['coords']['tcptool3plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
-                wait=True,
+                wait=False,
             )
             communicate(
                 cps=cps,
@@ -2628,10 +2631,11 @@ def smalldoor4side(force,cps):
         
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
-            Overlap transition safely:
-            1) start lift move (non-blocking),
-            2) move 7th axis while lift is in progress,
-            3) move to re-entry point on the new 7th-axis position.
+            Transition safely between passes:
+            1) complete lift to clearance,
+            2) start 7th-axis motion without waiting,
+            3) reposition tool while 7th axis is moving,
+            4) ensure 7th-axis move is complete before next pass.
 
             :param lift_point: Clearance lift point before J7 transition.
             :param seventh_axis_point: A single point or value for the seventh axis.
@@ -2647,7 +2651,7 @@ def smalldoor4side(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
-                wait=False,
+                wait=True,
             )
             communicate(
                 cps=cps,
@@ -2656,7 +2660,7 @@ def smalldoor4side(force,cps):
                 tcp=config['coords']['tcptool3plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
-                wait=True,
+                wait=False,
             )
             communicate(
                 cps=cps,
