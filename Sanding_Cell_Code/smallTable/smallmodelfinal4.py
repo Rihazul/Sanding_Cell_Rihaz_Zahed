@@ -479,44 +479,55 @@ def sandingModelDETableA():
             getTool11(cps, toolNumber=3, config=config)
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             
-            #Run side cycles
-            for door_number in side_cycles_doors:
-                cfg = frame_by_door.get(int(door_number), {})
-                run_side_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
-            
-            # run_side_cycles(side_cycles1,force_side_cycles1,door_number1,cps)
-            #run_side_cycles(side_cycles2,force_side_cycles2,door_number2)
-            #run_side_cycles(side_cycles3,force_side_cycles3,door_number3)
-            #run_side_cycles(side_cycles4,force_side_cycles4,door_number4)
-            
-            #Run Zigzag cycles
-            for door_number in zig_zag_cycle_doors:
-                cfg = zigzag_by_door.get(int(door_number), {})
-                # Map UI toggles/config to orientation/movement
-                orientation = str(cfg.get("orientation") or "vertical").lower()
-                edge_flag = cfg.get("edge")
-                if edge_flag is None:
-                    edge_flag = cfg.get("edgeCoverage")
-                movement = "rect" if edge_flag else "zigzag"
-                run_zigzag_cycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    z,
-                    cps,
-                    orientation=orientation,
-                    movement=movement,
-                    spiral_settings=spiral_settings,
-                )
-            
-            #run_zigzag_cycles(zig_cycle2, force_zigzag2, zig_door2, z)
-            #run_zigzag_cycles(zig_cycle3, force_zigzag3, zig_door3, z)
-            #run_zigzag_cycles(zig_cycle4, force_zigzag4, zig_door4, z)
+            tool3_doors = sorted(
+                {int(d) for d in (list(side_cycles_doors) + list(zig_zag_cycle_doors) + list(pocket_cycle_doors))}
+            )
+            for door_number in tool3_doors:
+                frame_cfg = frame_by_door.get(door_number, {})
+                frame_cycle = int(frame_cfg.get("cycle", 0))
 
-            #Run Pocket cycles
-            for door_number in pocket_cycle_doors:
-                cfg = pocket_by_door.get(int(door_number), {})
-                run_pocket_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), z, cps)
+                zigzag_cfg = zigzag_by_door.get(door_number, {})
+                zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
+
+                pocket_cfg = pocket_by_door.get(door_number, {})
+                pocket_cycle = int(pocket_cfg.get("cycle", 0))
+
+                if frame_cycle <= 0 and zigzag_cycle <= 0 and pocket_cycle <= 0:
+                    continue
+
+                if frame_cycle > 0:
+                    run_side_cycles(
+                        frame_cycle,
+                        int(frame_cfg.get("force", 0)),
+                        door_number,
+                        cps,
+                    )
+
+                if zigzag_cycle > 0:
+                    orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
+                    edge_flag = zigzag_cfg.get("edge")
+                    if edge_flag is None:
+                        edge_flag = zigzag_cfg.get("edgeCoverage")
+                    movement = "rect" if edge_flag else "zigzag"
+                    run_zigzag_cycles(
+                        zigzag_cycle,
+                        int(zigzag_cfg.get("force", 0)),
+                        door_number,
+                        z,
+                        cps,
+                        orientation=orientation,
+                        movement=movement,
+                        spiral_settings=spiral_settings,
+                    )
+
+                if pocket_cycle > 0:
+                    run_pocket_cycles(
+                        pocket_cycle,
+                        int(pocket_cfg.get("force", 0)),
+                        door_number,
+                        z,
+                        cps,
+                    )
             # run_pocket_cycles(pocket_cycle2, force_pocket2, pocket_door2, z)
             # run_pocket_cycles(pocket_cycle3, force_pocket3, pocket_door3, z)
             # run_pocket_cycles(pocket_cycle4, force_pocket4, pocket_door4, z)
@@ -546,16 +557,34 @@ def sandingModelDETableA():
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
             # time.sleep(2)
             
-            #Tool2 Outside cycle
-            for door_number in tool2side_cycle_doors:
-                cfg = tool2side_by_door.get(int(door_number), {})
-                print('run_tool2side_cycles', int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
-                run_tool2side_cycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
-            
-            #Tool2 Outside Edge Cycle
-            for door_number in tool2sideedge_cycle_doors:
-                cfg = tool2edge_by_door.get(int(door_number), {})
-                run_tool2side_edgecycles(int(cfg.get('cycle', 0)), int(cfg.get('force', 0)), int(door_number), cps)
+            tool2_doors = sorted(
+                {int(d) for d in (list(tool2side_cycle_doors) + list(tool2sideedge_cycle_doors))}
+            )
+            for door_number in tool2_doors:
+                side_cfg = tool2side_by_door.get(door_number, {})
+                side_cycle = int(side_cfg.get("cycle", 0))
+
+                edge_cfg = tool2edge_by_door.get(door_number, {})
+                edge_cycle = int(edge_cfg.get("cycle", 0))
+
+                if side_cycle <= 0 and edge_cycle <= 0:
+                    continue
+
+                if side_cycle > 0:
+                    run_tool2side_cycles(
+                        side_cycle,
+                        int(side_cfg.get("force", 0)),
+                        door_number,
+                        cps,
+                    )
+
+                if edge_cycle > 0:
+                    run_tool2side_edgecycles(
+                        edge_cycle,
+                        int(edge_cfg.get("force", 0)),
+                        door_number,
+                        cps,
+                    )
             
             #Drop Tool 2
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
