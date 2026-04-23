@@ -554,52 +554,35 @@ def sandingModelATableA():
         if has_any_task:
             move_to_safe_point()
 
-        all_selected_doors = unique_sorted_doors(
-            side_cycles_doors,
-            zig_zag_cycle_doors,
-            pocket_cycle_doors,
-            tool2sideedge_cycle_doors,
-            tool2side_cycle_doors,
-            tl3sideedge_door,
-        )
         work_executed = False
+        # Hybrid execution order:
+        # - Keep batching by tool to reduce tool switches
+        # - Within each tool batch, execute each door's selected functions together
 
-        for door_number in all_selected_doors:
-            frame_cfg = frame_by_door.get(door_number, {})
-            frame_cycle = int(frame_cfg.get("cycle", 0))
+        # Tool 3 batch: frame, zigzag pocket, square pocket
+        tool3_doors = unique_sorted_doors(
+            side_cycles_doors, zig_zag_cycle_doors, pocket_cycle_doors
+        )
+        if tool3_doors:
+            print("\n=== TOOL 3 BATCH START ===")
+            ensure_tool_in_hand(3)
 
-            zigzag_cfg = zigzag_by_door.get(door_number, {})
-            zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
+            for door_number in tool3_doors:
+                frame_cfg = frame_by_door.get(door_number, {})
+                frame_cycle = int(frame_cfg.get("cycle", 0))
 
-            pocket_cfg = pocket_by_door.get(door_number, {})
-            pocket_cycle = int(pocket_cfg.get("cycle", 0))
+                zigzag_cfg = zigzag_by_door.get(door_number, {})
+                zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
 
-            side_cfg = tool2side_by_door.get(door_number, {})
-            side_cycle = int(side_cfg.get("cycle", 0))
+                pocket_cfg = pocket_by_door.get(door_number, {})
+                pocket_cycle = int(pocket_cfg.get("cycle", 0))
+                if frame_cycle <= 0 and zigzag_cycle <= 0 and pocket_cycle <= 0:
+                    continue
 
-            edge_cfg = tool2edge_by_door.get(door_number, {})
-            edge_cycle = int(edge_cfg.get("cycle", 0))
+                print(f"\n--- Tool 3 / Door {door_number} START ---")
 
-            tool1_cfg = tool3_by_door.get(door_number, {})
-            tool1_cycle = int(tool1_cfg.get("cycle", 0))
-
-            door_has_work = (
-                frame_cycle > 0
-                or zigzag_cycle > 0
-                or pocket_cycle > 0
-                or side_cycle > 0
-                or edge_cycle > 0
-                or tool1_cycle > 0
-            )
-            if not door_has_work:
-                continue
-
-            print(f"\n=== DOOR {door_number} START ===")
-
-            # Tool 3 operations for this door: frame -> zigzag -> pocket
-            if frame_cycle > 0 or zigzag_cycle > 0 or pocket_cycle > 0:
-                ensure_tool_in_hand(3)
                 if frame_cycle > 0:
+                    print(f"\n--- Tool 3 / Frame / Door {door_number} ---")
                     run_side_cycles(
                         frame_cycle,
                         int(frame_cfg.get("force", 0)),
@@ -607,12 +590,14 @@ def sandingModelATableA():
                         cps,
                     )
                     work_executed = True
+
                 if zigzag_cycle > 0:
                     orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
                     edge_flag = zigzag_cfg.get("edge")
                     if edge_flag is None:
                         edge_flag = zigzag_cfg.get("edgeCoverage")
                     movement = "rect" if edge_flag else "zigzag"
+                    print(f"\n--- Tool 3 / Zigzag / Door {door_number} ---")
                     run_zigzag_cycles(
                         zigzag_cycle,
                         int(zigzag_cfg.get("force", 0)),
@@ -624,7 +609,9 @@ def sandingModelATableA():
                         spiral_settings=spiral_settings,
                     )
                     work_executed = True
+
                 if pocket_cycle > 0:
+                    print(f"\n--- Tool 3 / PocketSquare / Door {door_number} ---")
                     run_pocket_cycles(
                         pocket_cycle,
                         int(pocket_cfg.get("force", 0)),
@@ -634,10 +621,29 @@ def sandingModelATableA():
                     )
                     work_executed = True
 
-            # Tool 2 operations for this door: side -> outside edge
-            if side_cycle > 0 or edge_cycle > 0:
-                ensure_tool_in_hand(2)
+                print(f"\n--- Tool 3 / Door {door_number} COMPLETE ---")
+
+            print("\n=== TOOL 3 BATCH COMPLETE ===")
+
+        # Tool 2 batch: side, outside edge
+        tool2_doors = unique_sorted_doors(tool2side_cycle_doors, tool2sideedge_cycle_doors)
+        if tool2_doors:
+            print("\n=== TOOL 2 BATCH START ===")
+            ensure_tool_in_hand(2)
+
+            for door_number in tool2_doors:
+                side_cfg = tool2side_by_door.get(door_number, {})
+                side_cycle = int(side_cfg.get("cycle", 0))
+
+                edge_cfg = tool2edge_by_door.get(door_number, {})
+                edge_cycle = int(edge_cfg.get("cycle", 0))
+                if side_cycle <= 0 and edge_cycle <= 0:
+                    continue
+
+                print(f"\n--- Tool 2 / Door {door_number} START ---")
+
                 if side_cycle > 0:
+                    print(f"\n--- Tool 2 / Side / Door {door_number} ---")
                     run_tool2side_cycles(
                         side_cycle,
                         int(side_cfg.get("force", 0)),
@@ -645,7 +651,9 @@ def sandingModelATableA():
                         cps,
                     )
                     work_executed = True
+
                 if edge_cycle > 0:
+                    print(f"\n--- Tool 2 / EdgeOutside / Door {door_number} ---")
                     run_tool2side_edgecycles(
                         edge_cycle,
                         int(edge_cfg.get("force", 0)),
@@ -654,13 +662,25 @@ def sandingModelATableA():
                     )
                     work_executed = True
 
-            # Tool 1 operations for this door: 3D
-            if tool1_cycle > 0:
-                ensure_tool_in_hand(1)
+                print(f"\n--- Tool 2 / Door {door_number} COMPLETE ---")
+
+            print("\n=== TOOL 2 BATCH COMPLETE ===")
+
+        # Tool 1 batch: 3D
+        if tl3sideedge_door:
+            print("\n=== TOOL 1 BATCH START ===")
+            ensure_tool_in_hand(1)
+
+            for door_number in tl3sideedge_door:
+                tool1_cfg = tool3_by_door.get(door_number, {})
+                tool1_cycle = int(tool1_cfg.get("cycle", 0))
+                if tool1_cycle <= 0:
+                    continue
+                print(f"\n--- Tool 1 / 3D / Door {door_number} ---")
                 run_tool3_cycles(tool1_cycle, door_number, z2, cps)
                 work_executed = True
 
-            print(f"=== DOOR {door_number} COMPLETE ===")
+            print("\n=== TOOL 1 BATCH COMPLETE ===")
 
         if work_executed:
             move_to_safe_point()
