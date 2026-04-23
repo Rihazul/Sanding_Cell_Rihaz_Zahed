@@ -22,6 +22,7 @@ def waitForBlending(cps, config, timeout_s=None):
         timeout_s = float(door_cfg.get("blendTimeoutSeconds", 3.5))
     timeout_s = max(0.2, float(timeout_s))
     settle_s = max(0.005, float(door_cfg.get("blendSettleDelaySec", 0.01)))
+    poll_s = max(0.005, float(door_cfg.get("blendPollIntervalSec", 0.01)))
     start_time = time.time()
     status_ok = True
     while True:
@@ -32,8 +33,29 @@ def waitForBlending(cps, config, timeout_s=None):
         done = False
         if nret != 0:
             # Some SDKs return 20018 when blending status is not available in
-            # the current robot state; treat it as "no wait needed".
-            if nret != 20018 and isinstance(config, dict) and config.get("logger"):
+            # the current robot state. Fall back to robot-state completion
+            # check instead of immediately continuing.
+            if nret == 20018:
+                robot_state = []
+                nret_robot = cps.HRIF_ReadRobotState(0, 0, robot_state)
+                robot_idle = (
+                    nret_robot == 0
+                    and isinstance(robot_state, (list, tuple))
+                    and len(robot_state) > 11
+                    and str(robot_state[11]).strip() == "1"
+                )
+                if robot_idle:
+                    break
+                if time.time() - start_time >= timeout_s:
+                    if isinstance(config, dict) and config.get("logger"):
+                        config["logger"].warning(
+                            f"[waitForBlending] Timed out after {timeout_s}s (ret=20018, robot moving); continuing."
+                        )
+                    status_ok = False
+                    break
+                time.sleep(poll_s)
+                continue
+            if isinstance(config, dict) and config.get("logger"):
                 config["logger"].warning(
                     f"[waitForBlending] HRIF_IsBlendingDone error (ret={nret}); continuing."
                 )
@@ -55,6 +77,7 @@ def waitForBlending(cps, config, timeout_s=None):
                 )
             status_ok = False
             break
+        time.sleep(poll_s)
     # Keep a minimal settle delay; larger fixed sleeps add visible latency
     # between chained point-to-point moves.
     time.sleep(settle_s)
@@ -3506,11 +3529,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_three_d_compensation = float(
             config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
         )
+        door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+        scan_blend_timeout_s = max(
+            0.5, float(door_cfg.get("scanBlendTimeoutSeconds", 7.0))
+        )
         config["logger"].info(
-            "[scan] Using model-agnostic scan profile: threshold=%s, min_stable_distance=%s, three_d=%s",
+            "[scan] Using model-agnostic scan profile: threshold=%s, min_stable_distance=%s, three_d=%s, blend_timeout=%ss",
             scan_threshold,
             scan_min_stable_distance,
             scan_three_d_compensation,
+            scan_blend_timeout_s,
         )
 
         msg_to_frontend(
@@ -3652,11 +3680,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     speed=config["UI"]["robotSpeed"],
-                    wait=False,
+                    wait=True,
                 )
                 config["logger"].info(f"[scan-x] start point reached: {xStart}")
 
-                waitForBlending(cps=cps, config=config)
+                waitForBlending(cps=cps, config=config, timeout_s=scan_blend_timeout_s)
                 xmeasurements = communicate(
                     cps=cps,
                     point=xEnd,
@@ -3838,11 +3866,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
                     speed=config["UI"]["robotSpeed"],
-                    wait=False,
+                    wait=True,
                 )
                 config["logger"].info(f"[scan-y] start point reached: {yStart}")
 
-                waitForBlending(cps=cps, config=config)
+                waitForBlending(cps=cps, config=config, timeout_s=scan_blend_timeout_s)
 
                 ymeasurements = communicate(
                     cps=cps,
