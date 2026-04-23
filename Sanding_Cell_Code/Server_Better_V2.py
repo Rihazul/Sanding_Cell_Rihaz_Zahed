@@ -2307,6 +2307,23 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         origin_poll_s = max(
             0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.1))
         )
+        origin_wait_timeout_s = max(
+            5.0, float(door_cfg.get("homingOriginWaitTimeoutSec", 60.0))
+        )
+
+        def origin_done(state):
+            """Robust completion check for MotorGetState response."""
+            if not isinstance(state, (list, tuple)) or len(state) == 0:
+                return False
+            raw = state[2] if len(state) > 2 else state[0]
+            raw_s = str(raw).strip().lower()
+            # Common SDK variants for idle/done.
+            if raw_s in ("idle", "done", "false"):
+                return True
+            try:
+                return float(raw_s) == 0.0
+            except (TypeError, ValueError):
+                return False
 
         if not setUCS_TCP(
             cps,
@@ -2421,8 +2438,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         time.sleep(origin_command_settle_s)
         print(f"****** move origin nret: {nret}; result: {result}")
         result = [-1, -1, "-1"]
-        # for waiting till the motor moves to the position
-        while result[2] != "0":
+        origin_wait_start = time.time()
+        # Wait until the motor reports origin complete.
+        while not origin_done(result):
             if stop_requested():
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
@@ -2430,7 +2448,21 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
                 return
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+            if nret not in (0, None):
+                config["logger"].warning(
+                    f"[HomingFunc] MotorGetState returned ret={nret}; res={result}"
+                )
             print(f"****** result: {result}")
+            if (time.time() - origin_wait_start) >= origin_wait_timeout_s:
+                config["logger"].error(
+                    f"[HomingFunc] Timeout waiting for J7 origin complete after "
+                    f"{origin_wait_timeout_s:.1f}s. Last state={result}"
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="Homing failed: timeout while waiting for J7 origin.",
+                )
+                return
             time.sleep(origin_poll_s)
         # Move to the configured J7 home position after origin.
         if stop_requested():
@@ -6433,6 +6465,21 @@ def homingFunction1(cps, config):
     origin_poll_s = max(
         0.02, float(door_cfg.get("homingOriginPollIntervalSec", 0.1))
     )
+    origin_wait_timeout_s = max(
+        5.0, float(door_cfg.get("homingOriginWaitTimeoutSec", 60.0))
+    )
+
+    def origin_done(state):
+        if not isinstance(state, (list, tuple)) or len(state) == 0:
+            return False
+        raw = state[2] if len(state) > 2 else state[0]
+        raw_s = str(raw).strip().lower()
+        if raw_s in ("idle", "done", "false"):
+            return True
+        try:
+            return float(raw_s) == 0.0
+        except (TypeError, ValueError):
+            return False
 
     setUCS_TCP(
         cps,
@@ -6493,9 +6540,24 @@ def homingFunction1(cps, config):
     print(f"****** move origin nret: {nret}; result: {result}")
     result = [-1, -1, "-1"]
     # for waiting till the motor moves to the position
-    while result[2] != "0":
+    origin_wait_start = time.time()
+    while not origin_done(result):
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+        if nret not in (0, None):
+            config["logger"].warning(
+                f"[HomingFunc] MotorGetState returned ret={nret}; res={result}"
+            )
         print(f"****** result: {result}")
+        if (time.time() - origin_wait_start) >= origin_wait_timeout_s:
+            config["logger"].error(
+                f"[HomingFunc] Timeout waiting for J7 origin complete after "
+                f"{origin_wait_timeout_s:.1f}s. Last state={result}"
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing failed: timeout while waiting for J7 origin.",
+            )
+            return
         time.sleep(origin_poll_s)
     # seventhGoToPos(cps, position=0, speed=UISettings['control']['linearAxisSpeed'] * config['7thAxis']['speed'], config=config)
     config["logger"].info("[HomingFunc] DONE! Success to reach 0th position")
