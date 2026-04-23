@@ -5992,8 +5992,13 @@ def communicate(
 
     # setting the speed of the client (ratio override only)
     # Avoid extra override calls when doing seventh-axis-only repositioning.
-    if override_speed is not None and not (point is None and seventh != -1):
-        setSpeed(cps, override_speed, config=config)
+    if not (point is None and seventh != -1):
+        if override_speed is not None:
+            setSpeed(cps, override_speed, config=config)
+        elif linear_speed is not None and speed_mode == "override":
+            # If previous moves set a low override (e.g., 0.3), fast linear
+            # moves (>1.0) can still feel slow unless we restore neutral override.
+            setSpeed(cps, 1.0, config=config)
     # time.sleep(0.1)
 
     if seventh != -1:
