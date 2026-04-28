@@ -931,7 +931,11 @@ def tool_toggle():
             can_pick = detected_tool in (0, -1, None)
             if can_pick:
                 # Pick the tool
-                success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} pick failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 if not success:
                     return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
@@ -953,7 +957,11 @@ def tool_toggle():
                 if not ok:
                     return jsonify({"error": "Failed to connect to CPS client"}), 500
                 cps = CPS
-                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} drop failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 tool_override_state[3] = False
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
@@ -964,7 +972,11 @@ def tool_toggle():
             detected_tool = _get_tool_in_hand(cps)
             if detected_tool == tool_num:
                 # Keep the tool
-                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} drop failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
                 if tool_num == 3:
                     tool_override_state[3] = False
@@ -973,7 +985,11 @@ def tool_toggle():
             else:
                 # Recovery path for post-crash or sensor decode uncertainty.
                 if force_keep and detected_tool in (-1, None):
-                    keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                    try:
+                        keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                    except RuntimeError as exc:
+                        socketio.emit('flash_message', {"message": f"Tool {tool_num} forced drop failed: {exc}"})
+                        return jsonify({"error": str(exc)}), 409
                     if tool_num == 3:
                         tool_override_state[3] = False
                     socketio.emit('flash_message', {
@@ -986,7 +1002,7 @@ def tool_toggle():
                 sensors = _read_tool_sensors(cps)
                 sensor_msg = (
                     f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
-                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI7={sensors.get('di7')}"
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
                 )
                 socketio.emit(
                     'flash_message',

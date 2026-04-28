@@ -6556,11 +6556,25 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
     )
 
     if not waitForBlending(cps=cps, config=config):
-        msg_to_frontend(
-            api_url=config["server"]["frontEnd_messaging_url"],
-            message="Aborting drop: robot blending did not complete before valve open.",
+        # Blending status can be stale on some controller states. If robot is
+        # already idle, proceed with drop rather than hard-failing manual flow.
+        robot_state = []
+        nret_state = cps.HRIF_ReadRobotState(0, 0, robot_state)
+        robot_idle = (
+            nret_state == 0
+            and isinstance(robot_state, (list, tuple))
+            and len(robot_state) > 11
+            and str(robot_state[11]).strip() == "1"
         )
-        raise RuntimeError("Blending timeout/error before tool drop.")
+        if not robot_idle:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Aborting drop: robot blending did not complete before valve open.",
+            )
+            raise RuntimeError("Blending timeout/error before tool drop.")
+        config["logger"].warning(
+            "[toolMotion][manualDrop] Blending timeout before valve open, but robot is idle; proceeding with drop."
+        )
     toolValve1(cps, valveState="drop", config=config)
     if not _verify_tool_released(cps=cps, config=config, expected_tool_number=toolNumber):
         raise RuntimeError("Tool release not confirmed after drop command.")
