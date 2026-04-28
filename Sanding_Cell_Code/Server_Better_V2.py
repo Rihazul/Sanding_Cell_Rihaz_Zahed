@@ -2739,14 +2739,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         """
         if not config["settings"]["useTool"]:
             return False
-        pick_fast = _tool_speed(
-            config, "autoPickFastSpeed", config.get("UI", {}).get("robotSpeed")
-        )
+        # Force fast tool travel at full robot ratio for responsive pick/drop.
+        pick_fast = 1.0
         pick_slow = _tool_speed(
             config, "autoPickSlowSpeed", config.get("UI", {}).get("sandSpeed")
         )
         # Keep tool fast/slow aligned with cycle/UI ratios used by scan/sanding flows.
-        pick_fast = _resolve_ui_ratio(config, "robotSpeed", pick_fast)
         pick_slow = _resolve_ui_ratio(config, "sandSpeed", pick_slow)
         config["logger"].info(
             "[toolMotion][autoPick] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
@@ -2885,13 +2883,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
     def keepTool(cps, toolNumber, config, goToSafe=True):
         if not config["settings"]["useTool"]:
             return
-        drop_fast = _tool_speed(
-            config, "autoDropFastSpeed", config.get("UI", {}).get("robotSpeed")
-        )
+        # Force fast tool travel at full robot ratio for responsive pick/drop.
+        drop_fast = 1.0
         drop_slow = _tool_speed(
             config, "autoDropSlowSpeed", config.get("UI", {}).get("sandSpeed")
         )
-        drop_fast = _resolve_ui_ratio(config, "robotSpeed", drop_fast)
         drop_slow = _resolve_ui_ratio(config, "sandSpeed", drop_slow)
         config["logger"].info(
             "[toolMotion][autoDrop] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
@@ -6285,13 +6281,11 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
     """
     if not config["settings"]["useTool"]:
         return False
-    pick_fast = _tool_speed(
-        config, "manualPickFastSpeed", config.get("UI", {}).get("robotSpeed")
-    )
+    # Force fast tool travel at full robot ratio for responsive pick/drop.
+    pick_fast = 1.0
     pick_slow = _tool_speed(
         config, "manualPickSlowSpeed", config.get("UI", {}).get("sandSpeed")
     )
-    pick_fast = _resolve_ui_ratio(config, "robotSpeed", pick_fast)
     pick_slow = _resolve_ui_ratio(config, "sandSpeed", pick_slow)
     config["logger"].info(
         "[toolMotion][manualPick] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
@@ -6399,13 +6393,11 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
 def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe dibe
     if not config["settings"]["useTool"]:
         return
-    drop_fast = _tool_speed(
-        config, "manualDropFastSpeed", config.get("UI", {}).get("robotSpeed")
-    )
+    # Force fast tool travel at full robot ratio for responsive pick/drop.
+    drop_fast = 1.0
     drop_slow = _tool_speed(
         config, "manualDropSlowSpeed", config.get("UI", {}).get("sandSpeed")
     )
-    drop_fast = _resolve_ui_ratio(config, "robotSpeed", drop_fast)
     drop_slow = _resolve_ui_ratio(config, "sandSpeed", drop_slow)
     config["logger"].info(
         "[toolMotion][manualDrop] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
