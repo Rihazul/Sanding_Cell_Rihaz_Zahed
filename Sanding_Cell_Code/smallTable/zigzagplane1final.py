@@ -551,53 +551,33 @@ def generate_zigzag_path(
     orientation="horizontal",
     movement="zigzag",
     innerSandingOffset=67.5,
-    edge_coverage=False
 ):
-    """
-    Generate a zigzag/spiral path for sanding.
-
-    Args:
-        edge_coverage: If True, prepend a rectangular edge coverage path
-                       (P1→P2→P3→P4→P1) before the zigzag pattern. The zigzag
-                       then starts immediately from P1 after edge coverage completes.
-    """
+    """Generate zigzag/rect path for sanding pocket area."""
     prepoint = None
     zigzag_coords = []
 
-    # Parameters (adjust as needed)
-    tool3y = 50.8  # Tool offset in Y
-    tool3x = 38.1  # Tool offset in X
-    xframe_1 = 0
-    xframe_2 = 0
+    tool3y = 50.8
+    tool3x = 38.1
 
-    # 1) Collect boundary coordinates as [x, y, z]
     boundary_coords = []
     for i in range(len(x_coords)):
         boundary_coords.append([x_coords[i], y_coords[i], z_coords[i]])
-
-    # Close the loop by duplicating the first point at the end
     if boundary_coords:
-        boundary_coords.append(boundary_coords[0][:])  # copy for safety
+        boundary_coords.append(boundary_coords[0][:])
 
-    # 2) Compute the zigzag path (offset corners + zigzag)
-    zigzag_coords = []
-
-    # Ensure we have valid coordinates
     if x_coords and y_coords and z_coords:
-        # We'll assume the pocket's Z-level is the same as the first boundary point
         z_zigzag = boundary_coords[0][2]
 
-        # For Pocket4, corners (P13, P14, P15, P16):
         modified_Point2 = [
-            (x_coords[1]) / 1 + tool3x + innerOffsetX,
-            y_coords[1] - tool3y - (innerOffset),
+            x_coords[1] + tool3x + innerOffsetX,
+            y_coords[1] - tool3y - innerOffset,
         ]
         modified_Point3 = [
             x_coords[2] - tool3x - innerOffset,
             y_coords[2] - tool3y - innerOffset,
         ]
         modified_Point1 = [
-            (x_coords[0]) / 1 + tool3x + innerOffsetX,
+            x_coords[0] + tool3x + innerOffsetX,
             y_coords[0] + tool3y + innerOffset,
         ]
         modified_Point4 = [
@@ -609,7 +589,6 @@ def generate_zigzag_path(
         print("modified_Point3:", modified_Point3)
         print("modified_Point4:", modified_Point4)
 
-        # Bounding box for alternate orientations
         x_min = min(
             modified_Point1[0],
             modified_Point2[0],
@@ -635,226 +614,40 @@ def generate_zigzag_path(
             modified_Point4[1],
         )
 
-        # Calculate available horizontal dimension
         xinner = abs(x_max - x_min)
         print("xinner=", xinner)
 
         orientation_mode = (orientation or "vertical").lower()
         movement_mode = (movement or "zigzag").lower()
 
-        # Modified Point Layout:
-        # modified_Point1 = Bottom-right
-        # modified_Point2 = Top-right
-        # modified_Point3 = Top-left
-        # modified_Point4 = Bottom-left
-
         rx_sanding = -0.034
         ry_sanding = 0.556
         rz_sanding = 0.251
 
-        # Generate edge coverage path if enabled (rectangular path around the boundary)
-        # The edge coverage must END at the point where zigzag/spiral will START
-        # Edge coverage uses ORIGINAL boundary points (without innerOffsetX/innerOffset applied)
-        edge_coverage_coords = []
-        if edge_coverage:
-            # Remove the offsets from modified points to get original boundary positions
-            # Modified points already have tool3x, tool3y, innerOffsetX, and innerOffset applied
-            # For edge coverage, we only want tool3x and tool3y, not the inner offsets
-            edge_Point1 = [
-                x_coords[0] + tool3x + 1.75,
-                y_coords[0] + tool3y + 1.75,
-                z_zigzag,
-            ]
-            edge_Point2 = [
-                x_coords[1] + tool3x + 1.75,
-                y_coords[1] - tool3y - 1.75,
-                z_zigzag,
-            ]
-            edge_Point3 = [
-                x_coords[2] - tool3x - 1.75,
-                y_coords[2] - tool3y - 1.75,
-                z_zigzag,
-            ]
-            edge_Point4 = [
-                x_coords[3] - tool3x - 1.75,
-                y_coords[3] + tool3y + 1.75,
-                z_zigzag,
-            ]
-
-            # Edge coverage always uses the same path regardless of orientation
-            # Edge coverage: P2 → P3 → P4 → P1 → P2 (starts at top-left like horizontal)
-            if orientation_mode == "horizontal":
-                # Horizontal zigzag starts at top-left (P2)
-                # Edge coverage: P2 → P3 → P4 → P1 → P2 (ends at top-left)
-                edge_coverage_coords = [
-                    [
-                        edge_Point2[0],
-                        edge_Point2[1],
-                        edge_Point2[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # Start P2 (top-left)
-                    [
-                        edge_Point3[0],
-                        edge_Point3[1],
-                        edge_Point3[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # P3 (top-right)
-                    [
-                        edge_Point4[0],
-                        edge_Point4[1],
-                        edge_Point4[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # P4 (bottom-right)
-                    [
-                        edge_Point1[0],
-                        edge_Point1[1],
-                        edge_Point1[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # P1 (bottom-left)
-                    [
-                        edge_Point2[0],
-                        edge_Point2[1],
-                        edge_Point2[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # End P2 (top-left) - zigzag start
-                ]
-                print(
-                    "Edge coverage (horizontal): P2 → P3 → P4 → P1 → P2 (ends at top-left for zigzag start)"
-                )
-            else:
-                # Vertical zigzag starts at bottom-right (P4)
-                # Edge coverage: P4 → P1 → P2 → P3 → P4 (ends at bottom-right)
-                edge_coverage_coords = [
-                    [
-                        edge_Point4[0],
-                        edge_Point4[1],
-                        edge_Point4[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # Start P4 (bottom-right)
-                    [
-                        edge_Point1[0],
-                        edge_Point1[1],
-                        edge_Point1[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # P1 (bottom-left)
-                    [
-                        edge_Point2[0],
-                        edge_Point2[1],
-                        edge_Point2[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # P2 (top-left)
-                    [
-                        edge_Point3[0],
-                        edge_Point3[1],
-                        edge_Point3[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # P3 (top-right)
-                    [
-                        edge_Point4[0],
-                        edge_Point4[1],
-                        edge_Point4[2],
-                        rx_sanding,
-                        ry_sanding,
-                        rz_sanding,
-                    ],  # End P4 (bottom-right) - zigzag start
-                ]
-                print(
-                    "Edge coverage (vertical): P4 → P1 → P2 → P3 → P4 (ends at bottom-right for zigzag start)"
-                )
-
         if movement_mode == "rect":
             zigzag_coords = [
-                [
-                    modified_Point1[0],
-                    modified_Point1[1],
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ],
-                [
-                    modified_Point2[0],
-                    modified_Point2[1],
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ],
-                [
-                    modified_Point3[0],
-                    modified_Point3[1],
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ],
-                [
-                    modified_Point4[0],
-                    modified_Point4[1],
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ],
-                [
-                    modified_Point1[0],
-                    modified_Point1[1],
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ],
+                [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point2[0], modified_Point2[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point3[0], modified_Point3[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point4[0], modified_Point4[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
             ]
         elif orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
             if yinner > 0:
                 num_steps = math.floor(yinner / innerSandingOffset)
                 if num_steps == 0:
-                    num_steps = 1  # Prevent division by zero, ensure at least 1 row
+                    num_steps = 1
                 adjusted_step = yinner / num_steps
 
                 offset = 0.0
                 toggle = 0
 
-                # Build zigzag rows from top (max y) to bottom (min y)
-                # Starts at top-left (x_min, y_max)
                 while offset <= yinner + 1e-9:
                     current_y = y_max - offset
                     row_points = [
-                        [
-                            x_min,
-                            current_y,
-                            z_zigzag,
-                            rx_sanding,
-                            ry_sanding,
-                            rz_sanding,
-                        ],  # Start at x_min (left side)
-                        [
-                            x_max,
-                            current_y,
-                            z_zigzag,
-                            rx_sanding,
-                            ry_sanding,
-                            rz_sanding,
-                        ],  # Go to x_max (right side)
+                        [x_min, current_y, z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                        [x_max, current_y, z_zigzag, rx_sanding, ry_sanding, rz_sanding],
                     ]
                     if toggle:
                         row_points.reverse()
@@ -863,7 +656,6 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
             else:
-                # Fallback: single row when height is too small
                 zigzag_coords.extend(
                     [
                         [x_min, y_max, z_zigzag, rx_sanding, ry_sanding, rz_sanding],
@@ -871,14 +663,10 @@ def generate_zigzag_path(
                     ]
                 )
         else:
-            # Vertical orientation
-            # In real robot, P1/P2 (X = -212.56) are physically RIGHT, P3/P4 (X = -55.1) are physically LEFT
-            # Start from RIGHT side (P1/P2) and subtract offset to move toward LEFT (P3/P4)
             if xinner > 0:
-                # Determine how many "columns" in the zigzag
                 num_steps = math.ceil(xinner / innerSandingOffset)
                 if num_steps == 0:
-                    num_steps = 1  # Prevent division by zero
+                    num_steps = 1
                 adjusted_step = xinner / num_steps
                 print(
                     f"[Vertical] xinner={xinner}, num_steps={num_steps}, adjusted_step={adjusted_step}"
@@ -886,29 +674,11 @@ def generate_zigzag_path(
 
                 offset = 0.0
                 toggle = 0
-
-                # Build zigzag path from right (P1/P2) to left (P3/P4)
-                # Subtract offset from P1/P2 X values to move toward more negative X
-                while offset <= xinner + 1e-9:  # small floating-point tolerance
+                while offset <= xinner + 1e-9:
                     row_points = [
-                        [
-                            modified_Point4[0] - offset,
-                            modified_Point4[1],
-                            z_zigzag,
-                            rx_sanding,
-                            ry_sanding,
-                            rz_sanding,
-                        ],  # P1 side (bottom-right, moving left)
-                        [
-                            modified_Point3[0] - offset,
-                            modified_Point3[1],
-                            z_zigzag,
-                            rx_sanding,
-                            ry_sanding,
-                            rz_sanding,
-                        ],  # P2 side (top-right, moving left)
+                        [modified_Point4[0] - offset, modified_Point4[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                        [modified_Point3[0] - offset, modified_Point3[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
                     ]
-                    # Reverse every other column to create a zigzag
                     if toggle:
                         row_points.reverse()
 
@@ -916,34 +686,13 @@ def generate_zigzag_path(
                     offset += adjusted_step
                     toggle = 1 - toggle
             else:
-                # Fallback: single column when width is too small
                 zigzag_coords.extend(
                     [
-                        [
-                            modified_Point4[0],
-                            modified_Point4[1],
-                            z_zigzag,
-                            rx_sanding,
-                            ry_sanding,
-                            rz_sanding,
-                        ],
-                        [
-                            modified_Point3[0],
-                            modified_Point3[1],
-                            z_zigzag,
-                            rx_sanding,
-                            ry_sanding,
-                            rz_sanding,
-                        ],
+                        [modified_Point4[0], modified_Point4[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
+                        [modified_Point3[0], modified_Point3[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
                     ]
                 )
 
-        # Update coordinates to absolute values for edge coverage
-        for point in edge_coverage_coords:
-            point[1] = abs(point[1])
-            point[0] = abs(point[0])
-
-        # Update only the y coordinate to its absolute value for zigzag
         for point in zigzag_coords:
             point[1] = abs(point[1])
             point[0] = abs(point[0])
@@ -958,54 +707,25 @@ def generate_zigzag_path(
                 rz_sanding,
             ]
         elif orientation_mode == "horizontal":
-            # Horizontal: edge coverage starts at P2 (top-left), zigzag starts at top-left
-            if edge_coverage:
-                prepoint = [
-                    abs(modified_Point2[0]) + 0.5,
-                    abs(modified_Point2[1]),
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ]
-            else:
-                prepoint = [
-                    abs(x_min) + 0.5,
-                    y_max,
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ]
+            prepoint = [
+                abs(x_min) + 0.5,
+                y_max,
+                z_zigzag,
+                rx_sanding,
+                ry_sanding,
+                rz_sanding,
+            ]
         else:
-            # Vertical: edge coverage starts at same position as horizontal (P2/top-left)
-            if edge_coverage:
-                prepoint = [
-                    abs(modified_Point4[0]) + 0.5,
-                    abs(modified_Point4[1]),
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ]
-            else:
-                prepoint = [
-                    abs(modified_Point4[0]) + 0.5,
-                    abs(modified_Point4[1]),
-                    z_zigzag,
-                    rx_sanding,
-                    ry_sanding,
-                    rz_sanding,
-                ]
+            prepoint = [
+                abs(modified_Point4[0]) + 0.5,
+                abs(modified_Point4[1]),
+                z_zigzag,
+                rx_sanding,
+                ry_sanding,
+                rz_sanding,
+            ]
 
-        if edge_coverage:
-            print(
-                f"Edge coverage: {len(edge_coverage_coords)} points (MoveL), Zigzag: {len(zigzag_coords)} points (spiral)"
-            )
-
-    return edge_coverage_coords, zigzag_coords, prepoint
-
-
+    return [], zigzag_coords, prepoint
 def load_config():
     """Loads configuration from config.yaml."""
     with open("./configs/config.yaml", "r") as file:
@@ -1123,18 +843,6 @@ def smalldoor1zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-
-        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
-            y_coords=y_coords1,
-            z_coords=z_coords1,
-            innerOffset=17,
-            innerOffsetX=29.4,
-            orientation=orientation,
-            movement=movement,
-            innerSandingOffset=67.5,
-            edge_coverage=True  # Enable edge coverage with MoveL before spiral
-        )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
@@ -1144,7 +852,6 @@ def smalldoor1zizag(
             orientation=orientation,
             movement=movement,
             innerSandingOffset=67.5,
-            edge_coverage=False
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -1158,7 +865,6 @@ def smalldoor1zizag(
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=67.5,
-                edge_coverage=False,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
@@ -1169,72 +875,17 @@ def smalldoor1zizag(
                 orientation=orientation,
                 movement=movement,
                 innerSandingOffset=67.5,
-                edge_coverage=False,
             )
-        print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(
-            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+            cps, config, zigzag_points, force
         ):
             force_seek_linear = 5.0
             force_blending_timeout = 7.0
             if split:
                 force_blending_timeout = 0.4
-            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if has_edge:
-                force_seek_linear = 5.0
-                force_blending_timeout = 7.0
-                if split:
-                    force_blending_timeout = 0.4
-                putForceZminus(
-                    cps=cps,
-                    force=force,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    config=config,
-                    search_linear_velocity=force_seek_linear,
-                    blending_timeout_s=force_blending_timeout,
-                )
-                print("Turned Vibration On")
-
-            # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if has_edge:
-                print(
-                    f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
-                )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                for point in edge_points:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=edge_speed,
-                        speed_mode="linear",
-                        wait=False
-                    )
-                    if point == edge_points[-1]:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool3plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=edge_speed,
-                            speed_mode="linear",
-                            wait=True
-                        )
-                    turn_vibration_on(cps)
-                # Wait for edge coverage to complete before starting spiral
-                waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
-                releaseForce(cps=cps, config=config)
-                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -1243,7 +894,7 @@ def smalldoor1zizag(
                 push_failed = False
                 total_count = 0
 
-                # Move to first zigzag point to ensure proper transition from edge coverage
+                # Move to first zigzag point to ensure proper transition to zigzag
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -1253,6 +904,7 @@ def smalldoor1zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
+                    velocity_profile="sandingspeed",
                     wait=True
                 )
                 # locked_orient = list(zigzag_points[0][3:6])
@@ -1314,7 +966,6 @@ def smalldoor1zizag(
                 #     for p in zigzag_points
                 # ]
                 # bounds = None
-                # bounds_points = edge_points if edge_points else zigzag_points
                 # if bounds_points:
                 #     xs = [p[0] for p in bounds_points]
                 #     ys = [p[1] for p in bounds_points]
@@ -1413,6 +1064,7 @@ def smalldoor1zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=float(json_config["sandingSpeed"]),
+                        velocity_profile="sandingspeed",
                         speed_mode="linear",
                         wait=is_last_segment
                     )
@@ -1422,51 +1074,6 @@ def smalldoor1zizag(
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
-
-        if split and edge_coverage_pathp1:
-            edge_start = edge_coverage_pathp1[0]
-        else:
-            edge_start = prepointp1
-
-        if split:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=tcx0,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.8,
-                wait=True
-            )
-            if edge_prepointp1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=edge_prepointp1,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
-            communicate(
-                cps=cps,
-                config=config,
-                point=edge_start,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=1.0,
-                wait=True
-            )
-            perform_process_top(
-                cps,
-                config,
-                edge_points=edge_coverage_pathp1,
-                zigzag_points=[],
-                force=force,
-                run_edge_coverage=True
-            )
         
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
@@ -1498,11 +1105,9 @@ def smalldoor1zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=current_zigzag,
-                force=force,
-                run_edge_coverage=not split
-            )  # Edge coverage + zigzag path
+                force=force
+            )
             # # turn_vibration_off(cps)
             communicate(
                 cps=cps,
@@ -1600,28 +1205,15 @@ def smalldoor2zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-
-        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
-            y_coords=y_coords1,
-            z_coords=z_coords1,
-            innerOffset=17,
-            innerOffsetX=17,
-            orientation=orientation,
-            movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=True  # Enable edge coverage with MoveL before spiral
-        )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
-            innerOffsetX=17,
+            innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=False
+            innerSandingOffset=67.5,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -1631,86 +1223,31 @@ def smalldoor2zizag(
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
-                edge_coverage=False,
+                innerSandingOffset=67.5,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
-                edge_coverage=False,
+                innerSandingOffset=67.5,
             )
-        print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(
-            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+            cps, config, zigzag_points, force
         ):
             force_seek_linear = 5.0
             force_blending_timeout = 7.0
             if split:
                 force_blending_timeout = 0.4
-            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if has_edge:
-                force_seek_linear = 5.0
-                force_blending_timeout = 7.0
-                if split:
-                    force_blending_timeout = 0.4
-                putForceZminus(
-                    cps=cps,
-                    force=force,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    config=config,
-                    search_linear_velocity=force_seek_linear,
-                    blending_timeout_s=force_blending_timeout,
-                )
-
-            # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if has_edge:
-                print(
-                    f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
-                )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                for point in edge_points:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=edge_speed,
-                        speed_mode="linear",
-                        wait=False
-                    )
-                    if point == edge_points[-1]:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool3plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=edge_speed,
-                            speed_mode="linear",
-                            wait=True
-                        )
-                    turn_vibration_on(cps)
-                # Wait for edge coverage to complete before starting spiral
-                waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
-                releaseForce(cps=cps, config=config)
-                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -1719,7 +1256,7 @@ def smalldoor2zizag(
                 push_failed = False
                 total_count = 0
                 
-                # Move to first zigzag point to ensure proper transition from edge coverage
+                # Move to first zigzag point to ensure proper transition to zigzag
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -1729,6 +1266,7 @@ def smalldoor2zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
+                    velocity_profile="sandingspeed",
                     wait=True
                 )
                 # locked_orient = list(zigzag_points[0][3:6])
@@ -1790,7 +1328,6 @@ def smalldoor2zizag(
                 #     for p in zigzag_points
                 # ]
                 # bounds = None
-                # bounds_points = edge_points if edge_points else zigzag_points
                 # if bounds_points:
                 #     xs = [p[0] for p in bounds_points]
                 #     ys = [p[1] for p in bounds_points]
@@ -1811,6 +1348,7 @@ def smalldoor2zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=float(json_config["sandingSpeed"]),
+                        velocity_profile="sandingspeed",
                         speed_mode="linear",
                         wait=is_last_segment,
                     )
@@ -1867,51 +1405,6 @@ def smalldoor2zizag(
             # Release force
             releaseForce(cps=cps, config=config)
 
-        if split and edge_coverage_pathp1:
-            edge_start = edge_coverage_pathp1[0]
-        else:
-            edge_start = prepointp1
-
-        if split:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=tcx0,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.8,
-                wait=True
-            )
-            if edge_prepointp1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=edge_prepointp1,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed = 1.0,
-                    wait=True
-                )
-            communicate(
-                cps=cps,
-                config=config,
-                point=edge_start,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed= 1.0,
-                wait=True
-            )
-            perform_process_top(
-                cps,
-                config,
-                edge_points=edge_coverage_pathp1,
-                zigzag_points=[],
-                force=force,
-                run_edge_coverage=True
-            )
-
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
             current_zigzag = zigzag_pathp1
@@ -1942,12 +1435,10 @@ def smalldoor2zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=current_zigzag,
-                force=force,
-                run_edge_coverage=not split
+                force=force
             )
-            # Edge coverage + zigzag path
+            
             # turn_vibration_off(cps)
             communicate(
                 cps=cps,
@@ -2045,28 +1536,15 @@ def smalldoor3zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-
-        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
-            y_coords=y_coords1,
-            z_coords=z_coords1,
-            innerOffset=17,
-            innerOffsetX=17,
-            orientation=orientation,
-            movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=True  # Enable edge coverage with MoveL before spiral
-        )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
-            innerOffsetX=17,
+            innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=False
+            innerSandingOffset=67.5,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -2076,86 +1554,31 @@ def smalldoor3zizag(
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
-                edge_coverage=False,
+                innerSandingOffset=67.5,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
-                edge_coverage=False,
+                innerSandingOffset=67.5,
             )
-        print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(
-            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+            cps, config, zigzag_points, force
         ):
             force_seek_linear = 5.0
             force_blending_timeout = 7.0
             if split:
                 force_blending_timeout = 0.4
-            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if has_edge:
-                force_seek_linear = 5.0
-                force_blending_timeout = 7.0
-                if split:
-                    force_blending_timeout = 0.4
-                putForceZminus(
-                    cps=cps,
-                    force=force,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    config=config,
-                    search_linear_velocity=force_seek_linear,
-                    blending_timeout_s=force_blending_timeout,
-                )
-
-            # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if has_edge:
-                print(
-                    f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
-                )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                for point in edge_points:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=edge_speed,
-                        speed_mode="linear",
-                        wait=False
-                    )
-                    if point == edge_points[-1]:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool3plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=edge_speed,
-                            speed_mode="linear",
-                            wait=True
-                        )
-                    turn_vibration_on(cps)
-                # Wait for edge coverage to complete before starting spiral
-                waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
-                releaseForce(cps=cps, config=config)
-                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -2164,7 +1587,7 @@ def smalldoor3zizag(
                 push_failed = False
                 total_count = 0
                 
-                # Move to first zigzag point to ensure proper transition from edge coverage
+                # Move to first zigzag point to ensure proper transition to zigzag
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -2174,6 +1597,7 @@ def smalldoor3zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
+                    velocity_profile="sandingspeed",
                     wait=True
                 )
                 # locked_orient = list(zigzag_points[0][3:6])
@@ -2235,7 +1659,6 @@ def smalldoor3zizag(
                 #     for p in zigzag_points
                 # ]
                 # bounds = None
-                # bounds_points = edge_points if edge_points else zigzag_points
                 # if bounds_points:
                 #     xs = [p[0] for p in bounds_points]
                 #     ys = [p[1] for p in bounds_points]
@@ -2256,6 +1679,7 @@ def smalldoor3zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=float(json_config["sandingSpeed"]),
+                        velocity_profile="sandingspeed",
                         speed_mode="linear",
                         wait=is_last_segment,
                     )
@@ -2312,51 +1736,6 @@ def smalldoor3zizag(
             # Release force
             releaseForce(cps=cps, config=config)
 
-        if split and edge_coverage_pathp1:
-            edge_start = edge_coverage_pathp1[0]
-        else:
-            edge_start = prepointp1
-
-        if split:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=tcx0,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.8,
-                wait=True
-            )
-            if edge_prepointp1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=edge_prepointp1,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
-            communicate(
-                cps=cps,
-                config=config,
-                point=edge_start,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=1.0,
-                wait=True
-            )
-            perform_process_top(
-                cps,
-                config,
-                edge_points=edge_coverage_pathp1,
-                zigzag_points=[],
-                force=force,
-                run_edge_coverage=True
-            )
-
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
             current_zigzag = zigzag_pathp1
@@ -2387,11 +1766,9 @@ def smalldoor3zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=current_zigzag,
-                force=force,
-                run_edge_coverage=not split
-            )  # Edge coverage + zigzag path
+                force=force
+            )
             # # turn_vibration_off(cps)
             communicate(
                 cps=cps,
@@ -2489,28 +1866,15 @@ def smalldoor4zizag(
 
         orientation_mode = (orientation or "horizontal").lower()
         inner_sanding_offset = 50.0
-
-        edge_coverage_pathp1, _, edge_prepointp1 = generate_zigzag_path(
-            x_coords=x_coords1,
-            y_coords=y_coords1,
-            z_coords=z_coords1,
-            innerOffset=17,
-            innerOffsetX=17,
-            orientation=orientation,
-            movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=True  # Enable edge coverage with MoveL before spiral
-        )
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=17,
-            innerOffsetX=17,
+            innerOffsetX=29.4,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=50,
-            edge_coverage=False
+            innerSandingOffset=67.5,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -2520,86 +1884,31 @@ def smalldoor4zizag(
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
-                edge_coverage=False,
+                innerSandingOffset=67.5,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
                 y_coords=y_coords1,
                 z_coords=z_coords1,
                 innerOffset=17,
-                innerOffsetX=17,
+                innerOffsetX=29.4,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=50,
-                edge_coverage=False,
+                innerSandingOffset=67.5,
             )
-        print("edge_coverage_pathp1=", edge_coverage_pathp1)
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
 
         def perform_process_top(
-            cps, config, edge_points, zigzag_points, force, run_edge_coverage=True
+            cps, config, zigzag_points, force
         ):
             force_seek_linear = 5.0
             force_blending_timeout = 7.0
             if split:
                 force_blending_timeout = 0.4
-            has_edge = run_edge_coverage and edge_points and len(edge_points) > 0
-            if has_edge:
-                force_seek_linear = 5.0
-                force_blending_timeout = 7.0
-                if split:
-                    force_blending_timeout = 0.4
-                putForceZminus(
-                    cps=cps,
-                    force=force,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    config=config,
-                    search_linear_velocity=force_seek_linear,
-                    blending_timeout_s=force_blending_timeout,
-                )
-
-            # Step 1: Edge coverage with MoveL (linear path between modified points)
-            if has_edge:
-                print(
-                    f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points"
-                )
-                edge_speed = float(json_config["sandingSpeed"]) * 0.3
-                for point in edge_points:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config["coords"]["tcptool3plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=edge_speed,
-                        speed_mode="linear",
-                        wait=False
-                    )
-                    if point == edge_points[-1]:
-                        communicate(
-                            cps=cps,
-                            config=config,
-                            point=point,
-                            tcp=config["coords"]["tcptool3plane1"],
-                            ucs=config["coords"]["ucsTable1"],
-                            seventh=-1,
-                            speed=edge_speed,
-                            speed_mode="linear",
-                            wait=True
-                        )
-                    turn_vibration_on(cps)
-                # Wait for edge coverage to complete before starting spiral
-                waitForBlending(cps=cps, config=config)
-                print("[Edge Coverage] Completed linear edge path")
-                releaseForce(cps=cps, config=config)
-                turn_vibration_off(cps)
 
             # Step 2: Zigzag/Spiral motion
             if zigzag_points and len(zigzag_points) > 0:
@@ -2608,7 +1917,7 @@ def smalldoor4zizag(
                 push_failed = False
                 total_count = 0
                 
-                # Move to first zigzag point to ensure proper transition from edge coverage
+                # Move to first zigzag point to ensure proper transition to zigzag
                 print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
                 communicate(
                     cps=cps,
@@ -2618,6 +1927,7 @@ def smalldoor4zizag(
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=float(json_config["sandingSpeed"]),
+                    velocity_profile="sandingspeed",
                     wait=True
                 )
                 # locked_orient = list(zigzag_points[0][3:6])
@@ -2680,7 +1990,6 @@ def smalldoor4zizag(
                 #     for p in zigzag_points
                 # ]
                 # bounds = None
-                # bounds_points = edge_points if edge_points else zigzag_points
                 # if bounds_points:
                 #     xs = [p[0] for p in bounds_points]
                 #     ys = [p[1] for p in bounds_points]
@@ -2701,6 +2010,7 @@ def smalldoor4zizag(
                         ucs=config["coords"]["ucsTable1"],
                         seventh=-1,
                         speed=float(json_config["sandingSpeed"]),
+                        velocity_profile="sandingspeed",
                         speed_mode="linear",
                         wait=is_last_segment,
                     )
@@ -2756,51 +2066,6 @@ def smalldoor4zizag(
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
-        
-        if split and edge_coverage_pathp1:
-            edge_start = edge_coverage_pathp1[0]
-        else:
-            edge_start = prepointp1
-
-        if split:
-            communicate(
-                cps=cps,
-                config=config,
-                seventh=tcx0,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=0.8,
-                wait=True
-            )
-            if edge_prepointp1:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=edge_prepointp1,
-                    tcp=config["coords"]["tcptool3plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=1.0,
-                    wait=True
-                )
-            communicate(
-                cps=cps,
-                config=config,
-                point=edge_start,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=1.0,
-                wait=True
-            )
-            perform_process_top(
-                cps,
-                config,
-                edge_points=edge_coverage_pathp1,
-                zigzag_points=[],
-                force=force,
-                run_edge_coverage=True
-            )
 
         for idx, seventh_pos in enumerate(seventh_positions):
             first_split = split and idx == 0
@@ -2832,11 +2097,9 @@ def smalldoor4zizag(
             perform_process_top(
                 cps,
                 config,
-                edge_points=edge_coverage_pathp1 if not split else [],
                 zigzag_points=current_zigzag,
-                force=force,
-                run_edge_coverage=not split,
-            )  # Edge coverage + zigzag path
+                force=force
+            )
             # # turn_vibration_off(cps)
             communicate(
                 cps=cps,
@@ -2858,3 +2121,12 @@ if __name__ == "__main__":
     smalldoor2zizag(force=5, z=-6.5)
     smalldoor3zizag(force=5, z=-6.5)
     # smalldoor4zizag(force=5,z=-6.5)# Uncommented to call smalldoor4zizag
+
+
+
+
+
+
+
+
+

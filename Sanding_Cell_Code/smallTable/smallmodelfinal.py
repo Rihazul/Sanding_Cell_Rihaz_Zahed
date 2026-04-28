@@ -23,6 +23,7 @@ from smallTable.zigzagplane1final import (
     smalldoor3zizag,
     smalldoor4zizag,
 )
+from smallTable.edge_coverage_tool3 import run_tool3_pocket_edge_cycles
 
 from smallTable.pocketplane1final import (
     smalldoor1pocket,
@@ -562,30 +563,61 @@ def sandingModelATableA():
         # - Keep batching by tool to reduce tool switches
         # - Within each tool batch, execute each door's selected functions together
 
-        # Tool 3 batch: frame, zigzag pocket, square pocket
-        tool3_doors = unique_sorted_doors(
-            side_cycles_doors, zig_zag_cycle_doors, pocket_cycle_doors
-        )
-        if tool3_doors:
-            print("\n=== TOOL 3 BATCH START ===")
+        # Tool 3 batch: pocket edge pre-pass (runs before Tool 4 frame/zigzag)
+        # Trigger edge pass from pocket selections, primarily pocket zigzag doors.
+        tool3_edge_doors = unique_sorted_doors(zig_zag_cycle_doors, pocket_cycle_doors)
+        if tool3_edge_doors:
+            print("\n=== TOOL 3 EDGE BATCH START ===")
             ensure_tool_in_hand(3)
 
-            for door_number in tool3_doors:
-                frame_cfg = frame_by_door.get(door_number, {})
-                frame_cycle = int(frame_cfg.get("cycle", 0))
-
+            for door_number in tool3_edge_doors:
                 zigzag_cfg = zigzag_by_door.get(door_number, {})
                 zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
 
                 pocket_cfg = pocket_by_door.get(door_number, {})
                 pocket_cycle = int(pocket_cfg.get("cycle", 0))
-                if frame_cycle <= 0 and zigzag_cycle <= 0 and pocket_cycle <= 0:
+                edge_cycle = pocket_cycle if pocket_cycle > 0 else zigzag_cycle
+                if edge_cycle <= 0:
                     continue
 
-                print(f"\n--- Tool 3 / Door {door_number} START ---")
+                pocket_orientation = str(
+                    pocket_cfg.get("orientation")
+                    or zigzag_cfg.get("orientation")
+                    or "vertical"
+                ).lower()
+                print(f"\n--- Tool 3 / PocketEdge / Door {door_number} ---")
+                run_tool3_pocket_edge_cycles(
+                    edge_cycle,
+                    int(pocket_cfg.get("force", 0)),
+                    door_number,
+                    z,
+                    cps,
+                    orientation=pocket_orientation,
+                    spiral_settings=spiral_settings,
+                )
+                work_executed = True
+
+            print("\n=== TOOL 3 EDGE BATCH COMPLETE ===")
+
+        # Tool 4 batch: frame + pocket zigzag
+        tool4_doors = unique_sorted_doors(side_cycles_doors, zig_zag_cycle_doors)
+        if tool4_doors:
+            print("\n=== TOOL 4 BATCH START ===")
+            ensure_tool_in_hand(4)
+
+            for door_number in tool4_doors:
+                frame_cfg = frame_by_door.get(door_number, {})
+                frame_cycle = int(frame_cfg.get("cycle", 0))
+
+                zigzag_cfg = zigzag_by_door.get(door_number, {})
+                zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
+                if frame_cycle <= 0 and zigzag_cycle <= 0:
+                    continue
+
+                print(f"\n--- Tool 4 / Door {door_number} START ---")
 
                 if frame_cycle > 0:
-                    print(f"\n--- Tool 3 / Frame / Door {door_number} ---")
+                    print(f"\n--- Tool 4 / Frame / Door {door_number} ---")
                     run_side_cycles(
                         frame_cycle,
                         int(frame_cfg.get("force", 0)),
@@ -596,11 +628,7 @@ def sandingModelATableA():
 
                 if zigzag_cycle > 0:
                     orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
-                    edge_flag = zigzag_cfg.get("edge")
-                    if edge_flag is None:
-                        edge_flag = zigzag_cfg.get("edgeCoverage")
-                    movement = "rect" if edge_flag else "zigzag"
-                    print(f"\n--- Tool 3 / Zigzag / Door {door_number} ---")
+                    print(f"\n--- Tool 4 / Zigzag / Door {door_number} ---")
                     run_zigzag_cycles(
                         zigzag_cycle,
                         int(zigzag_cfg.get("force", 0)),
@@ -608,25 +636,14 @@ def sandingModelATableA():
                         z,
                         cps,
                         orientation=orientation,
-                        movement=movement,
+                        movement="zigzag",
                         spiral_settings=spiral_settings,
                     )
                     work_executed = True
 
-                if pocket_cycle > 0:
-                    print(f"\n--- Tool 3 / PocketSquare / Door {door_number} ---")
-                    run_pocket_cycles(
-                        pocket_cycle,
-                        int(pocket_cfg.get("force", 0)),
-                        door_number,
-                        z1,
-                        cps,
-                    )
-                    work_executed = True
+                print(f"\n--- Tool 4 / Door {door_number} COMPLETE ---")
 
-                print(f"\n--- Tool 3 / Door {door_number} COMPLETE ---")
-
-            print("\n=== TOOL 3 BATCH COMPLETE ===")
+            print("\n=== TOOL 4 BATCH COMPLETE ===")
 
         # Tool 2 batch: side, outside edge
         tool2_doors = unique_sorted_doors(tool2side_cycle_doors, tool2sideedge_cycle_doors)
