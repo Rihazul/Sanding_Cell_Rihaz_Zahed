@@ -212,6 +212,7 @@ def _read_tool_sensors(cps):
         "ci2": _read_box_bit(cps, cps.HRIF_ReadBoxCI, 2),
         "di4": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 4),
         "di5": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 5),
+        "di6": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 6),
         "di7": _read_box_bit(cps, cps.HRIF_ReadBoxDI, 7),
     }
 
@@ -223,35 +224,37 @@ def _get_tool_in_hand(cps):
     ci2 = sensors["ci2"]
     di4 = sensors["di4"]
     di5 = sensors["di5"]
+    di6 = sensors["di6"]
     di7 = sensors["di7"]
 
-    if any(val is None for val in (ci0, ci1, ci2, di4, di5, di7)):
+    if any(val is None for val in (ci0, ci1, ci2, di4, di5, di6, di7)):
         return None
 
-    # No tool in hand (matches pick pre-conditions used in Flask).
-    if ci0 == 0 and ci1 == 0 and ci2 == 0 and di7 == 1:
+    # No tool in hand.
+    if ci0 == 0 and ci1 == 0 and ci2 == 0 and di4 == 1 and di5 == 1 and di6 == 1 and di7 == 1:
         return 0
 
-    # Tool 1 attached.
+    # Tool 1 attached: CI=011, DI7=0
     if ci0 == 0 and ci1 == 1 and ci2 == 1 and di7 == 0:
         return 1
 
-    # Tool 2 attached.
+    # Tool 2 attached: CI=010, DI5=0
     if ci0 == 0 and ci1 == 1 and ci2 == 0 and di5 == 0:
         return 2
 
-    # Tool 3 attached.
-    if ci0 == 1 and ci1 == 0 and ci2 == 0 and di4 == 0:
+    # Tool 3 attached: CI=100, DI6=0
+    if ci0 == 1 and ci1 == 0 and ci2 == 0 and di6 == 0:
         return 3
+
+    # Tool 4 attached: CI=001, DI4=0
+    if ci0 == 0 and ci1 == 0 and ci2 == 1 and di4 == 0:
+        return 4
 
     return -1
 
 
 def _verify_tool_attached(cps, tool_number, config):
-    if tool_number not in (1, 2, 3):
-        return True
-
-    if tool_number == 3:
+    if tool_number not in (1, 2, 3, 4):
         return True
 
     timeout_s = None
@@ -306,7 +309,7 @@ def _verify_tool_attached(cps, tool_number, config):
     sensors = _read_tool_sensors(cps)
     sensor_msg = (
         f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
-        f"DI4={sensors['di4']} DI5={sensors['di5']} DI7={sensors['di7']}"
+        f"DI4={sensors['di4']} DI5={sensors['di5']} DI6={sensors['di6']} DI7={sensors['di7']}"
     )
     detected_label = "none" if detected == 0 else f"tool {detected}"
     msg_to_frontend(
@@ -349,7 +352,7 @@ def _verify_tool_released(cps, config, expected_tool_number=None):
     sensors = _read_tool_sensors(cps)
     sensor_msg = (
         f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
-        f"DI4={sensors['di4']} DI5={sensors['di5']} DI7={sensors['di7']}"
+        f"DI4={sensors['di4']} DI5={sensors['di5']} DI6={sensors['di6']} DI7={sensors['di7']}"
     )
     if detected is None:
         detected_label = "unknown (sensor read failed)"

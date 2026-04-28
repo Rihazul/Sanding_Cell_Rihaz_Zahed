@@ -83,6 +83,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         checkToolStatus(1),
         checkToolStatus(2),
         checkToolStatus(3),
+        checkToolStatus(4),
       ]);
 
       if (cancelled) return;
@@ -96,6 +97,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         tool1Result,
         tool2Result,
         tool3Result,
+        tool4Result,
       ] = results;
 
       if (robotResult.status === 'fulfilled') {
@@ -171,6 +173,17 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         const picked = !!tool3Result.value?.shouldBlink;
         setT3Picked(picked);
         setT3Pending(prev => {
+          if (!prev) return prev;
+          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+          if (done && Date.now() - prev.since >= minMs) return null;
+          return prev;
+        });
+      }
+      if (tool4Result.status === 'fulfilled') {
+        const picked = !!tool4Result.value?.shouldBlink;
+        setT4Picked(picked);
+        setT4Pending(prev => {
           if (!prev) return prev;
           const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
           const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;

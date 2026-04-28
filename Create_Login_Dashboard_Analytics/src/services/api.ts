@@ -326,8 +326,7 @@ export async function upload3DFile(file: File) {
 export async function toolToggle(toolNumber: 1 | 2 | 3 | 4, action: 'pick' | 'keep') {
   const endpoint = toolNumber === 1 ? '/tool_toggle1' :
     toolNumber === 2 ? '/tool_toggle2' :
-      toolNumber === 3 ? '/tool_toggle' :
-        '/tool_toggle4';
+      '/tool_toggle';
   return apiCall(endpoint, 'POST', { toolNumber, action });
 }
 
@@ -362,11 +361,12 @@ export async function getProcessStatus() {
 }
 
 // Tool attachment status checks (returns shouldBlink boolean)
-export async function checkToolStatus(toolNumber: 1 | 2 | 3) {
+export async function checkToolStatus(toolNumber: 1 | 2 | 3 | 4) {
   const endpoint =
     toolNumber === 1 ? '/check_tool1_status' :
       toolNumber === 2 ? '/check_tool2_status' :
-        '/check_tool3_status';
+        toolNumber === 3 ? '/check_tool3_status' :
+          '/check_tool4_status';
   return apiCall(endpoint, 'GET');
 }
 

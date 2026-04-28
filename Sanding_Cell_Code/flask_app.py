@@ -883,6 +883,7 @@ def stop_process():
 ############################################################################################
 #Tool3_pick_and_drop integration by rafat
 @app.route("/tool_toggle", methods=["POST"])
+@app.route("/tool_toggle4", methods=["POST"])
 def tool_toggle():
     """
     Expects a JSON payload like:
@@ -1258,6 +1259,31 @@ def check_tool3_status():
         if not ok:
             return jsonify({"status": "busy", "shouldBlink": False})
         should_blink = check_tool3_attachment_condition(CPS)
+    return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
+
+############################################################################################
+def check_tool4_attachment_condition(cps):
+    detected = _get_tool_in_hand(cps)
+    all_met = detected == 4
+    if all_met:
+        socketio.emit('blink_circle_button4', {'shouldBlink': True})
+    else:
+        socketio.emit('blink_circle_button4', {'shouldBlink': False})
+
+    return all_met
+
+############################################################################################
+@app.route('/check_tool4_status', methods=['GET'])
+def check_tool4_status():
+    """
+    A route that calls check_tool4_attachment_condition.
+    By calling this route, we check the lines for tool4
+    and emit a 'blink_circle_button4' event with True or False.
+    """
+    with locked_cps() as ok:
+        if not ok:
+            return jsonify({"status": "busy", "shouldBlink": False})
+        should_blink = check_tool4_attachment_condition(CPS)
     return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
 ############################################################################################
 # Toggle the Table A/B Open/Close button text depending upon table current state.Improved by rafat and working
@@ -1683,6 +1709,10 @@ def handle_action():
                 elif ci0 == 1 and ci1 == 0 and ci2 == 0:
                     print("Tool 3 detected -> executing keepTool11()")
                     keepTool11(cps, toolNumber=3, config=config)
+                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
+                elif ci0 == 0 and ci1 == 0 and ci2 == 1:
+                    print("Tool 4 detected -> executing keepTool11()")
+                    keepTool11(cps, toolNumber=4, config=config)
                     communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
                 elif ci0 == 0 and ci1 == 1 and ci2 == 0:
                     print("Tool 2 detected -> executing keepTool11()")
