@@ -1103,7 +1103,7 @@ def putForceZminus(
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
-        return
+        return False
 
     # Set tool coordinate system mode for force control
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
@@ -1111,7 +1111,7 @@ def putForceZminus(
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
         config["logger"].error(f"Failed to set force tool coordinate motion: {nret}")
-        return
+        return False
 
     # Set the force control strategy to constant force mode
     nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
@@ -1119,7 +1119,7 @@ def putForceZminus(
     config["logger"].info(f"force strategy: {nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set force control strategy: {nret}")
-        return
+        return False
 
     # Define the target force control values (e.g., maintain fixed force in y and z axis)
     freedom = goal + [0, 0, 0]
@@ -1138,7 +1138,7 @@ def putForceZminus(
     )
     if nret != 0:
         config["logger"].error(f"Failed to set max search velocities: {nret}")
-        return
+        return False
 
     # Set PID parameters to ensure stability in force control
     dFp = 0.8
@@ -1176,7 +1176,7 @@ def putForceZminus(
     time.sleep(0.0001)
     if nRet != 0:
         config["logger"].error(f"Failed to set damp params: {nRet}")
-        return
+        return False
 
     force_goal = [
         force * goal[0],
@@ -1192,7 +1192,7 @@ def putForceZminus(
     config["logger"].info(f"[forceControl] force control goal: {nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set force control goal: {nret}")
-        return
+        return False
 
     # Enable force control
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
@@ -1206,7 +1206,7 @@ def putForceZminus(
             except Exception:
                 pass
             config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return
+            return False
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
@@ -1225,6 +1225,7 @@ def putForceZminus(
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
     config["logger"].info(f"[forceControl] Turned on vibration")
+    return True
 
 
 def putForce3Direction(cps, force, tcp, ucs, config, goal=[1, 1, 1]):

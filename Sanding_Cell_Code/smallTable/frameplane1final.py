@@ -564,7 +564,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -572,7 +572,7 @@ def smalldoor1side(force,cps):
             )   
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -601,7 +601,7 @@ def smalldoor1side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -648,9 +648,9 @@ def smalldoor1side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
 
         # cps.HRIF_DisConnect(0)
 
@@ -785,7 +785,7 @@ def smalldoor1side(force,cps):
                     sanding_points[0][4],
                     sanding_points[0][5],
                 ],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -796,7 +796,7 @@ def smalldoor1side(force,cps):
             enable_vibration = False
             
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in sanding_points
             for i in range(len(sanding_points) - 1):
@@ -837,7 +837,7 @@ def smalldoor1side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -913,7 +913,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -924,7 +924,7 @@ def smalldoor1side(force,cps):
             enable_vibration = False
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -948,7 +948,7 @@ def smalldoor1side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -1018,7 +1018,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=lift_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
@@ -1028,7 +1028,7 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 seventh=seventh_axis_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
                 wait=False,
@@ -1037,19 +1037,19 @@ def smalldoor1side(force,cps):
                 cps=cps,
                 config=config,
                 point=reentry_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
                 wait=True,
             )
         
-        communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
 
         # cps.HRIF_DisConnect(0)
 
@@ -1153,7 +1153,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1164,7 +1164,7 @@ def smalldoor2side(force,cps):
             enable_vibration = False
             
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in sanding_points
             for i in range(len(sanding_points) - 1):
@@ -1181,7 +1181,7 @@ def smalldoor2side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -1234,9 +1234,9 @@ def smalldoor2side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoor2sidebig(force,cps,speed):
@@ -1361,7 +1361,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1372,7 +1372,7 @@ def smalldoor2side(force,cps):
 
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -1389,7 +1389,7 @@ def smalldoor2side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -1467,7 +1467,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1477,7 +1477,7 @@ def smalldoor2side(force,cps):
             enable_vibration = False
             
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -1494,7 +1494,7 @@ def smalldoor2side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -1565,7 +1565,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=lift_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
@@ -1575,7 +1575,7 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 seventh=seventh_axis_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
                 wait=False,
@@ -1584,19 +1584,19 @@ def smalldoor2side(force,cps):
                 cps=cps,
                 config=config,
                 point=reentry_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
                 wait=True,
             )
         
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
 
     #Main Function Execution
@@ -1699,7 +1699,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1710,7 +1710,7 @@ def smalldoor3side(force,cps):
             enable_vibration = False
             
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -1727,7 +1727,7 @@ def smalldoor3side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -1779,9 +1779,9 @@ def smalldoor3side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoor3sidebig(force,cps,speed):
@@ -1905,7 +1905,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -1916,7 +1916,7 @@ def smalldoor3side(force,cps):
             enable_vibration = False
             
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points)-1):
@@ -1933,7 +1933,7 @@ def smalldoor3side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -2009,7 +2009,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2020,7 +2020,7 @@ def smalldoor3side(force,cps):
             enable_vibration = False
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -2037,7 +2037,7 @@ def smalldoor3side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -2107,7 +2107,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=lift_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
@@ -2117,7 +2117,7 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 seventh=seventh_axis_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
                 wait=False,
@@ -2126,19 +2126,19 @@ def smalldoor3side(force,cps):
                 cps=cps,
                 config=config,
                 point=reentry_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
                 wait=True,
             )
         
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
     #Main Function Execution
     # ylen = get_y_values(1)['ylen']
@@ -2239,7 +2239,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2250,7 +2250,7 @@ def smalldoor4side(force,cps):
             enable_vibration = False
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -2267,7 +2267,7 @@ def smalldoor4side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -2319,9 +2319,9 @@ def smalldoor4side(force,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config, wait_for_blending=False)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoor4sidebig(force,cps,speed):
@@ -2446,7 +2446,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2457,7 +2457,7 @@ def smalldoor4side(force,cps):
             
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -2474,7 +2474,7 @@ def smalldoor4side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -2548,7 +2548,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=sanding_points[0],
-                tcp=config["coords"]["tcptool3plane1"],
+                tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
                 speed=0.6,
@@ -2559,7 +2559,7 @@ def smalldoor4side(force,cps):
             enable_vibration = False
 
             # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool3plane1"], ucs=config["coords"]["ucsTable1"], config=config)
+            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
             turn_vibration_on(cps)
             # Communicate to each point in points1
             for i in range(len(sanding_points) - 1):
@@ -2576,7 +2576,7 @@ def smalldoor4side(force,cps):
                     cps=cps,
                     config=config,
                     point=end_pose,
-                    tcp=config["coords"]["tcptool3plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     speed=0.6,
@@ -2647,7 +2647,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=lift_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
@@ -2657,7 +2657,7 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 seventh=seventh_axis_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 speed=speed,
                 wait=False,
@@ -2666,19 +2666,19 @@ def smalldoor4side(force,cps):
                 cps=cps,
                 config=config,
                 point=reentry_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool4plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
                 speed=speed,
                 wait=True,
             )
         
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
-        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
-        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
+        communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,wait=True)
+        #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
     #Main Function Execution
     # ylen = get_y_values(1)['ylen']

@@ -585,10 +585,20 @@ def sandingModelATableA():
                     or zigzag_cfg.get("orientation")
                     or "vertical"
                 ).lower()
+                edge_force = int(
+                    pocket_cfg.get("force")
+                    or zigzag_cfg.get("force")
+                    or 0
+                )
+                if edge_force <= 0:
+                    raise RuntimeError(
+                        f"Tool 3 edge force is not configured for door {door_number}. "
+                        "Set pocket force or zigzag force to a value > 0."
+                    )
                 print(f"\n--- Tool 3 / PocketEdge / Door {door_number} ---")
                 run_tool3_pocket_edge_cycles(
                     edge_cycle,
-                    int(pocket_cfg.get("force", 0)),
+                    edge_force,
                     door_number,
                     z,
                     cps,

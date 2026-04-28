@@ -111,12 +111,16 @@ def execute_edge_coverage(
 ):
     """Execute edge coverage path with force and vibration control."""
     if not edge_points:
-        return
+        return False
+    if float(force) <= 0.0:
+        raise RuntimeError(
+            f"[Edge Coverage] Invalid force={force}. Tool 3 edge coverage requires force > 0."
+        )
 
     force_seek_linear = 5.0
     force_blending_timeout = 0.4 if split else 7.0
 
-    putForceZminus(
+    force_ok = putForceZminus(
         cps=cps,
         force=force,
         tcp=config["coords"][tcp_key],
@@ -125,29 +129,34 @@ def execute_edge_coverage(
         search_linear_velocity=force_seek_linear,
         blending_timeout_s=force_blending_timeout,
     )
+    if not force_ok:
+        raise RuntimeError("[Edge Coverage] Failed to establish force contact before edge path.")
 
     edge_speed = _resolve_edge_speed(config)
     turn_vibration_on(cps)
     print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
 
-    for idx, point in enumerate(edge_points):
-        communicate(
-            cps=cps,
-            config=config,
-            point=point,
-            tcp=config["coords"][tcp_key],
-            ucs=config["coords"][ucs_key],
-            seventh=-1,
-            speed=edge_speed,
-            velocity_profile="sandingspeed",
-            speed_mode="linear",
-            wait=idx == (len(edge_points) - 1),
-        )
+    try:
+        for idx, point in enumerate(edge_points):
+            communicate(
+                cps=cps,
+                config=config,
+                point=point,
+                tcp=config["coords"][tcp_key],
+                ucs=config["coords"][ucs_key],
+                seventh=-1,
+                speed=edge_speed,
+                velocity_profile="sandingspeed",
+                speed_mode="linear",
+                wait=idx == (len(edge_points) - 1),
+            )
 
-    waitForBlending(cps=cps, config=config)
-    print("[Edge Coverage] Completed linear edge path")
-    turn_vibration_off(cps)
-    releaseForce(cps=cps, config=config)
+        waitForBlending(cps=cps, config=config)
+        print("[Edge Coverage] Completed linear edge path")
+        return True
+    finally:
+        turn_vibration_off(cps)
+        releaseForce(cps=cps, config=config)
 
 
 def _load_config():
