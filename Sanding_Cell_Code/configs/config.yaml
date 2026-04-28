@@ -158,6 +158,8 @@ tool:
   autoPickSlowSpeed: 0.3
   autoDropFastSpeed: 1.0
   autoDropSlowSpeed: 0.3
+  toolValvePreDelaySec: 0.15
+  toolValvePostDelaySec: 0.15
   sensorSettleSeconds: 0.4
   signalWaitTimeoutSeconds: 2.0
   signalPollIntervalSeconds: 0.1

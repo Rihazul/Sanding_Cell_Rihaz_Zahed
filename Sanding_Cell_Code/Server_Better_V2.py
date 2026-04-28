@@ -380,6 +380,16 @@ def _tool_speed(config, key, default):
         return default
 
 
+def _tool_valve_delay(config, key, default=0.15):
+    try:
+        delay = float(config.get("tool", {}).get(key, default))
+    except (TypeError, ValueError):
+        delay = float(default)
+    if delay < 0:
+        delay = 0.0
+    return delay
+
+
 
 def setup_logger(
     enable_console_logging: bool = False,
@@ -2844,7 +2854,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 message="Tool collection stopped by user.",
             )
             return False
-        # come back to tool's home position
+        # come back to tool's home position (fast retract)
         communicate(
             cps=cps,
             point=config["point"][f"tool{toolNumber}home"],
@@ -2852,8 +2862,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=pick_slow,
-            velocity_profile="sandingspeed",
+            speed=pick_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
         if stop_requested():
@@ -2968,7 +2978,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 message="Tool keeping stopped by user.",
             )
             return
-        # come back to tool's home
+        # come back to tool's home (fast retract)
         communicate(
             cps=cps,
             point=config["point"][f"tool{toolNumber}home"],
@@ -2976,8 +2986,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=drop_slow,
-            velocity_profile="sandingspeed",
+            speed=drop_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
         if stop_requested():
@@ -3039,8 +3049,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 f"[toolValve] Ignored valve '{valveState}' due to stop request."
             )
             return
-        # required sleep (for proper functioning)
-        time.sleep(0.5)
+        pre_delay = _tool_valve_delay(config, "toolValvePreDelaySec", 0.15)
+        post_delay = _tool_valve_delay(config, "toolValvePostDelaySec", 0.15)
+        # Required dwell for pneumatic stability.
+        time.sleep(pre_delay)
         if valveState == "drop":
             status = 1
             digOutput = 5  # DOnumber=0,1,2,3,4
@@ -3070,7 +3082,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Tool Set to '{valveState}'",
         )
-        time.sleep(0.5)
+        time.sleep(post_delay)
 
     def formattedInstruction(point, seventhAxis=-1, debug=False):
         do7th = 0
@@ -6235,8 +6247,10 @@ def toolValve1(cps, valveState: str, config):  # Tool valve for grabbing or thro
     """
     if stop_requested():
         return
-    # required sleep (for proper functioning)
-    time.sleep(0.5)
+    pre_delay = _tool_valve_delay(config, "toolValvePreDelaySec", 0.15)
+    post_delay = _tool_valve_delay(config, "toolValvePostDelaySec", 0.15)
+    # Required dwell for pneumatic stability.
+    time.sleep(pre_delay)
     if valveState == "drop":
         status = 1
         digOutput = 5  # DOnumber=0,1,2,3,4
@@ -6262,12 +6276,12 @@ def toolValve1(cps, valveState: str, config):  # Tool valve for grabbing or thro
             config["logger"].info(
                 f"[toolValve] Tool is dropped! Success: {nRet} (0 means successful)"
             )
-    # required sleep (for proper functioning)
+    # Required dwell for pneumatic stability.
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool Set to '{valveState}'",
     )
-    time.sleep(0.5)
+    time.sleep(post_delay)
 
 
 def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile nibe
@@ -6359,7 +6373,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
     toolValve1(cps, valveState="pick", config=config)
     if not _verify_tool_attached(cps, toolNumber, config):
         return False
-    # come back to tool's home position
+    # come back to tool's home position (fast retract)
     communicate(
         cps=cps,
         point=config["point"][f"tool{toolNumber}home"],
@@ -6367,8 +6381,8 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=pick_slow,
-        velocity_profile="sandingspeed",
+        speed=pick_fast,
+        velocity_profile="robotspeed",
         wait=True,
     )
     # come back to safe tool picking position
@@ -6454,7 +6468,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
     toolValve1(cps, valveState="drop", config=config)
     if not _verify_tool_released(cps=cps, config=config, expected_tool_number=toolNumber):
         raise RuntimeError("Tool release not confirmed after drop command.")
-    # come back to tool's home
+    # come back to tool's home (fast retract)
     communicate(
         cps=cps,
         point=config["point"][f"tool{toolNumber}home"],
@@ -6462,8 +6476,8 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         ucs=config["coords"]["ucsDefault"],
         seventh=-1,
         config=config,
-        speed=drop_slow,
-        velocity_profile="sandingspeed",
+        speed=drop_fast,
+        velocity_profile="robotspeed",
         wait=True,
     )
     # if don't need to pick another tool just after dropping this one, then come to safe picking position
