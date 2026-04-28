@@ -217,6 +217,23 @@ def _read_tool_sensors(cps):
     }
 
 
+def _decode_tool_from_ci(ci0, ci1, ci2):
+    """Decode attached tool from CI bits only."""
+    if any(val is None for val in (ci0, ci1, ci2)):
+        return None
+    if ci0 == 0 and ci1 == 0 and ci2 == 0:
+        return 0
+    if ci0 == 0 and ci1 == 1 and ci2 == 1:
+        return 1
+    if ci0 == 0 and ci1 == 1 and ci2 == 0:
+        return 2
+    if ci0 == 1 and ci1 == 0 and ci2 == 0:
+        return 3
+    if ci0 == 0 and ci1 == 0 and ci2 == 1:
+        return 4
+    return -1
+
+
 def _get_tool_in_hand(cps):
     sensors = _read_tool_sensors(cps)
     ci0 = sensors["ci0"]
@@ -230,8 +247,13 @@ def _get_tool_in_hand(cps):
     if any(val is None for val in (ci0, ci1, ci2, di4, di5, di6, di7)):
         return None
 
+    # First, decode by CI bits (primary source for attached tool state).
+    ci_decoded = _decode_tool_from_ci(ci0, ci1, ci2)
+    if ci_decoded in (1, 2, 3, 4):
+        return ci_decoded
+
     # No tool in hand.
-    if ci0 == 0 and ci1 == 0 and ci2 == 0 and di4 == 1 and di5 == 1 and di6 == 1 and di7 == 1:
+    if ci0 == 0 and ci1 == 0 and ci2 == 0:
         return 0
 
     # Tool 1 attached: CI=011, DI7=0
@@ -250,7 +272,8 @@ def _get_tool_in_hand(cps):
     if ci0 == 0 and ci1 == 0 and ci2 == 1 and di4 == 0:
         return 4
 
-    return -1
+    # Fallback to CI decode if DI values are inconsistent/lagging.
+    return ci_decoded
 
 
 def _verify_tool_attached(cps, tool_number, config):
