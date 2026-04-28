@@ -2854,7 +2854,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 message="Tool collection stopped by user.",
             )
             return False
-        # come back to tool's home position (fast retract)
+        # come back to tool's home position (slow retract)
         communicate(
             cps=cps,
             point=config["point"][f"tool{toolNumber}home"],
@@ -2862,8 +2862,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=pick_fast,
-            velocity_profile="robotspeed",
+            speed=pick_slow,
+            velocity_profile="sandingspeed",
             wait=True,
         )
         if stop_requested():
@@ -2978,7 +2978,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 message="Tool keeping stopped by user.",
             )
             return
-        # come back to tool's home (fast retract)
+        # come back to tool's home (slow retract)
         communicate(
             cps=cps,
             point=config["point"][f"tool{toolNumber}home"],
@@ -2986,8 +2986,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ucs=config["coords"]["ucsDefault"],
             seventh=-1,
             config=config,
-            speed=drop_fast,
-            velocity_profile="robotspeed",
+            speed=drop_slow,
+            velocity_profile="sandingspeed",
             wait=True,
         )
         if stop_requested():
@@ -5775,7 +5775,17 @@ def communicate(
             return "robot"
         return None
 
-    def customMoveL(cps, point, tcp, ucs, config, speed, profile="robot", wait=True):
+    def customMoveL(
+        cps,
+        point,
+        tcp,
+        ucs,
+        config,
+        speed,
+        profile="robot",
+        wait=True,
+        ratio_for_log=None,
+    ):
         RawACSpoints = [0, 0, 0, 0, 0, 0]  # Define the tool coordinate variable
 
         nIsSeek = 0  # Define The DI index of the detection
@@ -5846,7 +5856,7 @@ def communicate(
         config["logger"].info(
             "[customMoveL] profile=%s ratio=%s base_v=%.3f base_a=%.3f cmd_v=%.3f cmd_a=%.3f",
             profile,
-            "None" if speed is None else f"{float(speed):.3f}",
+            "None" if ratio_for_log is None else f"{float(ratio_for_log):.3f}",
             float(base_velocity),
             float(base_acceleration),
             float(velocity),
@@ -6206,6 +6216,9 @@ def communicate(
     if point:
         if stop_requested():
             return measurements
+        motion_ratio_log = (
+            override_speed if override_speed is not None else linear_speed
+        )
         customMoveL(
             cps,
             point=point,
@@ -6215,6 +6228,7 @@ def communicate(
             profile=selected_profile,
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
+            ratio_for_log=motion_ratio_log,
         )
 
     # the list to collect values in
