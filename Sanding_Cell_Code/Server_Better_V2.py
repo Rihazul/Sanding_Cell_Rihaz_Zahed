@@ -3574,6 +3574,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_three_d_compensation = float(
             config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
         )
+        cycle_cfg = load_json_config()
+        try:
+            scan_robot_speed = float(
+                cycle_cfg.get("robotSpeed", config.get("UI", {}).get("robotSpeed", 0.7))
+            )
+        except (TypeError, ValueError):
+            scan_robot_speed = float(config.get("UI", {}).get("robotSpeed", 0.7))
         door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
         scan_blend_timeout_s = max(
             0.5, float(door_cfg.get("scanBlendTimeoutSeconds", 7.0))
@@ -3655,7 +3662,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     wait=True,
                     require_seventh_ok=True,
                 )
@@ -3679,7 +3687,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     require_seventh_ok=True,
                 )
                 if move_ok is None:
@@ -3724,7 +3733,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     wait=True,
                 )
                 config["logger"].info(f"[scan-x] start point reached: {xStart}")
@@ -3738,6 +3748,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     config=config,
                     doMeasure=1,
                     speed=config["UI"]["scanSpeed"],
+                    velocity_profile="sandingspeed",
                 )
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
                 config["logger"].info(f"[scan-x] end point reached: {xEnd}")
@@ -3758,7 +3769,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     wait=False,
                 )
 
@@ -3872,7 +3884,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsDefault"],
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     require_seventh_ok=True,
                 )
                 if move_ok is None:
@@ -3910,7 +3923,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     wait=True,
                 )
                 config["logger"].info(f"[scan-y] start point reached: {yStart}")
@@ -3925,6 +3939,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     config=config,
                     doMeasure=1,
                     speed=config["UI"]["scanSpeed"],
+                    velocity_profile="sandingspeed",
                     stopWhenNan=True,
                 )
                 config["logger"].info(f"[scan-y] end point reached: {yEnd}")
@@ -3941,7 +3956,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                     wait=False,
                 )
 
@@ -4228,7 +4244,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
                     config=config,
-                    speed=config["UI"]["robotSpeed"],
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
                 )
                 config["logger"].info("[scan] moved successfully to safepoint")
             msg_to_frontend(
