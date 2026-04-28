@@ -5769,24 +5769,22 @@ def communicate(
                 speed_value = float(speed)
             except (TypeError, ValueError):
                 speed_value = None
-            if speed_value is not None and speed_value > 0:
+
+            if speed_value is not None:
+                # Ratio model: [0..1], where 1.0 means 100% of profile max.
+                if speed_value < 0.0:
+                    speed_value = 0.0
+                elif speed_value > 1.0:
+                    speed_value = 1.0
+
+                if speed_value <= 0.0:
+                    config["logger"].warning(
+                        "[customMoveL] speed ratio is 0.0; skipping MoveL to %s", point
+                    )
+                    return
+
                 velocity = speed_value * base_velocity
-                if speed_value <= 1:
-                    acceleration = base_acceleration * speed_value
-                else:
-                    # For speed > 1, acceleration can be tuned independently
-                    # from speed using coords.highSpeedAccelerationScale.
-                    try:
-                        accel_scale_over_one = float(
-                            config.get("coords", {}).get(
-                                "highSpeedAccelerationScale", 1.0
-                            )
-                        )
-                    except (TypeError, ValueError):
-                        accel_scale_over_one = 1.0
-                    if accel_scale_over_one <= 0:
-                        accel_scale_over_one = 1.0
-                    acceleration = base_acceleration * accel_scale_over_one
+                acceleration = speed_value * base_acceleration
 
         if stop_requested():
             return
@@ -6092,7 +6090,7 @@ def communicate(
     parsed_speed = speed
     if isinstance(speed, str) and resolve_velocity_profile(speed) is not None:
         if selected_profile == "sanding":
-            parsed_speed = config.get("UI", {}).get("sandingSpeed")
+            parsed_speed = config.get("UI", {}).get("sandSpeed")
         else:
             parsed_speed = config.get("UI", {}).get("robotSpeed")
 
@@ -6103,12 +6101,15 @@ def communicate(
             speed_value = float(parsed_speed)
         except (TypeError, ValueError):
             speed_value = None
-        if speed_value is not None and speed_value > 0:
+        if speed_value is not None:
+            # Ratio model: clamp to [0..1] so 1.0 equals profile max.
+            if speed_value < 0.0:
+                speed_value = 0.0
+            elif speed_value > 1.0:
+                speed_value = 1.0
+
             if speed_mode == "override":
-                if speed_value <= 1:
-                    override_speed = speed_value
-                else:
-                    linear_speed = speed_value
+                override_speed = speed_value
             else:
                 linear_speed = speed_value
 

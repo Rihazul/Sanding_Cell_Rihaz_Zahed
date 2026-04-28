@@ -31,11 +31,11 @@ coords:
   ucsDefault: "Base"  # This is the base UCS (used while homing, tool changing etc.)
   ucsTable1: "Plane_1" # This is the UCS for table 1 (left table) (used for scanning and sanding)
   ucsTable2: "Plane_2" # This is the plane for table 2
-  roboVelocity: 499 # Increased from 200 to 300 by rafat
-  roboAcceleration: 1650 # Increased from 250 to 350 by rafat
+  roboVelocity: 500 # Increased from 200 to 300 by rafat
+  roboAcceleration: 2500 # Increased from 250 to 350 by rafat
   sandingVelocity: 800 # Increased from 150 to 250 by rafat
   sandingAcceleration: 550 # Increased from 250 to 350 by rafat
-  highSpeedAccelerationScale: 1.5 # Applies when speed > 1 in communicate()
+  highSpeedAccelerationScale: 1.0 # Keeps acceleration at base value when speed > 1
   transitionRadius: 20 # Decreased from 10 to 5 by rafat
   # roboVelocity: 200
   # roboAcceleration: 250
@@ -150,13 +150,13 @@ tool:
   tool4height: 180 # actual is 160.274 # always subtract 120mm
 
   # Tool change motion speeds
-  manualPickFastSpeed: 2.1
+  manualPickFastSpeed: 1.0
   manualPickSlowSpeed: 0.3
-  manualDropFastSpeed: 2.1
+  manualDropFastSpeed: 1.0
   manualDropSlowSpeed: 0.3
-  autoPickFastSpeed: 2.1
+  autoPickFastSpeed: 1.0
   autoPickSlowSpeed: 0.3
-  autoDropFastSpeed: 2.1
+  autoDropFastSpeed: 1.0
   autoDropSlowSpeed: 0.3
   sensorSettleSeconds: 0.4
   signalWaitTimeoutSeconds: 2.0
