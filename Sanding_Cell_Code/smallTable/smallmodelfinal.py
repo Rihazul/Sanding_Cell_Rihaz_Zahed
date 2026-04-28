@@ -298,6 +298,8 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         tool_in_hand = 2
     elif ci0 == 0 and ci1 == 1 and ci2 == 1:
         tool_in_hand = 1
+    elif ci0 == 0 and ci1 == 0 and ci2 == 1:
+        tool_in_hand = 4
     elif ci0 == 0 and ci1 == 0 and ci2 == 0:
         tool_in_hand = None
     else:
@@ -494,6 +496,8 @@ def sandingModelATableA():
             return 2
         if ci0_local == 0 and ci1_local == 1 and ci2_local == 1:
             return 1
+        if ci0_local == 0 and ci1_local == 0 and ci2_local == 1:
+            return 4
         if ci0_local == 0 and ci1_local == 0 and ci2_local == 0:
             return None
         raise RuntimeError(
