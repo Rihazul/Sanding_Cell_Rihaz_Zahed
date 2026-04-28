@@ -5788,6 +5788,15 @@ def communicate(
 
         if stop_requested():
             return
+        config["logger"].info(
+            "[customMoveL] profile=%s ratio=%s base_v=%.3f base_a=%.3f cmd_v=%.3f cmd_a=%.3f",
+            profile,
+            "None" if speed is None else f"{float(speed):.3f}",
+            float(base_velocity),
+            float(base_acceleration),
+            float(velocity),
+            float(acceleration),
+        )
         nRet = cps.HRIF_MoveL(
             0,
             0,
