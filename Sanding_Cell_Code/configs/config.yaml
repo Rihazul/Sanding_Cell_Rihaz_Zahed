@@ -32,7 +32,7 @@ coords:
   ucsTable1: "Plane_1" # This is the UCS for table 1 (left table) (used for scanning and sanding)
   ucsTable2: "Plane_2" # This is the plane for table 2
   roboVelocity: 499 # Increased from 200 to 300 by rafat
-  roboAcceleration: 1900 # Increased from 250 to 350 by rafat
+  roboAcceleration: 1650 # Increased from 250 to 350 by rafat
   sandingVelocity: 800 # Increased from 150 to 250 by rafat
   sandingAcceleration: 550 # Increased from 250 to 350 by rafat
   highSpeedAccelerationScale: 1.5 # Applies when speed > 1 in communicate()
