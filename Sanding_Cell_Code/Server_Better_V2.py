@@ -118,6 +118,38 @@ def load_json_config():
     return config
 
 
+def _as_float(value, fallback=None):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _resolve_ui_ratio(config, key, fallback=None):
+    """
+    Resolve speed ratio from cycleData.json first, then config['UI'], then fallback.
+    Clamps to [0.0, 1.0].
+    """
+    value = None
+    try:
+        cycle_cfg = load_json_config()
+        value = _as_float(cycle_cfg.get(key), None)
+    except Exception:
+        value = None
+
+    if value is None and isinstance(config, dict):
+        value = _as_float(config.get("UI", {}).get(key), None)
+
+    if value is None:
+        value = _as_float(fallback, 0.0)
+
+    if value < 0.0:
+        value = 0.0
+    elif value > 1.0:
+        value = 1.0
+    return value
+
+
 def msg_to_frontend(api_url, message, timeout_s=0.8):
     try:
         response = requests.post(api_url, json={"message": message}, timeout=timeout_s)
@@ -2708,9 +2740,19 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if not config["settings"]["useTool"]:
             return False
         pick_fast = _tool_speed(
-            config, "autoPickFastSpeed", config["UI"].get("robotSpeed", 0.7)
+            config, "autoPickFastSpeed", config.get("UI", {}).get("robotSpeed")
         )
-        pick_slow = _tool_speed(config, "autoPickSlowSpeed", 0.15)
+        pick_slow = _tool_speed(
+            config, "autoPickSlowSpeed", config.get("UI", {}).get("sandSpeed")
+        )
+        # Keep tool fast/slow aligned with cycle/UI ratios used by scan/sanding flows.
+        pick_fast = _resolve_ui_ratio(config, "robotSpeed", pick_fast)
+        pick_slow = _resolve_ui_ratio(config, "sandSpeed", pick_slow)
+        config["logger"].info(
+            "[toolMotion][autoPick] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
+            float(pick_fast),
+            float(pick_slow),
+        )
         current_tool = _get_tool_in_hand(cps)
         if current_tool and current_tool > 0:
             msg_to_frontend(
@@ -2844,9 +2886,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if not config["settings"]["useTool"]:
             return
         drop_fast = _tool_speed(
-            config, "autoDropFastSpeed", config["UI"].get("robotSpeed", 0.7)
+            config, "autoDropFastSpeed", config.get("UI", {}).get("robotSpeed")
         )
-        drop_slow = _tool_speed(config, "autoDropSlowSpeed", 0.15)
+        drop_slow = _tool_speed(
+            config, "autoDropSlowSpeed", config.get("UI", {}).get("sandSpeed")
+        )
+        drop_fast = _resolve_ui_ratio(config, "robotSpeed", drop_fast)
+        drop_slow = _resolve_ui_ratio(config, "sandSpeed", drop_slow)
+        config["logger"].info(
+            "[toolMotion][autoDrop] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
+            float(drop_fast),
+            float(drop_slow),
+        )
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -3574,13 +3625,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_three_d_compensation = float(
             config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
         )
-        cycle_cfg = load_json_config()
-        try:
-            scan_robot_speed = float(
-                cycle_cfg.get("robotSpeed", config.get("UI", {}).get("robotSpeed", 0.7))
-            )
-        except (TypeError, ValueError):
-            scan_robot_speed = float(config.get("UI", {}).get("robotSpeed", 0.7))
+        scan_robot_speed = _resolve_ui_ratio(
+            config, "robotSpeed", config.get("UI", {}).get("robotSpeed")
+        )
         door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
         scan_blend_timeout_s = max(
             0.5, float(door_cfg.get("scanBlendTimeoutSeconds", 7.0))
@@ -6238,8 +6285,19 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
     """
     if not config["settings"]["useTool"]:
         return False
-    pick_fast = _tool_speed(config, "manualPickFastSpeed", 0.9)
-    pick_slow = _tool_speed(config, "manualPickSlowSpeed", 0.1)
+    pick_fast = _tool_speed(
+        config, "manualPickFastSpeed", config.get("UI", {}).get("robotSpeed")
+    )
+    pick_slow = _tool_speed(
+        config, "manualPickSlowSpeed", config.get("UI", {}).get("sandSpeed")
+    )
+    pick_fast = _resolve_ui_ratio(config, "robotSpeed", pick_fast)
+    pick_slow = _resolve_ui_ratio(config, "sandSpeed", pick_slow)
+    config["logger"].info(
+        "[toolMotion][manualPick] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
+        float(pick_fast),
+        float(pick_slow),
+    )
     current_tool = _get_tool_in_hand(cps)
     if current_tool and current_tool > 0:
         msg_to_frontend(
@@ -6341,8 +6399,19 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
 def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe dibe
     if not config["settings"]["useTool"]:
         return
-    drop_fast = _tool_speed(config, "manualDropFastSpeed", 0.9)
-    drop_slow = _tool_speed(config, "manualDropSlowSpeed", 0.1)
+    drop_fast = _tool_speed(
+        config, "manualDropFastSpeed", config.get("UI", {}).get("robotSpeed")
+    )
+    drop_slow = _tool_speed(
+        config, "manualDropSlowSpeed", config.get("UI", {}).get("sandSpeed")
+    )
+    drop_fast = _resolve_ui_ratio(config, "robotSpeed", drop_fast)
+    drop_slow = _resolve_ui_ratio(config, "sandSpeed", drop_slow)
+    config["logger"].info(
+        "[toolMotion][manualDrop] ratios: fast(robot)=%.3f slow(sanding)=%.3f",
+        float(drop_fast),
+        float(drop_slow),
+    )
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Keeping Started...",
