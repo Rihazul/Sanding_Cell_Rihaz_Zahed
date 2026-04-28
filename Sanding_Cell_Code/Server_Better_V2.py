@@ -2358,6 +2358,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             except (TypeError, ValueError):
                 return False
 
+        def motor_cmd_ok(nret, state):
+            if nret is None:
+                return bool(state) and str(state[0]) == "0"
+            return nret == 0 or (bool(state) and str(state[0]) == "0")
+
         if not setUCS_TCP(
             cps,
             tcp=config["coords"]["tcpDefault"],
@@ -2462,14 +2467,44 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # Step 2: go to your homing position (for 7th axis)
         config["logger"].info("[HomingFunc] step 2: Go to the homing switch")
         # communicate(cps=cps, tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=0, config=config, speed=config['door']['homingSpeed'])
-        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-        time.sleep(motor_stop_settle_s)
-        print(f"****** motor stop nret: {nret}; result: {result}")
-        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
-        # nret = cps.HRIF_HRApp(0, 'HR_Motor','MotorMovePosition', ["J7", "-22.0"], result)
-        # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
-        time.sleep(origin_command_settle_s)
-        print(f"****** move origin nret: {nret}; result: {result}")
+        max_origin_cmd_retries = int(door_cfg.get("homingOriginCommandRetries", 3) or 3)
+        if max_origin_cmd_retries < 1:
+            max_origin_cmd_retries = 1
+        origin_started = False
+        for attempt in range(1, max_origin_cmd_retries + 1):
+            result = []
+            nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
+            time.sleep(motor_stop_settle_s)
+            print(f"****** motor stop nret: {nret}; result: {result}")
+
+            result = []
+            nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
+            # nret = cps.HRIF_HRApp(0, 'HR_Motor','MotorMovePosition', ["J7", "-22.0"], result)
+            # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
+            time.sleep(origin_command_settle_s)
+            print(f"****** move origin nret: {nret}; result: {result}")
+
+            if motor_cmd_ok(nret, result):
+                origin_started = True
+                break
+
+            config["logger"].warning(
+                f"[HomingFunc] MotorMoveOrigin not accepted on attempt "
+                f"{attempt}/{max_origin_cmd_retries} (ret={nret}, res={result}). Retrying..."
+            )
+            cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
+            time.sleep(0.05 * attempt)
+
+        if not origin_started:
+            config["logger"].error(
+                f"[HomingFunc] MotorMoveOrigin failed after {max_origin_cmd_retries} attempts."
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing failed: J7 origin command was not accepted.",
+            )
+            return
+
         result = [-1, -1, "-1"]
         origin_wait_start = time.time()
         # Wait until the motor reports origin complete.
@@ -5602,6 +5637,7 @@ def communicate(
     wait=None,
     speed_mode="override",
     require_seventh_ok=False,
+    velocity_profile=None,
 ):
     if stop_requested():
         return []
@@ -5635,7 +5671,29 @@ def communicate(
 
         return distance
 
-    def customMoveL(cps, point, tcp, ucs, config, speed, wait=True):
+    def resolve_velocity_profile(profile_hint):
+        if not isinstance(profile_hint, str):
+            return None
+        normalized = profile_hint.strip().lower().replace("_", "").replace(" ", "")
+        if normalized in (
+            "sanding",
+            "sand",
+            "sandingvelocity",
+            "sandvelocity",
+            "sandingspeed",
+        ):
+            return "sanding"
+        if normalized in (
+            "robot",
+            "robo",
+            "robotvelocity",
+            "robovelocity",
+            "robotspeed",
+        ):
+            return "robot"
+        return None
+
+    def customMoveL(cps, point, tcp, ucs, config, speed, profile="robot", wait=True):
         RawACSpoints = [0, 0, 0, 0, 0, 0]  # Define the tool coordinate variable
 
         nIsSeek = 0  # Define The DI index of the detection
@@ -5664,10 +5722,21 @@ def communicate(
 
         # input("Is this fine?")
 
-        base_velocity = config["coords"]["roboVelocity"]
-        base_acceleration = config["coords"]["roboAcceleration"]
+        robot_velocity = config["coords"]["roboVelocity"]
+        robot_acceleration = config["coords"]["roboAcceleration"]
+        sanding_velocity = config["coords"]["sandingVelocity"]
+        sanding_acceleration = config["coords"]["sandingAcceleration"]
+        
+        if profile == "sanding":
+            base_velocity = sanding_velocity
+            base_acceleration = sanding_acceleration
+        else:
+            base_velocity = robot_velocity
+            base_acceleration = robot_acceleration
+
         velocity = base_velocity
         acceleration = base_acceleration
+
         if speed is not None:
             try:
                 speed_value = float(speed)
@@ -5987,11 +6056,24 @@ def communicate(
     measurements = []
     # speed_mode="override": <=1 uses override, >1 scales MoveL velocity.
     # speed_mode="linear": always scales MoveL velocity, no override changes.
+    selected_profile = resolve_velocity_profile(velocity_profile) or resolve_velocity_profile(
+        speed
+    )
+    if selected_profile is None:
+        selected_profile = "robot"
+
+    parsed_speed = speed
+    if isinstance(speed, str) and resolve_velocity_profile(speed) is not None:
+        if selected_profile == "sanding":
+            parsed_speed = config.get("UI", {}).get("sandingSpeed")
+        else:
+            parsed_speed = config.get("UI", {}).get("robotSpeed")
+
     override_speed = None
     linear_speed = None
-    if speed is not None:
+    if parsed_speed is not None:
         try:
-            speed_value = float(speed)
+            speed_value = float(parsed_speed)
         except (TypeError, ValueError):
             speed_value = None
         if speed_value is not None and speed_value > 0:
@@ -6038,6 +6120,7 @@ def communicate(
             tcp=tcp,
             ucs=ucs,
             speed=linear_speed,
+            profile=selected_profile,
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
         )
@@ -6599,6 +6682,11 @@ def homingFunction1(cps, config):
         except (TypeError, ValueError):
             return False
 
+    def motor_cmd_ok(nret, state):
+        if nret is None:
+            return bool(state) and str(state[0]) == "0"
+        return nret == 0 or (bool(state) and str(state[0]) == "0")
+
     setUCS_TCP(
         cps,
         tcp=config["coords"]["tcpDefault"],
@@ -6649,13 +6737,39 @@ def homingFunction1(cps, config):
     # Step 2: go to your homing position (for 7th axis)
     config["logger"].info("[HomingFunc] step 2: Go to the homing switch")
     # communicate(cps=cps, tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=0, config=config, speed=config['door']['homingSpeed'])
-    nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-    time.sleep(motor_stop_settle_s)
-    print(f"****** motor stop nret: {nret}; result: {result}")
-    nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
-    # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
-    time.sleep(origin_command_settle_s)
-    print(f"****** move origin nret: {nret}; result: {result}")
+    max_origin_cmd_retries = int(door_cfg.get("homingOriginCommandRetries", 3) or 3)
+    if max_origin_cmd_retries < 1:
+        max_origin_cmd_retries = 1
+    origin_started = False
+    for attempt in range(1, max_origin_cmd_retries + 1):
+        result = []
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
+        time.sleep(motor_stop_settle_s)
+        print(f"****** motor stop nret: {nret}; result: {result}")
+        result = []
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
+        # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
+        time.sleep(origin_command_settle_s)
+        print(f"****** move origin nret: {nret}; result: {result}")
+        if motor_cmd_ok(nret, result):
+            origin_started = True
+            break
+        config["logger"].warning(
+            f"[HomingFunc] MotorMoveOrigin not accepted on attempt "
+            f"{attempt}/{max_origin_cmd_retries} (ret={nret}, res={result}). Retrying..."
+        )
+        cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
+        time.sleep(0.05 * attempt)
+    if not origin_started:
+        config["logger"].error(
+            f"[HomingFunc] MotorMoveOrigin failed after {max_origin_cmd_retries} attempts."
+        )
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Homing failed: J7 origin command was not accepted.",
+        )
+        return
+
     result = [-1, -1, "-1"]
     # for waiting till the motor moves to the position
     origin_wait_start = time.time()

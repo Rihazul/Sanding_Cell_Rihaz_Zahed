@@ -3,6 +3,7 @@ from flask_cors import CORS
 from threading import Thread
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
 from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
+from Server_Better_V2 import _get_tool_in_hand, _read_tool_sensors
 from Server_Better_V2 import setup_logger
 import yaml, requests
 from modules.CPS import CPSClient, RbtClient, PluginClient
@@ -323,7 +324,7 @@ process_state = {
     'status': 'completed',  # Can be 'in_progress' or 'completed'
     'last_action': None,
 }
-tool_override_state = {1: False, 2: False, 3: False}
+tool_override_state = {1: False, 2: False, 3: False, 4: False}
 # Since J7 position cannot be read, track "homed" in software.
 j7_home_confirmed = False
 
@@ -923,14 +924,11 @@ def tool_toggle():
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            # Validate Pick Conditions
-            pick_conditions = [
-                (cps.HRIF_ReadBoxCI, 0, 0, 0),
-                (cps.HRIF_ReadBoxCI, 0, 1, 0),
-                (cps.HRIF_ReadBoxCI, 0, 2, 0),
-                (cps.HRIF_ReadBoxDI, 0, 4, 1)
-            ]
-            if check_conditions(pick_conditions):
+            # Validate pick state by decoded tool-in-hand status so adding Tool 4
+            # does not break hard-coded CI/DI expectations.
+            detected_tool = _get_tool_in_hand(cps)
+            can_pick = detected_tool in (0, -1, None)
+            if can_pick:
                 # Pick the tool
                 success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 if not success:
@@ -941,7 +939,10 @@ def tool_toggle():
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             else:
-                socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
+                socketio.emit(
+                    'flash_message',
+                    {"message": f"Already holding Tool {detected_tool}. Can't pick Tool {tool_num}"}
+                )
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"error": "Pick conditions not met"}), 400
 
@@ -959,14 +960,8 @@ def tool_toggle():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            # Validate Drop Conditions
-            drop_conditions = [
-                (cps.HRIF_ReadBoxCI, 0, 0, 1),
-                (cps.HRIF_ReadBoxCI, 0, 1, 0),
-                (cps.HRIF_ReadBoxCI, 0, 2, 0),
-                (cps.HRIF_ReadBoxDI, 0, 4, 0)
-            ]
-            if check_conditions(drop_conditions):
+            detected_tool = _get_tool_in_hand(cps)
+            if detected_tool == tool_num:
                 # Keep the tool
                 keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
@@ -975,28 +970,32 @@ def tool_toggle():
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
             else:
-                # Recovery path for post-crash or flaky DI4 sensor on Tool 3.
-                if tool_num == 3:
-                    ci0, ci1, ci2 = [], [], []
-                    r0 = cps.HRIF_ReadBoxCI(0, 0, ci0)
-                    r1 = cps.HRIF_ReadBoxCI(0, 1, ci1)
-                    r2 = cps.HRIF_ReadBoxCI(0, 2, ci2)
-                    ci_match_tool3 = (
-                        r0 == 0 and r1 == 0 and r2 == 0
-                        and ci0 and ci1 and ci2
-                        and ci0[0] == "1" and ci1[0] == "0" and ci2[0] == "0"
-                    )
-                    if force_keep or ci_match_tool3:
-                        keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                # Recovery path for post-crash or sensor decode uncertainty.
+                if force_keep and detected_tool in (-1, None):
+                    keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                    if tool_num == 3:
                         tool_override_state[3] = False
-                        socketio.emit('flash_message', {
-                            "message": "Kept Tool 3 via recovery path (sensor mismatch bypassed)"
-                        })
-                        return jsonify({
-                            "status": "success",
-                            "message": "Tool 3 kept via recovery path"
-                        })
-                socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
+                    socketio.emit('flash_message', {
+                        "message": f"Kept Tool {tool_num} via forced recovery path"
+                    })
+                    return jsonify({
+                        "status": "success",
+                        "message": f"Tool {tool_num} kept via forced recovery path"
+                    })
+                sensors = _read_tool_sensors(cps)
+                sensor_msg = (
+                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI7={sensors.get('di7')}"
+                )
+                socketio.emit(
+                    'flash_message',
+                    {
+                        "message": (
+                            f"Not holding Tool {tool_num} to drop "
+                            f"(detected={detected_tool}). {sensor_msg}"
+                        )
+                    },
+                )
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"error": "Drop conditions not met"}), 400
 
@@ -1186,30 +1185,8 @@ def tool_toggle1():
 
 ############################################################################################
 def check_tool1_attachment_condition(cps):
-    """
-    Checks if these conditions are met:
-        (cps.HRIF_ReadBoxCI, 0, 0, 0)
-        (cps.HRIF_ReadBoxCI, 0, 1, 1)
-        (cps.HRIF_ReadBoxCI, 0, 2, 1)
-        (cps.HRIF_ReadBoxDI, 0, 7, 0)
-    If true, signals to the frontend that the circle button should blink
-    (or turn green+blink). If false, it tells the frontend to stop blinking.
-    """
-    condition_list = [
-        (cps.HRIF_ReadBoxCI, 0, 0, 0),
-        (cps.HRIF_ReadBoxCI, 0, 1, 1),
-        (cps.HRIF_ReadBoxCI, 0, 2, 1),
-        (cps.HRIF_ReadBoxDI, 0, 7, 0),
-    ]
-
-    all_met = True
-    for func, box_id, bit, expected_value in condition_list:
-        result = []
-        ret = func(box_id, bit, result)
-        if ret != 0 or result[0] != str(expected_value):
-            all_met = False
-            break
-
+    detected = _get_tool_in_hand(cps)
+    all_met = detected == 1
     if all_met:
         socketio.emit('blink_circle_button', {'shouldBlink': True})
     else:
@@ -1234,31 +1211,8 @@ def check_tool1_status():
 ############################################################################################
 # For Tool 2 Status function
 def check_tool2_attachment_condition(cps):
-    """
-    Checks if these conditions are met for Tool 2 attachment:
-        (cps.HRIF_ReadBoxCI, 0, 0, 0)
-        (cps.HRIF_ReadBoxCI, 0, 1, 1)
-        (cps.HRIF_ReadBoxCI, 0, 2, 0)
-        (cps.HRIF_ReadBoxDI, 0, 5, 0)
-
-    If all are true, we emit 'blink_circle_button2' with shouldBlink=True.
-    Otherwise, shouldBlink=False.
-    """
-    condition_list = [
-        (cps.HRIF_ReadBoxCI, 0, 0, 0),
-        (cps.HRIF_ReadBoxCI, 0, 1, 1),
-        (cps.HRIF_ReadBoxCI, 0, 2, 0),
-        (cps.HRIF_ReadBoxDI, 0, 5, 0),
-    ]
-
-    all_met = True
-    for func, box_id, bit, expected_value in condition_list:
-        result = []
-        ret = func(box_id, bit, result)
-        if ret != 0 or result[0] != str(expected_value):
-            all_met = False
-            break
-
+    detected = _get_tool_in_hand(cps)
+    all_met = detected == 2
     if all_met:
         socketio.emit('blink_circle_button2', {'shouldBlink': True})
     else:
@@ -1284,31 +1238,8 @@ def check_tool3_attachment_condition(cps):
     if tool_override_state.get(3):
         socketio.emit('blink_circle_button3', {'shouldBlink': True})
         return True
-    """
-    Checks if these conditions are met for Tool 3 attachment:
-        (cps.HRIF_ReadBoxCI, 0, 0, 1)
-        (cps.HRIF_ReadBoxCI, 0, 1, 0)
-        (cps.HRIF_ReadBoxCI, 0, 2, 0)
-        (cps.HRIF_ReadBoxDI, 0, 4, 0)
-
-    If all are true, we emit 'blink_circle_button3' with shouldBlink=True.
-    Otherwise, shouldBlink=False.
-    """
-    condition_list = [
-        (cps.HRIF_ReadBoxCI, 0, 0, 1),
-        (cps.HRIF_ReadBoxCI, 0, 1, 0),
-        (cps.HRIF_ReadBoxCI, 0, 2, 0),
-        (cps.HRIF_ReadBoxDI, 0, 4, 0),
-    ]
-
-    all_met = True
-    for func, box_id, bit, expected_value in condition_list:
-        result = []
-        ret = func(box_id, bit, result)
-        if ret != 0 or result[0] != str(expected_value):
-            all_met = False
-            break
-
+    detected = _get_tool_in_hand(cps)
+    all_met = detected == 3
     if all_met:
         socketio.emit('blink_circle_button3', {'shouldBlink': True})
     else:
@@ -1660,7 +1591,12 @@ def handle_action():
         )
 
         # Fast path: reuse parent CPS connection when transport is healthy and stable.
-        can_inline = (not recent_stop_or_child) and _parent_cps_healthy_for_homing()
+        # Safety: first homing after server start must calibrate J7 origin via fresh transport.
+        can_inline = (
+            j7_home_confirmed
+            and (not recent_stop_or_child)
+            and _parent_cps_healthy_for_homing()
+        )
 
         process_state['status'] = 'in_progress'
         process_state['last_action'] = 'homing'
