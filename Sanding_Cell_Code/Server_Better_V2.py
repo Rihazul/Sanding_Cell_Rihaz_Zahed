@@ -2740,6 +2740,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 seventh=-1,
                 config=config,
                 speed=pick_fast,
+                velocity_profile="robotspeed",
                 wait=True,
             )
             if stop_requested():
@@ -2758,6 +2759,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=pick_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
         if stop_requested():
@@ -2783,6 +2785,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=pick_slow,
+            velocity_profile="sandingspeed",
             wait=True,
         )
         if stop_requested():
@@ -2810,6 +2813,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=pick_slow,
+            velocity_profile="sandingspeed",
             wait=True,
         )
         if stop_requested():
@@ -2831,6 +2835,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=pick_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
         return True
@@ -2863,6 +2868,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=drop_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
         if stop_requested():
@@ -2880,6 +2886,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=drop_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
         if stop_requested():
@@ -2897,6 +2904,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=drop_slow,
+            velocity_profile="sandingspeed",
             wait=True,
         )
         if stop_requested():
@@ -2922,6 +2930,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             seventh=-1,
             config=config,
             speed=drop_slow,
+            velocity_profile="sandingspeed",
             wait=True,
         )
         if stop_requested():
@@ -2944,6 +2953,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 seventh=-1,
                 config=config,
                 speed=drop_fast,
+                velocity_profile="robotspeed",
                 wait=True,
             )
 
@@ -6224,6 +6234,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
             seventh=-1,
             config=config,
             speed=pick_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
 
@@ -6236,6 +6247,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         seventh=-1,
         config=config,
         speed=pick_fast,
+        velocity_profile="robotspeed",
         wait=True,
     )
     # drop (for safety, to open the valve)
@@ -6255,6 +6267,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         seventh=-1,
         config=config,
         speed=pick_slow,
+        velocity_profile="sandingspeed",
         wait=True,
     )
     # pick the tool
@@ -6276,6 +6289,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         seventh=-1,
         config=config,
         speed=pick_slow,
+        velocity_profile="sandingspeed",
         wait=True,
     )
     # come back to safe tool picking position
@@ -6291,6 +6305,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         seventh=-1,
         config=config,
         speed=pick_fast,
+        velocity_profile="robotspeed",
         wait=True,
     )
     return True
@@ -6314,6 +6329,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=drop_fast,
+        velocity_profile="robotspeed",
         wait=True,
     )
     # go to tool's home
@@ -6325,6 +6341,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=drop_fast,
+        velocity_profile="robotspeed",
         wait=True,
     )
     # touch the tool (slowly)
@@ -6336,6 +6353,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=drop_slow,
+        velocity_profile="sandingspeed",
         wait=True,
     )
     # drop the tool (wait for blending to avoid mid-motion release)
@@ -6357,6 +6375,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         seventh=-1,
         config=config,
         speed=drop_slow,
+        velocity_profile="sandingspeed",
         wait=True,
     )
     # if don't need to pick another tool just after dropping this one, then come to safe picking position
@@ -6373,6 +6392,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
             seventh=-1,
             config=config,
             speed=drop_fast,
+            velocity_profile="robotspeed",
             wait=True,
         )
 
@@ -6393,6 +6413,7 @@ def keepToolupdated(cps, toolNumber, config):
         seventh=-1,
         config=config,
         speed=0.9,
+        velocity_profile="robotspeed",
         wait=False,
     )
     # go to tool's home
@@ -6404,6 +6425,7 @@ def keepToolupdated(cps, toolNumber, config):
         seventh=-1,
         config=config,
         speed=0.9,
+        velocity_profile="robotspeed",
         wait=False,
     )
     # touch the tool (slowly)
@@ -6415,6 +6437,7 @@ def keepToolupdated(cps, toolNumber, config):
         seventh=-1,
         config=config,
         speed=0.1,
+        velocity_profile="sandingspeed",
         wait=False,
     )
     # drop the tool
@@ -6429,6 +6452,7 @@ def keepToolupdated(cps, toolNumber, config):
         seventh=-1,
         config=config,
         speed=0.1,
+        velocity_profile="sandingspeed",
         wait=True,
     )
     # if don't need to pick another tool just after dropping this one, then come to safe picking position
@@ -6462,6 +6486,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         seventh=-1,
         config=config,
         speed=0.9,
+        velocity_profile="robotspeed",
         wait=False,
     )
     # drop (for safety, to open the valve)
@@ -6476,6 +6501,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         seventh=-1,
         config=config,
         speed=0.1,
+        velocity_profile="sandingspeed",
         wait=False,
     )
     # pick the tool
@@ -6490,6 +6516,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         seventh=-1,
         config=config,
         speed=0.1,
+        velocity_profile="sandingspeed",
         wait=True,
     )
     # come back to safe tool picking position
@@ -6505,6 +6532,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         seventh=-1,
         config=config,
         speed=0.9,
+        velocity_profile="robotspeed",
         wait=True,
     )
 
