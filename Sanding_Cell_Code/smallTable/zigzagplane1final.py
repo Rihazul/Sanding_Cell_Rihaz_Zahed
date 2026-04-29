@@ -567,6 +567,7 @@ def generate_zigzag_path(
 
     if x_coords and y_coords and z_coords:
         z_zigzag = boundary_coords[0][2]
+        z_zigzag = z_zigzag + 7  # Lift above the surface for zigzag path
 
         modified_Point2 = [
             x_coords[1] + tool_radius,
