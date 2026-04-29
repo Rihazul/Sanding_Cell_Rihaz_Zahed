@@ -333,8 +333,8 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         cps,
         toolNumber=tool_in_hand,
         config=config,
-        goToSafe=False,
-        startFromSafe=False,
+        goToSafe=True,
+        startFromSafe=True,
     )
     return False
 
@@ -540,6 +540,7 @@ def sandingModelATableA():
     def ensure_tool_in_hand(tool_num):
         """Ensure requested tool is mounted; drop wrong one if needed."""
         ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
+        current_tool_before = decode_tool_in_hand(ci0_local, ci1_local, ci2_local)
         has_requested_tool = check_tool(
             cps=cps,
             config=config,
@@ -549,11 +550,16 @@ def sandingModelATableA():
             ci2=ci2_local,
         )
         if not has_requested_tool:
+            # If we just dropped a different tool, we are already in the tool
+            # station flow; avoid redundant safe-point hop.
+            switching_from_other_tool = (
+                current_tool_before is not None and current_tool_before != tool_num
+            )
             picked = getTool11(
                 cps,
                 toolNumber=tool_num,
                 config=config,
-                startFromSafe=False,
+                startFromSafe=not switching_from_other_tool,
                 exitToSafe=False,
             )
             if picked is False:
