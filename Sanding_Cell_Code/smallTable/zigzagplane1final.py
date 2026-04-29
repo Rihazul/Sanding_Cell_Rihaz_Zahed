@@ -555,9 +555,9 @@ def generate_zigzag_path(
     """Generate zigzag/rect path for sanding pocket area."""
     prepoint = None
     zigzag_coords = []
-
-    tool3y = 50.8
-    tool3x = 38.1
+    # Circular Tool 4: use one radius only; ignore rectangular inner offsets.
+    del innerOffset, innerOffsetX
+    tool_radius = 77.5
 
     boundary_coords = []
     for i in range(len(x_coords)):
@@ -569,20 +569,20 @@ def generate_zigzag_path(
         z_zigzag = boundary_coords[0][2]
 
         modified_Point2 = [
-            x_coords[1] + tool3x + innerOffsetX,
-            y_coords[1] - tool3y - innerOffset,
+            x_coords[1] + tool_radius,
+            y_coords[1] - tool_radius,
         ]
         modified_Point3 = [
-            x_coords[2] - tool3x - innerOffset,
-            y_coords[2] - tool3y - innerOffset,
+            x_coords[2] - tool_radius,
+            y_coords[2] - tool_radius,
         ]
         modified_Point1 = [
-            x_coords[0] + tool3x + innerOffsetX,
-            y_coords[0] + tool3y + innerOffset,
+            x_coords[0] + tool_radius,
+            y_coords[0] + tool_radius,
         ]
         modified_Point4 = [
-            x_coords[3] - tool3x - innerOffset,
-            y_coords[3] + tool3y + innerOffset,
+            x_coords[3] - tool_radius,
+            y_coords[3] + tool_radius,
         ]
         print("modified_Point1:", modified_Point1)
         print("modified_Point2:", modified_Point2)
