@@ -2821,7 +2821,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 speed=pick_fast,
                 velocity_profile="robotspeed",
                 speed_mode="linear",
-                wait=True,
+                wait=False,
             )
             if stop_requested():
                 msg_to_frontend(
@@ -2841,8 +2841,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=pick_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
+        if not waitForBlending(cps=cps, config=config):
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Aborting auto-pick: robot blending did not complete before valve open.",
+            )
+            raise RuntimeError("Blending timeout/error before auto tool pick pre-drop.")
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -2963,7 +2969,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=drop_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
         if stop_requested():
             msg_to_frontend(
@@ -2982,8 +2988,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=drop_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
+        if not waitForBlending(cps=cps, config=config):
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Aborting auto-drop: robot blending did not complete before touch move.",
+            )
+            raise RuntimeError("Blending timeout/error before auto tool drop touch move.")
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -3052,7 +3064,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 speed=drop_fast,
                 velocity_profile="robotspeed",
                 speed_mode="linear",
-                wait=True,
+                wait=False,
             )
 
     def control_table(cps, tableState):
@@ -6339,7 +6351,9 @@ def toolValve1(cps, valveState: str, config):  # Tool valve for grabbing or thro
     time.sleep(post_delay)
 
 
-def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile nibe
+def getTool11(
+    cps, toolNumber, config, startFromSafe=True, exitToSafe=True
+):  # Tool postion dile nibe
     """Manual tool pick flow."""
     if not config["settings"]["useTool"]:
         return False
@@ -6386,7 +6400,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
             speed=pick_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
 
     config["logger"].info(
@@ -6403,7 +6417,7 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         speed=pick_fast,
         velocity_profile="robotspeed",
         speed_mode="linear",
-        wait=True,
+        wait=False,
     )
 
     if not waitForBlending(cps=cps, config=config):
@@ -6463,26 +6477,29 @@ def getTool11(cps, toolNumber, config, startFromSafe=True):  # Tool postion dile
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Collection Successful!",
     )
-    config["logger"].info(
-        "[toolMotion][manualPick] phase=exit_safe profile=robot ratio=%.3f",
-        float(pick_fast),
-    )
-    communicate(
-        cps=cps,
-        point=config["point"]["safePointTool"],
-        tcp=config["coords"]["tcpDefault"],
-        ucs=config["coords"]["ucsDefault"],
-        seventh=-1,
-        config=config,
-        speed=pick_fast,
-        velocity_profile="robotspeed",
-        speed_mode="linear",
-        wait=True,
-    )
+    if exitToSafe:
+        config["logger"].info(
+            "[toolMotion][manualPick] phase=exit_safe profile=robot ratio=%.3f",
+            float(pick_fast),
+        )
+        communicate(
+            cps=cps,
+            point=config["point"]["safePointTool"],
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            seventh=-1,
+            config=config,
+            speed=pick_fast,
+            velocity_profile="robotspeed",
+            speed_mode="linear",
+            wait=False,
+        )
     return True
 
 
-def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe dibe
+def keepTool11(
+    cps, toolNumber, config, goToSafe=True, startFromSafe=True
+):  # Tool Postion a rekhe dibe
     if not config["settings"]["useTool"]:
         return
 
@@ -6505,22 +6522,23 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         message=f"Tool {toolNumber} Keeping Started...",
     )
 
-    config["logger"].info(
-        "[toolMotion][manualDrop] phase=pre_safe profile=robot ratio=%.3f",
-        float(drop_fast),
-    )
-    communicate(
-        cps=cps,
-        point=config["point"]["safePointTool"],
-        tcp=config["coords"]["tcpDefault"],
-        ucs=config["coords"]["ucsDefault"],
-        seventh=-1,
-        config=config,
-        speed=drop_fast,
-        velocity_profile="robotspeed",
-        speed_mode="linear",
-        wait=True,
-    )
+    if startFromSafe:
+        config["logger"].info(
+            "[toolMotion][manualDrop] phase=pre_safe profile=robot ratio=%.3f",
+            float(drop_fast),
+        )
+        communicate(
+            cps=cps,
+            point=config["point"]["safePointTool"],
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            seventh=-1,
+            config=config,
+            speed=drop_fast,
+            velocity_profile="robotspeed",
+            speed_mode="linear",
+            wait=False,
+        )
 
     config["logger"].info(
         "[toolMotion][manualDrop] phase=approach_home profile=robot ratio=%.3f",
@@ -6536,8 +6554,15 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
         speed=drop_fast,
         velocity_profile="robotspeed",
         speed_mode="linear",
-        wait=True,
+        wait=False,
     )
+
+    if not waitForBlending(cps=cps, config=config):
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message="Aborting drop: robot blending did not complete before touch move.",
+        )
+        raise RuntimeError("Blending timeout/error before tool drop touch move.")
 
     config["logger"].info(
         "[toolMotion][manualDrop] phase=touch profile=sanding ratio=%.3f",
@@ -6616,7 +6641,7 @@ def keepTool11(cps, toolNumber, config, goToSafe=True):  # Tool Postion a rekhe 
             speed=drop_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
 
 
@@ -6725,7 +6750,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         config=config,
         speed=0.1,
         velocity_profile="sandingspeed",
-        wait=False,
+        wait=True,
     )
     # pick the tool
     waitForBlending(cps=cps, config=config)
@@ -6756,7 +6781,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         config=config,
         speed=0.9,
         velocity_profile="robotspeed",
-        wait=True,
+        wait=False,
     )
 
 def turn_tool_spin_on(cps, debug=False):

@@ -329,7 +329,13 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         raise RuntimeError(
             f"Failed to move 7th axis to tool station before dropping tool {tool_in_hand}."
         )
-    keepTool11(cps, toolNumber=tool_in_hand, config=config)
+    keepTool11(
+        cps,
+        toolNumber=tool_in_hand,
+        config=config,
+        goToSafe=False,
+        startFromSafe=False,
+    )
     return False
 
 def sandingModelATableA():
@@ -513,6 +519,7 @@ def sandingModelATableA():
             seventh=-1,
             config=config,
             speed=speeed,
+            velocity_profile="robotspeed",
             wait=True,
         )
 
@@ -523,7 +530,7 @@ def sandingModelATableA():
             seventh=0,
             tcp=config["coords"]["tcptool1plane1"],
             ucs=config["coords"]["ucsTable1"],
-            speed=0.3,
+            speed=0.7,
             wait=True,
             require_seventh_ok=True,
         )
@@ -542,11 +549,15 @@ def sandingModelATableA():
             ci2=ci2_local,
         )
         if not has_requested_tool:
-            move_to_safe_point()
-            picked = getTool11(cps, toolNumber=tool_num, config=config, startFromSafe=True)
+            picked = getTool11(
+                cps,
+                toolNumber=tool_num,
+                config=config,
+                startFromSafe=False,
+                exitToSafe=False,
+            )
             if picked is False:
                 raise RuntimeError(f"Failed to pick tool {tool_num}.")
-        move_to_safe_point()
 
     """Main control function"""
     try:
