@@ -333,7 +333,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         cps,
         toolNumber=tool_in_hand,
         config=config,
-        goToSafe=True,
+        goToSafe=False,
         startFromSafe=True,
     )
     return False
@@ -560,7 +560,7 @@ def sandingModelATableA():
                 toolNumber=tool_num,
                 config=config,
                 startFromSafe=not switching_from_other_tool,
-                exitToSafe=False,
+                exitToSafe=True,
             )
             if picked is False:
                 raise RuntimeError(f"Failed to pick tool {tool_num}.")
