@@ -2821,7 +2821,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 speed=pick_fast,
                 velocity_profile="robotspeed",
                 speed_mode="linear",
-                wait=True,
+                wait=False,
             )
             if stop_requested():
                 msg_to_frontend(
@@ -5923,6 +5923,19 @@ def communicate(
         # config['logger'].info(f"[moveL] nret for moving: {nRet}")
         if nRet == 0:
             robotRes = []
+            move_wait_timeout_s = 12.0
+            try:
+                move_wait_timeout_s = max(
+                    1.0,
+                    float(
+                        config.get("door", {}).get(
+                            "moveLWaitTimeoutSec", move_wait_timeout_s
+                        )
+                    ),
+                )
+            except (TypeError, ValueError, AttributeError):
+                move_wait_timeout_s = 12.0
+            wait_start = time.time()
             while wait:
                 nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
                 if stop_requested():
@@ -5938,6 +5951,13 @@ def communicate(
                     raise IndexError(f"customMoveL: robotRes too short ({len(robotRes)}): {robotRes}")
                 
                 if robotRes[11] == "1":
+                    break
+                if (time.time() - wait_start) >= move_wait_timeout_s:
+                    config["logger"].warning(
+                        "[customMoveL] wait timeout after %.1fs at point %s; continuing.",
+                        move_wait_timeout_s,
+                        point,
+                    )
                     break
                 # time.sleep(0.2)
             config["logger"].info(f"\n[customMoveL] Could move to {point}")
@@ -6388,7 +6408,7 @@ def getTool11(
             speed=pick_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
 
     config["logger"].info(
@@ -6525,7 +6545,7 @@ def keepTool11(
             speed=drop_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
 
     config["logger"].info(
@@ -6629,7 +6649,7 @@ def keepTool11(
             speed=drop_fast,
             velocity_profile="robotspeed",
             speed_mode="linear",
-            wait=True,
+            wait=False,
         )
 
 
