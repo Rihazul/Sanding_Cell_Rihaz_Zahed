@@ -111,6 +111,27 @@ def waitForMotion(cps, config):
     return
 
 
+def _wait_for_blending_or_idle(cps, config, context_label="motion"):
+    """Treat stale blending state as success when robot is already idle."""
+    if waitForBlending(cps=cps, config=config):
+        return True
+    robot_state = []
+    nret_state = cps.HRIF_ReadRobotState(0, 0, robot_state)
+    robot_idle = (
+        nret_state == 0
+        and isinstance(robot_state, (list, tuple))
+        and len(robot_state) > 11
+        and str(robot_state[11]).strip() == "1"
+    )
+    if robot_idle:
+        if isinstance(config, dict) and config.get("logger"):
+            config["logger"].warning(
+                f"[{context_label}] Blending timeout but robot is idle; continuing."
+            )
+        return True
+    return False
+
+
 def load_json_config():
     """Loads configuration from config.json."""
     with open("./configs/cycleData.json", "r") as file:
@@ -2843,7 +2864,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed_mode="linear",
             wait=False,
         )
-        if not waitForBlending(cps=cps, config=config):
+        if not _wait_for_blending_or_idle(cps=cps, config=config, context_label="autoPick"):
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Aborting auto-pick: robot blending did not complete before valve open.",
@@ -2990,7 +3011,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed_mode="linear",
             wait=False,
         )
-        if not waitForBlending(cps=cps, config=config):
+        if not _wait_for_blending_or_idle(cps=cps, config=config, context_label="autoDrop"):
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Aborting auto-drop: robot blending did not complete before touch move.",
@@ -6420,7 +6441,7 @@ def getTool11(
         wait=False,
     )
 
-    if not waitForBlending(cps=cps, config=config):
+    if not _wait_for_blending_or_idle(cps=cps, config=config, context_label="manualPick"):
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message="Aborting pick: robot blending did not complete before valve open.",
@@ -6445,7 +6466,7 @@ def getTool11(
         wait=True,
     )
 
-    if not waitForBlending(cps=cps, config=config):
+    if not _wait_for_blending_or_idle(cps=cps, config=config, context_label="manualPick"):
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message="Aborting pick: robot blending did not complete before valve close.",
@@ -6557,7 +6578,7 @@ def keepTool11(
         wait=False,
     )
 
-    if not waitForBlending(cps=cps, config=config):
+    if not _wait_for_blending_or_idle(cps=cps, config=config, context_label="manualDrop"):
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message="Aborting drop: robot blending did not complete before touch move.",
