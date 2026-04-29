@@ -579,15 +579,13 @@ def sandingModelATableA():
         # - Within each tool batch, execute each door's selected functions together
 
         # Tool 3 batch: pocket edge pre-pass (runs before Tool 4 frame/zigzag)
-        # Disabled for now to focus on Tool 4 pocket testing only.
-        enable_tool3_edge_prepass = False
+        # Enabled so pocket runs trigger Tool 3 edge coverage automatically.
+        enable_tool3_edge_prepass = True
         tool3_edge_doors = (
             unique_sorted_doors(zig_zag_cycle_doors, pocket_cycle_doors)
             if enable_tool3_edge_prepass
             else []
         )
-        if not enable_tool3_edge_prepass:
-            print("[Tool 3 Edge] Disabled for this run.")
         if tool3_edge_doors:
             print("\n=== TOOL 3 EDGE BATCH START ===")
             ensure_tool_in_hand(3)
