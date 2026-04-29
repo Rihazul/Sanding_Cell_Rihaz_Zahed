@@ -42,7 +42,7 @@ def build_edge_coverage_path(
     orientation="horizontal",
     tool3x=38.1,
     tool3y=50.8,
-    edge_margin=1.75,
+    edge_margin=2.25,
     rx=-0.034,
     ry=0.556,
     rz=0.251,
