@@ -31,6 +31,11 @@ def load_config():
     """Loads configuration from config.yaml."""
     with open("./configs/config.yaml", "r") as file:
         config = yaml.safe_load(file)
+    # Model F uses Tool 4 only; map legacy Tool 1 TCP key to Tool 4 TCP so
+    # existing motion calls in this module run with Tool 4 calibration.
+    coords = config.get("coords", {})
+    if coords.get("tcptool4plane1"):
+        coords["tcptool1plane1"] = coords["tcptool4plane1"]
     return config
 
 
@@ -251,7 +256,7 @@ def _perform_process_top(cps, config, points1, force):
     putForceZminus(
         cps=cps,
         force=force,
-        tcp=config["coords"]["tcptool1plane1"],
+        tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         config=config,
     )
@@ -262,7 +267,7 @@ def _perform_process_top(cps, config, points1, force):
             cps=cps,
             config=config,
             point=point,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=0.6,
@@ -302,7 +307,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         cps=cps,
         config=config,
         seventh=x1,
-        tcp=config["coords"]["tcptool1plane1"],
+        tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         speed=speeed,
         wait=True,
@@ -311,7 +316,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         cps=cps,
         config=config,
         point=prehoming,
-        tcp=config["coords"]["tcptool1plane1"],
+        tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
         speed=speeed,
@@ -323,7 +328,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=edge_prepoint,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -335,7 +340,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         cps=cps,
         config=config,
         point=prepoint,
-        tcp=config["coords"]["tcptool1plane1"],
+        tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
         speed=speeed,
@@ -346,7 +351,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         cps=cps,
         config=config,
         point=prehoming,
-        tcp=config["coords"]["tcptool1plane1"],
+        tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
         speed=speeed,
@@ -396,7 +401,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             seventh=tcx0,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             speed=speeed,
             wait=True,
@@ -405,7 +410,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -415,7 +420,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=edge_prepoint,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -426,7 +431,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -441,7 +446,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             seventh=current_tcx,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             speed=speeed,
             wait=True,
@@ -450,7 +455,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -460,7 +465,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=current_prepoint,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -471,7 +476,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             cps=cps,
             config=config,
             point=prehoming,
-            tcp=config["coords"]["tcptool1plane1"],
+            tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=speeed,
@@ -480,7 +485,8 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
 
 
 def _run_door(door_num, force, z, cps, orientation, movement):
-    edge_coverage = str(movement or "").lower() == "rect"
+    # Model F: full-door zigzag only, no edge-coverage pass.
+    edge_coverage = False
 
     ylen_data = get_y_values(door_num, default_on_error=True)
     xlen_data = get_x_values(door_num, default_on_error=True)
@@ -491,16 +497,24 @@ def _run_door(door_num, force, z, cps, orientation, movement):
         print(f"No door data available for door {door_num} - skipping operations")
         return
 
-    if isinstance(ylen, (int, float)) and isinstance(xlen, (int, float)):
-        if ylen > 600 or xlen > 280:
-            _run_door_big(door_num, force, z, cps, orientation, edge_coverage)
-        else:
-            _run_door_small(door_num, force, z, cps, orientation, edge_coverage)
-    else:
+    try:
+        ylen_num = float(ylen)
+        xlen_num = float(xlen)
+    except (TypeError, ValueError):
         print(
             f"Invalid ylen/xlen for door {door_num}: ylen={ylen} ({type(ylen)}), "
             f"xlen={xlen} ({type(xlen)})"
         )
+        return
+
+    # Large door rule: 2 seventh-axis passes when y > 600 or x > 280.
+    if ylen_num > 600 or xlen_num > 280:
+        print(
+            f"[ModelF] Door {door_num}: large area detected (x={xlen_num:.1f}, y={ylen_num:.1f}) -> 2 seventh-axis passes."
+        )
+        _run_door_big(door_num, force, z, cps, orientation, edge_coverage)
+    else:
+        _run_door_small(door_num, force, z, cps, orientation, edge_coverage)
 
 
 def smalldoor1zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None):

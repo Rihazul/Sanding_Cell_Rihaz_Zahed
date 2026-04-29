@@ -88,6 +88,8 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         tool_in_hand = 2
     elif ci0 == 0 and ci1 == 1 and ci2 == 1:
         tool_in_hand = 1
+    elif ci0 == 0 and ci1 == 0 and ci2 == 1:
+        tool_in_hand = 4
     elif ci0 == 0 and ci1 == 0 and ci2 == 0:
         tool_in_hand = None
     else:
@@ -153,8 +155,8 @@ def sandingModelFTableA():
 
         if zig_zag_cycle_doors:
             ci0, ci1, ci2 = read_ci_triplet(cps)
-            has_tool3 = check_tool(
-                cps=cps, config=config, tool_num=3, ci0=ci0, ci1=ci1, ci2=ci2
+            has_tool4 = check_tool(
+                cps=cps, config=config, tool_num=4, ci0=ci0, ci1=ci1, ci2=ci2
             )
 
             communicate(
@@ -168,8 +170,8 @@ def sandingModelFTableA():
                 wait=True,
             )
 
-            if not has_tool3:
-                getTool11(cps, toolNumber=3, config=config)
+            if not has_tool4:
+                getTool11(cps, toolNumber=4, config=config)
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -184,10 +186,6 @@ def sandingModelFTableA():
             for door_number in zig_zag_cycle_doors:
                 cfg = zigzag_by_door.get(int(door_number), {})
                 orientation = str(cfg.get("orientation") or "vertical").lower()
-                edge_flag = cfg.get("edge")
-                if edge_flag is None:
-                    edge_flag = cfg.get("edgeCoverage")
-                movement = "rect" if edge_flag else "zigzag"
                 run_zigzag_cycles(
                     int(cfg.get("cycle", 0)),
                     int(cfg.get("force", 0)),
@@ -195,7 +193,7 @@ def sandingModelFTableA():
                     z,
                     cps,
                     orientation=orientation,
-                    movement=movement,
+                    movement="zigzag",
                     spiral_settings=spiral_settings,
                 )
 
@@ -211,18 +209,18 @@ def sandingModelFTableA():
             )
 
             if keep_tool_after_task:
-                print("Task completed: keeping Tool 3 mounted.")
+                print("Task completed: keeping Tool 4 mounted.")
             else:
                 communicate(
                     cps=cps,
                     config=config,
                     seventh=0,
-                    tcp=config["coords"]["tcptool1plane1"],
+                    tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     speed=0.3,
                     wait=True,
                 )
-                keepTool11(cps, toolNumber=3, config=config)
+                keepTool11(cps, toolNumber=4, config=config)
                 communicate(
                     cps=cps,
                     point=config["point"]["safePoint"],
