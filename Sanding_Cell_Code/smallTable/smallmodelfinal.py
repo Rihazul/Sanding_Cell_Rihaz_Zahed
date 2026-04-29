@@ -537,11 +537,8 @@ def sandingModelATableA():
         if seventh_result is None:
             raise RuntimeError("Failed to move 7th axis to tool station.")
 
-    task_tool_change_initialized = False
-
     def ensure_tool_in_hand(tool_num):
         """Ensure requested tool is mounted; drop wrong one if needed."""
-        nonlocal task_tool_change_initialized
         ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
         has_requested_tool = check_tool(
             cps=cps,
@@ -552,21 +549,15 @@ def sandingModelATableA():
             ci2=ci2_local,
         )
         if not has_requested_tool:
-            # First tool change in a task run uses safe approach. Subsequent
-            # tool changes stay direct to avoid redundant travel.
-            use_safe = not task_tool_change_initialized
             picked = getTool11(
                 cps,
                 toolNumber=tool_num,
                 config=config,
-                startFromSafe=use_safe,
-                exitToSafe=use_safe,
+                startFromSafe=False,
+                exitToSafe=False,
             )
             if picked is False:
                 raise RuntimeError(f"Failed to pick tool {tool_num}.")
-            task_tool_change_initialized = True
-        elif not task_tool_change_initialized:
-            task_tool_change_initialized = True
 
     """Main control function"""
     try:
@@ -748,6 +739,9 @@ def sandingModelATableA():
                 ci0, ci1, ci2 = read_ci_triplet(cps)
                 tool_in_hand = decode_tool_in_hand(ci0, ci1, ci2)
                 if tool_in_hand is not None:
+                    # Safety: go to safe point before final tool return at the
+                    # end of task execution.
+                    move_to_safe_point()
                     move_seventh_to_tool_station()
                     keepTool11(cps, toolNumber=tool_in_hand, config=config)
                 else:
