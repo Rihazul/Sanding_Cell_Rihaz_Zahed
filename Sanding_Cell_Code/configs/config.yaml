@@ -34,7 +34,7 @@ coords:
   ucsTable2: "Plane_2" # This is the plane for table 2
   roboVelocity: 500 # Increased from 200 to 300 by rafat
   roboAcceleration: 2500 # Increased from 250 to 350 by rafat
-  sandingVelocity: 500 # Increased from 150 to 250 by rafat
+  sandingVelocity: 400 # Increased from 150 to 250 by rafat
   sandingAcceleration: 550 # Increased from 250 to 350 by rafat
   highSpeedAccelerationScale: 1.0 # Keeps acceleration at base value when speed > 1
   transitionRadius: 20 # Decreased from 10 to 5 by rafat
