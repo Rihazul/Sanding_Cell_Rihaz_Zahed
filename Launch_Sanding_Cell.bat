@@ -4,7 +4,7 @@ setlocal
 set "ROOT=%~dp0"
 set "BACKEND=%ROOT%Sanding_Cell_Code"
 set "FRONTEND=%ROOT%Create_Login_Dashboard_Analytics"
-set "UI_URL=http://localhost:5173"
+set "UI_URL=http://localhost:3000"
 
 if not exist "%BACKEND%\flask_app.py" (
   echo [ERROR] Backend not found: %BACKEND%\flask_app.py
@@ -44,4 +44,3 @@ start "" %UI_URL%
 :done
 echo Launched.
 exit /b 0
-

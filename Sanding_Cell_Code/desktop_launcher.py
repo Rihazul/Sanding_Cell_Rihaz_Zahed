@@ -12,7 +12,7 @@ import webview
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND_DIR = os.path.join(ROOT, "Sanding_Cell_Code")
 FRONTEND_DIR = os.path.join(ROOT, "Create_Login_Dashboard_Analytics")
-UI_URL = "http://localhost:5173"
+UI_URL = "http://localhost:3000"
 BACKEND_URL = "http://127.0.0.1:5100"
 
 
@@ -97,4 +97,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
