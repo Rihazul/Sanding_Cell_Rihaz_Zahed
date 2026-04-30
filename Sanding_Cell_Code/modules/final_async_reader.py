@@ -27,10 +27,11 @@ def init_sensor():
     instrument.serial.stopbits = 1
     instrument.serial.timeout  = 0.1          # seconds
 
-    # Good practice
+    # Keep the port open during a scan for performance.
     instrument.close_port_after_each_call = False
-
-    instrument.clear_buffers_before_each_transaction = False
+    # For repeated scans, stale bytes can cause checksum/CRC parse failures.
+    # Clearing buffers per transaction is slower but significantly more stable.
+    instrument.clear_buffers_before_each_transaction = True
     return instrument
 
 def getInstrument():

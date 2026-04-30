@@ -5984,40 +5984,71 @@ def communicate(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Scanning Door Using the Laser Sensor...⚙️",
         )
+        read_error_count = 0
+        max_read_errors_before_abort = 80
+        try:
+            while keepgoing:
+                try:
+                    height = getRawHeight(instrument)
+                    read_error_count = 0
+                except Exception as sensor_exc:
+                    # Transient serial/CRC issues can appear during repeated scans.
+                    # Keep scanning and treat the sample as NaN unless errors persist.
+                    read_error_count += 1
+                    config["logger"].warning(
+                        "[scan-x] Laser read failed (%s/%s): %s",
+                        read_error_count,
+                        max_read_errors_before_abort,
+                        sensor_exc,
+                    )
+                    height = float("nan")
+                    try:
+                        if hasattr(instrument, "serial") and instrument.serial:
+                            instrument.serial.reset_input_buffer()
+                            instrument.serial.reset_output_buffer()
+                    except Exception:
+                        pass
+                    if read_error_count >= max_read_errors_before_abort:
+                        raise RuntimeError(
+                            "Laser sensor read failed repeatedly; aborting scan."
+                        ) from sensor_exc
 
-        while keepgoing:
-            height = getRawHeight(instrument)
+                # Read position and compute distance
+                cps.HRIF_ReadActPos(0, 0, result)
+                pos = [float(result[6]), float(result[7]), float(result[8])]
+                # if config['settings']['debug']:
+                #     config['logger'].info(f"pos: {pos}, height: {height}                       ")
 
-            # Read position and compute distance
-            cps.HRIF_ReadActPos(0, 0, result)
-            pos = [float(result[6]), float(result[7]), float(result[8])]
-            # if config['settings']['debug']:
-            #     config['logger'].info(f"pos: {pos}, height: {height}                       ")
+                if not math.isnan(height):
+                    startStopNan = True
+                # Calculate the distance from initial position
+                dist = euclidean_distance(point1=initPos, point2=pos)
 
-            if not math.isnan(height):
-                startStopNan = True
-            # Calculate the distance from initial position
-            dist = euclidean_distance(point1=initPos, point2=pos)
+                # Append measurement
+                measurements.append({"height": scale_value(height), "dist": dist})
 
-            # Append measurement
-            measurements.append({"height": scale_value(height), "dist": dist})
+                if stopWhenNan and startStopNan:
+                    # Check the height for NaN and update nan_count
+                    if math.isnan(height):
+                        nan_count += 1  # Increment the NaN counter
+                    else:
+                        nan_count = 0  # Reset the NaN counter if height is valid
 
-            if stopWhenNan and startStopNan:
-                # Check the height for NaN and update nan_count
-                if math.isnan(height):
-                    nan_count += 1  # Increment the NaN counter
-                else:
-                    nan_count = 0  # Reset the NaN counter if height is valid
+                    # Check if NaN count reaches the threshold
+                    if nan_count >= consecutive_nan_threshold:
+                        keepgoing = False
+                        nRet = cps.HRIF_GrpStop(0, 0)
 
-                # Check if NaN count reaches the threshold
-                if nan_count >= consecutive_nan_threshold:
+                # Read robot state and check for another stop condition
+                cps.HRIF_ReadRobotState(0, 0, result)
+                if result[0] == "0":
                     keepgoing = False
-                    nRet = cps.HRIF_GrpStop(0, 0)
-
-            # Read robot state and check for another stop condition
-            cps.HRIF_ReadRobotState(0, 0, result)
-            if result[0] == "0":
-                keepgoing = False
+        finally:
+            try:
+                if hasattr(instrument, "serial") and instrument.serial:
+                    instrument.serial.close()
+            except Exception:
+                pass
 
         # config['logger'].info("\n\n")
 

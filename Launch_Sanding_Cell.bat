@@ -5,6 +5,7 @@ set "ROOT=%~dp0"
 set "BACKEND=%ROOT%Sanding_Cell_Code"
 set "FRONTEND=%ROOT%Create_Login_Dashboard_Analytics"
 set "UI_URL=http://localhost:3000"
+set "STOP_SCRIPT=%ROOT%Stop_Sanding_Cell.bat"
 
 if not exist "%BACKEND%\flask_app.py" (
   echo [ERROR] Backend not found: %BACKEND%\flask_app.py
@@ -16,6 +17,12 @@ if not exist "%FRONTEND%\package.json" (
   echo [ERROR] Frontend not found: %FRONTEND%\package.json
   pause
   exit /b 1
+)
+
+if exist "%STOP_SCRIPT%" (
+  echo Stopping previous Sanding Cell processes...
+  call "%STOP_SCRIPT%" >nul 2>nul
+  timeout /t 1 /nobreak >nul
 )
 
 echo Starting Sanding backend...

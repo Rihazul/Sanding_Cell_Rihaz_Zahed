@@ -46,17 +46,42 @@ def _taskkill_tree(pid: int) -> None:
 
 
 def _stop_process(proc: subprocess.Popen) -> None:
-    if proc is None or proc.poll() is not None:
+    if proc is None:
         return
-    with suppress(Exception):
-        proc.terminate()
-    try:
-        proc.wait(timeout=2.0)
-        return
-    except Exception:
-        pass
     with suppress(Exception):
         _taskkill_tree(proc.pid)
+    with suppress(Exception):
+        proc.wait(timeout=2.0)
+
+
+def _kill_stale_servers() -> None:
+    """Best-effort cleanup in case previous app session left children running."""
+    cleanup_script = rf"""
+$backendMarker = "Sanding_Cell_Code"
+$frontendMarker = "Create_Login_Dashboard_Analytics"
+$targets = Get-CimInstance Win32_Process | Where-Object {{
+  ($_.CommandLine -and (($_.CommandLine -like "*flask_app.py*") -and ($_.CommandLine -like "*$backendMarker*"))) -or
+  ($_.CommandLine -and (($_.CommandLine -like "*npm run dev*") -and ($_.CommandLine -like "*$frontendMarker*"))) -or
+  ($_.Name -eq "node.exe" -and $_.CommandLine -and ($_.CommandLine -like "*$frontendMarker*"))
+}}
+foreach ($p in $targets) {{
+  try {{ Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop }} catch {{}}
+}}
+"""
+    with suppress(Exception):
+        subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                cleanup_script,
+            ],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
 def main() -> int:
@@ -69,14 +94,16 @@ def main() -> int:
 
     backend_proc = None
     frontend_proc = None
+    _kill_stale_servers()
     try:
         backend_proc = subprocess.Popen(
             [sys.executable, "flask_app.py"],
             cwd=BACKEND_DIR,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
+        frontend_cmd = ["npm.cmd", "run", "dev"] if os.name == "nt" else ["npm", "run", "dev"]
         frontend_proc = subprocess.Popen(
-            ["cmd", "/c", "npm run dev"],
+            frontend_cmd,
             cwd=FRONTEND_DIR,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
