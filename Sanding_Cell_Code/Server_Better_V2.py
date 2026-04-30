@@ -5903,6 +5903,22 @@ def communicate(
             float(velocity),
             float(acceleration),
         )
+        planned_distance_mm = None
+        try:
+            act_pos = []
+            nret_pos = cps.HRIF_ReadActPos(0, 0, act_pos)
+            if (
+                nret_pos == 0
+                and isinstance(act_pos, (list, tuple))
+                and len(act_pos) > 8
+                and isinstance(point, (list, tuple))
+                and len(point) > 2
+            ):
+                start_xyz = [float(act_pos[6]), float(act_pos[7]), float(act_pos[8])]
+                target_xyz = [float(point[0]), float(point[1]), float(point[2])]
+                planned_distance_mm = euclidean_distance(start_xyz, target_xyz)
+        except Exception:
+            planned_distance_mm = None
         nRet = cps.HRIF_MoveL(
             0,
             0,
@@ -5925,13 +5941,54 @@ def communicate(
             robotRes = []
             move_wait_timeout_s = 12.0
             try:
-                move_wait_timeout_s = max(
+                base_timeout_s = max(
                     1.0,
                     float(
                         config.get("door", {}).get(
                             "moveLWaitTimeoutSec", move_wait_timeout_s
                         )
                     ),
+                )
+                timeout_scale = float(
+                    config.get("door", {}).get("moveLTimeoutDistanceScale", 1.8)
+                )
+                timeout_overhead_s = float(
+                    config.get("door", {}).get("moveLTimeoutOverheadSec", 2.0)
+                )
+                if timeout_scale < 1.0:
+                    timeout_scale = 1.0
+                if timeout_overhead_s < 0.0:
+                    timeout_overhead_s = 0.0
+
+                dynamic_timeout_s = base_timeout_s
+                if (
+                    planned_distance_mm is not None
+                    and planned_distance_mm > 0.0
+                    and velocity is not None
+                    and float(velocity) > 0.0
+                ):
+                    est_travel_s = planned_distance_mm / float(velocity)
+                    dynamic_timeout_s = (est_travel_s * timeout_scale) + timeout_overhead_s
+
+                # Sanding paths are long and should not fall through early.
+                sanding_min_timeout_s = float(
+                    config.get("door", {}).get("sandingMoveLMinTimeoutSec", 60.0)
+                )
+                if profile == "sanding":
+                    move_wait_timeout_s = max(
+                        base_timeout_s, dynamic_timeout_s, sanding_min_timeout_s
+                    )
+                else:
+                    move_wait_timeout_s = max(base_timeout_s, dynamic_timeout_s)
+
+                config["logger"].info(
+                    "[customMoveL] wait timeout set to %.1fs (profile=%s, dist_mm=%s, cmd_v=%.3f)",
+                    move_wait_timeout_s,
+                    profile,
+                    "None"
+                    if planned_distance_mm is None
+                    else f"{float(planned_distance_mm):.1f}",
+                    float(velocity),
                 )
             except (TypeError, ValueError, AttributeError):
                 move_wait_timeout_s = 12.0
