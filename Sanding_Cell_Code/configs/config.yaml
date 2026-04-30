@@ -119,7 +119,7 @@ point:
   safePointClose: [50, -11.725, 41.991, -0.164, -0.574, 0.020]
   safePointAngleClose: [0, 0, -75, 0, -105, 90] # this is not the proper angle :) kindly update it
   # safe point in the left side of the table (UCS: Base, TCP: TCP_laser)
-  safePointTool: [12, -572.28, 582.585, 0, 0, -90]
+  safePointTool: [12, -380.528, 582.585, 0, 0, -90]
   safePointToolAngle: [90, 0, -75, 0, -105, 90]
   testPointB: [0,0,-50, 180, 0, 0] # Test point for tableB checking
   safepointprehoming: [150,0,50,0,0,-180]
