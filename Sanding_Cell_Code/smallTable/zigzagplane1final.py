@@ -170,6 +170,22 @@ def apply_spiral_settings(settings: Optional[dict]) -> None:
     )
 
 
+def _resolve_sanding_blend_timeout(config, fallback=12.0):
+    """
+    Sanding zigzag paths can exceed transition/blending defaults.
+    Use a longer timeout so force is not released mid-path.
+    """
+    try:
+        door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+        value = door_cfg.get(
+            "sandingBlendTimeoutSeconds",
+            door_cfg.get("blendTimeoutSeconds", fallback),
+        )
+        return max(2.0, float(value))
+    except Exception:
+        return float(fallback)
+
+
 def generate_spiral_between_points(
     start_pose,
     end_pose,
@@ -1071,7 +1087,11 @@ def smalldoor1zizag(
                     )
                     
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            waitForBlending(
+                cps=cps,
+                config=config,
+                timeout_s=_resolve_sanding_blend_timeout(config),
+            )
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
@@ -1401,7 +1421,11 @@ def smalldoor2zizag(
                 #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 2.")
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            waitForBlending(
+                cps=cps,
+                config=config,
+                timeout_s=_resolve_sanding_blend_timeout(config),
+            )
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
@@ -1732,7 +1756,11 @@ def smalldoor3zizag(
                 #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 3.")
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            waitForBlending(
+                cps=cps,
+                config=config,
+                timeout_s=_resolve_sanding_blend_timeout(config),
+            )
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)
@@ -2063,7 +2091,11 @@ def smalldoor4zizag(
                 #         raise RuntimeError("[Spiral] finalize_spiral_path failed for door 4.")
 
             # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
+            waitForBlending(
+                cps=cps,
+                config=config,
+                timeout_s=_resolve_sanding_blend_timeout(config),
+            )
             turn_vibration_off(cps)
             # Release force
             releaseForce(cps=cps, config=config)

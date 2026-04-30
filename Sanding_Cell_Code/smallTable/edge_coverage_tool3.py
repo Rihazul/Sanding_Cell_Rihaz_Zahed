@@ -34,6 +34,22 @@ def _resolve_robot_speed(config):
     return float(raw_speed)
 
 
+def _resolve_sanding_blend_timeout(config, fallback=12.0):
+    """
+    Sanding paths (edge rectangle / zigzag) are longer than transition moves.
+    Use a larger blend timeout to avoid releasing force/vibration mid-path.
+    """
+    try:
+        door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+        value = door_cfg.get(
+            "sandingBlendTimeoutSeconds",
+            door_cfg.get("blendTimeoutSeconds", fallback),
+        )
+        return max(2.0, float(value))
+    except Exception:
+        return float(fallback)
+
+
 def build_edge_coverage_path(
     x_coords,
     y_coords,
@@ -151,7 +167,11 @@ def execute_edge_coverage(
                 wait=idx == (len(edge_points) - 1),
             )
 
-        waitForBlending(cps=cps, config=config)
+        waitForBlending(
+            cps=cps,
+            config=config,
+            timeout_s=_resolve_sanding_blend_timeout(config),
+        )
         print("[Edge Coverage] Completed linear edge path")
         return True
     finally:
@@ -279,4 +299,3 @@ def run_tool3_pocket_edge_cycles(
             door_num=door_num,
             orientation=orientation,
         )
-
