@@ -66,31 +66,31 @@ def door1frametool2side(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,180,0,0]
+        prehoming=[(p4[0]-p1[0]),0,100,0,0,0]
         print("prehoming:",prehoming)
 
         #Right Points
-        rightpoint1=[p1[0]-4,p1[1],10,180,0,180]
+        rightpoint1=[p1[0]-4,p1[1],10,0,0,180]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,180,0,180]
+        prerightpoint1=[p1[0]-10,p1[1],10,0,0,180]
         print("prerightpoint1:", prerightpoint1)
-        rightpoint2=[p2[0]-4,p2[1],10,180,0,180]
+        rightpoint2=[p2[0]-4,p2[1],10,0,0,180]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,180,0,180]
+        prerightpoint2=[p2[0]-10,p2[1],10,0,0,180]
         print("prerightpoint2:", prerightpoint2)
-        rightpoint12=[p1[0]-4,p1[1]+2,10,180,0,180]
+        rightpoint12=[p1[0]-4,p1[1]+2,10,0,0,180]
         print("rightpoint12:", rightpoint12)
 
         #RightPoints for Big Door
-        rightpoint4=[p2[0]-4,p2[1]/2,10,180,0,180]
+        rightpoint4=[p2[0]-4,p2[1]/2,10,0,0,180]
         print("rightpoint4:", rightpoint4)
-        rightpoint4pre=[p2[0]-10,p2[1]/2,10,180,0,180]
+        rightpoint4pre=[p2[0]-10,p2[1]/2,10,0,0,180]
         print("rightpoint4pre:", rightpoint4pre)
-        rightpoint4down=[p2[0]-4,p2[1]/2-2,10,180,0,180]
+        rightpoint4down=[p2[0]-4,p2[1]/2-2,10,0,0,180]
         print("rightpoint4down:", rightpoint4down)
-        rightpoint4up=[p2[0]-4,p2[1]/2+2,10,180,0,180]
+        rightpoint4up=[p2[0]-4,p2[1]/2+2,10,0,0,180]
         print("rightpoint4up:", rightpoint4up)
-        rightpoint14=[p1[0]-4,p1[1]+2,10,180,0,180]
+        rightpoint14=[p1[0]-4,p1[1]+2,10,0,0,180]
         print("rightpoint14:",rightpoint14)
 
         #Right Points for Big Door All
@@ -99,7 +99,7 @@ def door1frametool2side(force,cps):
         print("righthalfpointsdown:", righthalfpointsdown)
 
         #Right Position Homing
-        rightpositionhoming=[p2[0]-10,p2[1]/2,80,180,0,180]
+        rightpositionhoming=[p2[0]-10,p2[1]/2,80,0,0,180]
 
         rightpoints=[prerightpoint1,rightpoint1,rightpoint12,rightpoint2,prerightpoint2]
         print("rightpoints:", rightpoints)
@@ -107,15 +107,15 @@ def door1frametool2side(force,cps):
         #UpRightPoints
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2-4,p2[1]/2,10,180,0,180]
+        uprightpoint4=[-distance*2-4,p2[1]/2,10,0,0,180]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,10,180,0,180]
+        uprightpoint4pre=[-distance*2-10,p2[1]/2,10,0,0,180]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-4,p2[1]/2+2,10,180,0,180]
+        uprightpoint4up=[-distance*2-4,p2[1]/2+2,10,0,0,180]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-4,p2[1],10,180,0,180]
+        uprightpoint2=[-distance*2-4,p2[1],10,0,0,180]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],10,180,0,180]
+        uprightpoint2pre=[-distance*2-10,p2[1],10,0,0,180]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -123,73 +123,73 @@ def door1frametool2side(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,180,0,180]
+        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,0,0,180]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
-        extraupright=[(-distance*2)-10,p2[1]+30,80,180,0,90]
+        extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,90]
         print("extraupright:",extraupright)
 
         #Extraright
-        extraright=[p2[0]-20,p2[1]+30,80,180,0,90]
+        extraright=[p2[0]-20,p2[1]+30,80,0,0,90]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,180,0,90]
+        toppoint1=[p2[0],p2[1]+4,10,0,0,90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,180,0,90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,0,90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,180,0,90]
+        toppoint2=[p3[0],p3[1]+4,10,0,0,90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,180,0,90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,0,90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,180,0,90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,0,90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]+4,10,180,0,90]
+        uptoppoint1=[-distance*2,p2[1]+4,10,0,0,90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]+10,10,180,0,90]
+        preuptoppoint1=[-distance*2,p2[1]+10,10,0,0,90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]+4,10,180,0,90]
+        uptoppoint12=[-distance*2+2,p2[1]+4,10,0,0,90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[0,p3[1]+4,10,180,0,90]
+        uptoppoint2=[0,p3[1]+4,10,0,0,90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[0,p3[1]+10,10,180,0,90]
+        preuptoppoint2=[0,p3[1]+10,10,0,0,90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[0+10,p3[1]+20,80,180,0,0]
+        upextratop=[0+10,p3[1]+20,80,0,0,0]
         print("upextratop:", upextratop)
 
         #Extratop
-        extratop=[p3[0]+20,p3[1]+30,80,180,0,0]
+        extratop=[p3[0]+20,p3[1]+30,80,0,0,0]
         print("extratop:", extratop)
 
         #LeftPoints
-        leftpoint1=[p3[0]+5,p3[1],10,180,0,0]
+        leftpoint1=[p3[0]+5,p3[1],10,0,0,0]
         print("leftpoint1:", leftpoint1)
-        preleftpoint1=[p3[0]+1+10,p3[1],10,180,0,0]
+        preleftpoint1=[p3[0]+1+10,p3[1],10,0,0,0]
         print("preleftpoint1:", preleftpoint1)
-        leftpoint2=[p4[0]+5,p4[1],10,180,0,0]
+        leftpoint2=[p4[0]+5,p4[1],10,0,0,0]
         print("leftpoint2:", leftpoint2)
-        preleftpoint2=[p4[0]+1+10,p4[1],10,180,0,0]
+        preleftpoint2=[p4[0]+1+10,p4[1],10,0,0,0]
         print("preleftpoint2:", preleftpoint2)
-        leftpoint12=[p3[0]+5,p3[1]-2,10,180,0,0]
+        leftpoint12=[p3[0]+5,p3[1]-2,10,0,0,0]
         print("leftpoint12:", leftpoint12)
 
         #Lelft Points for Big Door
-        leftpoint5=[p3[0]+5,p3[1]/2,10,180,0,0]
+        leftpoint5=[p3[0]+5,p3[1]/2,10,0,0,0]
         print("leftpoint5:", leftpoint5)
-        leftpoint5down=[p3[0]+5,p3[1]/2-2,10,180,0,0]
+        leftpoint5down=[p3[0]+5,p3[1]/2-2,10,0,0,0]
         print("leftpoint5down:", leftpoint5down)
-        leftpoint5up=[p3[0]+5,p3[1]/2+2,10,180,0,0]
+        leftpoint5up=[p3[0]+5,p3[1]/2+2,10,0,0,0]
         print("leftpoint5up:", leftpoint5up)
-        leftpoint5pre=[p3[0]+10,p3[1]/2,10,180,0,0]
+        leftpoint5pre=[p3[0]+10,p3[1]/2,10,0,0,0]
         print("leftpoint5pre:", leftpoint5pre)
 
         #Left Points for Bigdoor
@@ -197,22 +197,22 @@ def door1frametool2side(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[0+5,p3[1],10,180,0,0]
+        upleftpoint3=[0+5,p3[1],10,0,0,0]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[0+10,p3[1],10,180,0,0]
+        upleftpoint3pre=[0+10,p3[1],10,0,0,0]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[0+5,p3[1]-2,10,180,0,0]
+        upleftpoint3down=[0+5,p3[1]-2,10,0,0,0]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[0+5,p3[1]/2,10,180,0,0]
+        upleftpoint5=[0+5,p3[1]/2,10,0,0,0]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[0+10,p3[1]/2,10,180,0,0]
+        upleftpoint5pre=[0+10,p3[1]/2,10,0,0,0]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[0+10,p3[1]/2,100,180,0,0]
+        upleftextrahome=[0+10,p3[1]/2,100,0,0,0]
         print("upleftextrahome:", upleftextrahome)
 
 
@@ -220,27 +220,27 @@ def door1frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft=[p4[0]+20,p4[1]-30,80,180,0,-90]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,-90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-4,10,180,0,-90]
+        bottompoint1=[p4[0],p4[1]-4,10,0,0,-90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10,10,180,0,-90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,0,-90]
         print("prebottompoint1:", prebottompoint1)
         bottompoint2=[p1[0],p1[1]-4,10,180,0,-90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10,10,180,0,-90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,0,-90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-4,10,180,0,-90]
+        bottompoint12=[p4[0]-2,p4[1]-4,10,0,0,-90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
 
         #Extra for Bottom
-        bottomextra=[p1[0]-10,p1[1]-2-30,80,180,0,180]
+        bottomextra=[p1[0]-10,p1[1]-2-30,80,0,0,180]
 
         #Posthoming
-        posthoming=[p1[0],p1[1]-10,100,180,0,-90]
+        posthoming=[p1[0],p1[1]-10,100,0,0,-90]
 
 
 
@@ -594,80 +594,80 @@ def door1frametool2side(force,cps):
         x1=get_door_position(1)
         print("x1:", x1)
         #prehoming
-        prehoming=[0,0,100,180,0,-180]
+        prehoming=[0,0,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
-        rightpoint1=[p1[0]-3,p1[1],10,180,0,-180]
+        rightpoint1=[p1[0]-3,p1[1],10,0,0,-180]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,180,0,-180]
+        prerightpoint1=[p1[0]-10,p1[1],10,0,0,-180]
         print("prerightpoint1:", prerightpoint1)
-        rightpoint2=[p2[0]-3,p2[1],10,180,0,-180]
+        rightpoint2=[p2[0]-3,p2[1],10,0,0,-180]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,180,0,-180]
+        prerightpoint2=[p2[0]-10,p2[1],10,0,0,-180]
         print("prerightpoint2:", prerightpoint2)
-        rightpoint12=[p1[0]-3,p1[1]+2,10,180,0,-180]
+        rightpoint12=[p1[0]-3,p1[1]+2,10,0,0,-180]
         print("rightpoint12:", rightpoint12)
 
         rightpoints=[prerightpoint1,rightpoint1,rightpoint12,rightpoint2,prerightpoint2]
         print("rightpoints:", rightpoints)
 
         #Extraright
-        extraright=[p2[0]-20,p2[1]+30,80,180,0,90]
+        extraright=[p2[0]-20,p2[1]+30,80,0,0,90]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,180,0,90]
+        toppoint1=[p2[0],p2[1]+4,10,0,0,90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,180,0,90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,0,90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,180,0,90]
+        toppoint2=[p3[0],p3[1]+4,10,0,0,90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,180,0,90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,0,90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,180,0,90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,0,90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
         print("toppoints:", toppoints)
 
         #Extratop
-        extratop=[p3[0]+10,p3[1]+30,80,180,0,0]
+        extratop=[p3[0]+10,p3[1]+30,80,0,0,0]
         print("extratop:", extratop)
 
         #LeftPoints
-        leftpoint1=[p3[0]+4,p3[1],10,180,0,0]
+        leftpoint1=[p3[0]+4,p3[1],10,0,0,0]
         print("leftpoint1:", leftpoint1)
-        preleftpoint1=[p3[0]+1+10,p3[1],10,180,0,0]
+        preleftpoint1=[p3[0]+1+10,p3[1],10,0,0,0]
         print("preleftpoint1:", preleftpoint1)
-        leftpoint2=[p4[0]+4,p4[1],10,180,0,0]
+        leftpoint2=[p4[0]+4,p4[1],10,0,0,0]
         print("leftpoint2:", leftpoint2)
-        preleftpoint2=[p4[0]+1+10,p4[1],10,180,0,0]
+        preleftpoint2=[p4[0]+1+10,p4[1],10,0,0,0]
         print("preleftpoint2:", preleftpoint2)
-        leftpoint12=[p3[0]+4,p3[1]-2,10,180,0,0]
+        leftpoint12=[p3[0]+4,p3[1]-2,10,0,0,0]
         print("leftpoint12:", leftpoint12)
 
         leftpoints=[preleftpoint1,leftpoint1,leftpoint12,leftpoint2,preleftpoint2]
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft=[p4[0]+10,p4[1]-30,80,180,0,-90]
+        extraleft=[p4[0]+10,p4[1]-30,80,0,0,-90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-4,10,180,0,-90]
+        bottompoint1=[p4[0],p4[1]-4,10,0,0,-90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10,10,180,0,-90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,0,-90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-4,10,180,0,-90]
+        bottompoint2=[p1[0],p1[1]-4,10,0,0,-90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10,10,180,0,-90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,0,-90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-4,10,180,0,-90]
+        bottompoint12=[p4[0]-2,p4[1]-4,10,0,0,-90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
 
         #Posthoming
-        posthoming=[p1[0],p1[1]-10,100,180,0,-90]
+        posthoming=[p1[0],p1[1]-10,100,0,0,-90]
 
 
 
