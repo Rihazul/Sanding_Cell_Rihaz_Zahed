@@ -27,11 +27,19 @@ def load_config():
         config = yaml.safe_load(file)
     return config
 
+def load_json_config():
+    """Loads runtime UI cycle data from cycleData.json."""
+    with open('./configs/cycleData.json', 'r') as file:
+        return json.load(file)
+
 def door1frametool2sideedge(force,cps):
     def door1frametool2sidebigedge(force,cps):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
+        json_config = load_json_config()
+        robot_speed = float(json_config.get("robotSpeed", 0.9))
+        sanding_speed = float(json_config.get("sandingSpeed", 0.75))
 
         # Connect to robot
         # cps = CPSClient()
@@ -265,7 +273,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint4:turn_vibration_on(cps)
+                # if point==rightpoint4:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -273,13 +281,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -306,7 +315,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==uprightpoint2:turn_vibration_on(cps)
+                # if point==uprightpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -314,13 +323,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -348,7 +358,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                # if point==toppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -356,13 +366,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -389,7 +400,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==uptoppoint2:turn_vibration_on(cps)
+                # if point==uptoppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -397,13 +408,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -431,7 +443,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==upleftpoint5:turn_vibration_on(cps)
+                # if point==upleftpoint5:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -439,13 +451,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -472,7 +485,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                # if point==leftpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -480,13 +493,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -513,7 +527,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                # if point==bottompoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -521,13 +535,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -536,25 +551,25 @@ def door1frametool2sideedge(force,cps):
         #Cycles for Big Door
         # #Bottom Cycles
         moveOnlyJ6r(cps, 90, config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
-        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=righthalfpointsdown,force=force)
-        communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
-        communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
-        communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upleft(cps, config, points1=upleftpoints,force=force)
-        communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
@@ -562,6 +577,9 @@ def door1frametool2sideedge(force,cps):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
+        json_config = load_json_config()
+        robot_speed = float(json_config.get("robotSpeed", 0.9))
+        sanding_speed = float(json_config.get("sandingSpeed", 0.75))
 
         # Connect to robot
         # cps = CPSClient()
@@ -689,7 +707,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint2:turn_vibration_on(cps)
+                # if point==rightpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -697,13 +715,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -730,7 +749,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                # if point==toppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -738,13 +757,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -771,7 +791,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                # if point==leftpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -779,13 +799,14 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -812,7 +833,7 @@ def door1frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                # if point==bottompoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -820,34 +841,35 @@ def door1frametool2sideedge(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
         # #Right Cycle
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=rightpoints,force=force)
-        communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Top Cycle
         perform_process_top(cps, config, points1=toppoints,force=force)
-        communicate(cps=cps,config=config,point=extratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Right Cycle
         perform_process_left(cps, config, points1=leftpoints,force=force)
-        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Bottom Cycle
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         # #Joint 6 movement 
         moveOnlyJ6r(cps, -326, config)
@@ -1107,7 +1129,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint4:turn_vibration_on(cps)
+                # if point==rightpoint4:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1121,7 +1143,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1148,7 +1170,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==uprightpoint2:turn_vibration_on(cps)
+                # if point==uprightpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1162,7 +1184,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1190,7 +1212,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                # if point==toppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1204,7 +1226,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1231,7 +1253,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==uptoppoint2:turn_vibration_on(cps)
+                # if point==uptoppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1245,7 +1267,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1273,7 +1295,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==upleftpoint5:turn_vibration_on(cps)
+                # if point==upleftpoint5:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1287,7 +1309,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1314,7 +1336,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                # if point==leftpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1328,7 +1350,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1355,7 +1377,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                # if point==bottompoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1369,7 +1391,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1389,7 +1411,7 @@ def door2frametool2sideedge(force,cps):
         moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=False)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
@@ -1530,7 +1552,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint2:turn_vibration_on(cps)
+                # if point==rightpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1544,7 +1566,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1571,7 +1593,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                # if point==toppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1585,7 +1607,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1612,7 +1634,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                # if point==leftpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1626,7 +1648,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1653,7 +1675,7 @@ def door2frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                # if point==bottompoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1667,7 +1689,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1948,7 +1970,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint4:turn_vibration_on(cps)
+                # if point==rightpoint4:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -1962,7 +1984,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1989,7 +2011,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==uprightpoint2:turn_vibration_on(cps)
+                # if point==uprightpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2003,7 +2025,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2031,7 +2053,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                # if point==toppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2045,7 +2067,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2072,7 +2094,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==uptoppoint2:turn_vibration_on(cps)
+                # if point==uptoppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2086,7 +2108,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2114,7 +2136,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==upleftpoint5:turn_vibration_on(cps)
+                # if point==upleftpoint5:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2128,7 +2150,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2155,7 +2177,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                # if point==leftpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2169,7 +2191,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2196,7 +2218,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                # if point==bottompoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2210,7 +2232,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2230,7 +2252,7 @@ def door3frametool2sideedge(force,cps):
         moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=False)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
@@ -2372,7 +2394,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint2:turn_vibration_on(cps)
+                # if point==rightpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2386,7 +2408,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2413,7 +2435,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                # if point==toppoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2427,7 +2449,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2454,7 +2476,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                # if point==leftpoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2468,7 +2490,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2495,7 +2517,7 @@ def door3frametool2sideedge(force,cps):
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                # if point==bottompoint2:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -2509,7 +2531,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
+            # turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -3073,7 +3095,7 @@ def door4frametool2sideedge(force,cps):
         moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=False)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
