@@ -874,14 +874,17 @@ def door1frametool2sideedge(force,cps):
         # #Joint 6 movement 
         moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(1, default_on_error=True)
+    ylen_data = get_y_values(1, default_on_error=False)
     ylen = ylen_data['ylen']
 
     print("ylen:", ylen)
 
     # Check conditions
     if ylen == "null":
-        print("No door data available - skipping operations")
+        raise RuntimeError(
+            "Door 1 scan dimensions are unavailable (ylen=null). "
+            "Run scan first; edgeOutside requires scanned door lengths."
+        )
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
             door1frametool2sidebigedge(force,cps)
@@ -1715,14 +1718,17 @@ def door2frametool2sideedge(force,cps):
         # #Joint 6 movement 
         moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(2, default_on_error=True)
+    ylen_data = get_y_values(2, default_on_error=False)
     ylen = ylen_data['ylen']
 
     print("ylen:", ylen)
 
     # Check conditions
     if ylen == "null":
-        print("No door data available - skipping operations")
+        raise RuntimeError(
+            "Door 2 scan dimensions are unavailable (ylen=null). "
+            "Run scan first; edgeOutside requires scanned door lengths."
+        )
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
             door2frametool2sidebigedge(force,cps)
@@ -2557,14 +2563,17 @@ def door3frametool2sideedge(force,cps):
         # #Joint 6 movement 
         moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(3, default_on_error=True)
+    ylen_data = get_y_values(3, default_on_error=False)
     ylen = ylen_data['ylen']
 
     print("ylen:", ylen)
 
     # Check conditions
     if ylen == "null":
-        print("No door data available - skipping operations")
+        raise RuntimeError(
+            "Door 3 scan dimensions are unavailable (ylen=null). "
+            "Run scan first; edgeOutside requires scanned door lengths."
+        )
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
             door3frametool2sidebigedge(force,cps)
@@ -3401,14 +3410,17 @@ def door4frametool2sideedge(force,cps):
         moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
         
-    ylen_data = get_y_values(4, default_on_error=True)
+    ylen_data = get_y_values(4, default_on_error=False)
     ylen = ylen_data['ylen']
 
     print("ylen:", ylen)
 
     # Check conditions
     if ylen == "null":
-        print("No door data available - skipping operations")
+        raise RuntimeError(
+            "Door 4 scan dimensions are unavailable (ylen=null). "
+            "Run scan first; edgeOutside requires scanned door lengths."
+        )
     elif isinstance(ylen, (int, float)):  # Ensure it's numeric
         if ylen > 600:
             door4frametool2sidebigedge(force,cps)

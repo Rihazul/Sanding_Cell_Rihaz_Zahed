@@ -758,8 +758,12 @@ def start_TableA_process():
         # Make it available to any downstream code that still expects TableA.model
         tableData['model'] = selected_model
 
-    if selected_model != "modelF" and _scan_indicates_model_f():
-        print("Scan indicates no pocket; switching to modelF.")
+    runtime_config = load_config()
+    auto_model_f_from_scan = bool(
+        runtime_config.get("settings", {}).get("autoModelFFromScan", False)
+    )
+    if auto_model_f_from_scan and selected_model != "modelF" and _scan_indicates_model_f():
+        print("Scan indicates no pocket; switching to modelF (autoModelFFromScan=True).")
         selected_model = "modelF"
         tableData["model"] = selected_model
 
