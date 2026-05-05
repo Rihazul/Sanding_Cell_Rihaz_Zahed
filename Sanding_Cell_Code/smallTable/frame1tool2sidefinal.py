@@ -594,44 +594,44 @@ def door1frametool2side(force,cps):
         x1=get_door_position(1)
         print("x1:", x1)
         #prehoming
-        prehoming=[0,0,100,0,0,-180]
+        prehoming=[0,0,100,0,0,0]
         print("prehoming:",prehoming)
 
         #Right Points
-        rightpoint1=[p1[0]-3,p1[1],10,0,0,-180]
+        rightpoint1=[p1[0]-3,p1[1],10,0,0,0]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,0,0,-180]
+        prerightpoint1=[p1[0]-10,p1[1],10,0,0,0]
         print("prerightpoint1:", prerightpoint1)
-        rightpoint2=[p2[0]-3,p2[1],10,0,0,-180]
+        rightpoint2=[p2[0]-3,p2[1],10,0,0,0]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,0,0,-180]
+        prerightpoint2=[p2[0]-10,p2[1],10,0,0,0]
         print("prerightpoint2:", prerightpoint2)
-        rightpoint12=[p1[0]-3,p1[1]+2,10,0,0,-180]
+        rightpoint12=[p1[0]-3,p1[1]+2,10,0,0,0]
         print("rightpoint12:", rightpoint12)
 
         rightpoints=[prerightpoint1,rightpoint1,rightpoint12,rightpoint2,prerightpoint2]
         print("rightpoints:", rightpoints)
 
         #Extraright
-        extraright=[p2[0]-20,p2[1]+30,80,0,0,90]
+        extraright=[p2[0]-20,p2[1]+30,80,0,0,-90]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,0,0,90]
+        toppoint1=[p2[0],p2[1]+4,10,0,0,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,0,0,90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,0,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,0,0,90]
+        toppoint2=[p3[0],p3[1]+4,10,0,0,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,0,0,90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,0,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,0,0,90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,0,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
         print("toppoints:", toppoints)
 
         #Extratop
-        extratop=[p3[0]+10,p3[1]+30,80,0,0,0]
+        extratop=[p3[0]+10,p3[1]+30,80,0,0,-90]
         print("extratop:", extratop)
 
         #LeftPoints
