@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { startTableAProcess, startTableBProcess, performAction, upload3DFile } from '../../services/api';
+import { startTableAProcess, startTableBProcess, performAction, upload3DFile, getProcessStatus } from '../../services/api';
 
 export type RowConfig = {
   label: string;
@@ -71,6 +71,11 @@ export function CompactTableConfig({
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   const completionTimerRef = React.useRef<number | null>(null);
+  const isModelF = model === 'modelF';
+  const isModelFAllowedRow = (label: string) => label === 'Pocket ZigZag';
+  const rowDisplayLabel = (label: string) =>
+    isModelF && label === 'Pocket ZigZag' ? 'Flat ZigZag' : label;
+
   const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
     Frame: [],
     'Pocket ZigZag': [],
@@ -80,12 +85,12 @@ export function CompactTableConfig({
   });
 
   const formatModelName = (value: string) => {
-    if (value === 'modelA') return 'Model A';
-    if (value === 'modelB') return 'Model B';
-    if (value === 'modelC') return 'Model C';
-    if (value === 'modelD') return 'Model D';
-    if (value === 'modelE') return 'Model E';
-    if (value === 'modelF') return 'Model F';
+    if (value === 'modelA') return 'Model A - Shaker A';
+    if (value === 'modelB') return 'Model B - Shaker B';
+    if (value === 'modelC') return 'Model C - Moulure Externe';
+    if (value === 'modelD') return 'Model D - Moulure Interne';
+    if (value === 'modelE') return 'Model E - Moulure Interne et Externe';
+    if (value === 'modelF') return 'Model F - Flat';
     return value || 'No model selected';
   };
   
@@ -109,7 +114,23 @@ export function CompactTableConfig({
     }
     completionTimerRef.current = window.setTimeout(() => {
       setCompletionPopup(null);
-    }, 1000);
+    }, 2600);
+  };
+
+  const waitForBackendProcessCompletion = async (
+    timeoutMs = 6 * 60 * 60 * 1000,
+    pollMs = 2000
+  ) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const statusRes = await getProcessStatus();
+      const status = String(statusRes?.status || '').toLowerCase();
+      if (status && status !== 'in_progress') {
+        return status;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, pollMs));
+    }
+    throw new Error(`Timed out waiting for task completion after ${Math.round(timeoutMs / 1000)}s`);
   };
   
   const handleStartScan = async () => {
@@ -201,6 +222,16 @@ export function CompactTableConfig({
         const effectiveDoorConfigs = normalizedDoorConfigs.map(dc => ({
           ...dc,
           rows: dc.rows.map(r => {
+            if (isModelF && !isModelFAllowedRow(r.label)) {
+              return {
+                ...r,
+                force: 0,
+                cycle: 0,
+                verticalSpiral: false,
+                horizontalSpiral: false,
+                edgeCoverage: false,
+              };
+            }
             const allowed = selectedDoorsByRow[r.label] || [];
             if (allowed.includes(dc.doorNumber)) return r;
             return { ...r, force: 0, cycle: 0 };
@@ -245,12 +276,19 @@ export function CompactTableConfig({
         
         // Send all door configurations to the backend
         const result = await startTableAProcess(taskData);
-        
-        if (result.success) {
+
+        if (!result?.success) {
+          addActivity(`Table ${tableName}: Task failed to start (${result?.status || 'unknown'})`, 'error');
+          return;
+        }
+
+        addActivity(`Table ${tableName}: Task started`, 'info');
+        const finalStatus = await waitForBackendProcessCompletion();
+        if (finalStatus === 'completed') {
           addActivity(`Table ${tableName}: Task completed successfully`, 'success');
           showCompletionPopup('Task Completed', 'Table A task completed');
         } else {
-          addActivity(`Table ${tableName}: Task completed with status: ${result.status || 'unknown'}`, 'warning');
+          addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }
         
         // Reset scan so it can be done again
@@ -300,11 +338,18 @@ export function CompactTableConfig({
         };
         
         const result = await startTableBProcess(taskData);
-        
-        if (result.success) {
+
+        if (!result?.success) {
+          addActivity(`Table ${tableName}: Task failed to start (${result?.status || 'unknown'})`, 'error');
+          return;
+        }
+
+        addActivity(`Table ${tableName}: Task started with ${modelName}`, 'info');
+        const finalStatus = await waitForBackendProcessCompletion();
+        if (finalStatus === 'completed') {
           addActivity(`Table ${tableName}: Task completed successfully with ${modelName}`, 'success');
         } else {
-          addActivity(`Table ${tableName}: Task completed with status: ${result.status || 'unknown'}`, 'warning');
+          addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }
         
         // Reset scan so it can be done again
@@ -352,6 +397,12 @@ export function CompactTableConfig({
   // Get current door configuration
   const currentDoorConfig = doorConfigs?.find(d => d.doorNumber === selectedDoor);
   const currentRows = tableName === 'A' && doorConfigs ? (currentDoorConfig?.rows || rows) : rows;
+  const buildDisplayRows = (sourceRows: RowConfig[]) =>
+    sourceRows
+      .map((row, idx) => ({ row, idx }))
+      .filter(({ row }) => !isModelF || isModelFAllowedRow(row.label));
+  const currentDisplayRows = buildDisplayRows(currentRows);
+  const tableBDisplayRows = buildDisplayRows(rows);
 
   const handleModelChange = (newModel: string) => {
     setModel(newModel);
@@ -488,19 +539,19 @@ export function CompactTableConfig({
       {completionPopup &&
         createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-            <div className="absolute inset-0 bg-[#e7f1d5]/80" />
-            <div className="relative bg-white/95 border border-green-200 shadow-[0_30px_80px_rgba(0,0,0,0.18)] rounded-3xl px-10 py-8 text-center min-w-[320px] max-w-[420px]">
-              <div className="absolute left-8 top-6 h-1.5 w-12 rounded-full bg-green-200" />
-              <div className="absolute right-8 top-10 h-1.5 w-16 rounded-full bg-green-100" />
+            <div className="absolute inset-0 bg-black/35 backdrop-blur-[2px]" />
+            <div className="relative bg-white border-2 border-green-200 ring-1 ring-green-100 shadow-[0_32px_120px_rgba(0,0,0,0.35)] rounded-3xl px-12 py-10 text-center min-w-[360px] max-w-[460px]">
+              <div className="absolute left-8 top-6 h-1.5 w-12 rounded-full bg-green-300" />
+              <div className="absolute right-8 top-10 h-1.5 w-16 rounded-full bg-green-200" />
               <div
-                className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full border-[6px] text-3xl shadow-[0_6px_20px_rgba(34,197,94,0.25)]"
+                className="mx-auto mb-5 flex h-24 w-24 items-center justify-center rounded-full border-[6px] text-4xl shadow-[0_10px_28px_rgba(34,197,94,0.35)]"
                 style={{ borderColor: '#22c55e', color: '#16a34a', backgroundColor: '#f0fdf4' }}
               >
                 ✓
               </div>
-              <div className="text-xl font-semibold text-gray-900">{completionPopup.title}</div>
+              <div className="text-2xl font-bold text-gray-900 tracking-tight">{completionPopup.title}</div>
               {completionPopup.subtitle && (
-                <div className="text-sm text-gray-600 mt-2">{completionPopup.subtitle}</div>
+                <div className="text-sm text-gray-600 mt-2 leading-relaxed">{completionPopup.subtitle}</div>
               )}
             </div>
           </div>,
@@ -532,18 +583,18 @@ export function CompactTableConfig({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="">Select a Model</option>
-                  <option value="modelA">Model A</option>
-                  <option value="modelB">Model B</option>
-                  <option value="modelC">Model C</option>
-                  <option value="modelD">Model D</option>
-                  <option value="modelE">Model E</option>
-                  <option value="modelF">Model F</option>
+                  <option value="modelA">Model A - Shaker A</option>
+                  <option value="modelB">Model B - Shaker B</option>
+                  <option value="modelC">Model C - Moulure Externe</option>
+                  <option value="modelD">Model D - Moulure Interne</option>
+                  <option value="modelE">Model E - Moulure Interne et Externe</option>
+                  <option value="modelF">Model F - Flat</option>
                 </select>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
                 <div className="mt-2 space-y-3">
-                  {currentRows.map((row: RowConfig, idx: number) => (
+                  {currentDisplayRows.map(({ row, idx }) => (
                     <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                       {/* Main row: Label + Door buttons + Force + Cycle */}
                       <div className="flex flex-wrap items-center gap-3 justify-between">
@@ -551,7 +602,7 @@ export function CompactTableConfig({
                           {row.label === 'Pocket ZigZag' && (
                             <span className="text-indigo-500 mr-1">⬡</span>
                           )}
-                          {row.label}
+                          {rowDisplayLabel(row.label)}
                           <span className="text-gray-400 text-xs">ⓘ</span>
                         </div>
 
@@ -688,16 +739,16 @@ export function CompactTableConfig({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
                 <option value="">Select a Model</option>
-                <option value="modelA">Model A</option>
-                <option value="modelB">Model B</option>
-                <option value="modelC">Model C</option>
-                <option value="modelD">Model D</option>
-                <option value="modelE">Model E</option>
-                <option value="modelF">Model F</option>
+                <option value="modelA">Model A - Shaker A</option>
+                <option value="modelB">Model B - Shaker B</option>
+                <option value="modelC">Model C - Moulure Externe</option>
+                <option value="modelD">Model D - Moulure Interne</option>
+                <option value="modelE">Model E - Moulure Interne et Externe</option>
+                <option value="modelF">Model F - Flat</option>
               </select>
 
               <div className="mt-6 space-y-3">
-                {rows.map((row: RowConfig, idx: number) => (
+                {tableBDisplayRows.map(({ row, idx }) => (
                   <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                     {/* Main row: Label + Force + Cycle */}
                     <div className="flex items-center justify-between gap-4">
@@ -705,7 +756,7 @@ export function CompactTableConfig({
                         {row.label === 'Pocket ZigZag' && (
                           <span className="text-indigo-500 mr-1">⬡</span>
                         )}
-                        {row.label}
+                        {rowDisplayLabel(row.label)}
                         <span className="text-gray-400 text-xs">ⓘ</span>
                       </div>
 

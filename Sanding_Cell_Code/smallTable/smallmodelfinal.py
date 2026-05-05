@@ -584,14 +584,19 @@ def sandingModelATableA():
         # - Keep batching by tool to reduce tool switches
         # - Within each tool batch, execute each door's selected functions together
 
-        # Tool 3 batch: pocket edge pre-pass (runs before Tool 4 frame/zigzag)
-        # Enabled so pocket runs trigger Tool 3 edge coverage automatically.
-        enable_tool3_edge_prepass = True
-        tool3_edge_doors = (
-            unique_sorted_doors(zig_zag_cycle_doors, pocket_cycle_doors)
-            if enable_tool3_edge_prepass
-            else []
-        )
+        # Tool 3 batch: pocket zigzag edge-coverage pre-pass (runs before all other tool batches).
+        # Edge coverage must be explicitly enabled on Pocket ZigZag and only runs when
+        # Pocket ZigZag has a cycle configured for that door.
+        tool3_edge_doors = []
+        for door_number in zig_zag_cycle_doors:
+            zigzag_cfg = zigzag_by_door.get(door_number, {})
+            zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
+            edge_enabled = bool(
+                zigzag_cfg.get("edgeCoverage", zigzag_cfg.get("edge", False))
+            )
+            if zigzag_cycle > 0 and edge_enabled:
+                tool3_edge_doors.append(door_number)
+        tool3_edge_doors = unique_sorted_doors(tool3_edge_doors)
         if tool3_edge_doors:
             print("\n=== TOOL 3 EDGE BATCH START ===")
             ensure_tool_in_hand(3)
@@ -599,27 +604,16 @@ def sandingModelATableA():
             for door_number in tool3_edge_doors:
                 zigzag_cfg = zigzag_by_door.get(door_number, {})
                 zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
-
-                pocket_cfg = pocket_by_door.get(door_number, {})
-                pocket_cycle = int(pocket_cfg.get("cycle", 0))
-                edge_cycle = pocket_cycle if pocket_cycle > 0 else zigzag_cycle
+                edge_cycle = zigzag_cycle
                 if edge_cycle <= 0:
                     continue
 
-                pocket_orientation = str(
-                    pocket_cfg.get("orientation")
-                    or zigzag_cfg.get("orientation")
-                    or "vertical"
-                ).lower()
-                edge_force = int(
-                    pocket_cfg.get("force")
-                    or zigzag_cfg.get("force")
-                    or 0
-                )
+                pocket_orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
+                edge_force = int(zigzag_cfg.get("force") or 0)
                 if edge_force <= 0:
                     raise RuntimeError(
                         f"Tool 3 edge force is not configured for door {door_number}. "
-                        "Set pocket force or zigzag force to a value > 0."
+                        "Set Pocket ZigZag force to a value > 0."
                     )
                 print(f"\n--- Tool 3 / PocketEdge / Door {door_number} ---")
                 run_tool3_pocket_edge_cycles(

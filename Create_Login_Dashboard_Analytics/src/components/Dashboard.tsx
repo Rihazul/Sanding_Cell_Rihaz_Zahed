@@ -30,6 +30,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [spiralLinearSpeed] = useState([150]); // mm/s
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
+  const [homingRequired, setHomingRequired] = useState(true);
   const [isOperating, setIsOperating] = useState(false);
   
   // Toggle states
@@ -266,6 +267,20 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
           robotSpeed={robotSpeed}
         />
 
+        {homingRequired && (
+          <div className="mb-6 rounded-xl border-2 border-amber-300 bg-white px-5 py-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 text-xl">⚠️</div>
+              <div>
+                <div className="text-sm font-semibold text-amber-900">Homing Required Before Operation</div>
+                <div className="text-sm text-amber-800 mt-1">
+                  Run Homing first to calibrate the 7th axis before opening tables or starting tasks.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             {/* Sliding Panel with Robot Control and Table Configurations */}
@@ -372,6 +387,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
               addActivity={addActivity}
               isOperating={isOperating}
               robotEnabled={robotEnabled}
+              onHomingCompleted={() => setHomingRequired(false)}
             />
           </div>
         </div>

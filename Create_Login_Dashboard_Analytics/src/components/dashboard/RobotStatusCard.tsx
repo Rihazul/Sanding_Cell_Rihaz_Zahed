@@ -11,6 +11,7 @@ interface RobotStatusCardProps {
   addActivity: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   isOperating: boolean;
   robotEnabled: boolean;
+  onHomingCompleted?: () => void;
 }
 
 interface ActivityMessage {
@@ -20,7 +21,7 @@ interface ActivityMessage {
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
-export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity, isOperating, robotEnabled }: RobotStatusCardProps) {
+export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity, isOperating, robotEnabled, onHomingCompleted }: RobotStatusCardProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
@@ -52,6 +53,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
         const status = await getProcessStatus();
         if (status?.status === 'completed') {
           addActivity('Homing completed successfully', 'success');
+          onHomingCompleted?.();
           break;
         }
         if (Date.now() - start > timeoutMs) {

@@ -139,6 +139,52 @@ def _scan_indicates_model_f():
     return True
 
 
+def _zero_task_payload(task_cfg):
+    """Normalize a task payload as disabled."""
+    if not isinstance(task_cfg, dict):
+        return {"cycle": 0, "force": 0, "doors": []}
+    task_cfg["cycle"] = 0
+    task_cfg["force"] = 0
+    if "doors" in task_cfg:
+        task_cfg["doors"] = []
+    return task_cfg
+
+
+def _enforce_model_f_tablea_payload(table_data):
+    """
+    Backend safety gate for Model F:
+    - only pocketzigzag is allowed
+    - all other tasks are disabled server-side
+    - per-door model is forced to modelF
+    """
+    if not isinstance(table_data, dict):
+        return
+
+    table_data["model"] = "modelF"
+
+    disallowed_legacy_tasks = ["frame", "pocketsquare", "3D", "edgeInside", "edgeOutside", "side"]
+    for task_key in disallowed_legacy_tasks:
+        table_data[task_key] = _zero_task_payload(table_data.get(task_key))
+
+    pocket_cfg = table_data.get("pocketzigzag")
+    if not isinstance(pocket_cfg, dict):
+        table_data["pocketzigzag"] = {"cycle": 0, "force": 0, "doors": []}
+
+    doors = table_data.get("doors")
+    if not isinstance(doors, list):
+        return
+
+    for door_entry in doors:
+        if not isinstance(door_entry, dict):
+            continue
+        door_entry["model"] = "modelF"
+        tasks = door_entry.get("tasks")
+        if not isinstance(tasks, dict):
+            continue
+        for key in ["frame", "pocketsquare", "3D", "edgeInside", "edgeOutside", "side"]:
+            tasks[key] = _zero_task_payload(tasks.get(key))
+
+
 LOG_LINE_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<level>[A-Z]+) - .* - (?P<msg>.*)$"
 )
@@ -716,6 +762,10 @@ def start_TableA_process():
         print("Scan indicates no pocket; switching to modelF.")
         selected_model = "modelF"
         tableData["model"] = selected_model
+
+    if selected_model == "modelF":
+        print("Applying backend Model F guard: only pocketzigzag is allowed; forcing Tool 4 workflow.")
+        _enforce_model_f_tablea_payload(tableData)
     
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
