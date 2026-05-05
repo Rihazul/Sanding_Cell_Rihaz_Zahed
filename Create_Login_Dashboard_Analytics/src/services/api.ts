@@ -360,6 +360,10 @@ export async function getProcessStatus() {
   return apiCall('/process_status', 'GET');
 }
 
+export async function getHomingStatus() {
+  return apiCall('/homing_status', 'GET');
+}
+
 // Tool attachment status checks (returns shouldBlink boolean)
 export async function checkToolStatus(toolNumber: 1 | 2 | 3 | 4) {
   const endpoint =
@@ -408,6 +412,7 @@ export const api = {
   getStopperState,
   getRobotStatus,
   getProcessStatus,
+  getHomingStatus,
   checkToolStatus,
   getLogsHistory,
 };

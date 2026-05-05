@@ -1661,6 +1661,12 @@ def robot_status():
 def process_status():
     return jsonify({'status': process_state.get('status', 'completed')})
 
+
+@app.route('/homing_status', methods=['GET'])
+def homing_status():
+    # True means user must run homing before operation.
+    return jsonify({'required': (not bool(j7_home_confirmed))})
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:

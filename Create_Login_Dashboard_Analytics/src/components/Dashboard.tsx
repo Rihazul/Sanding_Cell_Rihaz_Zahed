@@ -8,7 +8,7 @@ import { SlidingPanel } from './dashboard/SlidingPanel';
 import { CompactTableConfig, type RowConfig, type DoorConfig } from './dashboard/CompactTableConfig';
 import { Button } from './ui/button';
 import { Settings } from 'lucide-react';
-import { checkToolStatus, getModalData, getRobotStatus, getStopperState, getTableState } from '../services/api';
+import { checkToolStatus, getHomingStatus, getModalData, getRobotStatus, getStopperState, getTableState } from '../services/api';
 
 interface DashboardProps {
   onNavigateToAnalytics: () => void;
@@ -30,7 +30,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [spiralLinearSpeed] = useState([150]); // mm/s
   const [laserOn, setLaserOn] = useState(false);
   const [isHoming, setIsHoming] = useState(false);
-  const [homingRequired, setHomingRequired] = useState(true);
+  const [homingRequired, setHomingRequired] = useState(false);
   const [isOperating, setIsOperating] = useState(false);
   
   // Toggle states
@@ -63,6 +63,15 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         }
       } catch {
         // Non-blocking: dashboard should still work without modal data
+      }
+
+      try {
+        const homing = await getHomingStatus();
+        if (!cancelled && typeof homing?.required === 'boolean') {
+          setHomingRequired(homing.required);
+        }
+      } catch {
+        // Keep hidden by default if homing status cannot be read.
       }
     })();
 
