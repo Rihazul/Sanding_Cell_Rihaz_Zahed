@@ -516,8 +516,9 @@ def get_logs_history():
     """
     Returns historical log entries grouped by date from ./logs/app.log* on the server machine.
     Query params:
-      - days (default 14, max 60)
-      - per_file_lines (default 2000, max 10000)
+      - days (default 14, max 60) [ignored when all=true]
+      - per_file_lines (default 2000, max 200000)
+      - all (default false): when true, include all days/files in folder
     """
     try:
         days = int(request.args.get('days', 14))
@@ -529,7 +530,9 @@ def get_logs_history():
         per_file_lines = int(request.args.get('per_file_lines', 2000))
     except Exception:
         per_file_lines = 2000
-    per_file_lines = max(200, min(per_file_lines, 10000))
+    per_file_lines = max(200, min(per_file_lines, 200000))
+
+    include_all = str(request.args.get('all', 'false')).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
     logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
     if not os.path.isdir(logs_dir):
@@ -557,7 +560,7 @@ def get_logs_history():
             except Exception:
                 continue
             age_days = (cutoff_date - ts.date()).days
-            if age_days < 0 or age_days >= days:
+            if not include_all and (age_days < 0 or age_days >= days):
                 continue
 
             date_key = ts.strftime("%Y-%m-%d")
@@ -580,7 +583,13 @@ def get_logs_history():
         })
 
     daily_logs.sort(key=lambda d: d["date"], reverse=True)
-    return jsonify({"logs": daily_logs, "source": logs_dir})
+    return jsonify({
+        "logs": daily_logs,
+        "source": logs_dir,
+        "includeAll": include_all,
+        "days": days,
+        "filesScanned": len(files),
+    })
 
 ############################################################################################
 

@@ -42,9 +42,10 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
 
   useEffect(() => {
     let active = true;
-    (async () => {
+
+    const fetchHistory = async () => {
       try {
-        const res = await getLogsHistory(21, 3000);
+        const res = await getLogsHistory(21, 60000, true);
         if (!active) return;
         setBackendLogs(Array.isArray(res?.logs) ? res.logs : []);
         setHistoryError(null);
@@ -53,9 +54,14 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
         setBackendLogs([]);
         setHistoryError(err instanceof Error ? err.message : 'Failed to load log history');
       }
-    })();
+    };
+
+    fetchHistory();
+    const timer = window.setInterval(fetchHistory, 5000);
+
     return () => {
       active = false;
+      window.clearInterval(timer);
     };
   }, []);
 

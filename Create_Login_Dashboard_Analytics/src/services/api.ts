@@ -383,12 +383,12 @@ export interface HistoricalLogDay {
   entries: HistoricalLogEntry[];
 }
 
-export async function getLogsHistory(days = 14, perFileLines = 2000): Promise<{
+export async function getLogsHistory(days = 14, perFileLines = 2000, includeAll = false): Promise<{
   logs: HistoricalLogDay[];
   source?: string;
   message?: string;
 }> {
-  const query = `?days=${encodeURIComponent(days)}&per_file_lines=${encodeURIComponent(perFileLines)}`;
+  const query = `?days=${encodeURIComponent(days)}&per_file_lines=${encodeURIComponent(perFileLines)}&all=${includeAll ? 'true' : 'false'}`;
   return apiCall(`/logs/history${query}`, 'GET');
 }
 
