@@ -9,11 +9,6 @@ interface SettingsPanelProps {
   setInverseOverlapping: (overlap: number[]) => void;
   sandingSpeed: number[];
   setSandingSpeed: (speed: number[]) => void;
-  spiralSpeed: number[];
-  setSpiralSpeed: (speed: number[]) => void;
-  spiralRadius: number[];
-  setSpiralRadius: (radius: number[]) => void;
-  spiralSettingsEnabled: boolean;
 }
 
 export function SettingsPanel({
@@ -23,12 +18,18 @@ export function SettingsPanel({
   setInverseOverlapping,
   sandingSpeed,
   setSandingSpeed,
-  spiralSpeed,
-  setSpiralSpeed,
-  spiralRadius,
-  setSpiralRadius,
-  spiralSettingsEnabled,
 }: SettingsPanelProps) {
+  const ROBOT_MAX_SPEED = 500;
+  const ROBOT_MAX_ACCEL = 2500;
+  const SANDING_MAX_SPEED = 400;
+  const SANDING_MAX_ACCEL = 550;
+  const POCKET_TOOL_DIAMETER_MM = 140;
+  const POCKET_MAX_OVERLAP_MM = 100;
+  const robotSpeedMmS = Math.round((robotSpeed[0] / 100) * ROBOT_MAX_SPEED);
+  const sandingSpeedMmS = Math.round((sandingSpeed[0] / 100) * SANDING_MAX_SPEED);
+  const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
+  const passStepMm = Math.max(1, POCKET_TOOL_DIAMETER_MM - overlapMm);
+
   return (
     <Card className="shadow-lg border-0">
       <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50">
@@ -42,7 +43,7 @@ export function SettingsPanel({
         <div>
           <div className="flex justify-between mb-2">
             <label className="text-sm">Robot Speed</label>
-            <span className="text-sm text-gray-600">{robotSpeed[0]}%</span>
+            <span className="text-sm text-gray-600">{robotSpeed[0]}% ({robotSpeedMmS} mm/s, {ROBOT_MAX_ACCEL} mm/s²)</span>
           </div>
           <Slider value={robotSpeed} onValueChange={setRobotSpeed} min={0} max={100} step={1} className="[&_[role=slider]]:bg-blue-500" />
         </div>
@@ -50,50 +51,22 @@ export function SettingsPanel({
         {/* Inverse Overlapping */}
         <div>
           <div className="flex justify-between mb-2">
-            <label className="text-sm">Inverse Overlapping</label>
-            <span className="text-sm text-gray-600">{inverseOverlapping[0]}%</span>
+            <label className="text-sm">Pocket Overlap</label>
+            <span className="text-sm text-gray-600">{overlapMm} mm {overlapMm === 0 ? '(no overlap)' : overlapMm >= 100 ? '(~3/4 tool overlap)' : ''}</span>
           </div>
           <Slider value={inverseOverlapping} onValueChange={setInverseOverlapping} min={0} max={100} step={1} className="[&_[role=slider]]:bg-purple-500" />
+          <div className="mt-1 text-xs text-gray-500">0 mm = no overlap, 100 mm = ~3/4 tool overlap (pass step {passStepMm} mm)</div>
         </div>
 
         {/* Sanding Speed */}
         <div>
           <div className="flex justify-between mb-2">
             <label className="text-sm">Sanding Speed</label>
-            <span className="text-sm text-gray-600">{sandingSpeed[0]}%</span>
+            <span className="text-sm text-gray-600">{sandingSpeed[0]}% ({sandingSpeedMmS} mm/s, {SANDING_MAX_ACCEL} mm/s²)</span>
           </div>
           <Slider value={sandingSpeed} onValueChange={setSandingSpeed} min={0} max={100} step={1} className="[&_[role=slider]]:bg-pink-500" />
         </div>
 
-        {/* Spiral Settings Sub-section */}
-        <div className={`pt-6 mt-2 border-t border-gray-200 ${!spiralSettingsEnabled ? 'opacity-50' : ''}`}>
-          <h3 className="text-sm font-semibold text-indigo-600 mb-1 flex items-center gap-2">
-            <span className="text-lg">🌀</span>
-            Spiral Settings
-          </h3>
-          {!spiralSettingsEnabled && (
-            <p className="text-xs text-gray-400 mb-4">Configure Frame or Pocket ZigZag to enable</p>
-          )}
-          {spiralSettingsEnabled && <div className="mb-4"></div>}
-          
-          {/* Spiral Speed */}
-          <div className="mb-4">
-            <div className="flex justify-between mb-2">
-              <label className="text-sm">Spiral Speed</label>
-              <span className="text-sm text-gray-600">{spiralSpeed[0]} mm/s</span>
-            </div>
-            <Slider value={spiralSpeed} onValueChange={setSpiralSpeed} min={100} max={300} step={5} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-violet-500" />
-          </div>
-
-          {/* Radius Size */}
-          <div className="mb-4">
-            <div className="flex justify-between mb-2">
-              <label className="text-sm">Radius Size</label>
-              <span className="text-sm text-gray-600">{spiralRadius[0]} mm</span>
-            </div>
-            <Slider value={spiralRadius} onValueChange={setSpiralRadius} min={10} max={15} step={1} disabled={!spiralSettingsEnabled} className="[&_[role=slider]]:bg-indigo-500" />
-          </div>
-        </div>
       </CardContent>
     </Card>
   );

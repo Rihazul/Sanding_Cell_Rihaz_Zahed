@@ -63,6 +63,7 @@ export function CompactTableConfig({
   setDoorConfigs,
 }: CompactTableConfigProps) {
   console.log('CompactTableConfig rendering:', tableName, 'rows:', rows.length, 'addActivity:', !!addActivity);
+  const POCKET_MAX_OVERLAP_MM = 100;
   
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
   // Temporarily bypass scan requirement so tasks can run without it
@@ -233,11 +234,12 @@ export function CompactTableConfig({
         addActivity(`Table ${tableName}: Starting task for all doors with ${modelName} (${configuredDoors.length} configured, ${totalDoors - configuredDoors.length} unconfigured)...`, 'info');
 
         // Build payload with all door configurations
+        const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
         const taskData = {
           doorConfigs: effectiveDoorConfigs,
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
-          inverseOverlapping: inverseOverlapping[0],
+          inverseOverlapping: overlapMm,
           spiralSettings,
         };
         
@@ -277,6 +279,7 @@ export function CompactTableConfig({
       
       try {
         // Build payload from rows
+        const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
         const taskData = {
           model,
           frame: { cycle: rows[0].cycle, force: rows[0].force },
@@ -292,7 +295,7 @@ export function CompactTableConfig({
           side: { cycle: rows[4].cycle, force: rows[4].force },
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
-          inverseOverlapping: inverseOverlapping[0],
+          inverseOverlapping: overlapMm,
           spiralSettings,
         };
         

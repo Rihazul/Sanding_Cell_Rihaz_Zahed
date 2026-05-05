@@ -23,7 +23,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
 
   const [robotEnabled, setRobotEnabled] = useState(false);
   const [robotSpeed, setRobotSpeed] = useState([100]);
-  const [inverseOverlapping, setInverseOverlapping] = useState([50]);
+  const [inverseOverlapping, setInverseOverlapping] = useState([0]);
   const [sandingSpeed, setSandingSpeed] = useState([75]);
   const [spiralSpeed, setSpiralSpeed] = useState([150]); // mm/s
   const [spiralRadius, setSpiralRadius] = useState([12]); // mm
@@ -363,11 +363,6 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
               setInverseOverlapping={setInverseOverlapping}
               sandingSpeed={sandingSpeed}
               setSandingSpeed={setSandingSpeed}
-              spiralSpeed={spiralSpeed}
-              setSpiralSpeed={setSpiralSpeed}
-              spiralRadius={spiralRadius}
-              setSpiralRadius={setSpiralRadius}
-              spiralSettingsEnabled={isSpiralSettingsEnabled()}
             />
 
             <RobotStatusCard

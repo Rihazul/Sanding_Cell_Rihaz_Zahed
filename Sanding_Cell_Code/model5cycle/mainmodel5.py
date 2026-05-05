@@ -19,7 +19,7 @@ from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepT
 from modules.CPS import CPSClient
 import time
 
-from cycle_data_utils import get_spiral_settings
+from cycle_data_utils import get_spiral_settings, get_inverse_overlap_step
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -124,7 +124,7 @@ def startingRobotToSandmodel5():
     
     # speeed=0.7
     json_config = load_json_config()
-    innerSandingOffset=int(json_config['inverseOverlapping'])
+    innerSandingOffset = get_inverse_overlap_step(json_config)
     json_config_TableB = json_config['TableB']
 
     spiral_settings = get_spiral_settings(json_config)

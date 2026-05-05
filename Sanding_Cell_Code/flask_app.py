@@ -18,6 +18,9 @@ from werkzeug.utils import secure_filename
 import logging
 import threading
 from contextlib import contextmanager
+import re
+from collections import deque
+from datetime import datetime
 
 # Reduce noisy werkzeug request logs.
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
@@ -46,6 +49,7 @@ from smallTable.smallmodelfinalF import sandingModelFTableA
 from smallTable.scansmalltable import scanTableA
 from smallTable.scanhoming import scanhoming
 from smallTable.homingtotal import homingtotal
+from cycle_data_utils import overlap_mm_to_step
 
 UPLOAD_FOLDER = './3DModels'
 ALLOWED_EXTENSIONS = {'stp'}
@@ -133,6 +137,38 @@ def _scan_indicates_model_f():
     if considered == 0:
         return False
     return True
+
+
+LOG_LINE_RE = re.compile(
+    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<level>[A-Z]+) - .* - (?P<msg>.*)$"
+)
+
+
+def _read_last_lines(path, max_lines=2000):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            return list(deque(f, maxlen=max_lines))
+    except Exception:
+        return []
+
+
+def _level_to_type(level: str) -> str:
+    lvl = (level or "").upper()
+    if lvl in {"ERROR", "CRITICAL"}:
+        return "error"
+    if lvl in {"WARNING", "WARN"}:
+        return "warning"
+    if lvl in {"INFO"}:
+        return "success"
+    return "info"
+
+
+def _format_display_date(date_key: str) -> str:
+    try:
+        dt = datetime.strptime(date_key, "%Y-%m-%d")
+        return f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+    except Exception:
+        return date_key
 
 ############################################################################################
 client_process = None
@@ -474,6 +510,78 @@ def get_modal_data():
     else:
         return jsonify(default_data)
 
+
+@app.route('/logs/history', methods=['GET'])
+def get_logs_history():
+    """
+    Returns historical log entries grouped by date from ./logs/app.log* on the server machine.
+    Query params:
+      - days (default 14, max 60)
+      - per_file_lines (default 2000, max 10000)
+    """
+    try:
+        days = int(request.args.get('days', 14))
+    except Exception:
+        days = 14
+    days = max(1, min(days, 60))
+
+    try:
+        per_file_lines = int(request.args.get('per_file_lines', 2000))
+    except Exception:
+        per_file_lines = 2000
+    per_file_lines = max(200, min(per_file_lines, 10000))
+
+    logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+    if not os.path.isdir(logs_dir):
+        return jsonify({"logs": [], "source": logs_dir, "message": "logs directory not found"})
+
+    files = []
+    for name in os.listdir(logs_dir):
+        if name.startswith("app.log"):
+            full_path = os.path.join(logs_dir, name)
+            if os.path.isfile(full_path):
+                files.append(full_path)
+    files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+
+    grouped = {}
+    entry_id = 1
+    cutoff_date = datetime.now().date()
+
+    for path in files:
+        for line in _read_last_lines(path, per_file_lines):
+            m = LOG_LINE_RE.match(line.strip())
+            if not m:
+                continue
+            try:
+                ts = datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M:%S,%f")
+            except Exception:
+                continue
+            age_days = (cutoff_date - ts.date()).days
+            if age_days < 0 or age_days >= days:
+                continue
+
+            date_key = ts.strftime("%Y-%m-%d")
+            grouped.setdefault(date_key, [])
+            grouped[date_key].append({
+                "id": entry_id,
+                "timestamp": ts.strftime("%H:%M:%S"),
+                "message": m.group("msg"),
+                "type": _level_to_type(m.group("level")),
+            })
+            entry_id += 1
+
+    daily_logs = []
+    for date_key, entries in grouped.items():
+        entries.sort(key=lambda e: e["timestamp"], reverse=False)
+        daily_logs.append({
+            "date": date_key,
+            "displayDate": _format_display_date(date_key),
+            "entries": entries,
+        })
+
+    daily_logs.sort(key=lambda d: d["date"], reverse=True)
+    return jsonify({"logs": daily_logs, "source": logs_dir})
+
 ############################################################################################
 
 @app.route('/start_TableB_process', methods=['POST'])
@@ -503,11 +611,12 @@ def start_TableB_process():
             "validModels": valid_models
         }), 400
 
-    inverse_overlapping = data.get('inverseOverlapping', 50)
+    inverse_overlapping = data.get('inverseOverlapping', 0)
+    inverse_overlapping_step = overlap_mm_to_step(inverse_overlapping)
     parent_conn, child_conn = Pipe(duplex=False)
     plot_process = Process(
         target=_run_tableb_plot_dialog,
-        args=(selected_model, inverse_overlapping, child_conn),
+        args=(selected_model, inverse_overlapping_step, child_conn),
     )
     plot_process.start()
     child_conn.close()

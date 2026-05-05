@@ -370,6 +370,28 @@ export async function checkToolStatus(toolNumber: 1 | 2 | 3 | 4) {
   return apiCall(endpoint, 'GET');
 }
 
+export interface HistoricalLogEntry {
+  id: number;
+  timestamp: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+}
+
+export interface HistoricalLogDay {
+  date: string;
+  displayDate: string;
+  entries: HistoricalLogEntry[];
+}
+
+export async function getLogsHistory(days = 14, perFileLines = 2000): Promise<{
+  logs: HistoricalLogDay[];
+  source?: string;
+  message?: string;
+}> {
+  const query = `?days=${encodeURIComponent(days)}&per_file_lines=${encodeURIComponent(perFileLines)}`;
+  return apiCall(`/logs/history${query}`, 'GET');
+}
+
 // Export all API functions
 export const api = {
   triggerRobotProcess,
@@ -387,4 +409,5 @@ export const api = {
   getRobotStatus,
   getProcessStatus,
   checkToolStatus,
+  getLogsHistory,
 };

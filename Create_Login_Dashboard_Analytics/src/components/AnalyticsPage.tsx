@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { LayoutDashboard, Calendar, Clock, ChevronRight, Activity } from 'lucide-react';
+import { getLogsHistory, type HistoricalLogDay } from '../services/api';
 
 interface LogEntry {
   id: number;
@@ -24,6 +25,8 @@ interface DailyLog {
 
 export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: AnalyticsPageProps) {
   const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
+  const [backendLogs, setBackendLogs] = useState<HistoricalLogDay[]>([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -36,6 +39,25 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
       document.body.style.overflow = '';
     };
   }, [selectedLog]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await getLogsHistory(21, 3000);
+        if (!active) return;
+        setBackendLogs(Array.isArray(res?.logs) ? res.logs : []);
+        setHistoryError(null);
+      } catch (err) {
+        if (!active) return;
+        setBackendLogs([]);
+        setHistoryError(err instanceof Error ? err.message : 'Failed to load log history');
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Get today's date formatted
   const today = new Date();
@@ -54,84 +76,11 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
     isLive: true,
   };
 
-  // Sample historical logs data - in real app, this would come from backend/storage
-  const historicalLogs: DailyLog[] = [
-    liveSessionLog,
-    {
-      date: '2025-12-02',
-      displayDate: 'December 2, 2025',
-      entries: [
-        { id: 1, timestamp: '09:15:23', message: 'Robot system initialized', type: 'success' },
-        { id: 2, timestamp: '09:16:45', message: 'Robot Power ENABLED', type: 'success' },
-        { id: 3, timestamp: '09:18:12', message: 'Homing sequence initiated...', type: 'warning' },
-        { id: 4, timestamp: '09:18:45', message: 'Homing completed successfully', type: 'success' },
-        { id: 5, timestamp: '09:25:30', message: 'Table A: Starting task with Model A', type: 'info' },
-        { id: 6, timestamp: '09:33:45', message: 'Table A: Task completed successfully with Model A', type: 'success' },
-        { id: 7, timestamp: '10:15:00', message: 'Tool 1 picked up', type: 'info' },
-        { id: 8, timestamp: '10:45:22', message: 'Laser turned ON', type: 'warning' },
-        { id: 9, timestamp: '11:30:15', message: 'Table B: Starting task with Model C', type: 'info' },
-        { id: 10, timestamp: '11:38:45', message: 'Table B: Task completed successfully with Model C', type: 'success' },
-      ]
-    },
-    {
-      date: '2025-12-01',
-      displayDate: 'December 1, 2025',
-      entries: [
-        { id: 1, timestamp: '08:30:00', message: 'Robot system initialized', type: 'success' },
-        { id: 2, timestamp: '08:31:15', message: 'Robot Power ENABLED', type: 'success' },
-        { id: 3, timestamp: '08:35:00', message: 'Stopper A moved UP', type: 'info' },
-        { id: 4, timestamp: '08:40:22', message: 'Table A OPENED', type: 'info' },
-        { id: 5, timestamp: '09:00:00', message: 'Table A: Starting scan operation...', type: 'info' },
-        { id: 6, timestamp: '09:05:30', message: 'Table A: Scan completed successfully', type: 'success' },
-        { id: 7, timestamp: '09:10:45', message: 'Table A: Starting task with Model B', type: 'info' },
-        { id: 8, timestamp: '09:18:30', message: 'Table A: Task completed successfully with Model B', type: 'success' },
-        { id: 9, timestamp: '14:22:10', message: 'Emergency stop activated!', type: 'error' },
-        { id: 10, timestamp: '14:25:00', message: 'Robot Power DISABLED', type: 'warning' },
-        { id: 11, timestamp: '14:30:00', message: 'Robot Power ENABLED', type: 'success' },
-        { id: 12, timestamp: '14:32:00', message: 'Homing sequence initiated...', type: 'warning' },
-        { id: 13, timestamp: '14:32:30', message: 'Homing completed successfully', type: 'success' },
-      ]
-    },
-    {
-      date: '2025-11-30',
-      displayDate: 'November 30, 2025',
-      entries: [
-        { id: 1, timestamp: '10:00:00', message: 'Robot system initialized', type: 'success' },
-        { id: 2, timestamp: '10:01:30', message: 'Robot Power ENABLED', type: 'success' },
-        { id: 3, timestamp: '10:05:00', message: 'Homing sequence initiated...', type: 'warning' },
-        { id: 4, timestamp: '10:05:30', message: 'Homing completed successfully', type: 'success' },
-        { id: 5, timestamp: '10:15:00', message: 'Tool 2 picked up', type: 'info' },
-        { id: 6, timestamp: '10:20:00', message: 'Tool 3 picked up', type: 'info' },
-        { id: 7, timestamp: '11:00:00', message: 'Table B: Starting task with Model D', type: 'info' },
-        { id: 8, timestamp: '11:08:30', message: 'Table B: Task completed successfully with Model D', type: 'success' },
-      ]
-    },
-    {
-      date: '2025-11-29',
-      displayDate: 'November 29, 2025',
-      entries: [
-        { id: 1, timestamp: '09:00:00', message: 'Robot system initialized', type: 'success' },
-        { id: 2, timestamp: '09:02:00', message: 'Robot Power ENABLED', type: 'success' },
-        { id: 3, timestamp: '09:10:00', message: 'Table A: Cannot start task - Please select a model first', type: 'error' },
-        { id: 4, timestamp: '09:12:00', message: 'Table A: Starting task with Model E', type: 'info' },
-        { id: 5, timestamp: '09:20:30', message: 'Table A: Task completed successfully with Model E', type: 'success' },
-        { id: 6, timestamp: '12:00:00', message: 'Laser turned ON', type: 'warning' },
-        { id: 7, timestamp: '12:30:00', message: 'Laser turned OFF', type: 'info' },
-      ]
-    },
-    {
-      date: '2025-11-28',
-      displayDate: 'November 28, 2025',
-      entries: [
-        { id: 1, timestamp: '08:00:00', message: 'Robot system initialized', type: 'success' },
-        { id: 2, timestamp: '08:05:00', message: 'Robot Power ENABLED', type: 'success' },
-        { id: 3, timestamp: '08:10:00', message: 'Stopper A moved UP', type: 'info' },
-        { id: 4, timestamp: '08:12:00', message: 'Stopper B moved UP', type: 'info' },
-        { id: 5, timestamp: '08:30:00', message: 'Table A: Starting scan operation...', type: 'info' },
-        { id: 6, timestamp: '08:35:00', message: 'Table A: Scan completed successfully', type: 'success' },
-      ]
-    },
-  ];
+  const historicalLogs: DailyLog[] = [liveSessionLog, ...backendLogs.filter((d) => d.date !== todayKey).map((day) => ({
+    date: day.date,
+    displayDate: day.displayDate,
+    entries: day.entries,
+  }))];
 
   const getEntryTypeColor = (type: LogEntry['type']) => {
     switch (type) {
@@ -181,6 +130,9 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800">Log History</h2>
           <p className="text-gray-600">Browse past activity logs to track platform operations</p>
+          {historyError && (
+            <p className="text-sm text-red-600 mt-2">History source unavailable: {historyError}</p>
+          )}
         </div>
 
         {/* Logs List */}

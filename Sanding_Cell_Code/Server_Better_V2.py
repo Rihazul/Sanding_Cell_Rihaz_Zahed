@@ -5890,7 +5890,8 @@ def communicate(
                     return
 
                 velocity = speed_value * base_velocity
-                acceleration = speed_value * base_acceleration
+                # Keep acceleration fixed per profile; only velocity scales with ratio.
+                acceleration = base_acceleration
 
         if stop_requested():
             return

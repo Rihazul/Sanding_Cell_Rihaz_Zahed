@@ -164,3 +164,37 @@ def doors_with_cycles(by_door: Mapping[int, Mapping[str, Any]]) -> List[int]:
 
 def any_cycles(by_door: Mapping[int, Mapping[str, Any]]) -> bool:
     return any(_to_int(cfg.get("cycle"), 0) > 0 for cfg in by_door.values())
+
+
+def overlap_mm_to_step(
+    overlap_mm: Any,
+    tool_diameter_mm: float = 140.0,
+    max_overlap_mm: float = 100.0,
+    min_step_mm: float = 1.0,
+) -> int:
+    overlap = _clamp(_to_float(overlap_mm, 0.0), 0.0, max_overlap_mm)
+    step = tool_diameter_mm - overlap
+    return int(round(max(min_step_mm, step)))
+
+
+def get_inverse_overlap_step(
+    cycle_data: Mapping[str, Any],
+    key: str = "inverseOverlapping",
+    tool_diameter_mm: float = 140.0,
+    max_overlap_mm: float = 100.0,
+    min_step_mm: float = 1.0,
+) -> int:
+    """
+    Convert UI raw overlap (mm) into backend step (mm).
+    Backward-compatible: if stored value looks like an old step value
+    (> max_overlap and <= tool_diameter), keep it as-is.
+    """
+    raw = _to_float(cycle_data.get(key), 0.0)
+    if raw > max_overlap_mm and raw <= tool_diameter_mm:
+        return int(round(max(min_step_mm, raw)))
+    return overlap_mm_to_step(
+        raw,
+        tool_diameter_mm=tool_diameter_mm,
+        max_overlap_mm=max_overlap_mm,
+        min_step_mm=min_step_mm,
+    )
