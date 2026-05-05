@@ -613,7 +613,7 @@ def door1frametool2side(force,cps):
         print("rightpoints:", rightpoints)
 
         #Extraright
-        extraright=[p2[0]-20,p2[1]+30,80,0,0,-90]
+        extraright=[p2[0]-20,p2[1]+30,80,0,0,0]
 
         #top points
         toppoint1=[p2[0],p2[1]+4,10,0,0,-90]
@@ -635,39 +635,39 @@ def door1frametool2side(force,cps):
         print("extratop:", extratop)
 
         #LeftPoints
-        leftpoint1=[p3[0]+4,p3[1],10,0,0,0]
+        leftpoint1=[p3[0]+4,p3[1],10,0,0,-180]
         print("leftpoint1:", leftpoint1)
-        preleftpoint1=[p3[0]+1+10,p3[1],10,0,0,0]
+        preleftpoint1=[p3[0]+1+10,p3[1],10,0,0,-180]
         print("preleftpoint1:", preleftpoint1)
-        leftpoint2=[p4[0]+4,p4[1],10,0,0,0]
+        leftpoint2=[p4[0]+4,p4[1],10,0,0,-180]
         print("leftpoint2:", leftpoint2)
-        preleftpoint2=[p4[0]+1+10,p4[1],10,0,0,0]
+        preleftpoint2=[p4[0]+1+10,p4[1],10,0,0,-180]
         print("preleftpoint2:", preleftpoint2)
-        leftpoint12=[p3[0]+4,p3[1]-2,10,0,0,0]
+        leftpoint12=[p3[0]+4,p3[1]-2,10,0,0,-180]
         print("leftpoint12:", leftpoint12)
 
         leftpoints=[preleftpoint1,leftpoint1,leftpoint12,leftpoint2,preleftpoint2]
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft=[p4[0]+10,p4[1]-30,80,0,0,-90]
+        extraleft=[p4[0]+10,p4[1]-30,80,0,0,-180]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-4,10,0,0,-90]
+        bottompoint1=[p4[0],p4[1]-4,10,0,0,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10,10,0,0,-90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,0,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-4,10,0,0,-90]
+        bottompoint2=[p1[0],p1[1]-4,10,0,0,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10,10,0,0,-90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,0,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-4,10,0,0,-90]
+        bottompoint12=[p4[0]-2,p4[1]-4,10,0,0,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
 
         #Posthoming
-        posthoming=[p1[0],p1[1]-10,100,0,0,-90]
+        posthoming=[p1[0],p1[1]-10,100,0,0,90]
 
 
 
