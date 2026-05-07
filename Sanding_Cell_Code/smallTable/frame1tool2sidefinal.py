@@ -871,8 +871,8 @@ def door1frametool2side(force,cps):
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
-        # #Joint 6 movement 
-        moveOnlyJ6r(cps, -326, config)
+        # # #Joint 6 movement 
+        # moveOnlyJ6r(cps, -326, config)
 
         # cps.HRIF_DisConnect(0)
 
