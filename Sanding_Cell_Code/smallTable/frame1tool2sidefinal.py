@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import yaml
 import math
 import time
+import json
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
@@ -26,6 +27,11 @@ def load_config():
     with open('./configs/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     return config
+
+def load_json_config():
+    """Loads runtime UI cycle data from cycleData.json."""
+    with open('./configs/cycleData.json', 'r') as file:
+        return json.load(file)
 
 def door1frametool2side(force,cps):
     def door1frametool2sidebig(force,cps):
@@ -567,6 +573,9 @@ def door1frametool2side(force,cps):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
+        json_config = load_json_config()
+        robot_speed = float(json_config.get("robotSpeed", 0.9))
+        sanding_speed = float(json_config.get("sandingSpeed", 0.75))
 
         # Connect to robot
         # cps = CPSClient()
@@ -702,7 +711,8 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
@@ -743,7 +753,8 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
@@ -784,7 +795,8 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
@@ -825,7 +837,8 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
                     wait=False
                 )
             
@@ -837,22 +850,22 @@ def door1frametool2side(force,cps):
             releaseForce(cps=cps, config=config)
 
         # #Right Cycle
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=rightpoints,force=force)
-        communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Top Cycle
         perform_process_top(cps, config, points1=toppoints,force=force)
-        communicate(cps=cps,config=config,point=extratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Right Cycle
         perform_process_left(cps, config, points1=leftpoints,force=force)
-        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Bottom Cycle
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         # #Joint 6 movement 
         moveOnlyJ6r(cps, -326, config)
