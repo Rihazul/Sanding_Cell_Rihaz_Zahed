@@ -537,6 +537,14 @@ def sandingModelATableA():
         if seventh_result is None:
             raise RuntimeError("Failed to move 7th axis to tool station.")
 
+    def move_to_homing_with_tool():
+        """Return to homing/safe position without dropping the mounted tool."""
+        # Arm goes safe first, then rail returns to home station.
+        move_to_safe_point()
+        move_seventh_to_tool_station()
+        # Re-assert safe arm pose after rail move.
+        move_to_safe_point()
+
     def ensure_tool_in_hand(tool_num):
         """Ensure requested tool is mounted; drop wrong one if needed."""
         ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
@@ -732,7 +740,10 @@ def sandingModelATableA():
 
         if work_executed:
             if keep_tool_after_task:
-                print("Task completed: keeping current tool mounted.")
+                move_to_homing_with_tool()
+                print(
+                    "Task completed: moved to homing position while keeping current tool mounted."
+                )
             else:
                 ci0, ci1, ci2 = read_ci_triplet(cps)
                 tool_in_hand = decode_tool_in_hand(ci0, ci1, ci2)
