@@ -75,7 +75,7 @@ def door1frametool2side(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,0]
+        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
