@@ -696,14 +696,14 @@ def door1frametool2side(force,cps):
             
             # Communicate to each point in points1
             for point in points1:
-                if point==rightpoint12:putForceXplus(
+                if point==rightpoint1:putForceXplus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool2plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==rightpoint2:turn_vibration_on(cps)
+                if point==rightpoint1:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -713,7 +713,7 @@ def door1frametool2side(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -738,14 +738,14 @@ def door1frametool2side(force,cps):
             
             # Communicate to each point in points1
             for point in points1:
-                if point==toppoint12:putForceYminus1(
+                if point==toppoint1:putForceYminus1(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool2plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==toppoint2:turn_vibration_on(cps)
+                if point==toppoint1:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -755,7 +755,7 @@ def door1frametool2side(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -780,14 +780,14 @@ def door1frametool2side(force,cps):
             
             # Communicate to each point in points1
             for point in points1:
-                if point==leftpoint12:putForceXminus(
+                if point==leftpoint1:putForceXminus(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool2plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==leftpoint2:turn_vibration_on(cps)
+                if point==leftpoint1:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -797,7 +797,7 @@ def door1frametool2side(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -822,14 +822,14 @@ def door1frametool2side(force,cps):
             
             # Communicate to each point in points1
             for point in points1:
-                if point==bottompoint12:putForceYplus1(
+                if point==bottompoint1:putForceYplus1(
                 cps=cps,
                 force=force,
                 tcp=config['coords']['tcptool2plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
-                if point==bottompoint2:turn_vibration_on(cps)
+                if point==bottompoint1:turn_vibration_on(cps)
                 communicate(
                     cps=cps,
                     config=config,
@@ -839,7 +839,7 @@ def door1frametool2side(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
