@@ -1882,8 +1882,17 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    linear_velocity = 5  # 100 mm/s
-    angular_velocity = 1  # 10 °/s
+    # X- often encounters higher mechanical/pneumatic resistance than X+ on the same path.
+    # Allow a slightly higher seek speed (configurable) to match engagement time.
+    force_cfg = config.get("forceControl", {}) if isinstance(config, dict) else {}
+    try:
+        linear_velocity = float(force_cfg.get("xminusLinearVelocity", 7))
+    except (TypeError, ValueError):
+        linear_velocity = 7
+    try:
+        angular_velocity = float(force_cfg.get("xminusAngularVelocity", 1))
+    except (TypeError, ValueError):
+        angular_velocity = 1
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
     )
