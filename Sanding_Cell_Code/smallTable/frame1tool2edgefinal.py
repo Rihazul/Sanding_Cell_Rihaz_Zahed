@@ -1416,7 +1416,6 @@ def door2frametool2sideedge(force,cps):
 
         #Cycles for Big Door
         # #Bottom Cycles
-        moveOnlyJ6r(cps, 90, config)
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
@@ -1425,7 +1424,6 @@ def door2frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_right(cps, config, points1=righthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
-        moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=False)
@@ -1436,7 +1434,6 @@ def door2frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_upleft(cps, config, points1=upleftpoints,force=force)
         communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
-        moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
     def door2frametool2edgesmalledge(force,cps):
         # Load configuration
@@ -1730,7 +1727,6 @@ def door2frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
 
         # #Joint 6 movement 
-        moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
     ylen_data = get_y_values(2, default_on_error=False)
     ylen = ylen_data['ylen']
@@ -2260,7 +2256,6 @@ def door3frametool2sideedge(force,cps):
 
         #Cycles for Big Door
         # #Bottom Cycles
-        moveOnlyJ6r(cps, 90, config)
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
@@ -2269,7 +2264,6 @@ def door3frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_right(cps, config, points1=righthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
-        moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=False)
@@ -2280,7 +2274,6 @@ def door3frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_upleft(cps, config, points1=upleftpoints,force=force)
         communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
-        moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
     def door3frametool2edgesmalledge(force,cps):
@@ -2575,7 +2568,6 @@ def door3frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
 
         # #Joint 6 movement 
-        moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
     ylen_data = get_y_values(3, default_on_error=False)
     ylen = ylen_data['ylen']
@@ -3106,7 +3098,6 @@ def door4frametool2sideedge(force,cps):
 
         #Cycles for Big Door
         # #Bottom Cycles
-        moveOnlyJ6r(cps, 90, config)
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
@@ -3115,7 +3106,6 @@ def door4frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_right(cps, config, points1=righthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
-        moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=False)
@@ -3126,7 +3116,6 @@ def door4frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
         perform_process_upleft(cps, config, points1=upleftpoints,force=force)
         communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
-        moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
     def door4frametool2edgesmalledge(force,cps):
@@ -3421,7 +3410,6 @@ def door4frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=posthoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
 
         # #Joint 6 movement 
-        moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
         
     ylen_data = get_y_values(4, default_on_error=False)
