@@ -40,6 +40,9 @@ def door1frametool2side(force,cps):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
+        json_config = load_json_config()
+        robot_speed = float(json_config.get("robotSpeed", 0.9))
+        sanding_speed = float(json_config.get("sandingSpeed", 0.75))
 
         # Connect to robot
         # cps = CPSClient()
@@ -281,8 +284,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -322,8 +326,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -364,8 +369,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -405,8 +411,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -447,8 +454,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -488,8 +496,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -529,8 +538,9 @@ def door1frametool2side(force,cps):
                     tcp=config['coords']['tcptool2plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -543,27 +553,27 @@ def door1frametool2side(force,cps):
 
         #Cycles for Big Door
         # #Bottom Cycles
-        moveOnlyJ6r(cps, 90, config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.7,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
+        # moveOnlyJ6r(cps, 90, config)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
-        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
+        communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
-        communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
+        communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=righthalfpointsdown,force=force)
-        communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
-        moveOnlyJ6r(cps, -270, config)
+        communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=0.7,wait=True)
-        communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
-        communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
+        communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
-        communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
+        communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upleft(cps, config, points1=upleftpoints,force=force)
-        communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.7,wait=True)
-        moveOnlyJ6r(cps, -90, config)
+        communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        # moveOnlyJ6r(cps, -90, config)
 
         # cps.HRIF_DisConnect(0)
 
