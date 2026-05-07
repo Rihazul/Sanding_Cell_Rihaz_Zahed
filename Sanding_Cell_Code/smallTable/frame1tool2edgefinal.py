@@ -148,7 +148,7 @@ def door1frametool2sideedge(force,cps):
         print("toppoint2:", toppoint2)
         pretopoint2=[p3[0],p3[1]+10-40,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]-40,10,0,22,90]
+        toppoint12=[p2[0]+2,p2[1]-40,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -227,7 +227,10 @@ def door1frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft=[p4[0]+20,p4[1]-20,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]+30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
+        extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-2+30,10,0,22,90]
@@ -284,7 +287,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -326,7 +329,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -369,7 +372,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -411,7 +414,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -454,7 +457,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -496,7 +499,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -538,7 +541,7 @@ def door1frametool2sideedge(force,cps):
                     seventh=-1,
                     speed=sanding_speed,
                     velocity_profile="sandingspeed",
-                    wait=False
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -551,16 +554,19 @@ def door1frametool2sideedge(force,cps):
 
         #Cycles for Big Door
         # #Bottom Cycles
-        moveOnlyJ6r(cps, 90, config)
+        # moveOnlyJ6r(cps, 90, config)
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
+        communicate(cps=cps,config=config,point=extraleft0,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=extraleft1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=extraleft2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
         communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=righthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        moveOnlyJ6r(cps, -270, config)
+        # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -571,7 +577,7 @@ def door1frametool2sideedge(force,cps):
         communicate(cps=cps,config=config,point=upextratop,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upleft(cps, config, points1=upleftpoints,force=force)
         communicate(cps=cps,config=config,point=upleftextrahome,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        moveOnlyJ6r(cps, -90, config)
+        # moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
     def door1frametool2edgesmalledge(force,cps):
@@ -936,31 +942,31 @@ def door2frametool2sideedge(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,180,0,0]
+        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
-        rightpoint1=[p1[0]+40,p1[1],10,180,-22,180]
+        rightpoint1=[p1[0]+40,p1[1],10,0,22,0]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]+40-10,p1[1],10,180,-22,180]
+        prerightpoint1=[p1[0]+40-10,p1[1],10,0,22,0]
         print("prerightpoint1:", prerightpoint1)
-        rightpoint2=[p2[0]+40,p2[1],10,180,-22,180]
+        rightpoint2=[p2[0]+40,p2[1],10,0,-22,0]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]+40-10,p2[1],10,180,-22,180]
+        prerightpoint2=[p2[0]+40-10,p2[1],10,0,22,0]
         print("prerightpoint2:", prerightpoint2)
-        rightpoint12=[p1[0]+40,p1[1]+2,10,180,-22,180]
+        rightpoint12=[p1[0]+40,p1[1]+2,10,0,22,0]
         print("rightpoint12:", rightpoint12)
 
         #RightPoints for Big Door
-        rightpoint4=[p2[0]+40,p2[1]/2,10,180,-22,180]
+        rightpoint4=[p2[0]+40,p2[1]/2,10,0,22,0]
         print("rightpoint4:", rightpoint4)
-        rightpoint4pre=[p2[0]-10+40,p2[1]/2,10,180,-22,180]
+        rightpoint4pre=[p2[0]-10+40,p2[1]/2,10,0,22,0]
         print("rightpoint4pre:", rightpoint4pre)
-        rightpoint4down=[p2[0]+40,p2[1]/2-2,10,180,-22,180]
+        rightpoint4down=[p2[0]+40,p2[1]/2-2,10,0,22,0]
         print("rightpoint4down:", rightpoint4down)
-        rightpoint4up=[p2[0]+40,p2[1]/2+2,10,180,-22,180]
+        rightpoint4up=[p2[0]+40,p2[1]/2+2,10,0,22,0]
         print("rightpoint4up:", rightpoint4up)
-        rightpoint14=[p1[0]+40,p1[1]+2,10,180,-22,180]
+        rightpoint14=[p1[0]+40,p1[1]+2,10,0,22,0]
         print("rightpoint14:",rightpoint14)
 
         #Right Points for Big Door All
@@ -969,7 +975,7 @@ def door2frametool2sideedge(force,cps):
         print("righthalfpointsdown:", righthalfpointsdown)
 
         #Right Position Homing
-        rightpositionhoming=[p2[0]-10,p2[1]/2,80,180,0,180]
+        rightpositionhoming=[p2[0]-10,p2[1]/2,80,0,0,0]
 
         rightpoints=[prerightpoint1,rightpoint1,rightpoint12,rightpoint2,prerightpoint2]
         print("rightpoints:", rightpoints)
@@ -977,15 +983,15 @@ def door2frametool2sideedge(force,cps):
         #UpRightPoints
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance+40-3,p2[1]/2,10,180,-22,180]
+        uprightpoint4=[-distance+40-3,p2[1]/2,10,0,22,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance-10+40,p2[1]/2,10,180,-22,180]
+        uprightpoint4pre=[-distance-10+40,p2[1]/2,10,0,22,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance+40-3,p2[1]/2+2,10,180,-22,180]
+        uprightpoint4up=[-distance+40-3,p2[1]/2+2,10,0,22,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance+40-3,p2[1],10,180,-22,180]
+        uprightpoint2=[-distance+40-3,p2[1],10,0,22,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance-10+40,p2[1],10,180,-22,180]
+        uprightpoint2pre=[-distance-10+40,p2[1],10,0,22,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -993,73 +999,73 @@ def door2frametool2sideedge(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[-distance-10,p2[1]/2,100,180,0,180]
+        prehomeuprightpoint=[-distance-10,p2[1]/2,100,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
-        extraupright=[-distance-10,p2[1]+10,80,180,0,90]
+        extraupright=[-distance-10,p2[1]+10,80,180,0,-90]
         print("extraupright:",extraupright)
 
         #Extraright
-        extraright=[p2[0]-20,p2[1]+10,10,180,0,90]
+        extraright=[p2[0]-20,p2[1]+10,10,180,0,-90]
 
         #top points
-        toppoint1=[p2[0],p2[1]-40,10,180,-22,90]
+        toppoint1=[p2[0],p2[1]-40,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10-40,10,180,-22,90]
+        pretopoint1=[p2[0],p2[1]+10-40,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]-40,10,180,-22,90]
+        toppoint2=[p3[0],p3[1]-40,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10-40,10,180,-22,90]
+        pretopoint2=[p3[0],p3[1]+10-40,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]-40,10,180,-22,90]
+        toppoint12=[p2[0]+2,p2[1]-40,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance,p2[1]-30,10,180,-22,90]
+        uptoppoint1=[-distance,p2[1]-30,10,0,22,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance,p2[1]-30+10,10,180,-22,90]
+        preuptoppoint1=[-distance,p2[1]-30+10,10,0,22,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance+2,p2[1]-30,10,180,-22,90]
+        uptoppoint12=[-distance+2,p2[1]-30,10,0,22,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[distance,p3[1]-30,10,180,-22,90]
+        uptoppoint2=[distance,p3[1]-30,10,0,22,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[distance,p3[1]+10-30,10,180,-22,90]
+        preuptoppoint2=[distance,p3[1]+10-30,10,0,22,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[distance+10,p3[1]-20,80,180,0,0]
+        upextratop=[distance+10,p3[1]-20,80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
-        extratop=[p3[0]+20,p3[1]+10,80,180,0,0]
+        extratop=[p3[0]+20,p3[1]+10,80,0,0,-180]
         print("extratop:", extratop)
 
         #LeftPoints
-        leftpoint1=[p3[0]+2-40,p3[1],10,180,-22,0]
+        leftpoint1=[p3[0]+2-40,p3[1],10,0,22,-180]
         print("leftpoint1:", leftpoint1)
-        preleftpoint1=[p3[0]+1+10-40,p3[1],10,180,-22,0]
+        preleftpoint1=[p3[0]+1+10-40,p3[1],10,0,22,-180]
         print("preleftpoint1:", preleftpoint1)
-        leftpoint2=[p4[0]+2-40,p4[1],10,180,-22,0]
+        leftpoint2=[p4[0]+2-40,p4[1],10,0,22,-180]
         print("leftpoint2:", leftpoint2)
-        preleftpoint2=[p4[0]+1+10-40,p4[1],10,180,-22,0]
+        preleftpoint2=[p4[0]+1+10-40,p4[1],10,0,22,-180]
         print("preleftpoint2:", preleftpoint2)
-        leftpoint12=[p3[0]+2-40,p3[1]-2,10,180,-22,0]
+        leftpoint12=[p3[0]+2-40,p3[1]-2,10,0,22,-180]
         print("leftpoint12:", leftpoint12)
 
         #Lelft Points for Big Door
-        leftpoint5=[p3[0]+2-40,p3[1]/2,10,180,-22,0]
+        leftpoint5=[p3[0]+2-40,p3[1]/2,10,0,22,-180]
         print("leftpoint5:", leftpoint5)
-        leftpoint5down=[p3[0]+2-40,p3[1]/2-2,10,180,-22,0]
+        leftpoint5down=[p3[0]+2-40,p3[1]/2-2,10,0,22,-180]
         print("leftpoint5down:", leftpoint5down)
-        leftpoint5up=[p3[0]+2-40,p3[1]/2+2,10,180,-22,0]
+        leftpoint5up=[p3[0]+2-40,p3[1]/2+2,10,0,22,-180]
         print("leftpoint5up:", leftpoint5up)
-        leftpoint5pre=[p3[0]+10-40,p3[1]/2,10,180,-22,0]
+        leftpoint5pre=[p3[0]+10-40,p3[1]/2,10,0,-22,-180]
         print("leftpoint5pre:", leftpoint5pre)
 
         #Left Points for Bigdoor
@@ -1067,22 +1073,22 @@ def door2frametool2sideedge(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[distance+2-40,p3[1],10,180,-22,0]
+        upleftpoint3=[distance+2-40,p3[1],10,0,22,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[distance+10-40,p3[1],10,180,-22,0]
+        upleftpoint3pre=[distance+10-40,p3[1],10,0,22,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[distance+2-40,p3[1]-2,10,180,-22,0]
+        upleftpoint3down=[distance+2-40,p3[1]-2,10,0,22,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[distance+2-40,p3[1]/2,10,180,-22,0]
+        upleftpoint5=[distance+2-40,p3[1]/2,10,0,-22,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[distance+10-40,p3[1]/2,10,180,-22,0]
+        upleftpoint5pre=[distance+10-40,p3[1]/2,10,0,-22,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[distance+10,p3[1]/2,100,180,0,0]
+        upleftextrahome=[distance+10,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 
@@ -1090,27 +1096,30 @@ def door2frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft=[p4[0]+20,p4[1]-20,80,180,0,-90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]+30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
+        extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-2+30,10,180,-22,-90]
+        bottompoint1=[p4[0],p4[1]-2+30,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10+30,10,180,-22,-90]
+        prebottompoint1=[p4[0],p4[1]-10+30,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-2+30,10,180,-22,-90]
+        bottompoint2=[p1[0],p1[1]-2+30,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10+30,10,180,-22,-90]
+        prebottompoint2=[p1[0],p1[1]-10+30,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-2+30,10,180,-22,-90]
+        bottompoint12=[p4[0]-2,p4[1]-2+30,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
 
         #Extra for Bottom
-        bottomextra=[p1[0]-10,p1[1]-2-10,80,180,0,180]
+        bottomextra=[p1[0]-10,p1[1]-2-10,80,0,0,0]
 
         #Posthoming
-        posthoming=[p1[0],p1[1]-10,100,180,0,-90]
+        posthoming=[p1[0],p1[1]-10,100,0,0,90]
 
 
 
