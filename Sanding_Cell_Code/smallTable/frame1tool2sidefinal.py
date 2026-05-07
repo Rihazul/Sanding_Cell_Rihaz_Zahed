@@ -229,7 +229,10 @@ def door1frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]+30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
+        extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-4,10,0,0,90]
@@ -557,6 +560,9 @@ def door1frametool2side(force,cps):
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
+        communicate(cps=cps,config=config,point=extraleft0,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=extraleft1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=extraleft2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
         communicate(cps=cps,config=config,point=extraleft,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=bottomextra,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
