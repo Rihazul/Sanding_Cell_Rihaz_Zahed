@@ -585,16 +585,14 @@ def sandingModelATableA():
         # - Within each tool batch, execute each door's selected functions together
 
         # Tool 3 batch: pocket zigzag edge-coverage pre-pass (runs before all other tool batches).
-        # Edge coverage must be explicitly enabled on Pocket ZigZag and only runs when
-        # Pocket ZigZag has a cycle configured for that door.
+        # Edge coverage is tied to Pocket ZigZag selection only:
+        # if a door has Pocket ZigZag cycle > 0, run edge coverage for that door.
+        # This prevents unnecessary Tool 3 edge runs for frame/side/other-only jobs.
         tool3_edge_doors = []
         for door_number in zig_zag_cycle_doors:
             zigzag_cfg = zigzag_by_door.get(door_number, {})
             zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
-            edge_enabled = bool(
-                zigzag_cfg.get("edgeCoverage", zigzag_cfg.get("edge", False))
-            )
-            if zigzag_cycle > 0 and edge_enabled:
+            if zigzag_cycle > 0:
                 tool3_edge_doors.append(door_number)
         tool3_edge_doors = unique_sorted_doors(tool3_edge_doors)
         if tool3_edge_doors:
