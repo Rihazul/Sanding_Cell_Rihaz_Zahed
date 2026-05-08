@@ -355,6 +355,52 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
     releaseForce(cps=cps, config=config)
 
 
+def _split_big_door_zigzag(path_points, orientation):
+    if not path_points:
+        return [], []
+
+    mode = str(orientation or "vertical").strip().lower()
+    axis = 0 if mode == "vertical" else 1
+    travel_axis = 1 if mode == "vertical" else 0
+
+    strokes = []
+    i = 0
+    while i < len(path_points):
+        if i + 1 < len(path_points):
+            strokes.append([path_points[i], path_points[i + 1]])
+            i += 2
+        else:
+            strokes.append([path_points[i]])
+            i += 1
+
+    scored = []
+    for stroke in strokes:
+        mean_axis = sum(float(p[axis]) for p in stroke) / len(stroke)
+        scored.append((mean_axis, stroke))
+    scored.sort(key=lambda item: item[0])
+
+    half = max(1, len(scored) // 2)
+    first_half = [s for _, s in scored[:half]]
+    second_half = [s for _, s in scored[half:]]
+    if not second_half:
+        second_half = [s for _, s in scored[half - 1 :]]
+
+    def _build(stroke_list):
+        built = []
+        for idx, stroke in enumerate(stroke_list):
+            if len(stroke) == 1:
+                built.extend(stroke)
+                continue
+            low, high = sorted(stroke, key=lambda p: float(p[travel_axis]))
+            if idx % 2 == 0:
+                built.extend([low, high])
+            else:
+                built.extend([high, low])
+        return built
+
+    return _build(first_half), _build(second_half)
+
+
 def _run_door_small(door_num, force, z, cps, orientation):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
@@ -444,24 +490,48 @@ def _run_door_big(door_num, force, z, cps, orientation):
 
     prehoming = [0, 200, 50, 0, 0, 0]
 
-    _, zigzag_path1, prepoint1, _ = generate_zigzag_path(
+    _, zigzag_full, _, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
         y_coords=points["y_coords"],
         z_coords=points["z_coords"],
         innerOffset=0,
-        innerOffsetX=-10,
+        innerOffsetX=0,
         orientation=orientation,
         edge_coverage=False,
     )
-    _, zigzag_path2, prepoint2, _ = generate_zigzag_path(
-        x_coords=points["x_coords"],
-        y_coords=points["y_coords"],
-        z_coords=points["z_coords"],
-        innerOffset=0,
-        innerOffsetX=10,
-        orientation=orientation,
-        edge_coverage=False,
-    )
+    zigzag_path1, zigzag_path2 = _split_big_door_zigzag(zigzag_full, orientation)
+
+    if not zigzag_path1 and zigzag_full:
+        zigzag_path1 = zigzag_full[:]
+    if not zigzag_path2 and zigzag_full:
+        zigzag_path2 = zigzag_full[:]
+
+    prepoint1 = None
+    prepoint2 = None
+    if zigzag_path1:
+        prepoint1 = [
+            float(zigzag_path1[0][0]),
+            float(zigzag_path1[0][1]),
+            float(zigzag_path1[0][2]),
+            0,
+            0,
+            0,
+        ]
+    if zigzag_path2:
+        prepoint2 = [
+            float(zigzag_path2[0][0]),
+            float(zigzag_path2[0][1]),
+            float(zigzag_path2[0][2]),
+            0,
+            0,
+            0,
+        ]
+
+    if zigzag_path1 and zigzag_path2:
+        print(
+            f"[ModelF] Door {door_num} split: x1 start={zigzag_path1[0][:3]}, "
+            f"x2 start={zigzag_path2[0][:3]}"
+        )
 
     for pass_index, (current_tcx, current_prepoint, current_path) in enumerate([
         (tcx0, prepoint1, zigzag_path1),
