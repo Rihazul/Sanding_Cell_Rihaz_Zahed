@@ -66,7 +66,7 @@ def get_spiral_settings(cycle_data: Mapping[str, Any]) -> SpiralSettings:
     linear_speed_mm_s = _clamp(_to_float(cfg.get("linearSpeedMmS"), 150.0), 100.0, 300.0)
     turns = _to_int(cfg.get("turns"), _map_linear_speed_to_turns(linear_speed_mm_s))
     turns = _clamp(float(turns), 10.0, 20.0)
-    orientation = str(cfg.get("orientation") or "vertical").lower()
+    orientation = str(cfg.get("orientation") or "vertical").strip().lower()
     movement = str(cfg.get("movement") or "zigzag").lower()
     if movement not in {"zigzag", "rect"}:
         movement = "zigzag"
@@ -87,7 +87,7 @@ def _extract_task_fields(task_cfg: Mapping[str, Any]) -> Dict[str, Any]:
     """Extracts known fields for a TableA/TableB task section."""
     vertical_spiral = _to_bool(task_cfg.get("verticalSpiral"), False)
     horizontal_spiral = _to_bool(task_cfg.get("horizontalSpiral"), False)
-    orientation = str(task_cfg.get("orientation") or "").lower()
+    orientation = str(task_cfg.get("orientation") or "").strip().lower()
     if orientation not in {"vertical", "horizontal"}:
         orientation = "horizontal" if horizontal_spiral and not vertical_spiral else "vertical"
     edge_flag = _to_bool(task_cfg.get("edge"), _to_bool(task_cfg.get("edgeCoverage"), False))

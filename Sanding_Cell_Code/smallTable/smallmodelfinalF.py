@@ -200,7 +200,11 @@ def sandingModelFTableA():
 
             for door_number in zig_zag_cycle_doors:
                 cfg = zigzag_by_door.get(int(door_number), {})
-                orientation = str(cfg.get("orientation") or "vertical").lower()
+                orientation = str(cfg.get("orientation") or "vertical").strip().lower()
+                print(
+                    f"[ModelF] Door {door_number}: orientation='{orientation}', "
+                    f"cycle={int(cfg.get('cycle', 0))}, force={int(cfg.get('force', 0))}"
+                )
                 run_zigzag_cycles(
                     int(cfg.get("cycle", 0)),
                     int(cfg.get("force", 0)),

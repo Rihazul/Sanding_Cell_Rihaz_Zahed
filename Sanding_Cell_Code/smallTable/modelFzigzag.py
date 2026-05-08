@@ -320,7 +320,9 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
     )
     turn_vibration_on(cps)
 
-    for point in _iter_segmented_points(points1, max_force_segment_mm):
+    segmented_points = list(_iter_segmented_points(points1, max_force_segment_mm))
+    for idx, point in enumerate(segmented_points):
+        is_last = idx == (len(segmented_points) - 1)
         communicate(
             cps=cps,
             config=config,
@@ -330,7 +332,7 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
             seventh=-1,
             speed=sanding_speed,
             velocity_profile="sandingspeed",
-            wait=True,
+            wait=is_last,
         )
 
     waitForBlending(cps=cps, config=config)
@@ -584,6 +586,10 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
 
 def _run_door(door_num, force, z, cps, orientation, movement):
     # Model F: full-door zigzag only, no edge-coverage pass.
+    orientation = str(orientation or "vertical").strip().lower()
+    if orientation not in {"vertical", "horizontal"}:
+        orientation = "vertical"
+
     if movement != "zigzag":
         print(
             f"[ModelF] Requested movement='{movement}' ignored; forcing 'zigzag'."
