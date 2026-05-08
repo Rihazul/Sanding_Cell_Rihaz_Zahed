@@ -274,6 +274,43 @@ def generate_zigzag_path(
 
 
 def _perform_process_top(cps, config, points1, force, sanding_speed):
+    max_force_segment_mm = 200.0
+
+    def _iter_segmented_points(path_points, max_segment):
+        if not path_points:
+            return
+
+        previous = None
+        for target in path_points:
+            if previous is None:
+                yield target
+                previous = target
+                continue
+
+            dx = float(target[0]) - float(previous[0])
+            dy = float(target[1]) - float(previous[1])
+            dz = float(target[2]) - float(previous[2])
+            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+
+            if dist <= max_segment:
+                yield target
+                previous = target
+                continue
+
+            steps = int(math.ceil(dist / max_segment))
+            for i in range(1, steps + 1):
+                t = i / steps
+                interp = [
+                    float(previous[0]) + dx * t,
+                    float(previous[1]) + dy * t,
+                    float(previous[2]) + dz * t,
+                    float(target[3]),
+                    float(target[4]),
+                    float(target[5]),
+                ]
+                yield interp
+            previous = target
+
     putForceZminus(
         cps=cps,
         force=force,
@@ -283,7 +320,7 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
     )
     turn_vibration_on(cps)
 
-    for point in points1:
+    for point in _iter_segmented_points(points1, max_force_segment_mm):
         communicate(
             cps=cps,
             config=config,
@@ -473,10 +510,27 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             wait=True,
         )
 
+    # Split large-door coverage by Y so tcx0 handles lower half and tcx1 handles upper half.
+    y_mid = (max(points["y_coords"]) + min(points["y_coords"])) / 2.0
+    lower_half_path = [p for p in zigzag_path1 if p[1] <= y_mid]
+    upper_half_path = [p for p in zigzag_path2 if p[1] >= y_mid]
+
+    if not lower_half_path and zigzag_path1:
+        lower_half_path = zigzag_path1[:]
+    if not upper_half_path and zigzag_path2:
+        upper_half_path = zigzag_path2[:]
+
+    if lower_half_path:
+        prepoint1 = [abs(lower_half_path[0][0]) + 0.5, lower_half_path[0][1], lower_half_path[0][2], 0, 0, 0]
+    if upper_half_path:
+        prepoint2 = [abs(upper_half_path[0][0]) + 0.5, upper_half_path[0][1], upper_half_path[0][2], 0, 0, 0]
+
     for pass_index, (current_tcx, current_prepoint, current_path) in enumerate([
-        (tcx0, prepoint1, zigzag_path1),
-        (tcx1, prepoint2, zigzag_path2),
+        (tcx0, prepoint1, lower_half_path),
+        (tcx1, prepoint2, upper_half_path),
     ]):
+        if not current_path:
+            continue
         # Big-door split transition: for x2 (second pass), start 7th-axis first with wait=False
         # so the arm and linear axis transition concurrently.
         seventh_wait = False if pass_index == 1 else True
