@@ -158,7 +158,9 @@ def generate_zigzag_path(
         y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
         y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
 
-        orientation_mode = (orientation or "vertical").lower()
+        orientation_mode = str(orientation or "vertical").strip().lower()
+        if orientation_mode not in {"vertical", "horizontal"}:
+            orientation_mode = "vertical"
 
         edge_coverage_coords = []
         edge_prepoint = None
@@ -229,17 +231,23 @@ def generate_zigzag_path(
                     ]
                 )
         else:
+            # Vertical zigzag: sweep in X, stroke from bottom (y_min) to top (y_max).
+            # This keeps the expected bottom->top, top->bottom behavior per column.
+            xinner = abs(x_max - x_min)
             if xinner > 0:
                 num_steps = math.ceil(xinner / innerSandingOffset)
+                if num_steps == 0:
+                    num_steps = 1
                 adjusted_step = xinner / num_steps
 
                 offset = 0.0
                 toggle = 0
 
                 while offset <= xinner + 1e-9:
+                    current_x = x_min + offset
                     row_points = [
-                        [modified_Point1[0] + offset, modified_Point1[1], z_zigzag, 0, 0, 0],
-                        [modified_Point2[0] + offset, modified_Point2[1], z_zigzag, 0, 0, 0],
+                        [current_x, y_min, z_zigzag, 0, 0, 0],
+                        [current_x, y_max, z_zigzag, 0, 0, 0],
                     ]
                     if toggle:
                         row_points.reverse()
@@ -247,6 +255,13 @@ def generate_zigzag_path(
                     zigzag_coords.extend(row_points)
                     offset += adjusted_step
                     toggle = 1 - toggle
+            else:
+                zigzag_coords.extend(
+                    [
+                        [x_min, y_min, z_zigzag, 0, 0, 0],
+                        [x_min, y_max, z_zigzag, 0, 0, 0],
+                    ]
+                )
 
         for point in zigzag_coords:
             point[1] = abs(point[1])
@@ -340,7 +355,7 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
     releaseForce(cps=cps, config=config)
 
 
-def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
+def _run_door_small(door_num, force, z, cps, orientation):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
@@ -353,14 +368,14 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
     prehoming = [0, 200, 50, 0, 0, 0]
     x1 = p8[0] + get_door_position(door_num)
 
-    edge_path, zigzag_path, prepoint, edge_prepoint = generate_zigzag_path(
+    _, zigzag_path, prepoint, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
         y_coords=points["y_coords"],
         z_coords=points["z_coords"],
         innerOffset=0,
         innerOffsetX=0,
         orientation=orientation,
-        edge_coverage=edge_coverage,
+        edge_coverage=False,
     )
 
     communicate(
@@ -384,22 +399,6 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         velocity_profile="robotspeed",
         wait=True,
     )
-
-    if edge_path:
-        communicate(
-            cps=cps,
-            config=config,
-            point=edge_prepoint,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        _perform_process_top(
-            cps, config, points1=edge_path, force=force, sanding_speed=sanding_speed
-        )
 
     communicate(
         cps=cps,
@@ -428,7 +427,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
     )
 
 
-def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
+def _run_door_big(door_num, force, z, cps, orientation):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
@@ -445,14 +444,14 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
 
     prehoming = [0, 200, 50, 0, 0, 0]
 
-    edge_path, zigzag_path1, prepoint1, edge_prepoint = generate_zigzag_path(
+    _, zigzag_path1, prepoint1, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
         y_coords=points["y_coords"],
         z_coords=points["z_coords"],
         innerOffset=0,
         innerOffsetX=-10,
         orientation=orientation,
-        edge_coverage=edge_coverage,
+        edge_coverage=False,
     )
     _, zigzag_path2, prepoint2, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
@@ -464,72 +463,9 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
         edge_coverage=False,
     )
 
-    if edge_path:
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=tcx0,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=edge_prepoint,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        _perform_process_top(
-            cps, config, points1=edge_path, force=force, sanding_speed=sanding_speed
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-
-    # Split large-door coverage by Y so tcx0 handles lower half and tcx1 handles upper half.
-    y_mid = (max(points["y_coords"]) + min(points["y_coords"])) / 2.0
-    lower_half_path = [p for p in zigzag_path1 if p[1] <= y_mid]
-    upper_half_path = [p for p in zigzag_path2 if p[1] >= y_mid]
-
-    if not lower_half_path and zigzag_path1:
-        lower_half_path = zigzag_path1[:]
-    if not upper_half_path and zigzag_path2:
-        upper_half_path = zigzag_path2[:]
-
-    if lower_half_path:
-        prepoint1 = [abs(lower_half_path[0][0]) + 0.5, lower_half_path[0][1], lower_half_path[0][2], 0, 0, 0]
-    if upper_half_path:
-        prepoint2 = [abs(upper_half_path[0][0]) + 0.5, upper_half_path[0][1], upper_half_path[0][2], 0, 0, 0]
-
     for pass_index, (current_tcx, current_prepoint, current_path) in enumerate([
-        (tcx0, prepoint1, lower_half_path),
-        (tcx1, prepoint2, upper_half_path),
+        (tcx0, prepoint1, zigzag_path1),
+        (tcx1, prepoint2, zigzag_path2),
     ]):
         if not current_path:
             continue
@@ -594,7 +530,6 @@ def _run_door(door_num, force, z, cps, orientation, movement):
         print(
             f"[ModelF] Requested movement='{movement}' ignored; forcing 'zigzag'."
         )
-    edge_coverage = False
 
     ylen_data = get_y_values(door_num, default_on_error=True)
     xlen_data = get_x_values(door_num, default_on_error=True)
@@ -620,9 +555,9 @@ def _run_door(door_num, force, z, cps, orientation, movement):
         print(
             f"[ModelF] Door {door_num}: large area detected (x={xlen_num:.1f}, y={ylen_num:.1f}) -> 2 seventh-axis passes."
         )
-        _run_door_big(door_num, force, z, cps, orientation, edge_coverage)
+        _run_door_big(door_num, force, z, cps, orientation)
     else:
-        _run_door_small(door_num, force, z, cps, orientation, edge_coverage)
+        _run_door_small(door_num, force, z, cps, orientation)
 
 
 def smalldoor1zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None):
