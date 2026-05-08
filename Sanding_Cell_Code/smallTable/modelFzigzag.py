@@ -499,12 +499,16 @@ def _run_door_big(door_num, force, z, cps, orientation):
         orientation=orientation,
         edge_coverage=False,
     )
-    zigzag_path1, zigzag_path2 = _split_big_door_zigzag(zigzag_full, orientation)
+    zigzag_path1, zigzag_path2_global = _split_big_door_zigzag(zigzag_full, orientation)
 
     if not zigzag_path1 and zigzag_full:
         zigzag_path1 = zigzag_full[:]
-    if not zigzag_path2 and zigzag_full:
-        zigzag_path2 = zigzag_full[:]
+    if zigzag_path1:
+        # Use the same local half-path for x2; seventh-axis shift places it on the
+        # second half of the door without double-shifting toward the outside.
+        zigzag_path2 = [list(p) for p in zigzag_path1]
+    else:
+        zigzag_path2 = zigzag_path2_global if zigzag_path2_global else zigzag_full[:]
 
     prepoint1 = None
     prepoint2 = None
