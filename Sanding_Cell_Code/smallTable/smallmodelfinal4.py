@@ -13,7 +13,7 @@ from smallTable.model4zigzag import smalldoor1zizag,smalldoor2zizag,smalldoor3zi
 from smallTable.pocketplane1final import smalldoor1pocket,smalldoor2pocket,smalldoor3pocket,smalldoor4pocket
 from smallTable.frame1tool2sidefinal import door1frametool2side,door2frametool2side,door3frametool2side,door4frametool2side
 from smallTable.frame1tool2edgefinal import door1frametool2sideedge,door2frametool2sideedge,door3frametool2sideedge,door4frametool2sideedge
-from smallTable.model4tool3 import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
+from smallTable.tool1_modelD_internal import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
 
 from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,waitForBlending,toolValve1,msg_to_frontend,keepToolupdated,getToolUpdated
 from modules.CPS import CPSClient
@@ -174,7 +174,7 @@ def run_tool2side_edgecycles(count, force, door_num,cps):
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)
 
-def run_tool3_cycles(count,door_num, z,cps):
+def run_tool3_cycles(count, door_num, z, cps, force):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
         return
@@ -191,7 +191,7 @@ def run_tool3_cycles(count,door_num, z,cps):
 
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(z=z,cps=cps)
+        door_func(z=z, cps=cps, force=force)
         if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)
@@ -597,7 +597,13 @@ def sandingModelDETableA():
             #     run_tool3_cycles(tl3sideedge_cycle, int(door_number), z2)
             for door_number in tl3sideedge_door:
                 cfg = tool3_by_door.get(int(door_number), {})
-                run_tool3_cycles(int(cfg.get('cycle', 0)), int(door_number), z2, cps)
+                run_tool3_cycles(
+                    int(cfg.get('cycle', 0)),
+                    int(door_number),
+                    z2,
+                    cps,
+                    int(cfg.get('force', 0)),
+                )
             
             #Drop Tool 2
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)

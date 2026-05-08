@@ -3,11 +3,11 @@
 import sys
 import os
 import time
+import json
 # Add parent directory to path so Python can find the modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
-import threading
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,putForceXminus
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
@@ -27,13 +27,76 @@ def load_config():
         config = yaml.safe_load(file)
     return config
 
-def smalldoor1tool3(z,cps):
+
+
+
+
+def _load_cycle_config():
+    """Loads cycleData.json for runtime speed settings."""
+    try:
+        with open('./configs/cycleData.json', 'r') as file:
+            return json.load(file)
+    except Exception:
+        return {}
+
+
+def _get_motion_speeds(config):
+    """Return (robot_speed, sanding_speed) with safe fallbacks."""
+    cycle_cfg = _load_cycle_config()
+    ui_cfg = config.get('UI', {}) if isinstance(config, dict) else {}
+
+    def _to_float(value, default):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    robot_default = ui_cfg.get('robotSpeed', 0.7)
+    sand_default = ui_cfg.get('sandSpeed', 0.6)
+
+    robot_speed = _to_float(cycle_cfg.get('robotSpeed', robot_default), robot_default)
+    sanding_speed = _to_float(cycle_cfg.get('sandingSpeed', sand_default), sand_default)
+
+    return robot_speed, sanding_speed
+
+
+def _resolve_force(user_force, default_force=5.0):
+    try:
+        if user_force is None:
+            return float(default_force)
+        return float(user_force)
+    except (TypeError, ValueError):
+        return float(default_force)
+
+
+
+
+def _is_big_door(door_number):
+    """Return True when door must run split path: x > 280 and y > 600."""
+    x_data = get_x_values(door_number, default_on_error=True)
+    y_data = get_y_values(door_number, default_on_error=True)
+    xlen = x_data.get('xlen') if isinstance(x_data, dict) else None
+    ylen = y_data.get('ylen') if isinstance(y_data, dict) else None
+
+    print(f"door {door_number} xlen: {xlen}")
+    print(f"door {door_number} ylen: {ylen}")
+
+    if not isinstance(xlen, (int, float)) or not isinstance(ylen, (int, float)):
+        print("No valid door size data available - using small-door path")
+        return False
+
+    return xlen > 280 and ylen > 600
+
+
+def smalldoor1tool3(z,cps,force=None):
+    applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
         config = load_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -56,20 +119,20 @@ def smalldoor1tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(1, 0)
+        b0 = get_outer_corner_point(1, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(1, 1)
+        b1 = get_outer_corner_point(1, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(1, 2)
+        b2= get_outer_corner_point(1, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(1, 3)
+        b3 = get_outer_corner_point(1, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(1)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -151,7 +214,7 @@ def smalldoor1tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -160,8 +223,8 @@ def smalldoor1tool3(z,cps):
             for point in points1:
                 if point==tpoint40:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -170,11 +233,12 @@ def smalldoor1tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -189,7 +253,7 @@ def smalldoor1tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -198,8 +262,8 @@ def smalldoor1tool3(z,cps):
             for point in points1:
                 if point==ttpoint52:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -208,11 +272,12 @@ def smalldoor1tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -241,11 +306,12 @@ def smalldoor1tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -254,15 +320,15 @@ def smalldoor1tool3(z,cps):
             
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -271,6 +337,7 @@ def smalldoor1tool3(z,cps):
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -294,20 +361,20 @@ def smalldoor1tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(1, 0)
+        b0 = get_outer_corner_point(1, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(1, 1)
+        b1 = get_outer_corner_point(1, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(1, 2)
+        b2= get_outer_corner_point(1, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(1, 3)
+        b3 = get_outer_corner_point(1, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(1)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25 #Before 29 now it will be 26
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -354,11 +421,12 @@ def smalldoor1tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -375,7 +443,7 @@ def smalldoor1tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -384,8 +452,8 @@ def smalldoor1tool3(z,cps):
             for point in points1:
                 if point==tpoint01:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -394,11 +462,12 @@ def smalldoor1tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -408,35 +477,36 @@ def smalldoor1tool3(z,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    ylen_data = get_y_values(1, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
+    try:
+        if _is_big_door(1):
             smalldoortool3big(z,cps)
         else:
             smalldoortool3small(z,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    finally:
+        try:
+            turn_vibration_off(cps)
+        except Exception:
+            pass
+        try:
+            releaseForce(cps=cps, config=load_config())
+        except Exception:
+            pass
 
-def smalldoor2tool3(z,cps):
+def smalldoor2tool3(z,cps,force=None):
+    applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
         config = load_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -458,20 +528,20 @@ def smalldoor2tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(2, 0)
+        b0 = get_outer_corner_point(2, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(2, 1)
+        b1 = get_outer_corner_point(2, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(2, 2)
+        b2= get_outer_corner_point(2, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(2, 3)
+        b3 = get_outer_corner_point(2, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(2)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -552,7 +622,7 @@ def smalldoor2tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -561,8 +631,8 @@ def smalldoor2tool3(z,cps):
             for point in points1:
                 if point==tpoint40:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -571,11 +641,12 @@ def smalldoor2tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -590,7 +661,7 @@ def smalldoor2tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -598,8 +669,8 @@ def smalldoor2tool3(z,cps):
             for point in points1:
                 if point==ttpoint52:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -608,11 +679,12 @@ def smalldoor2tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -641,11 +713,12 @@ def smalldoor2tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -654,15 +727,15 @@ def smalldoor2tool3(z,cps):
             
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -671,6 +744,7 @@ def smalldoor2tool3(z,cps):
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -694,20 +768,20 @@ def smalldoor2tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(2, 0)
+        b0 = get_outer_corner_point(2, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(2, 1)
+        b1 = get_outer_corner_point(2, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(2, 2)
+        b2= get_outer_corner_point(2, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(2, 3)
+        b3 = get_outer_corner_point(2, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(2)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25 #Before 29 now it will be 26
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -756,11 +830,12 @@ def smalldoor2tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -777,7 +852,7 @@ def smalldoor2tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -786,8 +861,8 @@ def smalldoor2tool3(z,cps):
             for point in points1:
                 if point==tpoint01:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -796,11 +871,12 @@ def smalldoor2tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -809,35 +885,36 @@ def smalldoor2tool3(z,cps):
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    ylen_data = get_y_values(1, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
+    try:
+        if _is_big_door(2):
             smalldoortool3big(z,cps)
         else:
             smalldoortool3small(z,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    finally:
+        try:
+            turn_vibration_off(cps)
+        except Exception:
+            pass
+        try:
+            releaseForce(cps=cps, config=load_config())
+        except Exception:
+            pass
 
-def smalldoor3tool3(z,cps):
+def smalldoor3tool3(z,cps,force=None):
+    applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
         config = load_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -860,20 +937,20 @@ def smalldoor3tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(3, 0)
+        b0 = get_outer_corner_point(3, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(3, 1)
+        b1 = get_outer_corner_point(3, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(3, 2)
+        b2= get_outer_corner_point(3, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(3, 3)
+        b3 = get_outer_corner_point(3, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(3)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -955,7 +1032,7 @@ def smalldoor3tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -964,8 +1041,8 @@ def smalldoor3tool3(z,cps):
             for point in points1:
                 if point==tpoint40:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -974,11 +1051,12 @@ def smalldoor3tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -993,7 +1071,7 @@ def smalldoor3tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -1002,8 +1080,8 @@ def smalldoor3tool3(z,cps):
             for point in points1:
                 if point==ttpoint52:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -1012,11 +1090,12 @@ def smalldoor3tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1045,11 +1124,12 @@ def smalldoor3tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1057,15 +1137,15 @@ def smalldoor3tool3(z,cps):
             turn_vibration_off(cps)
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -1074,6 +1154,7 @@ def smalldoor3tool3(z,cps):
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -1096,13 +1177,13 @@ def smalldoor3tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(3, 0)
+        b0 = get_outer_corner_point(3, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(3, 1)
+        b1 = get_outer_corner_point(3, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(3, 2)
+        b2= get_outer_corner_point(3, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(3, 3)
+        b3 = get_outer_corner_point(3, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(3)
@@ -1111,7 +1192,7 @@ def smalldoor3tool3(z,cps):
         #Offsets
     
     
-        Tooloffset=25 #Before 29 now it will be 26
+        Tooloffset=0
 
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
@@ -1159,11 +1240,12 @@ def smalldoor3tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1180,7 +1262,7 @@ def smalldoor3tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -1189,8 +1271,8 @@ def smalldoor3tool3(z,cps):
             for point in points1:
                 if point==tpoint01:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -1199,11 +1281,12 @@ def smalldoor3tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1213,35 +1296,36 @@ def smalldoor3tool3(z,cps):
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    ylen_data = get_y_values(1, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
+    try:
+        if _is_big_door(3):
             smalldoortool3big(z,cps)
         else:
             smalldoortool3small(z,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    finally:
+        try:
+            turn_vibration_off(cps)
+        except Exception:
+            pass
+        try:
+            releaseForce(cps=cps, config=load_config())
+        except Exception:
+            pass
 
-def smalldoor4tool3(z,cps):
+def smalldoor4tool3(z,cps,force=None):
+    applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
         config = load_config()
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -1264,20 +1348,20 @@ def smalldoor4tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(4, 0)
+        b0 = get_outer_corner_point(4, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(4, 1)
+        b1 = get_outer_corner_point(4, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(4, 2)
+        b2= get_outer_corner_point(4, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(4, 3)
+        b3 = get_outer_corner_point(4, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(4)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -1358,7 +1442,7 @@ def smalldoor4tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -1367,8 +1451,8 @@ def smalldoor4tool3(z,cps):
             for point in points1:
                 if point==tpoint40:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -1377,11 +1461,12 @@ def smalldoor4tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1396,7 +1481,7 @@ def smalldoor4tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -1405,8 +1490,8 @@ def smalldoor4tool3(z,cps):
             for point in points1:
                 if point==ttpoint52:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -1415,11 +1500,12 @@ def smalldoor4tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1448,11 +1534,12 @@ def smalldoor4tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1460,15 +1547,15 @@ def smalldoor4tool3(z,cps):
             turn_vibration_off(cps)
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -1477,6 +1564,7 @@ def smalldoor4tool3(z,cps):
 
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
+        robot_speed, sanding_speed = _get_motion_speeds(config)
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -1499,20 +1587,20 @@ def smalldoor4tool3(z,cps):
 
         #Points Actual
         #Main Points
-        b0 = get_inner_corner_point(4, 0)
+        b0 = get_outer_corner_point(4, 0)
         print("b0:", b0)
-        b1 = get_inner_corner_point(4, 1)
+        b1 = get_outer_corner_point(4, 1)
         print("b1:", b1)
-        b2= get_inner_corner_point(4, 2)
+        b2= get_outer_corner_point(4, 2)
         print("b2:", b2)
-        b3 = get_inner_corner_point(4, 3)
+        b3 = get_outer_corner_point(4, 3)
         print("b3", b3)
         #7th axis postion
         x1=get_door_position(4)
         print("x1:", x1)
         
         #Offsets
-        Tooloffset=25 #Before 29 now it will be 26
+        Tooloffset=0
 
         point0=[ b0[0], b0[1], 0, 0, 0, 0]
         print("point0:", point0)
@@ -1561,11 +1649,12 @@ def smalldoor4tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.4,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1582,7 +1671,7 @@ def smalldoor4tool3(z,cps):
             #putForceZplus(
                 #cps=cps,
                 #force=15,
-                #tcp=config['coords']['tcptool3plane1'],
+                #tcp=config['coords']['tcptool1plane1'],
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
@@ -1591,8 +1680,8 @@ def smalldoor4tool3(z,cps):
             for point in points1:
                 if point==tpoint01:putForceZminus(
                 cps=cps,
-                force=5,
-                tcp=config['coords']['tcptool3plane1'],
+                force=applied_force,
+                tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 config=config
                 )
@@ -1601,11 +1690,12 @@ def smalldoor4tool3(z,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcptool3plane1'],
+                    tcp=config['coords']['tcptool1plane1'],
                     ucs=config['coords']['ucsTable1'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True
                 )
             
             # Wait for blending and turn off vibration
@@ -1614,30 +1704,32 @@ def smalldoor4tool3(z,cps):
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],speed=0.6,wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=0.6,wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    ylen_data = get_y_values(1, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
+    try:
+        if _is_big_door(4):
             smalldoortool3big(z,cps)
         else:
             smalldoortool3small(z,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    finally:
+        try:
+            turn_vibration_off(cps)
+        except Exception:
+            pass
+        try:
+            releaseForce(cps=cps, config=load_config())
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     smalldoor1tool3(z=-10)
     smalldoor2tool3(z=-10)
     smalldoor3tool3(z=-10)
     smalldoor4tool3(z=-10)
+
+
+
