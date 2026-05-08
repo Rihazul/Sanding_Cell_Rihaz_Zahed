@@ -46,6 +46,27 @@ def load_json_config():
     return config
 
 
+def _get_motion_speeds(config):
+    cycle_cfg = load_json_config()
+    ui_cfg = config.get("UI", {}) if isinstance(config, dict) else {}
+
+    def _to_float(value, default):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(default)
+
+    robot_default = ui_cfg.get("robotSpeed", 0.7)
+    sanding_default = ui_cfg.get("sandSpeed", 0.6)
+
+    robot_speed = _to_float(cycle_cfg.get("robotSpeed", robot_default), robot_default)
+    sanding_speed = _to_float(
+        cycle_cfg.get("sandingSpeed", sanding_default), sanding_default
+    )
+
+    return robot_speed, sanding_speed
+
+
 def _compute_boundary_points(door_num, frame_offset, z):
     p80 = get_outer_corner_point(door_num, 0)
     p70 = get_outer_corner_point(door_num, 1)
@@ -252,7 +273,7 @@ def generate_zigzag_path(
     return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
 
-def _perform_process_top(cps, config, points1, force):
+def _perform_process_top(cps, config, points1, force, sanding_speed):
     putForceZminus(
         cps=cps,
         force=force,
@@ -270,8 +291,9 @@ def _perform_process_top(cps, config, points1, force):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=0.6,
-            wait=False,
+            speed=sanding_speed,
+            velocity_profile="sandingspeed",
+            wait=True,
         )
 
     waitForBlending(cps=cps, config=config)
@@ -283,8 +305,7 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
-    json_config = load_json_config()
-    speeed = float(json_config["robotSpeed"])
+    robot_speed, sanding_speed = _get_motion_speeds(config)
 
     frame_offset = 0
     points = _compute_boundary_points(door_num, frame_offset, z)
@@ -309,7 +330,8 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         seventh=x1,
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
-        speed=speeed,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
         wait=True,
     )
     communicate(
@@ -319,7 +341,8 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
-        speed=speeed,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
         wait=True,
     )
 
@@ -331,10 +354,13 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
-        _perform_process_top(cps, config, points1=edge_path, force=force)
+        _perform_process_top(
+            cps, config, points1=edge_path, force=force, sanding_speed=sanding_speed
+        )
 
     communicate(
         cps=cps,
@@ -343,10 +369,13 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
-        speed=speeed,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
         wait=True,
     )
-    _perform_process_top(cps, config, points1=zigzag_path, force=force)
+    _perform_process_top(
+        cps, config, points1=zigzag_path, force=force, sanding_speed=sanding_speed
+    )
     communicate(
         cps=cps,
         config=config,
@@ -354,7 +383,8 @@ def _run_door_small(door_num, force, z, cps, orientation, edge_coverage):
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
-        speed=speeed,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
         wait=True,
     )
 
@@ -363,8 +393,7 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
-    json_config = load_json_config()
-    speeed = float(json_config["robotSpeed"])
+    robot_speed, sanding_speed = _get_motion_speeds(config)
 
     frame_offset = 0
     points = _compute_boundary_points(door_num, frame_offset, z)
@@ -403,7 +432,8 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             seventh=tcx0,
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
         communicate(
@@ -413,7 +443,8 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
         communicate(
@@ -423,10 +454,13 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
-        _perform_process_top(cps, config, points1=edge_path, force=force)
+        _perform_process_top(
+            cps, config, points1=edge_path, force=force, sanding_speed=sanding_speed
+        )
         communicate(
             cps=cps,
             config=config,
@@ -434,22 +468,27 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
 
-    for current_tcx, current_prepoint, current_path in [
+    for pass_index, (current_tcx, current_prepoint, current_path) in enumerate([
         (tcx0, prepoint1, zigzag_path1),
         (tcx1, prepoint2, zigzag_path2),
-    ]:
+    ]):
+        # Big-door split transition: for x2 (second pass), start 7th-axis first with wait=False
+        # so the arm and linear axis transition concurrently.
+        seventh_wait = False if pass_index == 1 else True
         communicate(
             cps=cps,
             config=config,
             seventh=current_tcx,
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
-            speed=speeed,
-            wait=True,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=seventh_wait,
         )
         communicate(
             cps=cps,
@@ -458,7 +497,8 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
         communicate(
@@ -468,10 +508,13 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
-        _perform_process_top(cps, config, points1=current_path, force=force)
+        _perform_process_top(
+            cps, config, points1=current_path, force=force, sanding_speed=sanding_speed
+        )
         communicate(
             cps=cps,
             config=config,
@@ -479,13 +522,18 @@ def _run_door_big(door_num, force, z, cps, orientation, edge_coverage):
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=speeed,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
 
 
 def _run_door(door_num, force, z, cps, orientation, movement):
     # Model F: full-door zigzag only, no edge-coverage pass.
+    if movement != "zigzag":
+        print(
+            f"[ModelF] Requested movement='{movement}' ignored; forcing 'zigzag'."
+        )
     edge_coverage = False
 
     ylen_data = get_y_values(door_num, default_on_error=True)

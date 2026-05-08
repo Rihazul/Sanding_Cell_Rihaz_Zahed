@@ -120,6 +120,14 @@ def sandingModelFTableA():
 
     zigzag_by_door = get_tableA_task_by_door(json_config_TableA, "pocketzigzag")
     zig_zag_cycle_doors = doors_with_cycles(zigzag_by_door)
+    ignored_tasks = {
+        "frame": get_tableA_task_by_door(json_config_TableA, "frame"),
+        "pocketsquare": get_tableA_task_by_door(json_config_TableA, "pocketsquare"),
+        "3D": get_tableA_task_by_door(json_config_TableA, "3D"),
+        "edgeInside": get_tableA_task_by_door(json_config_TableA, "edgeInside"),
+        "edgeOutside": get_tableA_task_by_door(json_config_TableA, "edgeOutside"),
+        "side": get_tableA_task_by_door(json_config_TableA, "side"),
+    }
 
     z = -4
     speeed = float(json_config["robotSpeed"])
@@ -149,6 +157,13 @@ def sandingModelFTableA():
         return ci0_local, ci1_local, ci2_local
 
     try:
+        for task_name, task_by_door in ignored_tasks.items():
+            if any_cycles(task_by_door):
+                print(
+                    f"[ModelF] Task '{task_name}' is configured but ignored. "
+                    "Model F runs Tool4 zigzag only."
+                )
+
         if not any_cycles(zigzag_by_door):
             print("No zigzag cycles configured for Model F.")
             return
