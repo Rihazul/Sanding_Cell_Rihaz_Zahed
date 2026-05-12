@@ -26,6 +26,9 @@ from smallTable.scancord import (
     get_y_values,
 )
 
+TRANSFER_LIFT_Z_MM = 70.0
+FORCE_APPROACH_LIFT_MM = 8.0
+
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -65,6 +68,14 @@ def _get_motion_speeds(config):
     )
 
     return robot_speed, sanding_speed
+
+
+def _with_lift(point, lift_mm):
+    if not point:
+        return point
+    lifted = list(point)
+    lifted[2] = float(lifted[2]) + float(lift_mm)
+    return lifted
 
 
 def _compute_boundary_points(door_num, frame_offset, z):
@@ -409,7 +420,7 @@ def _run_door_small(door_num, force, z, cps, orientation):
     points = _compute_boundary_points(door_num, frame_offset, z)
     p8 = points["p8"]
 
-    prehoming = [0, 200, 50, 0, 0, 0]
+    prehoming = [0, 200, TRANSFER_LIFT_Z_MM, 0, 0, 0]
     x1 = p8[0] + get_door_position(door_num)
 
     _, zigzag_path, prepoint, _ = generate_zigzag_path(
@@ -455,6 +466,17 @@ def _run_door_small(door_num, force, z, cps, orientation):
         velocity_profile="robotspeed",
         wait=True,
     )
+    communicate(
+        cps=cps,
+        config=config,
+        point=_with_lift(prepoint, FORCE_APPROACH_LIFT_MM),
+        tcp=config["coords"]["tcptool4plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
+        wait=True,
+    )
     _perform_process_top(
         cps, config, points1=zigzag_path, force=force, sanding_speed=sanding_speed
     )
@@ -486,7 +508,7 @@ def _run_door_big(door_num, force, z, cps, orientation):
     tcx0 = p8[0] + get_door_position(door_num)
     tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
 
-    prehoming = [0, 200, 50, 0, 0, 0]
+    prehoming = [0, 200, TRANSFER_LIFT_Z_MM, 0, 0, 0]
 
     _, zigzag_full, _, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
@@ -570,6 +592,17 @@ def _run_door_big(door_num, force, z, cps, orientation):
             cps=cps,
             config=config,
             point=current_prepoint,
+            tcp=config["coords"]["tcptool4plane1"],
+            ucs=config["coords"]["ucsTable1"],
+            seventh=-1,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=_with_lift(current_prepoint, FORCE_APPROACH_LIFT_MM),
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
