@@ -118,8 +118,6 @@ def generate_zigzag_path(
     prepoint = None
     zigzag_coords = []
 
-    tool3y = 50.8
-    tool3x = 38.1
     xframe_1 = 0
     xframe_2 = 0
 
@@ -134,20 +132,20 @@ def generate_zigzag_path(
         z_zigzag = boundary_coords[0][2]
 
         modified_Point2 = [
-            (x_coords[1]) / 1 + tool3x + innerOffsetX,
-            y_coords[1] - tool3y - (innerOffset),
+            x_coords[1] + innerOffsetX,
+            y_coords[1] - innerOffset,
         ]
         modified_Point3 = [
-            x_coords[2] - tool3x - innerOffset,
-            y_coords[2] - tool3y - innerOffset,
+            x_coords[2] - innerOffset,
+            y_coords[2] - innerOffset,
         ]
         modified_Point1 = [
-            (x_coords[0]) / 1 + tool3x + innerOffsetX,
-            y_coords[0] + tool3y + innerOffset,
+            x_coords[0] + innerOffsetX,
+            y_coords[0] + innerOffset,
         ]
         modified_Point4 = [
-            x_coords[3] - tool3x - innerOffset,
-            y_coords[3] + tool3y + innerOffset,
+            x_coords[3] - innerOffset,
+            y_coords[3] + innerOffset,
         ]
 
         xlen1 = abs(modified_Point3[0] - modified_Point1[0])
@@ -167,20 +165,20 @@ def generate_zigzag_path(
         edge_offset = 1.75
         if edge_coverage:
             edge_Point1 = [
-                x_coords[0] + tool3x + edge_offset,
-                y_coords[0] + tool3y + edge_offset,
+                x_coords[0] + edge_offset,
+                y_coords[0] + edge_offset,
             ]
             edge_Point2 = [
-                x_coords[1] + tool3x + edge_offset,
-                y_coords[1] - tool3y - edge_offset,
+                x_coords[1] + edge_offset,
+                y_coords[1] - edge_offset,
             ]
             edge_Point3 = [
-                x_coords[2] - tool3x - edge_offset,
-                y_coords[2] - tool3y - edge_offset,
+                x_coords[2] - edge_offset,
+                y_coords[2] - edge_offset,
             ]
             edge_Point4 = [
-                x_coords[3] - tool3x - edge_offset,
-                y_coords[3] + tool3y + edge_offset,
+                x_coords[3] - edge_offset,
+                y_coords[3] + edge_offset,
             ]
 
             if orientation_mode == "horizontal":
@@ -543,8 +541,6 @@ def _run_door_big(door_num, force, z, cps, orientation):
     ]):
         if not current_path:
             continue
-        # Big-door split transition: for x2 (second pass), start 7th-axis first with wait=False
-        # so the arm and linear axis transition concurrently.
         seventh_wait = False if pass_index == 1 else True
         communicate(
             cps=cps,
@@ -556,17 +552,20 @@ def _run_door_big(door_num, force, z, cps, orientation):
             velocity_profile="robotspeed",
             wait=seventh_wait,
         )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
+        # First pass: move to lift after reaching x1.
+        # Second pass: skip (already lifted at end of pass 1), keep transition simple.
+        if pass_index == 0:
+            communicate(
+                cps=cps,
+                config=config,
+                point=prehoming,
+                tcp=config["coords"]["tcptool4plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=robot_speed,
+                velocity_profile="robotspeed",
+                wait=True,
+            )
         communicate(
             cps=cps,
             config=config,
@@ -624,8 +623,8 @@ def _run_door(door_num, force, z, cps, orientation, movement):
         )
         return
 
-    # Large door rule: 2 seventh-axis passes when y > 600 or x > 280.
-    if ylen_num > 600 or xlen_num > 280:
+    # Large door rule: split only when BOTH dimensions exceed thresholds.
+    if ylen_num > 600 and xlen_num > 280:
         print(
             f"[ModelF] Door {door_num}: large area detected (x={xlen_num:.1f}, y={ylen_num:.1f}) -> 2 seventh-axis passes."
         )
