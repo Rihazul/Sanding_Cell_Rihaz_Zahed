@@ -41,6 +41,23 @@ def load_config():
     coords = config.get("coords", {})
     if coords.get("tcptool4plane1"):
         coords["tcptool1plane1"] = coords["tcptool4plane1"]
+
+    # Model F big-door split paths can queue many sanding points with wait=False
+    # before the final wait=True. Increase sanding wait/blend budgets so we do
+    # not release force and lift early due timeout.
+    door_cfg = config.setdefault("door", {})
+    try:
+        door_cfg["sandingMoveLMinTimeoutSec"] = max(
+            300.0, float(door_cfg.get("sandingMoveLMinTimeoutSec", 60.0))
+        )
+    except (TypeError, ValueError):
+        door_cfg["sandingMoveLMinTimeoutSec"] = 300.0
+    try:
+        door_cfg["sandingBlendTimeoutSeconds"] = max(
+            120.0, float(door_cfg.get("sandingBlendTimeoutSeconds", 30.0))
+        )
+    except (TypeError, ValueError):
+        door_cfg["sandingBlendTimeoutSeconds"] = 120.0
     return config
 
 
@@ -552,9 +569,10 @@ def _run_door_big(door_num, force, z, cps, orientation):
 
     if not zigzag_path1 and zigzag_full:
         zigzag_path1 = zigzag_full[:]
+
+    # Big-door requirement: both passes must use the same path shape/coverage
+    # and be split only by seventh-axis (x1 vs x2).
     if zigzag_path1:
-        # Use the same local half-path for x2; seventh-axis shift places it on the
-        # second half of the door without double-shifting toward the outside.
         zigzag_path2 = [list(p) for p in zigzag_path1]
     else:
         zigzag_path2 = zigzag_path2_global if zigzag_path2_global else zigzag_full[:]
