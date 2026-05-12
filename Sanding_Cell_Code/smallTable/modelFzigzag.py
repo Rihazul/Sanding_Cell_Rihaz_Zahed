@@ -602,10 +602,18 @@ def _run_door_big(door_num, force, z, cps, orientation):
             f"x2 start={zigzag_path2[0][:3]}"
         )
 
-    pass_plan = [
-        (tcx0, zigzag_path1),
-        (tcx1, zigzag_path2),
-    ]
+    if orientation_mode == "horizontal":
+        # Horizontal big-door split is by rows (bottom half, then top half),
+        # so keep the same seventh-axis reference to avoid shifting outside.
+        pass_plan = [
+            (tcx0, zigzag_path1),
+            (tcx0, zigzag_path2),
+        ]
+    else:
+        pass_plan = [
+            (tcx0, zigzag_path1),
+            (tcx1, zigzag_path2),
+        ]
 
     for pass_index, (current_tcx, current_path) in enumerate(pass_plan):
         if not current_path:
