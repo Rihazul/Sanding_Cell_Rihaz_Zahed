@@ -570,9 +570,28 @@ def _run_door_big(door_num, force, z, cps, orientation):
     if not zigzag_path1 and zigzag_full:
         zigzag_path1 = zigzag_full[:]
 
-    # Big-door requirement: both passes must use the same path shape/coverage
-    # and be split only by seventh-axis (x1 vs x2).
-    if zigzag_path1:
+    orientation_mode = str(orientation or "vertical").strip().lower()
+    # Big-door reach split requirement: both orientations use 2 passes with
+    # seventh-axis x1/x2 shift.
+    # For horizontal, pass 2 must use the remaining upper rows (mid->top).
+    if orientation_mode == "horizontal" and zigzag_path1 and zigzag_path2_global:
+        mean_x1 = sum(float(p[0]) for p in zigzag_path1) / float(len(zigzag_path1))
+        mean_x2 = sum(float(p[0]) for p in zigzag_path2_global) / float(
+            len(zigzag_path2_global)
+        )
+        x_shift = mean_x2 - mean_x1
+        zigzag_path2 = [
+            [
+                float(p[0]) - x_shift,
+                float(p[1]),
+                float(p[2]),
+                float(p[3]),
+                float(p[4]),
+                float(p[5]),
+            ]
+            for p in zigzag_path2_global
+        ]
+    elif zigzag_path1:
         zigzag_path2 = [list(p) for p in zigzag_path1]
     else:
         zigzag_path2 = zigzag_path2_global if zigzag_path2_global else zigzag_full[:]
@@ -583,10 +602,12 @@ def _run_door_big(door_num, force, z, cps, orientation):
             f"x2 start={zigzag_path2[0][:3]}"
         )
 
-    for pass_index, (current_tcx, current_path) in enumerate([
+    pass_plan = [
         (tcx0, zigzag_path1),
         (tcx1, zigzag_path2),
-    ]):
+    ]
+
+    for pass_index, (current_tcx, current_path) in enumerate(pass_plan):
         if not current_path:
             continue
         seventh_wait = False
