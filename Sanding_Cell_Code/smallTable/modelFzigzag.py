@@ -28,6 +28,7 @@ from smallTable.scancord import (
 
 TRANSFER_LIFT_Z_MM = 70.0
 FORCE_APPROACH_LIFT_MM = 8.0
+CIRCULAR_TOOL_XY_OFFSET_MM = 50.0
 
 
 def load_config():
@@ -141,22 +142,26 @@ def generate_zigzag_path(
 
     if x_coords and y_coords and z_coords:
         z_zigzag = boundary_coords[0][2]
+        base_xy_offset = float(CIRCULAR_TOOL_XY_OFFSET_MM)
+        x_left_offset = base_xy_offset + float(innerOffsetX)
+        x_right_offset = base_xy_offset + float(innerOffset)
+        y_offset = base_xy_offset + float(innerOffset)
 
         modified_Point2 = [
-            x_coords[1] + innerOffsetX,
-            y_coords[1] - innerOffset,
+            x_coords[1] + x_left_offset,
+            y_coords[1] - y_offset,
         ]
         modified_Point3 = [
-            x_coords[2] - innerOffset,
-            y_coords[2] - innerOffset,
+            x_coords[2] - x_right_offset,
+            y_coords[2] - y_offset,
         ]
         modified_Point1 = [
-            x_coords[0] + innerOffsetX,
-            y_coords[0] + innerOffset,
+            x_coords[0] + x_left_offset,
+            y_coords[0] + y_offset,
         ]
         modified_Point4 = [
-            x_coords[3] - innerOffset,
-            y_coords[3] + innerOffset,
+            x_coords[3] - x_right_offset,
+            y_coords[3] + y_offset,
         ]
 
         xlen1 = abs(modified_Point3[0] - modified_Point1[0])
@@ -175,21 +180,22 @@ def generate_zigzag_path(
         edge_prepoint = None
         edge_offset = 1.75
         if edge_coverage:
+            edge_total_offset = base_xy_offset + edge_offset
             edge_Point1 = [
-                x_coords[0] + edge_offset,
-                y_coords[0] + edge_offset,
+                x_coords[0] + edge_total_offset,
+                y_coords[0] + edge_total_offset,
             ]
             edge_Point2 = [
-                x_coords[1] + edge_offset,
-                y_coords[1] - edge_offset,
+                x_coords[1] + edge_total_offset,
+                y_coords[1] - edge_total_offset,
             ]
             edge_Point3 = [
-                x_coords[2] - edge_offset,
-                y_coords[2] - edge_offset,
+                x_coords[2] - edge_total_offset,
+                y_coords[2] - edge_total_offset,
             ]
             edge_Point4 = [
-                x_coords[3] - edge_offset,
-                y_coords[3] + edge_offset,
+                x_coords[3] - edge_total_offset,
+                y_coords[3] + edge_total_offset,
             ]
 
             if orientation_mode == "horizontal":
