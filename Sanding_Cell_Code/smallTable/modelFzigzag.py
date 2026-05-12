@@ -574,23 +574,10 @@ def _run_door_big(door_num, force, z, cps, orientation):
     # Big-door reach split requirement: both orientations use 2 passes with
     # seventh-axis x1/x2 shift.
     # For horizontal, pass 2 must use the remaining upper rows (mid->top).
-    if orientation_mode == "horizontal" and zigzag_path1 and zigzag_path2_global:
-        mean_x1 = sum(float(p[0]) for p in zigzag_path1) / float(len(zigzag_path1))
-        mean_x2 = sum(float(p[0]) for p in zigzag_path2_global) / float(
-            len(zigzag_path2_global)
-        )
-        x_shift = mean_x2 - mean_x1
-        zigzag_path2 = [
-            [
-                float(p[0]) - x_shift,
-                float(p[1]),
-                float(p[2]),
-                float(p[3]),
-                float(p[4]),
-                float(p[5]),
-            ]
-            for p in zigzag_path2_global
-        ]
+    # Keep it in original local coordinates; x2 compensation is applied once
+    # in pass_plan to avoid over/under shifts.
+    if orientation_mode == "horizontal" and zigzag_path2_global:
+        zigzag_path2 = [list(p) for p in zigzag_path2_global]
     elif zigzag_path1:
         zigzag_path2 = [list(p) for p in zigzag_path1]
     else:
@@ -603,11 +590,24 @@ def _run_door_big(door_num, force, z, cps, orientation):
         )
 
     if orientation_mode == "horizontal":
-        # Horizontal big-door split is by rows (bottom half, then top half),
-        # so keep the same seventh-axis reference to avoid shifting outside.
+        # Horizontal big-door split is by rows (bottom half, then top half).
+        # Keep x1->x2 seventh-axis transition, but compensate local X so global
+        # sanding coverage stays on the door (0..total length).
+        x2_shift = float(tcx1) - float(tcx0)
+        zigzag_path2 = [
+            [
+                float(p[0]) - x2_shift,
+                float(p[1]),
+                float(p[2]),
+                float(p[3]),
+                float(p[4]),
+                float(p[5]),
+            ]
+            for p in zigzag_path2
+        ]
         pass_plan = [
             (tcx0, zigzag_path1),
-            (tcx0, zigzag_path2),
+            (tcx1, zigzag_path2),
         ]
     else:
         pass_plan = [
