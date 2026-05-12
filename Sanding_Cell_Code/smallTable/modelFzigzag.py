@@ -362,12 +362,25 @@ def _perform_process_top(
         velocity_profile="robotspeed",
         wait=True,
     )
-    putForceZminus(
+    force_ok = putForceZminus(
         cps=cps,
         force=force,
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         config=config,
+    )
+    if not force_ok:
+        raise RuntimeError("Force seek failed before Model F sanding start point.")
+    communicate(
+        cps=cps,
+        config=config,
+        point=start_point,
+        tcp=config["coords"]["tcptool4plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=sanding_speed,
+        velocity_profile="sandingspeed",
+        wait=True,
     )
     turn_vibration_on(cps)
 
