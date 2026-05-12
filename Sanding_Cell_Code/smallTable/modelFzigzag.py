@@ -28,6 +28,7 @@ from smallTable.scancord import (
 
 TRANSFER_LIFT_Z_MM = 70.0
 FORCE_APPROACH_LIFT_MM = 15.0
+FORCE_PRESEEK_GAP_MM = 4.0
 CIRCULAR_TOOL_XY_OFFSET_MM = 50.0
 
 
@@ -303,44 +304,15 @@ def generate_zigzag_path(
     return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
 
-def _perform_process_top(cps, config, points1, force, sanding_speed, robot_speed):
-    max_force_segment_mm = 200.0
-
-    def _iter_segmented_points(path_points, max_segment):
-        if not path_points:
-            return
-
-        previous = None
-        for target in path_points:
-            if previous is None:
-                yield target
-                previous = target
-                continue
-
-            dx = float(target[0]) - float(previous[0])
-            dy = float(target[1]) - float(previous[1])
-            dz = float(target[2]) - float(previous[2])
-            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-
-            if dist <= max_segment:
-                yield target
-                previous = target
-                continue
-
-            steps = int(math.ceil(dist / max_segment))
-            for i in range(1, steps + 1):
-                t = i / steps
-                interp = [
-                    float(previous[0]) + dx * t,
-                    float(previous[1]) + dy * t,
-                    float(previous[2]) + dz * t,
-                    float(target[3]),
-                    float(target[4]),
-                    float(target[5]),
-                ]
-                yield interp
-            previous = target
-
+def _perform_process_top(
+    cps,
+    config,
+    points1,
+    force,
+    sanding_speed,
+    robot_speed,
+    seventh_target=None,
+):
     if not points1:
         return
 
@@ -365,6 +337,31 @@ def _perform_process_top(cps, config, points1, force, sanding_speed, robot_speed
         velocity_profile="robotspeed",
         wait=True,
     )
+    if seventh_target is not None:
+        # Let arm and 7th-axis overlap during transition, then hard-sync J7
+        # before force engagement to avoid contact while J7 is still moving.
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_target,
+            tcp=config["coords"]["tcptool4plane1"],
+            ucs=config["coords"]["ucsTable1"],
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+    preseek_point = _with_lift(start_point, FORCE_PRESEEK_GAP_MM)
+    communicate(
+        cps=cps,
+        config=config,
+        point=preseek_point,
+        tcp=config["coords"]["tcptool4plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
+        wait=True,
+    )
     putForceZminus(
         cps=cps,
         force=force,
@@ -374,9 +371,8 @@ def _perform_process_top(cps, config, points1, force, sanding_speed, robot_speed
     )
     turn_vibration_on(cps)
 
-    segmented_points = list(_iter_segmented_points(points1[1:], max_force_segment_mm))
-    for idx, point in enumerate(segmented_points):
-        is_last = idx == (len(segmented_points) - 1)
+    path_points = points1[1:]
+    for point in path_points[:-1]:
         communicate(
             cps=cps,
             config=config,
@@ -386,8 +382,27 @@ def _perform_process_top(cps, config, points1, force, sanding_speed, robot_speed
             seventh=-1,
             speed=sanding_speed,
             velocity_profile="sandingspeed",
-            wait=is_last,
+            wait=False,
         )
+    final_point = [
+        float(points1[-1][0]),
+        float(points1[-1][1]),
+        float(points1[-1][2]),
+        float(points1[-1][3]),
+        float(points1[-1][4]),
+        float(points1[-1][5]),
+    ]
+    communicate(
+        cps=cps,
+        config=config,
+        point=final_point,
+        tcp=config["coords"]["tcptool4plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=sanding_speed,
+        velocity_profile="sandingspeed",
+        wait=True,
+    )
 
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
@@ -483,7 +498,7 @@ def _run_door_small(door_num, force, z, cps, orientation):
         ucs=config["coords"]["ucsTable1"],
         speed=robot_speed,
         velocity_profile="robotspeed",
-        wait=True,
+        wait=False,
     )
     _perform_process_top(
         cps,
@@ -492,6 +507,7 @@ def _run_door_small(door_num, force, z, cps, orientation):
         force=force,
         sanding_speed=sanding_speed,
         robot_speed=robot_speed,
+        seventh_target=x1,
     )
 
 
@@ -542,7 +558,7 @@ def _run_door_big(door_num, force, z, cps, orientation):
     ]):
         if not current_path:
             continue
-        seventh_wait = False if pass_index == 1 else True
+        seventh_wait = False
         communicate(
             cps=cps,
             config=config,
@@ -560,6 +576,7 @@ def _run_door_big(door_num, force, z, cps, orientation):
             force=force,
             sanding_speed=sanding_speed,
             robot_speed=robot_speed,
+            seventh_target=current_tcx,
         )
 
 
