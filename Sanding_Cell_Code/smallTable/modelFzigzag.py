@@ -27,7 +27,7 @@ from smallTable.scancord import (
 )
 
 TRANSFER_LIFT_Z_MM = 70.0
-FORCE_APPROACH_LIFT_MM = 8.0
+FORCE_APPROACH_LIFT_MM = 15.0
 CIRCULAR_TOOL_XY_OFFSET_MM = 50.0
 
 
@@ -303,7 +303,7 @@ def generate_zigzag_path(
     return edge_coverage_coords, zigzag_coords, prepoint, edge_prepoint
 
 
-def _perform_process_top(cps, config, points1, force, sanding_speed):
+def _perform_process_top(cps, config, points1, force, sanding_speed, robot_speed):
     max_force_segment_mm = 200.0
 
     def _iter_segmented_points(path_points, max_segment):
@@ -341,6 +341,30 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
                 yield interp
             previous = target
 
+    if not points1:
+        return
+
+    start_point = [
+        float(points1[0][0]),
+        float(points1[0][1]),
+        float(points1[0][2]),
+        float(points1[0][3]),
+        float(points1[0][4]),
+        float(points1[0][5]),
+    ]
+    start_lift = _with_lift(start_point, FORCE_APPROACH_LIFT_MM)
+
+    communicate(
+        cps=cps,
+        config=config,
+        point=start_lift,
+        tcp=config["coords"]["tcptool4plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
+        wait=True,
+    )
     putForceZminus(
         cps=cps,
         force=force,
@@ -350,7 +374,7 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
     )
     turn_vibration_on(cps)
 
-    segmented_points = list(_iter_segmented_points(points1, max_force_segment_mm))
+    segmented_points = list(_iter_segmented_points(points1[1:], max_force_segment_mm))
     for idx, point in enumerate(segmented_points):
         is_last = idx == (len(segmented_points) - 1)
         communicate(
@@ -368,6 +392,19 @@ def _perform_process_top(cps, config, points1, force, sanding_speed):
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
     releaseForce(cps=cps, config=config)
+    last_point = points1[-1]
+    last_lift = _with_lift(last_point, FORCE_APPROACH_LIFT_MM)
+    communicate(
+        cps=cps,
+        config=config,
+        point=last_lift,
+        tcp=config["coords"]["tcptool4plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=robot_speed,
+        velocity_profile="robotspeed",
+        wait=True,
+    )
 
 
 def _split_big_door_zigzag(path_points, orientation):
@@ -426,10 +463,9 @@ def _run_door_small(door_num, force, z, cps, orientation):
     points = _compute_boundary_points(door_num, frame_offset, z)
     p8 = points["p8"]
 
-    prehoming = [0, 200, TRANSFER_LIFT_Z_MM, 0, 0, 0]
     x1 = p8[0] + get_door_position(door_num)
 
-    _, zigzag_path, prepoint, _ = generate_zigzag_path(
+    _, zigzag_path, _, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
         y_coords=points["y_coords"],
         z_coords=points["z_coords"],
@@ -449,53 +485,13 @@ def _run_door_small(door_num, force, z, cps, orientation):
         velocity_profile="robotspeed",
         wait=True,
     )
-    communicate(
-        cps=cps,
-        config=config,
-        point=prehoming,
-        tcp=config["coords"]["tcptool4plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-
-    communicate(
-        cps=cps,
-        config=config,
-        point=prepoint,
-        tcp=config["coords"]["tcptool4plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-    communicate(
-        cps=cps,
-        config=config,
-        point=_with_lift(prepoint, FORCE_APPROACH_LIFT_MM),
-        tcp=config["coords"]["tcptool4plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
     _perform_process_top(
-        cps, config, points1=zigzag_path, force=force, sanding_speed=sanding_speed
-    )
-    communicate(
-        cps=cps,
-        config=config,
-        point=prehoming,
-        tcp=config["coords"]["tcptool4plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
+        cps,
+        config,
+        points1=zigzag_path,
+        force=force,
+        sanding_speed=sanding_speed,
+        robot_speed=robot_speed,
     )
 
 
@@ -513,8 +509,6 @@ def _run_door_big(door_num, force, z, cps, orientation):
 
     tcx0 = p8[0] + get_door_position(door_num)
     tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
-
-    prehoming = [0, 200, TRANSFER_LIFT_Z_MM, 0, 0, 0]
 
     _, zigzag_full, _, _ = generate_zigzag_path(
         x_coords=points["x_coords"],
@@ -536,36 +530,15 @@ def _run_door_big(door_num, force, z, cps, orientation):
     else:
         zigzag_path2 = zigzag_path2_global if zigzag_path2_global else zigzag_full[:]
 
-    prepoint1 = None
-    prepoint2 = None
-    if zigzag_path1:
-        prepoint1 = [
-            float(zigzag_path1[0][0]),
-            float(zigzag_path1[0][1]),
-            float(zigzag_path1[0][2]),
-            0,
-            0,
-            0,
-        ]
-    if zigzag_path2:
-        prepoint2 = [
-            float(zigzag_path2[0][0]),
-            float(zigzag_path2[0][1]),
-            float(zigzag_path2[0][2]),
-            0,
-            0,
-            0,
-        ]
-
     if zigzag_path1 and zigzag_path2:
         print(
             f"[ModelF] Door {door_num} split: x1 start={zigzag_path1[0][:3]}, "
             f"x2 start={zigzag_path2[0][:3]}"
         )
 
-    for pass_index, (current_tcx, current_prepoint, current_path) in enumerate([
-        (tcx0, prepoint1, zigzag_path1),
-        (tcx1, prepoint2, zigzag_path2),
+    for pass_index, (current_tcx, current_path) in enumerate([
+        (tcx0, zigzag_path1),
+        (tcx1, zigzag_path2),
     ]):
         if not current_path:
             continue
@@ -580,55 +553,13 @@ def _run_door_big(door_num, force, z, cps, orientation):
             velocity_profile="robotspeed",
             wait=seventh_wait,
         )
-        # First pass: move to lift after reaching x1.
-        # Second pass: skip (already lifted at end of pass 1), keep transition simple.
-        if pass_index == 0:
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=config["coords"]["tcptool4plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=robot_speed,
-                velocity_profile="robotspeed",
-                wait=True,
-            )
-        communicate(
-            cps=cps,
-            config=config,
-            point=current_prepoint,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=_with_lift(current_prepoint, FORCE_APPROACH_LIFT_MM),
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
         _perform_process_top(
-            cps, config, points1=current_path, force=force, sanding_speed=sanding_speed
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
+            cps,
+            config,
+            points1=current_path,
+            force=force,
+            sanding_speed=sanding_speed,
+            robot_speed=robot_speed,
         )
 
 
