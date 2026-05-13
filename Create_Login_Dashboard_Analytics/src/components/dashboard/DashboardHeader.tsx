@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '../ui/button';
-import { BarChart3, LogOut, Zap, Settings } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
+import logo from '../../assets/logo.png';
 
 interface DashboardHeaderProps {
   onNavigateToAnalytics: () => void;
@@ -10,16 +11,20 @@ export function DashboardHeader({ onNavigateToAnalytics }: DashboardHeaderProps)
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-              <Zap className="size-5 text-white" />
-            </div>
-            <h1>Robot Control Dashboard</h1>
+        <div className="relative flex items-center justify-between py-4 whitespace-nowrap">
+          <div className="z-10 flex shrink-0 items-center gap-3">
+            <img src={logo} alt="Sanding Cell Logo" className="h-10 w-auto object-contain" />
           </div>
 
-          <div className="flex gap-3">
-            <Button onClick={onNavigateToAnalytics} variant="outline">
+          <h1
+            className="absolute whitespace-nowrap text-center text-3xl font-black tracking-wide leading-none"
+            style={{ left: '50%', transform: 'translateX(-50%)', margin: 0 }}
+          >
+              Sanding Cell
+          </h1>
+
+          <div className="z-10 flex shrink-0 gap-3 whitespace-nowrap">
+            <Button onClick={onNavigateToAnalytics} variant="outline" className="shrink-0 whitespace-nowrap">
               <BarChart3 className="size-4 mr-2" />
               Analytics
             </Button>

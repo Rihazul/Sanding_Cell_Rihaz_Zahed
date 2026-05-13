@@ -23,12 +23,10 @@ export function SettingsPanel({
   const ROBOT_MAX_ACCEL = 2500;
   const SANDING_MAX_SPEED = 375;
   const SANDING_MAX_ACCEL = 450;
-  const POCKET_TOOL_DIAMETER_MM = 140;
   const POCKET_MAX_OVERLAP_MM = 100;
   const robotSpeedMmS = Math.round((robotSpeed[0] / 100) * ROBOT_MAX_SPEED);
   const sandingSpeedMmS = Math.round((sandingSpeed[0] / 100) * SANDING_MAX_SPEED);
   const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
-  const passStepMm = Math.max(1, POCKET_TOOL_DIAMETER_MM - overlapMm);
 
   return (
     <Card className="shadow-lg border-0">
@@ -55,7 +53,7 @@ export function SettingsPanel({
             <span className="text-sm text-gray-600">{overlapMm} mm {overlapMm === 0 ? '(no overlap)' : overlapMm >= 100 ? '(~3/4 tool overlap)' : ''}</span>
           </div>
           <Slider value={inverseOverlapping} onValueChange={setInverseOverlapping} min={0} max={100} step={1} className="[&_[role=slider]]:bg-purple-500" />
-          <div className="mt-1 text-xs text-gray-500">0 mm = no overlap, 100 mm = ~3/4 tool overlap (pass step {passStepMm} mm)</div>
+          <div className="mt-1 text-xs text-gray-500">0 mm = no overlap, 100 mm = ~3/4 tool overlap</div>
         </div>
 
         {/* Sanding Speed */}

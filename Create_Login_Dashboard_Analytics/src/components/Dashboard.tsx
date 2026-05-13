@@ -401,6 +401,18 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
           </div>
         </div>
       </main>
+
+      <footer className="mt-4 border-t border-cyan-200/60 bg-gradient-to-r from-cyan-50/80 via-blue-50/70 to-indigo-50/80 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-700">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-500" />
+            <span className="font-semibold tracking-wide text-cyan-950">© {new Date().getFullYear()} TechnoAccord Inc</span>
+          </div>
+          <span className="rounded-full border border-indigo-300/90 bg-white/85 px-2.5 py-1 font-semibold text-indigo-800 shadow-sm">
+            Version 1.0
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }
