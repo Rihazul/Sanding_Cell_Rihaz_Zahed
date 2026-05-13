@@ -42,7 +42,7 @@ export default function App() {
           title: swalTitle,
           text: message,
           icon: swalIcon,
-          timer: 1200,
+          timer: 2000,
           showConfirmButton: false
         });
       }

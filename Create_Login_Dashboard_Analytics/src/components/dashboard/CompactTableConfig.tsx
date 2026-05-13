@@ -66,8 +66,8 @@ export function CompactTableConfig({
   const POCKET_MAX_OVERLAP_MM = 100;
   
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
-  // Temporarily bypass scan requirement so tasks can run without it
-  const [scanCompleted, setScanCompleted] = React.useState<boolean>(true);
+  const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
+  const [lastScanSignature, setLastScanSignature] = React.useState<string | null>(null);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   const completionTimerRef = React.useRef<number | null>(null);
@@ -132,16 +132,75 @@ export function CompactTableConfig({
     }
     throw new Error(`Timed out waiting for task completion after ${Math.round(timeoutMs / 1000)}s`);
   };
+
+  const getSwal = () => (window as any).Swal;
+  const getTableAScanSignature = () => {
+    if (tableName !== 'A') return '';
+    const baseModel = (model || '').trim();
+    const doorModelSig = (doorConfigs || [])
+      .map((d) => `${d.doorNumber}:${(d.model || '').trim()}`)
+      .join('|');
+    return `${baseModel}::${doorModelSig}`;
+  };
+
+  const confirmScanForTableA = async () => {
+    if (tableName !== 'A') return true;
+    const swal = getSwal();
+    const text = scanCompleted
+      ? 'A scan is already marked complete. Do you want to run scan again?'
+      : 'Confirm scan for Table A. Ensure the area is clear and the setup is correct.';
+    if (!swal?.fire) {
+      return window.confirm(text);
+    }
+    const result = await swal.fire({
+      title: 'Confirm Scan',
+      text,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Start Scan',
+      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+    });
+    return !!result.isConfirmed;
+  };
+
+  const confirmStartTaskForTableA = async () => {
+    if (tableName !== 'A') return true;
+    const swal = getSwal();
+    const scanState = scanCompleted ? 'Scan status: Completed.' : 'Scan status: Not marked completed.';
+    const modelState = model?.trim() ? `Model: ${formatModelName(model)}.` : 'Model: Not selected at table level.';
+    const reminder = 'Please verify door selection, force/cycle values, and safety before continuing.';
+    const text = `${scanState} ${modelState} ${reminder}`;
+    if (!swal?.fire) {
+      return window.confirm(`Confirm Start Task for Table A?\n\n${text}`);
+    }
+    const result = await swal.fire({
+      title: 'Confirm Start Task',
+      text,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Start Task',
+      cancelButtonText: 'Review Settings',
+      reverseButtons: true,
+    });
+    return !!result.isConfirmed;
+  };
   
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
     if (isOperating || isScanning) return;
+    const confirmed = await confirmScanForTableA();
+    if (!confirmed) {
+      addActivity(`Table ${tableName}: Scan cancelled by user for safety check`, 'warning');
+      return;
+    }
     setIsOperating(true);
     setIsScanning(true);
     addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
     try {
       await performAction('scan');
       setScanCompleted(true);
+      setLastScanSignature(getTableAScanSignature());
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
       showCompletionPopup('Scan Completed', 'Table A scan completed');
     } catch (error) {
@@ -154,7 +213,36 @@ export function CompactTableConfig({
   
   const handleStartTask = async () => {
     console.log('Start Task clicked for Table', tableName);
-    
+
+    if (isOperating || isScanning) return;
+    if (tableName === 'A') {
+      const scanSignatureNow = getTableAScanSignature();
+      const scanInvalid =
+        !scanCompleted ||
+        !lastScanSignature ||
+        scanSignatureNow !== lastScanSignature;
+      if (scanInvalid) {
+        const swal = getSwal();
+        const warningText = 'Model/configuration changed or scan missing. Please run Scan first before Start Task.';
+        if (swal?.fire) {
+          await swal.fire({
+            title: 'Scan Required',
+            text: warningText,
+            icon: 'warning',
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+        addActivity(`Table ${tableName}: Scan required before starting task (model/config changed or no valid scan).`, 'warning');
+        return;
+      }
+    }
+    const confirmed = await confirmStartTaskForTableA();
+    if (!confirmed) {
+      addActivity(`Table ${tableName}: Start task cancelled to review configuration`, 'warning');
+      return;
+    }
+
     setIsOperating(true);
     
     // For Table A, process all doors with their configurations
@@ -291,8 +379,6 @@ export function CompactTableConfig({
           addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }
         
-        // Reset scan so it can be done again
-        setScanCompleted(false);
       } catch (error) {
         addActivity(`Table ${tableName}: Task failed - ${error}`, 'error');
       } finally {
@@ -352,8 +438,6 @@ export function CompactTableConfig({
           addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }
         
-        // Reset scan so it can be done again
-        setScanCompleted(false);
       } catch (error) {
         addActivity(`Table ${tableName}: Task failed - ${error}`, 'error');
       } finally {
@@ -405,6 +489,13 @@ export function CompactTableConfig({
   const tableBDisplayRows = buildDisplayRows(rows);
 
   const handleModelChange = (newModel: string) => {
+    if (tableName === 'A' && newModel !== model) {
+      if (scanCompleted) {
+        addActivity(`Table ${tableName}: Model changed. Previous scan is now invalid; run Scan again.`, 'warning');
+      }
+      setScanCompleted(false);
+      setLastScanSignature(null);
+    }
     setModel(newModel);
 
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
@@ -729,7 +820,7 @@ export function CompactTableConfig({
           ) : (
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
               <label className="text-sm text-gray-500 mb-2 flex items-center gap-1">
-                Models
+                Model
                 <span className="text-gray-400 text-xs">ⓘ</span>
               </label>
               <select
@@ -738,13 +829,13 @@ export function CompactTableConfig({
                 disabled={isOperating}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
               >
-                <option value="">Select a Model</option>
-                <option value="modelA">Model A - Shaker A</option>
-                <option value="modelB">Model B - Shaker B</option>
-                <option value="modelC">Model C - Moulure Externe</option>
-                <option value="modelD">Model D - Moulure Interne</option>
-                <option value="modelE">Model E - Moulure Interne et Externe</option>
-                <option value="modelF">Model F - Flat</option>
+                <option value="">Select Model</option>
+                <option value="modelA">Model A</option>
+                <option value="modelB">Model B</option>
+                <option value="modelC">Model C</option>
+                <option value="modelD">Model D</option>
+                <option value="modelE">Model E</option>
+                <option value="modelF">Model F</option>
               </select>
 
               <div className="mt-6 space-y-3">
