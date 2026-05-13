@@ -19,7 +19,7 @@ def _resolve_edge_speed(config):
     json_config = _load_json_config()
     raw_speed = json_config.get("sandingSpeed")
     if raw_speed is None:
-        raw_speed = config.get("UI", {}).get("sandSpeed", 0.3)
+        raw_speed = config.get("UI", {}).get("sandSpeed", 0.75)
     return float(raw_speed)
 
 
@@ -162,7 +162,7 @@ def execute_edge_coverage(
                 ucs=config["coords"][ucs_key],
                 seventh=-1,
                 speed=edge_speed,
-                velocity_profile="sandingspeed",
+                velocity_profile="sanding",
                 speed_mode="linear",
                 wait=idx == (len(edge_points) - 1),
             )
@@ -234,13 +234,16 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     ]
     prehoming = [0, 200, 50, 0, 0, 0]
 
+    robot_speed = _resolve_robot_speed(config)
+
     communicate(
         cps=cps,
         config=config,
         seventh=seventh_pos,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
-        speed=0.8,
+        speed=robot_speed,
+        velocity_profile="robot",
         wait=True,
     )
     communicate(
@@ -250,8 +253,8 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
-        speed=_resolve_robot_speed(config),
-        velocity_profile="robotspeed",
+        speed=robot_speed,
+        velocity_profile="robot",
         wait=True,
     )
     execute_edge_coverage(
@@ -268,7 +271,8 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
-        speed=0.8,
+        speed=robot_speed,
+        velocity_profile="robot",
         wait=True,
     )
 
