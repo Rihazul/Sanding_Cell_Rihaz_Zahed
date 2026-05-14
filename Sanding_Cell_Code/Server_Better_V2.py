@@ -4118,68 +4118,40 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     door_number,
                     float(xpos),
                 )
-                # For doors except Door 1, restore simultaneous J7 + move-to-yStart.
-                if door_number != 1:
-                    move_ok = communicate(
-                        cps=cps,
-                        seventh=xpos,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsDefault"],
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        wait=False,
-                        require_seventh_ok=True,
+                # Restore simultaneous J7 + move-to-yStart for all doors, including Door 1.
+                move_ok = communicate(
+                    cps=cps,
+                    seventh=xpos,
+                    tcp=config["coords"]["tcpLaserPlane1"],
+                    ucs=config["coords"]["ucsDefault"],
+                    config=config,
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
+                    wait=False,
+                    require_seventh_ok=True,
+                )
+                if move_ok is None:
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message=f"Scan aborted: failed to move J7 to door position {door_number}.",
                     )
-                    if move_ok is None:
-                        msg_to_frontend(
-                            api_url=config["server"]["frontEnd_messaging_url"],
-                            message=f"Scan aborted: failed to move J7 to door position {door_number}.",
-                        )
-                        return ([], [], [], [], [], [], [])
-                    communicate(
-                        cps=cps,
-                        point=yStart,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        wait=True,
+                    return ([], [], [], [], [], [], [])
+                communicate(
+                    cps=cps,
+                    point=yStart,
+                    tcp=config["coords"]["tcpLaserPlane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    config=config,
+                    speed=scan_robot_speed,
+                    velocity_profile="robotspeed",
+                    wait=True,
+                )
+                if not wait_for_j7_idle(timeout_s=45.0, poll_s=0.02):
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message=f"Scan aborted: J7 timeout while moving to Door {door_number}.",
                     )
-                    if not wait_for_j7_idle(timeout_s=45.0, poll_s=0.02):
-                        msg_to_frontend(
-                            api_url=config["server"]["frontEnd_messaging_url"],
-                            message=f"Scan aborted: J7 timeout while moving to Door {door_number}.",
-                        )
-                        return ([], [], [], [], [], [], [])
-                else:
-                    move_ok = communicate(
-                        cps=cps,
-                        seventh=xpos,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsDefault"],
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        require_seventh_ok=True,
-                    )
-                    if move_ok is None:
-                        msg_to_frontend(
-                            api_url=config["server"]["frontEnd_messaging_url"],
-                            message=f"Scan aborted: failed to move J7 to door position {door_number}.",
-                        )
-                        return ([], [], [], [], [], [], [])
-                    communicate(
-                        cps=cps,
-                        point=yStart,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        wait=True,
-                    )
+                    return ([], [], [], [], [], [], [])
 
                 config["logger"].info(
                     f"[scan-y] success to move 7th to go to door position {door_number}, seventh: {xpos}"
