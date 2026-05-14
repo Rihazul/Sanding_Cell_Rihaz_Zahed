@@ -782,9 +782,9 @@ def start_TableA_process():
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
-        set_table_state(CPS, "tableAOpenClose", "Open")
-        set_table_state(CPS, "tableBOpenClose", "Close")
-        socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
+        set_table_state(CPS, "tableAOpenClose", "Close")
+        set_table_state(CPS, "tableBOpenClose", "Open")
+        socketio.emit('flash_message', {"message": "Operation table mode: Table A Close, Table B Open"})
         stopper_statusmod(CPS, state="up")
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
@@ -1933,8 +1933,8 @@ def handle_action():
                 stopper_statusmod(cps, state="up")
                 laser(cps, "on", config=config)
                 try:
-                    set_table_state(cps, "tableAOpenClose", "Open")
-                    set_table_state(cps, "tableBOpenClose", "Close")
+                    set_table_state(cps, "tableAOpenClose", "Close")
+                    set_table_state(cps, "tableBOpenClose", "Open")
                     socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
                     scanTableA(cps=cps, config=config)
                 finally:
