@@ -6860,9 +6860,9 @@ def keepTool11(
             "[toolMotion][manualDrop] Blending timeout before valve open, but robot is idle; proceeding with drop."
         )
     toolValve1(cps, valveState="drop", config=config)
-    if not _verify_tool_released(cps=cps, config=config, expected_tool_number=toolNumber):
-        raise RuntimeError("Tool release not confirmed after drop command.")
 
+    # Retract first, then verify release. After tool-point edits, checking
+    # release exactly at touch depth can produce false negatives.
     config["logger"].info(
         "[toolMotion][manualDrop] phase=retract_home profile=sanding ratio=%.3f",
         float(drop_slow),
@@ -6879,6 +6879,16 @@ def keepTool11(
         speed_mode="linear",
         wait=True,
     )
+
+    if not _verify_tool_released(
+        cps=cps, config=config, expected_tool_number=toolNumber
+    ):
+        # One short settle retry helps when CI/DI transitions lag slightly.
+        time.sleep(0.25)
+        if not _verify_tool_released(
+            cps=cps, config=config, expected_tool_number=toolNumber
+        ):
+            raise RuntimeError("Tool release not confirmed after drop command.")
 
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],

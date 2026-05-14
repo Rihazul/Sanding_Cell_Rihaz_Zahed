@@ -1252,7 +1252,11 @@ def tool_toggle2():
             ]
             if check_conditions(pick_conditions):
                 # Pick the tool
-                success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} pick failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 if not success:
                     return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
@@ -1277,7 +1281,11 @@ def tool_toggle2():
             ]
             if check_conditions(drop_conditions):
                 # Keep the tool
-                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} drop failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
@@ -1343,7 +1351,11 @@ def tool_toggle1():
             ]
             if check_conditions(pick_conditions):
                 # Pick the tool
-                success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} pick failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 if not success:
                     return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
@@ -1368,7 +1380,11 @@ def tool_toggle1():
             ]
             if check_conditions(drop_conditions):
                 # Keep the tool
-                keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                try:
+                    keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool {tool_num} drop failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
