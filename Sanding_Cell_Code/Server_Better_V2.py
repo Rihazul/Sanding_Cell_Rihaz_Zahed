@@ -4276,12 +4276,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "doorProfile": door_profile,
                 }
             )
-            if stop_scan_after_this_door:
-                config["logger"].info(
-                    "[scan-y] Stopping additional Y-scan iterations after Door 1 completion."
-                )
-                break
-
             config["logger"].info(
                 f"[scan] x stuffs: <total length>: {xlen} mm, <left frame>: {xframe_1} mm, <right frame>: {xframe_2} mm"
             )
@@ -4482,6 +4476,15 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ),
                 }
             )
+
+            # Keep Door 1 direct-homing behavior, but only after all point sets
+            # for this door are fully appended. Breaking earlier caused
+            # xVals/yVals and point arrays to get out of sync.
+            if stop_scan_after_this_door:
+                config["logger"].info(
+                    "[scan-y] Stopping additional Y-scan iterations after Door 1 completion."
+                )
+                break
 
             config["logger"].info(
                 f"[scan-calculation] outer sanding points: {framePoints}"
