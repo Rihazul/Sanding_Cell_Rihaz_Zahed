@@ -3863,9 +3863,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].info(
                     f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
                 )
-                x_prestart_offset_mm = abs(
-                    float(config.get("offset", {}).get("scanXPreStartOffsetMm", 2.0))
-                )
+                x_prestart_offset_mm = 2.0
                 xLeadIn = addXVal(xStart, -x_prestart_offset_mm)
                 config["logger"].info(
                     f"[scan-x] lead-in point: {xLeadIn} (offset {x_prestart_offset_mm}mm before start)"
@@ -3906,26 +3904,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 xmeasurements = adjust_heights(xmeasurements)
                 saveAsCSV(f"./static/xm{tblCnt}.csv", xmeasurements)
                 allXMeasurements += xmeasurements
-                if bool(
-                    config.get("settings", {}).get(
-                        "scanReturnToXStartAfterSection", False
-                    )
-                ):
-                    communicate(
-                        cps=cps,
-                        point=xStart,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        wait=False,
-                    )
-                else:
-                    config["logger"].info(
-                        "[scan-x] scanReturnToXStartAfterSection disabled; skipping X start return."
-                    )
+                config["logger"].info(
+                    "[scan-x] X-start return is disabled; staying at xEnd after section scan."
+                )
 
                 # Saves the x scan values first
                 saveAsCSV("./static/xmeasures.csv", allXMeasurements)
@@ -4150,13 +4131,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message=f"Vertical Scanning of Door {door_number} Completed!",
                 )
-                if is_final_door and bool(
-                    config.get("settings", {}).get(
-                        "scanHomeImmediatelyAfterFinalDoorYEnd", True
-                    )
-                ):
+                if door_number == 1:
                     config["logger"].info(
-                        "[scan-y] Final door Y scan complete; moving directly to safe home point."
+                        "[scan-y] Door 1 Y scan complete; moving directly to safe home point."
+                    )
+                    msg_to_frontend(
+                        api_url=config["server"]["frontEnd_messaging_url"],
+                        message="Door 1 Y scan complete. Moving directly to homing safe point...",
                     )
                     communicate(
                         cps=cps,
@@ -4167,7 +4148,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         config=config,
                         speed=scan_robot_speed,
                         velocity_profile="robotspeed",
-                        wait=False,
+                        wait=True,
                     )
             else:
                 ymeasurements = csv_to_dict_list(f"./static/ym{xcnt}.csv")

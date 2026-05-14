@@ -1871,6 +1871,14 @@ def handle_action():
         if _inline_scan_active.is_set():
             return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409
         _inline_scan_active.set()
+        config['logger'].info(
+            "[scan] Runtime source=%s | enforced scan behavior: xLeadIn=2mm, no X-start return, home after Door1 Y-end",
+            os.path.abspath(__file__),
+        )
+        socketio.emit(
+            'flash_message',
+            {"message": "Scan mode active: 2mm X lead-in, no X-start return, direct home after Door 1 Y-end."},
+        )
         j7_home_confirmed = False
         with robot_lock:
             ret = ensure_cps_connected()
@@ -1928,19 +1936,11 @@ def handle_action():
                 finally:
                     laser(cps, "off", config=config)
 
-                run_scan_homing = bool(
-                    config.get("settings", {}).get("scanPostHoming", False)
-                ) and not bool(
-                    config.get("settings", {}).get(
-                        "scanHomeImmediatelyAfterFinalDoorYEnd", True
-                    )
+                # Scan path now performs direct homing from scan_table after Door 1 Y-end.
+                # Do not run additional scan homing here.
+                config["logger"].info(
+                    "[scan] Post-scan scanhoming is disabled; using direct homing from scan_table."
                 )
-                if run_scan_homing:
-                    scanhoming(cps=cps, config=config)
-                else:
-                    config["logger"].info(
-                        "[scan] Post-scan scanhoming skipped (disabled or already homed at final Y end)."
-                    )
                 return jsonify({'status': 'success', 'message': 'Table scan completed'})
         except Exception as exc:
             if stop_requested():
