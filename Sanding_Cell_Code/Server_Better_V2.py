@@ -3863,7 +3863,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].info(
                     f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
                 )
-                x_prestart_offset_mm = 2.0
+                x_prestart_offset_mm = 6.0
                 xLeadIn = addXVal(xStart, -x_prestart_offset_mm)
                 config["logger"].info(
                     f"[scan-x] lead-in point: {xLeadIn} (offset {x_prestart_offset_mm}mm before start)"
@@ -4028,6 +4028,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
             own7thpos.append(xpos)
             ymeasurements = []
+            stop_scan_after_this_door = False
 
             if config["settings"]["actualScan"]:
                 if stop_requested():
@@ -4037,7 +4038,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     )
                     return ([], [], [], [], [], [], [])
                 door_number = total_doors - xcnt
-                is_final_door = xcnt == (total_doors - 1)
+                is_final_scan_iteration = xcnt == (total_doors - 1)
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message=f"Moving to Door {door_number} to Scan Vertically...",
@@ -4081,6 +4082,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
                 config["logger"].info(
                     f"[scan-y] points to move: <start>: {yStart} >>> <end>:{yEnd}"
+                )
+                config["logger"].info(
+                    "[scan-y] iteration=%s/%s door_label=%s seventh=%.3f",
+                    xcnt + 1,
+                    total_doors,
+                    door_number,
+                    float(xpos),
                 )
 
                 communicate(
@@ -4131,9 +4139,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message=f"Vertical Scanning of Door {door_number} Completed!",
                 )
-                if door_number == 1:
+                if door_number == 1 or is_final_scan_iteration:
                     config["logger"].info(
-                        "[scan-y] Door 1 Y scan complete; moving directly to safe home point."
+                        "[scan-y] Door 1/final Y-scan complete; moving directly to safe home point."
                     )
                     msg_to_frontend(
                         api_url=config["server"]["frontEnd_messaging_url"],
@@ -4150,6 +4158,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         velocity_profile="robotspeed",
                         wait=True,
                     )
+                    stop_scan_after_this_door = True
             else:
                 ymeasurements = csv_to_dict_list(f"./static/ym{xcnt}.csv")
 
@@ -4209,6 +4218,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "doorProfile": door_profile,
                 }
             )
+            if stop_scan_after_this_door:
+                config["logger"].info(
+                    "[scan-y] Stopping additional Y-scan iterations after Door 1 completion."
+                )
+                break
 
             config["logger"].info(
                 f"[scan] x stuffs: <total length>: {xlen} mm, <left frame>: {xframe_1} mm, <right frame>: {xframe_2} mm"

@@ -5,6 +5,7 @@ settings:
   scanPostHoming: true
   scanReturnToXStartAfterSection: false
   scanHomeImmediatelyAfterFinalDoorYEnd: true
+  scanMoveSafePointAfterToolDrop: false
 
 server:
   ip: '192.168.0.104'
@@ -126,7 +127,7 @@ point:
   safePointTool: [12, -380.528, 582.585, 0, 0, -90]
   safePointToolAngle: [90, 0, -75, 0, -105, 90]
   testPointB: [0,0,-50, 180, 0, 0] # Test point for tableB checking
-  safepointprehoming: [150,0,50,0,0,-180]
+
   
   # all the tool points are UCS: Base, TCP: TCP_Laser
   #tool3 : [595.782, 42.456, 148.450, -1.719, 0.464, -59.954]
