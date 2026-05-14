@@ -343,6 +343,12 @@ def _perform_process_top(
     ]
     start_lift = _with_lift(start_point, FORCE_APPROACH_LIFT_MM)
 
+    # If a previous pass left force mode latched, clear it before the next seek.
+    try:
+        releaseForce(cps=cps, config=config, wait_for_blending=False)
+    except Exception:
+        pass
+
     communicate(
         cps=cps,
         config=config,
@@ -367,11 +373,10 @@ def _perform_process_top(
             velocity_profile="robotspeed",
             wait=True,
         )
-    preseek_point = _with_lift(start_point, FORCE_PRESEEK_GAP_MM)
     communicate(
         cps=cps,
         config=config,
-        point=preseek_point,
+        point=start_point,
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         seventh=-1,
@@ -385,20 +390,14 @@ def _perform_process_top(
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         config=config,
+        max_seek_seconds=12.0,
     )
     if not force_ok:
         raise RuntimeError("Force seek failed before Model F sanding start point.")
-    communicate(
-        cps=cps,
-        config=config,
-        point=start_point,
-        tcp=config["coords"]["tcptool4plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=sanding_speed,
-        velocity_profile="sandingspeed",
-        wait=True,
-    )
+
+    # Do not issue an extra MoveL immediately after force seek.
+    # On this cell that step can deadlock on first run while force mode is
+    # actively settling at contact.
     turn_vibration_on(cps)
 
     path_points = points1[1:]

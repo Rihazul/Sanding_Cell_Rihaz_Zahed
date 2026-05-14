@@ -76,6 +76,22 @@ def run_zigzag_cycles(
             time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
+def _decode_tool_from_ci(ci0, ci1, ci2):
+    if any(val is None for val in (ci0, ci1, ci2)):
+        return None
+    if ci0 == 0 and ci1 == 0 and ci2 == 0:
+        return 0
+    if ci0 == 0 and ci1 == 1 and ci2 == 1:
+        return 1
+    if ci0 == 0 and ci1 == 1 and ci2 == 0:
+        return 2
+    if ci0 == 1 and ci1 == 0 and ci2 == 0:
+        return 3
+    if ci0 == 0 and ci1 == 0 and ci2 == 1:
+        return 4
+    return -1
+
+
 def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     if ci0 is None or ci1 is None or ci2 is None:
         print("Failed to read one or more CI bits.")
@@ -156,7 +172,18 @@ def sandingModelFTableA():
         ci2_local = read_ci_bit(cps, 2)
         return ci0_local, ci1_local, ci2_local
 
+    def wait_tool4_in_hand(timeout_s=3.0, poll_s=0.1):
+        deadline = time.monotonic() + max(0.1, float(timeout_s))
+        while time.monotonic() < deadline:
+            ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
+            tool = _decode_tool_from_ci(ci0_local, ci1_local, ci2_local)
+            if tool == 4:
+                return True
+            time.sleep(max(0.02, float(poll_s)))
+        return False
+
     try:
+        executed_doors = 0
         for task_name, task_by_door in ignored_tasks.items():
             if any_cycles(task_by_door):
                 print(
@@ -187,6 +214,8 @@ def sandingModelFTableA():
 
             if not has_tool4:
                 getTool11(cps, toolNumber=4, config=config)
+                if not wait_tool4_in_hand(timeout_s=3.0, poll_s=0.1):
+                    raise RuntimeError("Tool 4 was not confirmed in hand after pick.")
             communicate(
                 cps=cps,
                 point=config["point"]["safePoint"],
@@ -201,19 +230,58 @@ def sandingModelFTableA():
             for door_number in zig_zag_cycle_doors:
                 cfg = zigzag_by_door.get(int(door_number), {})
                 orientation = str(cfg.get("orientation") or "vertical").strip().lower()
+                cycle_count = int(cfg.get("cycle", 0))
+                force_value = int(cfg.get("force", 0))
                 print(
                     f"[ModelF] Door {door_number}: orientation='{orientation}', "
-                    f"cycle={int(cfg.get('cycle', 0))}, force={int(cfg.get('force', 0))}"
+                    f"cycle={cycle_count}, force={force_value}"
                 )
-                run_zigzag_cycles(
-                    int(cfg.get("cycle", 0)),
-                    int(cfg.get("force", 0)),
-                    int(door_number),
-                    z,
-                    cps,
-                    orientation=orientation,
-                    movement="zigzag",
-                    spiral_settings=spiral_settings,
+                if cycle_count <= 0:
+                    continue
+                try:
+                    run_zigzag_cycles(
+                        cycle_count,
+                        force_value,
+                        int(door_number),
+                        z,
+                        cps,
+                        orientation=orientation,
+                        movement="zigzag",
+                        spiral_settings=spiral_settings,
+                    )
+                except Exception as exc:
+                    # First pass can fail transiently if force seek starts before
+                    # pneumatics/tool settle. Reposition and retry once.
+                    print(
+                        f"[ModelF] Door {door_number} first attempt failed: {exc}. Retrying once..."
+                    )
+                    communicate(
+                        cps=cps,
+                        point=config["point"]["safePoint"],
+                        tcp=config["coords"]["tcpDefault"],
+                        ucs=config["coords"]["ucsDefault"],
+                        seventh=-1,
+                        config=config,
+                        speed=speeed,
+                        wait=True,
+                    )
+                    time.sleep(0.35)
+                    run_zigzag_cycles(
+                        cycle_count,
+                        force_value,
+                        int(door_number),
+                        z,
+                        cps,
+                        orientation=orientation,
+                        movement="zigzag",
+                        spiral_settings=spiral_settings,
+                    )
+                executed_doors += 1
+
+            if executed_doors <= 0:
+                raise RuntimeError(
+                    "Model F task finished with zero executed doors. "
+                    "Check cycle/door selection payload."
                 )
 
             communicate(
@@ -256,6 +324,8 @@ def sandingModelFTableA():
     except Exception as e:
         print(f"\nExecution error: {str(e)}")
         traceback.print_exc()
+        # Propagate failure so parent process does not look like a clean completion.
+        raise
     finally:
         print("\nSequence terminated")
 
