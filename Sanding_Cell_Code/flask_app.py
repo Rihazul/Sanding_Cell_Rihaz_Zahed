@@ -282,6 +282,30 @@ _last_stop_ts = 0.0
 _inline_scan_active = threading.Event()
 _last_child_exit_ts = 0.0
 CHILD_EXIT_SETTLE_SECONDS = 0.6
+J7_HOME_STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".j7_home_state.json")
+
+
+def _load_j7_home_state() -> bool:
+    try:
+        if not os.path.exists(J7_HOME_STATE_PATH):
+            return False
+        with open(J7_HOME_STATE_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        return bool(payload.get("homed", False))
+    except Exception:
+        return False
+
+
+def _persist_j7_home_state(is_homed: bool) -> None:
+    try:
+        payload = {
+            "homed": bool(is_homed),
+            "updatedAt": datetime.now().isoformat(timespec="seconds"),
+        }
+        with open(J7_HOME_STATE_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+    except Exception:
+        pass
 
 
 def _sanitize_cps_runtime():
@@ -408,8 +432,40 @@ process_state = {
     'last_action': None,
 }
 tool_override_state = {1: False, 2: False, 3: False, 4: False}
-# Since J7 position cannot be read, track "homed" in software.
-j7_home_confirmed = False
+# Since J7 position cannot be read, track "homed" in software (persisted).
+j7_home_confirmed = _load_j7_home_state()
+
+
+def _set_j7_home_confirmed(value: bool) -> None:
+    global j7_home_confirmed
+    j7_home_confirmed = bool(value)
+    _persist_j7_home_state(j7_home_confirmed)
+
+
+def _probe_j7_state():
+    """
+    Return J7 motion state string from plugin, or None when unavailable.
+    Common values:
+    - "0": idle
+    - "1": moving
+    - "-1": unknown/uninitialized (treat as needs homing)
+    """
+    with robot_lock:
+        ret = ensure_cps_connected(force=False)
+        if ret != 0:
+            return None
+        try:
+            # Best-effort connect/read; do not hard-fail if plugin transport lags.
+            CPS.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
+        except Exception:
+            pass
+        result = []
+        nret = CPS.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+        if (nret not in (0, None)) or not isinstance(result, (list, tuple)) or len(result) < 3:
+            return None
+        if str(result[0]).strip() != "0":
+            return None
+        return str(result[2]).strip()
 
 
 
@@ -428,7 +484,7 @@ def _track_process(proc: Process) -> None:
         if client_process is proc:
             process_state['status'] = 'completed'
             if process_state.get('last_action') == 'homing':
-                j7_home_confirmed = True
+                _set_j7_home_confirmed(True)
             process_state['last_action'] = None
             client_process = None
             socketio.emit('flash_message', {"message": "Process finished"})
@@ -491,7 +547,7 @@ def _run_homing_inline(config_data_UI):
             print(f"[homing inline] Exception: {e}")
     finally:
         if process_state.get("last_action") == "homing":
-            j7_home_confirmed = True
+            _set_j7_home_confirmed(True)
         process_state["status"] = "completed"
         process_state["last_action"] = None
         client_thread = None
@@ -697,7 +753,6 @@ def start_TableB_process():
         })   
     
     clear_stop()
-    j7_home_confirmed = False
     with robot_lock:
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
@@ -779,7 +834,6 @@ def start_TableA_process():
         json.dump(data, f)
 
     clear_stop()
-    j7_home_confirmed = False
     with robot_lock:
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
@@ -1692,7 +1746,18 @@ def process_status():
 @app.route('/homing_status', methods=['GET'])
 def homing_status():
     # True means user must run homing before operation.
-    return jsonify({'required': (not bool(j7_home_confirmed))})
+    # Persisted homing is accepted only if J7 still reports a valid state.
+    required = not bool(j7_home_confirmed)
+    reason = "not_homed"
+    if not required:
+        j7_state = _probe_j7_state()
+        if j7_state in (None, "-1"):
+            _set_j7_home_confirmed(False)
+            required = True
+            reason = "j7_state_unknown"
+        else:
+            reason = "ok"
+    return jsonify({'required': required, 'reason': reason})
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -1843,7 +1908,7 @@ def handle_action():
 
         process_state['status'] = 'in_progress'
         process_state['last_action'] = 'homing'
-        j7_home_confirmed = False
+        _set_j7_home_confirmed(False)
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
 
         if can_inline:
@@ -1902,7 +1967,6 @@ def handle_action():
             'flash_message',
             {"message": "Scan mode active: 2mm X lead-in, no X-start return, direct home after Door 1 Y-end."},
         )
-        j7_home_confirmed = False
         with robot_lock:
             ret = ensure_cps_connected()
             if ret != 0:
