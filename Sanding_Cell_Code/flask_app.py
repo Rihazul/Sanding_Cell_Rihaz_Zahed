@@ -33,6 +33,7 @@ from Table3Model.plotexp import plot_data as plot_data_table3Model
 from Table4Model.plotexp import plot_data as plot_data_table4Model
 from Table5Model.plotexp import plot_data as plot_data_table5Model
 import json
+import copy
 from model1cycle.mainmodel1 import startingRobotToSandmodel1
 from model2cycle.mainmodel2 import startingRobotToSandmodel2
 from model3cycle.mainmodel3 import startingRobotToSandmodel3
@@ -2121,12 +2122,53 @@ def handle_action():
                 stopper_statusmod(cps, state="up")
                 laser(cps, "on", config=config)
                 try:
+                    scan_signature = str(request_data.get("tableAScanSignature") or "").strip()
+                    scan_model = str(request_data.get("tableAModel") or "").strip()
+                    scan_door_models = request_data.get("tableADoorModels") or []
+                    if not isinstance(scan_door_models, list):
+                        scan_door_models = []
+
+                    configured_door_numbers = []
+                    for door_entry in scan_door_models:
+                        if not isinstance(door_entry, dict):
+                            continue
+                        model_name = str(door_entry.get("model") or "").strip()
+                        if not model_name:
+                            continue
+                        door_num = door_entry.get("doorNumber")
+                        try:
+                            door_num = int(door_num)
+                        except (TypeError, ValueError):
+                            continue
+                        if door_num > 0:
+                            configured_door_numbers.append(door_num)
+                    configured_door_numbers = sorted(set(configured_door_numbers))
+
+                    runtime_scan_config = copy.deepcopy(config)
+                    table_cfg = runtime_scan_config.get("table", {})
+                    configured_door_count = len(configured_door_numbers)
+                    if configured_door_count > 0:
+                        base_count = int(table_cfg.get("count", configured_door_count) or configured_door_count)
+                        # Never exceed configured table sections. This keeps length/lengthx indexing safe.
+                        runtime_count = max(1, min(configured_door_count, base_count))
+                        table_cfg["count"] = runtime_count
+                        runtime_scan_config["table"] = table_cfg
+                        config["logger"].info(
+                            "[scan] Runtime door count set from selected models: %s (configured doors: %s)",
+                            runtime_count,
+                            configured_door_numbers,
+                        )
+                        socketio.emit(
+                            'flash_message',
+                            {"message": f"Scan runtime: using {runtime_count} configured door(s) for Table A."},
+                        )
+
                     # Scan is for small-door Table A; use swapped IO table IDs so
                     # physical Table A opens and physical Table B closes.
                     set_table_state(cps, "tableBOpenClose", "Open")
                     set_table_state(cps, "tableAOpenClose", "Close")
                     socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
-                    scanTableA(cps=cps, config=config)
+                    scanTableA(cps=cps, config=runtime_scan_config)
                 finally:
                     laser(cps, "off", config=config)
 
@@ -2135,11 +2177,6 @@ def handle_action():
                 config["logger"].info(
                     "[scan] Post-scan scanhoming is disabled; using direct homing from scan_table."
                 )
-                scan_signature = str(request_data.get("tableAScanSignature") or "").strip()
-                scan_model = str(request_data.get("tableAModel") or "").strip()
-                scan_door_models = request_data.get("tableADoorModels") or []
-                if not isinstance(scan_door_models, list):
-                    scan_door_models = []
                 _set_tablea_scan_meta(
                     signature=scan_signature,
                     model=scan_model,
