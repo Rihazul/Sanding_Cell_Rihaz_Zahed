@@ -1,6 +1,6 @@
 // API service for robot control dashboard
 
-const API_BASE_URL = 'http://192.168.0.230:5100';
+export const API_BASE_URL = 'http://192.168.0.230:5100';
 
 // Generic API call function
 async function apiCall(endpoint: string, method: 'GET' | 'POST', payload?: any) {

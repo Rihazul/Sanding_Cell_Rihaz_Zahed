@@ -22,6 +22,34 @@ export type DoorConfig = {
   rows: RowConfig[];
 };
 
+const MODEL_IMAGE_MAP: Record<'A' | 'B', Record<string, string[]>> = {
+  A: {
+    modelA: ['table_1/model1.jpg'],
+    modelB: ['table_1/model2.jpg'],
+    modelD: ['table_1/model4.jpg'],
+    modelE: ['table_1/model5.jpeg', 'table_1/model_5.jpg', 'table_1/model5_a.jpg', 'table_1/model5_c.jpeg'],
+    modelF: ['table_1/modelf.jpg', 'table_1/modelF.jpg', 'table_1/modelf.jpeg'],
+  },
+  B: {
+    modelA: ['table_2/model1.jpeg'],
+    modelB: ['table_2/model2.jpeg'],
+    modelC: ['table_2/model3.jpeg'],
+    modelD: ['table_2/model4.jpg'],
+    modelE: ['table_2/model5.jpeg'],
+  },
+};
+
+const MODEL_KEY_ALIAS: Record<string, string> = {
+  modela: 'modelA',
+  modelb: 'modelB',
+  modelc: 'modelC',
+  modeld: 'modelD',
+  modele: 'modelE',
+  modelf: 'modelF',
+};
+
+const PREVIEW_CACHE_BUST = 'v=20260514_modelfix';
+
 interface CompactTableConfigProps {
   tableName: 'A' | 'B';
   model: string;
@@ -71,6 +99,8 @@ export function CompactTableConfig({
   const [lastScannedAt, setLastScannedAt] = React.useState<string | null>(null);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
+  const [previewAttemptIndexA, setPreviewAttemptIndexA] = React.useState<number>(0);
+  const [previewAttemptIndexB, setPreviewAttemptIndexB] = React.useState<number>(0);
   const completionTimerRef = React.useRef<number | null>(null);
   const isModelF = model === 'modelF';
   const isModelFAllowedRow = (label: string) => label === 'Pocket ZigZag';
@@ -94,6 +124,56 @@ export function CompactTableConfig({
     if (value === 'modelF') return 'Model F - Flat';
     return value || 'No model selected';
   };
+
+  const getModelPreviewCandidates = (table: 'A' | 'B', selectedModel: string) => {
+    const raw = (selectedModel || '').trim();
+    if (!raw) return [];
+    const normalized = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+    let canonicalKey = MODEL_KEY_ALIAS[normalized] || raw;
+    if (typeof canonicalKey === 'string') {
+      const probe = canonicalKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (probe.includes('modela')) canonicalKey = 'modelA';
+      else if (probe.includes('modelb')) canonicalKey = 'modelB';
+      else if (probe.includes('modelc')) canonicalKey = 'modelC';
+      else if (probe.includes('modeld')) canonicalKey = 'modelD';
+      else if (probe.includes('modele')) canonicalKey = 'modelE';
+      else if (probe.includes('modelf')) canonicalKey = 'modelF';
+    }
+    const candidates = MODEL_IMAGE_MAP[table][canonicalKey] || [];
+    if (candidates.length) return candidates;
+
+    const probe = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const looksLikeModelF = probe.includes('modelf') || probe.includes('flat');
+    if (table === 'A' && looksLikeModelF) {
+      return ['table_1/modelf.jpg'];
+    }
+    return [];
+  };
+
+  const getModelPreviewSrc = (table: 'A' | 'B', selectedModel: string, attemptIndex: number) => {
+    const candidates = getModelPreviewCandidates(table, selectedModel);
+    const relativePath = candidates[attemptIndex] || '';
+    if (!relativePath) return '';
+    return `/${relativePath}?${PREVIEW_CACHE_BUST}`;
+  };
+
+  const selectedDoorModel =
+    tableName === 'A'
+      ? (doorConfigs || []).find((d) => d.doorNumber === selectedDoor)?.model || ''
+      : '';
+  const tableAPreviewModel =
+    (selectedDoorModel || '').trim() ||
+    (model || '').trim() ||
+    (tableName === 'A' ? (doorConfigs || []).find((d) => (d.model || '').trim())?.model || '' : '');
+  const tableBPreviewModel = (model || '').trim();
+
+  React.useEffect(() => {
+    setPreviewAttemptIndexA(0);
+  }, [tableAPreviewModel]);
+
+  React.useEffect(() => {
+    setPreviewAttemptIndexB(0);
+  }, [tableBPreviewModel]);
   
   React.useEffect(() => {
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
@@ -779,6 +859,21 @@ export function CompactTableConfig({
                   <option value="modelE">Model E - Moulure Interne et Externe</option>
                   <option value="modelF">Model F - Flat</option>
                 </select>
+                {getModelPreviewSrc('A', tableAPreviewModel, previewAttemptIndexA) && (
+                  <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
+                    <div className="text-xs text-slate-600 mb-2">Selected model preview</div>
+                    <img
+                      src={getModelPreviewSrc('A', tableAPreviewModel, previewAttemptIndexA)}
+                      alt={`Table A ${formatModelName(tableAPreviewModel)}`}
+                      onError={() => {
+                        const maxIdx = getModelPreviewCandidates('A', tableAPreviewModel).length - 1;
+                        setPreviewAttemptIndexA((prev) => (prev < maxIdx ? prev + 1 : prev));
+                      }}
+                      style={{ width: '11.25rem', height: '7.5rem' }}
+                      className="mx-auto object-contain rounded-md bg-white border border-slate-200"
+                    />
+                  </div>
+                )}
                 <div className="mt-2 text-xs">
                   {scanCompleted ? (
                     <span className="text-green-700">
@@ -944,6 +1039,21 @@ export function CompactTableConfig({
                 <option value="modelE">Model E</option>
                 <option value="modelF">Model F</option>
               </select>
+              {getModelPreviewSrc('B', tableBPreviewModel, previewAttemptIndexB) && (
+                <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <div className="text-xs text-slate-600 mb-2">Selected model preview</div>
+                  <img
+                    src={getModelPreviewSrc('B', tableBPreviewModel, previewAttemptIndexB)}
+                    alt={`Table B ${formatModelName(tableBPreviewModel)}`}
+                    onError={() => {
+                      const maxIdx = getModelPreviewCandidates('B', tableBPreviewModel).length - 1;
+                      setPreviewAttemptIndexB((prev) => (prev < maxIdx ? prev + 1 : prev));
+                    }}
+                    style={{ width: '11.25rem', height: '7.5rem' }}
+                    className="mx-auto object-contain rounded-md bg-white border border-slate-200"
+                  />
+                </div>
+              )}
 
               <div className="mt-6 space-y-3">
                 {tableBDisplayRows.map(({ row, idx }) => (
