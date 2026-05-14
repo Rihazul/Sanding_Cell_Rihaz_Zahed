@@ -2,6 +2,7 @@ settings:
   debug: true # Console logging enabled
   actualScan: true
   useTool: true
+  scanPostHoming: true
 
 server:
   ip: '192.168.0.104'
@@ -66,6 +67,7 @@ offset:
   tool3y: 100
   toolin: 0
   scannerOffsetInLeft   : 5 # add this much offset in left while scanning x axis.
+  scanXPreStartOffsetMm : 2 # move this much before xStart before starting x scan motion
   scannerOffsetInBottom : 10 # add this much offset in bottom while scanning y axis.
   doorYOffset: 150 #Initial 50
   innerSandingOffset: 60

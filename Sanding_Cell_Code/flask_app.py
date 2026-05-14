@@ -1928,7 +1928,15 @@ def handle_action():
                 finally:
                     laser(cps, "off", config=config)
 
-                scanhoming(cps=cps, config=config)
+                run_scan_homing = bool(
+                    config.get("settings", {}).get("scanPostHoming", False)
+                )
+                if run_scan_homing:
+                    scanhoming(cps=cps, config=config)
+                else:
+                    config["logger"].info(
+                        "[scan] scanPostHoming disabled; skipping post-scan homing move."
+                    )
                 return jsonify({'status': 'success', 'message': 'Table scan completed'})
         except Exception as exc:
             if stop_requested():

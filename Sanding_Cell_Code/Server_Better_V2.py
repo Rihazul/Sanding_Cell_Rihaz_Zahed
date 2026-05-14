@@ -3863,10 +3863,17 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].info(
                     f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
                 )
+                x_prestart_offset_mm = abs(
+                    float(config.get("offset", {}).get("scanXPreStartOffsetMm", 2.0))
+                )
+                xLeadIn = addXVal(xStart, -x_prestart_offset_mm)
+                config["logger"].info(
+                    f"[scan-x] lead-in point: {xLeadIn} (offset {x_prestart_offset_mm}mm before start)"
+                )
 
                 communicate(
                     cps=cps,
-                    point=xStart-2,  # adding a small offset to ensure we trigger the sensor properly at the start
+                    point=xLeadIn,
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
@@ -3874,7 +3881,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     velocity_profile="robotspeed",
                     wait=True,
                 )
-                config["logger"].info(f"[scan-x] start point reached: {xStart}")
+                config["logger"].info(f"[scan-x] lead-in point reached: {xLeadIn}")
 
                 waitForBlending(cps=cps, config=config, timeout_s=scan_blend_timeout_s)
                 xmeasurements = communicate(
@@ -3928,6 +3935,35 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         ###############################
 
         allXMeasurements = find_x_groups(allXMeasurements, 4)
+        if not allXMeasurements:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Scan aborted: no valid horizontal scan groups found.",
+            )
+            return ([], [], [], [], [], [], [])
+
+        expected_doors = int(config["table"]["count"])
+        if len(allXMeasurements) > expected_doors:
+            config["logger"].warning(
+                "[scan] Detected %s scan groups, but table count is %s. Trimming likely noise groups.",
+                len(allXMeasurements),
+                expected_doors,
+            )
+            # Keep the largest groups (most valid samples), then restore scan order.
+            selected_indexes = sorted(
+                sorted(
+                    range(len(allXMeasurements)),
+                    key=lambda idx: len(allXMeasurements[idx]),
+                    reverse=True,
+                )[:expected_doors]
+            )
+            allXMeasurements = [allXMeasurements[idx] for idx in selected_indexes]
+        elif len(allXMeasurements) < expected_doors:
+            config["logger"].warning(
+                "[scan] Detected only %s scan groups for table count %s.",
+                len(allXMeasurements),
+                expected_doors,
+            )
 
         # reversing to start from the last to first (to save time)
         beginning_non_nan = next(
