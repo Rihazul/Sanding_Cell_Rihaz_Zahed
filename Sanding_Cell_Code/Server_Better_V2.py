@@ -3906,17 +3906,26 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 xmeasurements = adjust_heights(xmeasurements)
                 saveAsCSV(f"./static/xm{tblCnt}.csv", xmeasurements)
                 allXMeasurements += xmeasurements
-                communicate(
-                    cps=cps,
-                    point=xStart,
-                    tcp=config["coords"]["tcpLaserPlane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    config=config,
-                    speed=scan_robot_speed,
-                    velocity_profile="robotspeed",
-                    wait=False,
-                )
+                if bool(
+                    config.get("settings", {}).get(
+                        "scanReturnToXStartAfterSection", False
+                    )
+                ):
+                    communicate(
+                        cps=cps,
+                        point=xStart,
+                        tcp=config["coords"]["tcpLaserPlane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        config=config,
+                        speed=scan_robot_speed,
+                        velocity_profile="robotspeed",
+                        wait=False,
+                    )
+                else:
+                    config["logger"].info(
+                        "[scan-x] scanReturnToXStartAfterSection disabled; skipping X start return."
+                    )
 
                 # Saves the x scan values first
                 saveAsCSV("./static/xmeasures.csv", allXMeasurements)
@@ -3976,6 +3985,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         allXMeasurements.reverse()
 
         # Define thresholds for each chunk
+        total_doors = len(allXMeasurements)
         for xcnt, xmeasurements in enumerate(allXMeasurements):
             if stop_requested():
                 msg_to_frontend(
@@ -4045,9 +4055,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         message="Scan stopped by user.",
                     )
                     return ([], [], [], [], [], [], [])
+                door_number = total_doors - xcnt
+                is_final_door = xcnt == (total_doors - 1)
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
-                    message=f"Moving to Door {len(allXMeasurements) - xcnt} to Scan Vertically...",
+                    message=f"Moving to Door {door_number} to Scan Vertically...",
                 )
                 # It gets stuck here and returns code 20018
                 # Adjust timer in IsBlendingDone at the top
@@ -4064,7 +4076,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 if move_ok is None:
                     msg_to_frontend(
                         api_url=config["server"]["frontEnd_messaging_url"],
-                        message=f"Scan aborted: failed to move J7 to door position {len(allXMeasurements) - xcnt}.",
+                        message=f"Scan aborted: failed to move J7 to door position {door_number}.",
                     )
                     return ([], [], [], [], [], [], [])
                 config["logger"].info(
@@ -4136,8 +4148,27 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
-                    message=f"Vertical Scanning of Door {len(allXMeasurements) - xcnt} Completed!",
+                    message=f"Vertical Scanning of Door {door_number} Completed!",
                 )
+                if is_final_door and bool(
+                    config.get("settings", {}).get(
+                        "scanHomeImmediatelyAfterFinalDoorYEnd", True
+                    )
+                ):
+                    config["logger"].info(
+                        "[scan-y] Final door Y scan complete; moving directly to safe home point."
+                    )
+                    communicate(
+                        cps=cps,
+                        point=config["point"]["safePoint"],
+                        tcp=config["coords"]["tcpDefault"],
+                        ucs=config["coords"]["ucsDefault"],
+                        seventh=-1,
+                        config=config,
+                        speed=scan_robot_speed,
+                        velocity_profile="robotspeed",
+                        wait=False,
+                    )
             else:
                 ymeasurements = csv_to_dict_list(f"./static/ym{xcnt}.csv")
 

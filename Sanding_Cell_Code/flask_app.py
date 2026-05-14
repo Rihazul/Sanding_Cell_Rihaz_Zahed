@@ -1930,12 +1930,16 @@ def handle_action():
 
                 run_scan_homing = bool(
                     config.get("settings", {}).get("scanPostHoming", False)
+                ) and not bool(
+                    config.get("settings", {}).get(
+                        "scanHomeImmediatelyAfterFinalDoorYEnd", True
+                    )
                 )
                 if run_scan_homing:
                     scanhoming(cps=cps, config=config)
                 else:
                     config["logger"].info(
-                        "[scan] scanPostHoming disabled; skipping post-scan homing move."
+                        "[scan] Post-scan scanhoming skipped (disabled or already homed at final Y end)."
                     )
                 return jsonify({'status': 'success', 'message': 'Table scan completed'})
         except Exception as exc:

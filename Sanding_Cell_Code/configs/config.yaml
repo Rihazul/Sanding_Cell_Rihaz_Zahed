@@ -3,6 +3,8 @@ settings:
   actualScan: true
   useTool: true
   scanPostHoming: true
+  scanReturnToXStartAfterSection: false
+  scanHomeImmediatelyAfterFinalDoorYEnd: true
 
 server:
   ip: '192.168.0.104'
