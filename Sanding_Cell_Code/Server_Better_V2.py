@@ -3747,10 +3747,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             message=f"Table Scanning Started...",
         )
 
-        # Use the shared table-state helper semantics:
-        # active scan on Table A => Table A Open, Table B Close.
-        set_table_state(cps, "tableAOpenClose", "Open")
-        set_table_state(cps, "tableBOpenClose", "Close")
+        # Scan is executed on small-door Table A.
+        # On this cell, operation-time table IO mapping is swapped, so we use:
+        # tableBOpenClose -> physical Table A, tableAOpenClose -> physical Table B.
+        set_table_state(cps, "tableBOpenClose", "Open")
+        set_table_state(cps, "tableAOpenClose", "Close")
 
         if config["settings"]["actualScan"]:
             connect_j7()

@@ -702,8 +702,10 @@ def start_TableB_process():
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
-        set_table_state(CPS, "tableBOpenClose", "Open")
-        set_table_state(CPS, "tableAOpenClose", "Close")
+        # Operation routing uses swapped IO table IDs on this cell:
+        # selecting Table B task should physically open Table B and close Table A.
+        set_table_state(CPS, "tableAOpenClose", "Open")
+        set_table_state(CPS, "tableBOpenClose", "Close")
         socketio.emit('flash_message', {"message": "Operation table mode: Table B Open, Table A Close"})
         nRet = CPS.HRIF_SetBoxCO(0, 2, 0)
     print("stopper Test")
@@ -782,8 +784,10 @@ def start_TableA_process():
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
-        set_table_state(CPS, "tableAOpenClose", "Open")
-        set_table_state(CPS, "tableBOpenClose", "Close")
+        # Operation routing uses swapped IO table IDs on this cell:
+        # selecting Table A task should physically open Table A and close Table B.
+        set_table_state(CPS, "tableBOpenClose", "Open")
+        set_table_state(CPS, "tableAOpenClose", "Close")
         socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
         stopper_statusmod(CPS, state="up")
 
@@ -1933,8 +1937,10 @@ def handle_action():
                 stopper_statusmod(cps, state="up")
                 laser(cps, "on", config=config)
                 try:
-                    set_table_state(cps, "tableAOpenClose", "Open")
-                    set_table_state(cps, "tableBOpenClose", "Close")
+                    # Scan is for small-door Table A; use swapped IO table IDs so
+                    # physical Table A opens and physical Table B closes.
+                    set_table_state(cps, "tableBOpenClose", "Open")
+                    set_table_state(cps, "tableAOpenClose", "Close")
                     socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
                     scanTableA(cps=cps, config=config)
                 finally:
