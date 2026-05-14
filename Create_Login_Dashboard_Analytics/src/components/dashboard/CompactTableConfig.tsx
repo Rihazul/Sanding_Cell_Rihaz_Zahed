@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { startTableAProcess, startTableBProcess, performAction, upload3DFile, getProcessStatus } from '../../services/api';
+import { startTableAProcess, startTableBProcess, performAction, upload3DFile, getProcessStatus, getScanStatus } from '../../services/api';
 
 export type RowConfig = {
   label: string;
@@ -68,6 +68,7 @@ export function CompactTableConfig({
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
   const [lastScanSignature, setLastScanSignature] = React.useState<string | null>(null);
+  const [lastScannedAt, setLastScannedAt] = React.useState<string | null>(null);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   const completionTimerRef = React.useRef<number | null>(null);
@@ -134,6 +135,13 @@ export function CompactTableConfig({
   };
 
   const getSwal = () => (window as any).Swal;
+  const getTableADoorModels = () => {
+    if (tableName !== 'A') return [] as string[];
+    return (doorConfigs || [])
+      .map((d) => `${d.doorNumber}:${(d.model || '').trim()}`)
+      .filter(Boolean);
+  };
+
   const getTableAScanSignature = () => {
     if (tableName !== 'A') return '';
     const baseModel = (model || '').trim();
@@ -143,12 +151,60 @@ export function CompactTableConfig({
     return `${baseModel}::${doorModelSig}`;
   };
 
+  React.useEffect(() => {
+    let cancelled = false;
+    if (tableName !== 'A') return;
+
+    (async () => {
+      try {
+        const status = await getScanStatus();
+        if (cancelled) return;
+        const hasScan = !!status?.hasScan;
+        setScanCompleted(hasScan);
+        setLastScannedAt(status?.scannedAt || null);
+        const signature = (status?.signature || '').trim();
+        setLastScanSignature(signature || null);
+      } catch {
+        // Non-blocking; fallback to in-memory scan status.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tableName]);
+
   const confirmScanForTableA = async () => {
     if (tableName !== 'A') return true;
+    const hasAnyModel =
+      !!(model || '').trim() ||
+      (doorConfigs || []).some((d) => !!(d.model || '').trim());
+    if (!hasAnyModel) {
+      const warning = 'Select a model before scanning Table A.';
+      addActivity(`Table ${tableName}: ${warning}`, 'warning');
+      const swal = getSwal();
+      if (swal?.fire) {
+        await swal.fire({
+          title: 'Model Required',
+          text: warning,
+          icon: 'warning',
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+      return false;
+    }
+
     const swal = getSwal();
+    const selectedModelText = (model || '').trim()
+      ? `Selected model: ${formatModelName(model)}.`
+      : 'Model selected per-door configuration.';
+    const rescanText = scanCompleted
+      ? `A previous scan exists${lastScannedAt ? ` (${lastScannedAt})` : ''}. Do you want to run scan again?`
+      : 'No previous scan found. Start a new scan?';
     const text = scanCompleted
-      ? 'A scan is already marked complete. Do you want to run scan again?'
-      : 'Confirm scan for Table A. Ensure the area is clear and the setup is correct.';
+      ? `${rescanText} ${selectedModelText}`
+      : `Confirm scan for Table A. ${selectedModelText} Ensure the area is clear and setup is correct.`;
     if (!swal?.fire) {
       return window.confirm(text);
     }
@@ -164,18 +220,21 @@ export function CompactTableConfig({
     return !!result.isConfirmed;
   };
 
-  const confirmStartTaskForTableA = async () => {
-    if (tableName !== 'A') return true;
+  const confirmStartTask = async () => {
     const swal = getSwal();
-    const scanState = scanCompleted ? 'Scan status: Completed.' : 'Scan status: Not marked completed.';
+    const scanState =
+      tableName === 'A'
+        ? (scanCompleted ? 'Scan status: Completed.' : 'Scan status: Not marked completed.')
+        : 'Scan status: Not required for Table B.';
     const modelState = model?.trim() ? `Model: ${formatModelName(model)}.` : 'Model: Not selected at table level.';
     const reminder = 'Please verify door selection, force/cycle values, and safety before continuing.';
     const text = `${scanState} ${modelState} ${reminder}`;
+    const title = tableName === 'A' ? 'Confirm Start Task (Table A)' : 'Confirm Start Task (Table B)';
     if (!swal?.fire) {
-      return window.confirm(`Confirm Start Task for Table A?\n\n${text}`);
+      return window.confirm(`${title}\n\n${text}`);
     }
     const result = await swal.fire({
-      title: 'Confirm Start Task',
+      title,
       text,
       icon: 'warning',
       showCancelButton: true,
@@ -196,11 +255,17 @@ export function CompactTableConfig({
     }
     setIsOperating(true);
     setIsScanning(true);
-    addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
+      addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
     try {
-      await performAction('scan');
+      await performAction('scan', {
+        tableAScanSignature: getTableAScanSignature(),
+        tableAModel: model || '',
+        tableADoorModels: getTableADoorModels(),
+      });
       setScanCompleted(true);
-      setLastScanSignature(getTableAScanSignature());
+      const signature = getTableAScanSignature();
+      setLastScanSignature(signature);
+      setLastScannedAt(new Date().toISOString());
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
       showCompletionPopup('Scan Completed', 'Table A scan completed');
     } catch (error) {
@@ -216,11 +281,44 @@ export function CompactTableConfig({
 
     if (isOperating || isScanning) return;
     if (tableName === 'A') {
+      let effectiveScanCompleted = scanCompleted;
+      let effectiveLastSignature = lastScanSignature;
+      try {
+        const status = await getScanStatus();
+        const hasScan = !!status?.hasScan;
+        if (!hasScan) {
+          const warningText = 'Scan required before starting Table A task.';
+          const swal = getSwal();
+          if (swal?.fire) {
+            await swal.fire({
+              title: 'Scan Required',
+              text: warningText,
+              icon: 'warning',
+              timer: 2000,
+              showConfirmButton: false,
+            });
+          }
+          addActivity(`Table ${tableName}: ${warningText}`, 'warning');
+          return;
+        }
+        effectiveScanCompleted = true;
+        setScanCompleted(true);
+        if (status?.signature) {
+          effectiveLastSignature = String(status.signature);
+          setLastScanSignature(effectiveLastSignature);
+        }
+        if (status?.scannedAt) {
+          setLastScannedAt(String(status.scannedAt));
+        }
+      } catch {
+        // keep local checks as fallback
+      }
+
       const scanSignatureNow = getTableAScanSignature();
       const scanInvalid =
-        !scanCompleted ||
-        !lastScanSignature ||
-        scanSignatureNow !== lastScanSignature;
+        !effectiveScanCompleted ||
+        !effectiveLastSignature ||
+        scanSignatureNow !== effectiveLastSignature;
       if (scanInvalid) {
         const swal = getSwal();
         const warningText = 'Model/configuration changed or scan missing. Please run Scan first before Start Task.';
@@ -237,7 +335,7 @@ export function CompactTableConfig({
         return;
       }
     }
-    const confirmed = await confirmStartTaskForTableA();
+    const confirmed = await confirmStartTask();
     if (!confirmed) {
       addActivity(`Table ${tableName}: Start task cancelled to review configuration`, 'warning');
       return;
@@ -681,6 +779,15 @@ export function CompactTableConfig({
                   <option value="modelE">Model E - Moulure Interne et Externe</option>
                   <option value="modelF">Model F - Flat</option>
                 </select>
+                <div className="mt-2 text-xs">
+                  {scanCompleted ? (
+                    <span className="text-green-700">
+                      Scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}. Re-scan if model/door setup changed.
+                    </span>
+                  ) : (
+                    <span className="text-amber-700">No scan on record yet.</span>
+                  )}
+                </div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-4">

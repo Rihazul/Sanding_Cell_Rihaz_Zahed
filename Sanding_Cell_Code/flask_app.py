@@ -139,6 +139,23 @@ def _scan_indicates_model_f():
     return True
 
 
+def _build_tablea_signature(table_data):
+    if not isinstance(table_data, dict):
+        return ""
+    base_model = str(table_data.get("model", "") or "").strip()
+    door_parts = []
+    doors = table_data.get("doors")
+    if isinstance(doors, list):
+        for door in doors:
+            if not isinstance(door, dict):
+                continue
+            door_num = door.get("doorNumber")
+            door_model = str(door.get("model", "") or "").strip()
+            door_parts.append(f"{door_num}:{door_model}")
+    door_sig = "|".join(sorted(door_parts))
+    return f"{base_model}::{door_sig}"
+
+
 def _zero_task_payload(task_cfg):
     """Normalize a task payload as disabled."""
     if not isinstance(task_cfg, dict):
@@ -283,6 +300,16 @@ _inline_scan_active = threading.Event()
 _last_child_exit_ts = 0.0
 CHILD_EXIT_SETTLE_SECONDS = 0.6
 J7_HOME_STATE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".j7_home_state.json")
+TABLEA_SCAN_RESULTS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "smallTable",
+    "static",
+    "scan_results.json",
+)
+TABLEA_SCAN_META_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    ".tablea_scan_meta.json",
+)
 
 
 def _load_j7_home_state() -> bool:
@@ -306,6 +333,57 @@ def _persist_j7_home_state(is_homed: bool) -> None:
             json.dump(payload, f)
     except Exception:
         pass
+
+
+def _load_tablea_scan_meta() -> dict:
+    try:
+        if not os.path.exists(TABLEA_SCAN_META_PATH):
+            return {}
+        with open(TABLEA_SCAN_META_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _save_tablea_scan_meta(payload: dict) -> None:
+    try:
+        with open(TABLEA_SCAN_META_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+    except Exception:
+        pass
+
+
+def _set_tablea_scan_meta(signature=None, model=None, door_models=None):
+    payload = {
+        "hasScan": True,
+        "scannedAt": datetime.now().isoformat(timespec="seconds"),
+        "signature": signature or "",
+        "model": model or "",
+        "doorModels": door_models or [],
+    }
+    _save_tablea_scan_meta(payload)
+
+
+def _get_tablea_scan_status():
+    meta = _load_tablea_scan_meta()
+    has_scan_file = os.path.exists(TABLEA_SCAN_RESULTS_PATH)
+    has_scan = bool(has_scan_file or meta.get("hasScan"))
+    if not has_scan:
+        return {"hasScan": False, "scannedAt": None, "signature": "", "model": "", "doorModels": []}
+    if not meta.get("scannedAt"):
+        try:
+            ts = os.path.getmtime(TABLEA_SCAN_RESULTS_PATH)
+            meta["scannedAt"] = datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+        except Exception:
+            meta["scannedAt"] = None
+    return {
+        "hasScan": True,
+        "scannedAt": meta.get("scannedAt"),
+        "signature": meta.get("signature", ""),
+        "model": meta.get("model", ""),
+        "doorModels": meta.get("doorModels", []),
+    }
 
 
 def _sanitize_cps_runtime():
@@ -798,6 +876,14 @@ def start_TableA_process():
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
     
     tableData = data['TableA']
+    scan_status = _get_tablea_scan_status()
+    if not scan_status.get("hasScan"):
+        return jsonify(
+            {
+                "error": "Scan required before starting Table A task.",
+                "code": "scan_required",
+            }
+        ), 409
 
     # Support both payload formats:
     # 1) Legacy: TableA.model + task objects
@@ -816,6 +902,18 @@ def start_TableA_process():
                 return jsonify({"error": "Invalid request, no model found for TableA"}), 400
         # Make it available to any downstream code that still expects TableA.model
         tableData['model'] = selected_model
+
+    current_signature = _build_tablea_signature(tableData)
+    previous_signature = str(scan_status.get("signature") or "").strip()
+    if previous_signature and current_signature and previous_signature != current_signature:
+        return jsonify(
+            {
+                "error": "Scan no longer matches current Table A model/door selection. Please scan again.",
+                "code": "scan_mismatch",
+                "scanSignature": previous_signature,
+                "currentSignature": current_signature,
+            }
+        ), 409
 
     runtime_config = load_config()
     auto_model_f_from_scan = bool(
@@ -1759,6 +1857,11 @@ def homing_status():
             reason = "ok"
     return jsonify({'required': required, 'reason': reason})
 
+
+@app.route('/scan_status', methods=['GET'])
+def scan_status():
+    return jsonify(_get_tablea_scan_status())
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -1776,7 +1879,8 @@ def handle_action():
     # Set up logger
     config['logger'] = setup_logger(config['settings']['debug'])
 
-    action = request.json.get('action')  # Get action from frontend
+    request_data = request.json or {}
+    action = request_data.get('action')  # Get action from frontend
     global j7_home_confirmed
     print('the action is :',action)
     result = []  # Define the return value as an empty list
@@ -2030,6 +2134,16 @@ def handle_action():
                 # Do not run additional scan homing here.
                 config["logger"].info(
                     "[scan] Post-scan scanhoming is disabled; using direct homing from scan_table."
+                )
+                scan_signature = str(request_data.get("tableAScanSignature") or "").strip()
+                scan_model = str(request_data.get("tableAModel") or "").strip()
+                scan_door_models = request_data.get("tableADoorModels") or []
+                if not isinstance(scan_door_models, list):
+                    scan_door_models = []
+                _set_tablea_scan_meta(
+                    signature=scan_signature,
+                    model=scan_model,
+                    door_models=scan_door_models,
                 )
                 return jsonify({'status': 'success', 'message': 'Table scan completed'})
         except Exception as exc:

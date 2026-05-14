@@ -331,8 +331,11 @@ export async function toolToggle(toolNumber: 1 | 2 | 3 | 4, action: 'pick' | 'ke
 }
 
 // Action operations
-export async function performAction(action: 'stopperUp' | 'stopperDown' | 'stopperUpB' | 'stopperDownB' | 'homing' | 'enable' | 'disable' | 'scan' | 'stop' | 'toolLift' | 'toolDrop' | 'laserOn' | 'laserOff') {
-  return apiCall('/action', 'POST', { action });
+export async function performAction(
+  action: 'stopperUp' | 'stopperDown' | 'stopperUpB' | 'stopperDownB' | 'homing' | 'enable' | 'disable' | 'scan' | 'stop' | 'toolLift' | 'toolDrop' | 'laserOn' | 'laserOff',
+  extraPayload?: Record<string, unknown>
+) {
+  return apiCall('/action', 'POST', { action, ...(extraPayload || {}) });
 }
 
 // Toggle state for Table open/close
@@ -362,6 +365,10 @@ export async function getProcessStatus() {
 
 export async function getHomingStatus() {
   return apiCall('/homing_status', 'GET');
+}
+
+export async function getScanStatus() {
+  return apiCall('/scan_status', 'GET');
 }
 
 // Tool attachment status checks (returns shouldBlink boolean)
@@ -413,6 +420,7 @@ export const api = {
   getRobotStatus,
   getProcessStatus,
   getHomingStatus,
+  getScanStatus,
   checkToolStatus,
   getLogsHistory,
 };
