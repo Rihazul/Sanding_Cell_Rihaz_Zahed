@@ -3866,7 +3866,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 communicate(
                     cps=cps,
-                    point=xStart,
+                    point=xStart-2,  # adding a small offset to ensure we trigger the sensor properly at the start
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
@@ -4086,17 +4086,17 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 ymeasurements = adjust_heights(ymeasurements)
                 saveAsCSV(f"./static/ym{xcnt}.csv", ymeasurements)
 
-                communicate(
-                    cps=cps,
-                    point=yStart,
-                    tcp=config["coords"]["tcpLaserPlane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    config=config,
-                    speed=scan_robot_speed,
-                    velocity_profile="robotspeed",
-                    wait=False,
-                )
+                # communicate(
+                #     cps=cps,
+                #     point=yStart,
+                #     tcp=config["coords"]["tcpLaserPlane1"],
+                #     ucs=config["coords"]["ucsTable1"],
+                #     seventh=-1,
+                #     config=config,
+                #     speed=scan_robot_speed,
+                #     velocity_profile="robotspeed",
+                #     wait=False,
+                # )
 
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
@@ -4372,19 +4372,19 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             config["logger"].info(
                 f"[scan-calculation] inner sanding points: {pocketPoints}"
             )
-            if config["settings"]["actualScan"]:
-                # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['UI']['robotSpeed'])
-                communicate(
-                    cps=cps,
-                    point=config["point"]["safepointprehoming"],
-                    tcp=config["coords"]["tcpLaserPlane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    config=config,
-                    speed=scan_robot_speed,
-                    velocity_profile="robotspeed",
-                )
-                config["logger"].info("[scan] moved successfully to safepoint")
+            # if config["settings"]["actualScan"]:
+            #     # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['UI']['robotSpeed'])
+            #     communicate(
+            #         cps=cps,
+            #         point=config["point"]["safepointprehoming"],
+            #         tcp=config["coords"]["tcpLaserPlane1"],
+            #         ucs=config["coords"]["ucsTable1"],
+            #         seventh=-1,
+            #         config=config,
+            #         speed=scan_robot_speed,
+            #         velocity_profile="robotspeed",
+            #     )
+            #     config["logger"].info("[scan] moved successfully to safepoint")
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message=f"Point Calculated for All Doors. Scanning Completed for the Table!",
