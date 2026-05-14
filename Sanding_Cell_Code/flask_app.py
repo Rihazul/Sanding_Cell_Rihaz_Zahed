@@ -380,6 +380,26 @@ def ensure_cps_connected_retry(max_attempts=6, retry_delay_seconds=0.5, force=Tr
         time.sleep(retry_delay_seconds)
     return last_robot_error if last_robot_error is not None else last_ret
 
+
+def set_active_table_exclusive(cps, active_table: str):
+    """
+    Enforce exclusive table state for operations:
+    - active_table == "A": Table A Open, Table B Close
+    - active_table == "B": Table B Open, Table A Close
+    """
+    if active_table == "A":
+        set_table_state(cps, "tableAOpenClose", "Open")
+        set_table_state(cps, "tableBOpenClose", "Close")
+        socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
+        return
+    if active_table == "B":
+        set_table_state(cps, "tableBOpenClose", "Open")
+        set_table_state(cps, "tableAOpenClose", "Close")
+        socketio.emit('flash_message', {"message": "Operation table mode: Table B Open, Table A Close"})
+        return
+    raise ValueError(f"Invalid active_table '{active_table}'. Use 'A' or 'B'.")
+
+
 @contextmanager
 def locked_cps(timeout=1.0, allow_when_busy=False):
     """Lock CPS access and ensure connection; yields True on success."""
@@ -701,8 +721,7 @@ def start_TableB_process():
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
-        set_table_state(CPS, "tableAOpenClose", "Close")
-        set_table_state(CPS, "tableBOpenClose", "Close")
+        set_active_table_exclusive(CPS, "B")
         nRet = CPS.HRIF_SetBoxCO(0, 2, 0)
     print("stopper Test")
 
@@ -780,8 +799,7 @@ def start_TableA_process():
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
-        set_table_state(CPS, "tableAOpenClose", "Close")
-        set_table_state(CPS, "tableBOpenClose", "Close")
+        set_active_table_exclusive(CPS, "A")
         stopper_statusmod(CPS, state="up")
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
@@ -1930,8 +1948,7 @@ def handle_action():
                 stopper_statusmod(cps, state="up")
                 laser(cps, "on", config=config)
                 try:
-                    set_table_state(cps, "tableAOpenClose", "Close")
-                    set_table_state(cps, "tableBOpenClose", "Close")
+                    set_active_table_exclusive(cps, "A")
                     scanTableA(cps=cps, config=config)
                 finally:
                     laser(cps, "off", config=config)
