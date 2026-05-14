@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { AnalyticsPage } from './components/AnalyticsPage';
 import { RobotStatusPanel } from './components/dashboard/RobotStatusPanel';
@@ -11,6 +11,11 @@ export interface ActivityEntry {
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
 }
+
+const APP_ZOOM_KEY = 'appZoomPercent';
+const MIN_ZOOM = 80;
+const MAX_ZOOM = 150;
+const ZOOM_STEP = 10;
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -47,6 +52,85 @@ export default function App() {
         });
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const applyZoom = (zoomPercent: number) => {
+      const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomPercent));
+      document.documentElement.style.zoom = `${clamped}%`;
+      try {
+        localStorage.setItem(APP_ZOOM_KEY, String(clamped));
+      } catch {
+        // Ignore storage errors in restricted environments.
+      }
+    };
+
+    const getCurrentZoom = () => {
+      try {
+        const stored = Number(localStorage.getItem(APP_ZOOM_KEY));
+        if (!Number.isNaN(stored) && stored > 0) {
+          return stored;
+        }
+      } catch {
+        // Ignore storage errors in restricted environments.
+      }
+      return 100;
+    };
+
+    applyZoom(getCurrentZoom());
+
+    const changeZoom = (delta: number) => {
+      applyZoom(getCurrentZoom() + delta);
+    };
+
+    const resetZoom = () => {
+      applyZoom(100);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const ctrlOrCmd = event.ctrlKey || event.metaKey;
+      if (!ctrlOrCmd) {
+        return;
+      }
+
+      if (event.key === '+' || event.key === '=' || event.code === 'NumpadAdd') {
+        event.preventDefault();
+        changeZoom(ZOOM_STEP);
+        return;
+      }
+
+      if (event.key === '-' || event.key === '_' || event.code === 'NumpadSubtract') {
+        event.preventDefault();
+        changeZoom(-ZOOM_STEP);
+        return;
+      }
+
+      if (event.key === '0' || event.code === 'Numpad0') {
+        event.preventDefault();
+        resetZoom();
+      }
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      const ctrlOrCmd = event.ctrlKey || event.metaKey;
+      if (!ctrlOrCmd) {
+        return;
+      }
+      event.preventDefault();
+      if (event.deltaY < 0) {
+        changeZoom(ZOOM_STEP);
+      } else if (event.deltaY > 0) {
+        changeZoom(-ZOOM_STEP);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown, { passive: false });
+    window.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('wheel', onWheel);
+    };
   }, []);
 
   return (
