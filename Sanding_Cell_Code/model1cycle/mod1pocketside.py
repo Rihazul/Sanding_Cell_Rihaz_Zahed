@@ -304,59 +304,21 @@ def model1pocket1side(force,cps):
 
     force_active = False
 
-    def ensure_force():
+    def start_force_if_needed():
         nonlocal force_active
-        if not force_active:
-            putForceZplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool4plane2'],
-                ucs=config['coords']['ucsTable2'],
-                config=config
-            )
-            turn_vibration_on(cps)
-            force_active = True
-
-    
-
+        if force_active:
+            return
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
+        force_active = True
     def perform_process_bottom(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -368,48 +330,14 @@ def model1pocket1side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -421,48 +349,14 @@ def model1pocket1side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -474,48 +368,14 @@ def model1pocket1side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -527,8 +387,10 @@ def model1pocket1side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_middle(cps, config, points1,force):
@@ -621,7 +483,7 @@ def model1pocket1side(force,cps):
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
-    # Vibration is enabled on first real contact inside ensure_force().
+    # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
@@ -901,59 +763,21 @@ def model1pocket2side(force,cps):
 
     force_active = False
 
-    def ensure_force():
+    def start_force_if_needed():
         nonlocal force_active
-        if not force_active:
-            putForceZplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool4plane2'],
-                ucs=config['coords']['ucsTable2'],
-                config=config
-            )
-            turn_vibration_on(cps)
-            force_active = True
-
-    
-
+        if force_active:
+            return
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
+        force_active = True
     def perform_process_bottom(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -965,48 +789,14 @@ def model1pocket2side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1018,48 +808,14 @@ def model1pocket2side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1071,48 +827,14 @@ def model1pocket2side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1124,8 +846,10 @@ def model1pocket2side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_middle(cps, config, points1,force):
@@ -1268,7 +992,7 @@ def model1pocket2side(force,cps):
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
-    # Vibration is enabled on first real contact inside ensure_force().
+    # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
@@ -1549,59 +1273,21 @@ def model1pocket3side(force,cps):
 
     force_active = False
 
-    def ensure_force():
+    def start_force_if_needed():
         nonlocal force_active
-        if not force_active:
-            putForceZplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool4plane2'],
-                ucs=config['coords']['ucsTable2'],
-                config=config
-            )
-            turn_vibration_on(cps)
-            force_active = True
-
-    
-
+        if force_active:
+            return
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
+        force_active = True
     def perform_process_bottom(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1613,48 +1299,14 @@ def model1pocket3side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1666,48 +1318,14 @@ def model1pocket3side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1719,48 +1337,14 @@ def model1pocket3side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        vibration_started = False
         for idx, point in enumerate(points1):
-            if idx == 0:
-                if not force_active:
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point,
-                        tcp=config['coords']['tcptool4plane2'],
-                        ucs=config['coords']['ucsTable2'],
-                        seventh=-1,
-                        speed=speed_profile['contact'],
-                velocity_profile="sanding",
-                        wait=True
-                    )
-                    ensure_force()
-                    if not vibration_started:
-
-                        vibration_started = True
-                    continue
-                ensure_force()
-                if not vibration_started:
-
-                    vibration_started = True
             communicate(
                 cps=cps,
                 config=config,
@@ -1772,8 +1356,10 @@ def model1pocket3side(force,cps):
                 velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+            if idx == 0:
+                # Match small-table behavior: reach first contact point, then enable force/vibration.
+                start_force_if_needed()
+
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_middle(cps, config, points1,force):
@@ -1915,7 +1501,7 @@ def model1pocket3side(force,cps):
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
-    # Vibration is enabled on first real contact inside ensure_force().
+    # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
