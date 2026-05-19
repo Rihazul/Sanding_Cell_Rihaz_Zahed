@@ -37,6 +37,9 @@ module_speed_profile = {
     'return': robot_speed,
     'contact': float(json_config['sandingSpeed']),
 }
+if module_speed_profile['contact'] <= 0:
+    module_speed_profile['contact'] = module_speed_profile['travel']
+    print("[mod1zigzag] sandingSpeed<=0, using travel speed for contact moves")
 
 def _get_zigzag_mode_and_edge(json_config):
     """Read zigzag orientation/edge settings with safe defaults."""
@@ -526,10 +529,24 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
 
 
     def perform_process_top(cps, config, points1, force, edge_points=None):
-        # Vibration on
-        
-        
-        # Force Control Activated
+        edge_path = list(edge_points or [])
+        zigzag_points = list(points1 or [])
+        if not edge_path and not zigzag_points:
+            return
+        first_contact_point = edge_path[0] if edge_path else zigzag_points[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_contact_point,
+            tcp=tcp_to_use,
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=module_speed_profile['approach'],
+            velocity_profile="robot",
+            wait=True
+        )
+
+        # Force Control Activated only after we are positioned at first contact point.
         putForceZplus(
             cps=cps,
             force=force,
@@ -540,11 +557,6 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
         # turn_tool_spin_on(cps)
-        
-        edge_path = list(edge_points or [])
-        zigzag_points = list(points1 or [])
-        if not edge_path and not zigzag_points:
-            return
 
         # Edge coverage uses regular MoveL points.
         for point in edge_path:
@@ -935,10 +947,24 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
 
 
     def perform_process_top(cps, config, points1, force, edge_points=None):
-        # Vibration on
-        
-        
-        # Force Control Activated
+        edge_path = list(edge_points or [])
+        zigzag_points = list(points1 or [])
+        if not edge_path and not zigzag_points:
+            return
+        first_contact_point = edge_path[0] if edge_path else zigzag_points[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_contact_point,
+            tcp=tcp_to_use,
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=module_speed_profile['approach'],
+            velocity_profile="robot",
+            wait=True
+        )
+
+        # Force Control Activated only after we are positioned at first contact point.
         putForceZplus(
             cps=cps,
             force=force,
@@ -949,11 +975,6 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
         # turn_tool_spin_on(cps)
-        
-        edge_path = list(edge_points or [])
-        zigzag_points = list(points1 or [])
-        if not edge_path and not zigzag_points:
-            return
 
         # Edge coverage uses regular MoveL points.
         for point in edge_path:
@@ -1344,10 +1365,24 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
 
 
     def perform_process_top(cps, config, points1, force, edge_points=None):
-        # Vibration on
-        
-        
-        # # Force Control Activated
+        edge_path = list(edge_points or [])
+        zigzag_points = list(points1 or [])
+        if not edge_path and not zigzag_points:
+            return
+        first_contact_point = edge_path[0] if edge_path else zigzag_points[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_contact_point,
+            tcp=tcp_to_use,
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=module_speed_profile['approach'],
+            velocity_profile="robot",
+            wait=True
+        )
+
+        # Force Control Activated only after we are positioned at first contact point.
         putForceZplus(
             cps=cps,
             force=force,
@@ -1358,11 +1393,6 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
         # turn_tool_spin_on(cps)
-        
-        edge_path = list(edge_points or [])
-        zigzag_points = list(points1 or [])
-        if not edge_path and not zigzag_points:
-            return
 
         # Edge coverage uses regular MoveL points.
         for point in edge_path:
