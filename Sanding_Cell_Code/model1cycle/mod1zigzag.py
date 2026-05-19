@@ -81,7 +81,7 @@ def _generate_zigzag_edge_path(
     innerSandingOffset,
     orientation="vertical",
     edge_coverage=False,
-    edge_offset=31,
+    edge_offset=2,
 ):
     """Generate zigzag points with optional perimeter edge coverage."""
     if not (x_coords and y_coords and z_coords):
