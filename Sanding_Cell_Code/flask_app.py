@@ -1055,6 +1055,10 @@ def _halt_robot_motion_best_effort():
         except Exception:
             pass
         try:
+            cps_tmp.HRIF_SetBoxDO(0, 7, 0)  # tool spin off
+        except Exception:
+            pass
+        try:
             laser(cps_tmp, "off", config=config)
         except Exception:
             pass
@@ -1166,6 +1170,8 @@ def stop_process():
             print("Client process did not exit cleanly after terminate/kill.")
         else:
             print("Client process terminated.")
+        # Second hard-off pass after worker exit to guarantee outputs are off.
+        _halt_robot_motion_best_effort()
         process_state['status'] = 'completed'
         client_process = None
         _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
@@ -1179,6 +1185,8 @@ def stop_process():
             print("Inline homing thread is still exiting after stop request.")
         else:
             print("Inline homing thread stopped.")
+        # Second hard-off pass after worker exit to guarantee outputs are off.
+        _halt_robot_motion_best_effort()
         process_state['status'] = 'completed'
         process_state['last_action'] = None
         client_thread = None

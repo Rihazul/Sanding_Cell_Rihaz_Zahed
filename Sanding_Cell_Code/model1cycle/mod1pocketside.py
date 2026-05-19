@@ -133,6 +133,9 @@ def model1pocket1side(force,cps):
         'tool_change': speeed,
         'contact': sanding_speed,
     }
+    if speed_profile['contact'] <= 0:
+        speed_profile['contact'] = speed_profile['travel']
+        print("[model1pocket1side] sandingSpeed<=0, using travel speed for contact moves")
 
    
      
@@ -311,6 +314,7 @@ def model1pocket1side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
+            turn_vibration_on(cps)
             force_active = True
 
     
@@ -612,7 +616,7 @@ def model1pocket1side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    turn_vibration_on(cps)
+    # Vibration is enabled on first real contact inside ensure_force().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
@@ -720,6 +724,9 @@ def model1pocket2side(force,cps):
         'tool_change': speeed,
         'contact': sanding_speed,
     }
+    if speed_profile['contact'] <= 0:
+        speed_profile['contact'] = speed_profile['travel']
+        print("[model1pocket2side] sandingSpeed<=0, using travel speed for contact moves")
 
    
      
@@ -898,6 +905,7 @@ def model1pocket2side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
+            turn_vibration_on(cps)
             force_active = True
 
     
@@ -1249,7 +1257,7 @@ def model1pocket2side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    turn_vibration_on(cps)
+    # Vibration is enabled on first real contact inside ensure_force().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
@@ -1358,6 +1366,9 @@ def model1pocket3side(force,cps):
         'tool_change': speeed,
         'contact': sanding_speed,
     }
+    if speed_profile['contact'] <= 0:
+        speed_profile['contact'] = speed_profile['travel']
+        print("[model1pocket3side] sandingSpeed<=0, using travel speed for contact moves")
 
    
      
@@ -1536,6 +1547,7 @@ def model1pocket3side(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
+            turn_vibration_on(cps)
             force_active = True
 
     
@@ -1886,7 +1898,7 @@ def model1pocket3side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    turn_vibration_on(cps)
+    # Vibration is enabled on first real contact inside ensure_force().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
