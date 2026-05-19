@@ -61,6 +61,7 @@ def mod1tool2sidesmall(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
 
     print("p1=",p1)
     print("p2=",p2)
@@ -259,7 +260,7 @@ def mod1tool2sidesmall(force,cps):
                 tcp=config['coords']['tcpSideTool'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -300,7 +301,7 @@ def mod1tool2sidesmall(force,cps):
                 tcp=config['coords']['tcpSideTool'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -342,7 +343,7 @@ def mod1tool2sidesmall(force,cps):
                 tcp=config['coords']['tcpSideTool'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -384,7 +385,7 @@ def mod1tool2sidesmall(force,cps):
                 tcp=config['coords']['tcpSideTool'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -396,53 +397,28 @@ def mod1tool2sidesmall(force,cps):
         releaseForce(cps=cps, config=config)
 
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
-        """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
-        """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcpSideTool'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpSideTool'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
-
+        """Start J7 non-blocking, then arm move (small-table style)."""
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcpSideTool'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=False,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            seventh=-1,
+            tcp=config['coords']['tcpSideTool'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=True,
+        )
     #Bottom Cycle 1
     communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)

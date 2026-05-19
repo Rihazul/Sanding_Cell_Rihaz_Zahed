@@ -105,6 +105,14 @@ def model1bottombig(force,cps):
     z=-4
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
+    speed_profile = {
+        'travel': speeed,
+        'approach': speeed,
+        'return': speeed,
+        'tool_change': speeed,
+        'contact': sanding_speed,
+    }
 
 
     #Boottom Points
@@ -194,7 +202,7 @@ def model1bottombig(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -204,7 +212,7 @@ def model1bottombig(force,cps):
             if point==pointybottomb12m:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -213,10 +221,11 @@ def model1bottombig(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=False
             )
         
@@ -235,7 +244,7 @@ def model1bottombig(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -245,7 +254,7 @@ def model1bottombig(force,cps):
             if point==pointybottoma12m:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -254,10 +263,11 @@ def model1bottombig(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=False
             )
         
@@ -269,55 +279,30 @@ def model1bottombig(force,cps):
         releaseForce(cps=cps, config=config) 
     
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
-        """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
-        """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
-
+        """Start J7 non-blocking, then arm move (small-table style)."""
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=False,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            seventh=-1,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True,
+        )
     #Bottom Cycle b
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     perform_process_bottom(cps, config, points1=bottompointsb,force=force)
     # run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
     # perform_process_bottom(cps, config, points1=bottompointsb,force=force)
@@ -327,9 +312,9 @@ def model1bottombig(force,cps):
         run_single_movement(robot_point=prehoming, seventh_axis_point=point, cps=cps, config=config)
         perform_process_bottom(cps, config, points1=bottompointsb, force=force)
     #last cycle
-    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     #Bottom Cycle a
-    communicate(cps=cps,config=config,seventh=x5,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x5,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
     seventh_axis_points = [x4, x3, x2, x1]
@@ -338,17 +323,17 @@ def model1bottombig(force,cps):
         perform_process_bottoma(cps, config, points1=bottompointsa, force=force)
 
     #last cycle
-    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
 
     
     # #Bottom Cycle a
-    # communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)
+    # communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)
     # perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
     # run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
     # perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
     # #last cycle
-    # communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+    # communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
 
 
 if __name__ == "__main__":

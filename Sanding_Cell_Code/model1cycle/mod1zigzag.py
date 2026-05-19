@@ -31,6 +31,12 @@ def load_json_config():
 global robot_speed
 json_config = load_json_config()
 robot_speed = float(json_config['robotSpeed'])
+module_speed_profile = {
+    'travel': robot_speed,
+    'approach': robot_speed,
+    'return': robot_speed,
+    'contact': float(json_config['sandingSpeed']),
+}
 
 def _get_zigzag_mode_and_edge(json_config):
     """Read zigzag orientation/edge settings with safe defaults."""
@@ -47,6 +53,20 @@ def _get_zigzag_mode_and_edge(json_config):
 
     edge_coverage = bool(pocket_cfg.get("edgeCoverage", pocket_cfg.get("edge", False)))
     return orientation, edge_coverage
+
+
+def _select_path_segments(movement, edge_points, zigzag_points):
+    """Select which path segments to execute for this pass."""
+    mode = str(movement or "both").strip().lower()
+    selected_edge = list(edge_points or [])
+    selected_zigzag = list(zigzag_points or [])
+
+    if mode == "edge_only":
+        selected_zigzag = []
+    elif mode == "zigzag_only":
+        selected_edge = []
+
+    return selected_edge, selected_zigzag
 
 
 def _generate_zigzag_edge_path(
@@ -215,7 +235,7 @@ def _generate_zigzag_edge_path(
     ]
     return edge_points, zigzag_points, prepoint
 
-def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
+def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
 
 
     # Load configuration
@@ -254,7 +274,8 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
 
     
     
-    speeed = float(json_config['sandingSpeed'])
+    speeed = module_speed_profile['contact']
+    tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
 
     # Hard-coded points for Pocket4
@@ -512,7 +533,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=tcp_to_use,
             ucs=config['coords']['ucsTable2'],
             config=config
         )
@@ -531,10 +552,11 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=tcp_to_use,
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speeed,
+                speed=module_speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=True
             )
 
@@ -544,10 +566,11 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=tcp_to_use,
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=speeed,
+                    speed=module_speed_profile['contact'],
+                    velocity_profile="sanding",
                     wait=True
                 )
 
@@ -567,31 +590,45 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         current_prepoint = eval(f"prepointp{i}")
         current_edge = eval(f"edge_pathp{i}")
         current_zigzag = eval(f"zigzag_pathp{i}")
+        current_edge, current_zigzag = _select_path_segments(
+            movement, current_edge, current_zigzag
+        )
+        if not current_edge and not current_zigzag:
+            continue
+        start_point = current_edge[0] if current_edge else current_zigzag[0]
+        current_prepoint = [
+            abs(start_point[0]) + 0.5,
+            start_point[1],
+            start_point[2],
+            start_point[3],
+            start_point[4],
+            start_point[5],
+        ]
 
         # Original sequence with dynamic variables
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         communicate(
             cps=cps, config=config, 
             point=spoint, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         # # turn_vibration_on(cps)
         communicate(
             cps=cps, config=config, 
             point=current_prepoint,  # Dynamic prepoint
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         # # turn_vibration_on(cps)
         perform_process_top(
@@ -601,14 +638,14 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps):
         communicate(
             cps=cps, config=config, 
             point=spoint, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
-    #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+    #communicate(cps=cps,config=config,seventh=0,tcp=tcp_to_use,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
 
-def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
+def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
 
 
     # Load configuration
@@ -647,7 +684,8 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
 
     
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
-    speeed= float(json_config['sandingSpeed'])
+    speeed = module_speed_profile['contact']
+    tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
 
     # Hard-coded points for Pocket4
     # Format: [x, y, z, rotX, rotY, rotZ]
@@ -904,7 +942,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=tcp_to_use,
             ucs=config['coords']['ucsTable2'],
             config=config
         )
@@ -923,10 +961,11 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=tcp_to_use,
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speeed,
+                speed=module_speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=True
             )
 
@@ -936,10 +975,11 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=tcp_to_use,
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=speeed,
+                    speed=module_speed_profile['contact'],
+                    velocity_profile="sanding",
                     wait=True
                 )
 
@@ -959,31 +999,45 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         current_prepoint = eval(f"prepointp{i}")
         current_edge = eval(f"edge_pathp{i}")
         current_zigzag = eval(f"zigzag_pathp{i}")
+        current_edge, current_zigzag = _select_path_segments(
+            movement, current_edge, current_zigzag
+        )
+        if not current_edge and not current_zigzag:
+            continue
+        start_point = current_edge[0] if current_edge else current_zigzag[0]
+        current_prepoint = [
+            abs(start_point[0]) + 0.5,
+            start_point[1],
+            start_point[2],
+            start_point[3],
+            start_point[4],
+            start_point[5],
+        ]
 
         # Original sequence with dynamic variables
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         communicate(
             cps=cps, config=config, 
             point=spoint, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         # # turn_vibration_on(cps)
         communicate(
             cps=cps, config=config, 
             point=current_prepoint,  # Dynamic prepoint
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         # # turn_vibration_on(cps)
         perform_process_top(
@@ -993,15 +1047,15 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
         communicate(
             cps=cps, config=config, 
             point=spoint, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
-    #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
+    #communicate(cps=cps,config=config,seventh=0,tcp=tcp_to_use,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
 
 
-def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
+def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
 
 
     # Load configuration
@@ -1030,7 +1084,8 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
 
     
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
-    speeed = float(json_config['sandingSpeed'])
+    speeed = module_speed_profile['contact']
+    tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
 
     # print("p9:",p9)
     # print("p10:",p10)
@@ -1296,7 +1351,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=tcp_to_use,
             ucs=config['coords']['ucsTable2'],
             config=config
         )
@@ -1315,10 +1370,11 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=tcp_to_use,
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speeed,
+                speed=module_speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=True
             )
 
@@ -1328,10 +1384,11 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=tcp_to_use,
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=speeed,
+                    speed=module_speed_profile['contact'],
+                    velocity_profile="sanding",
                     wait=True
                 )
 
@@ -1351,31 +1408,45 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         current_prepoint = eval(f"prepointp{i}")
         current_edge = eval(f"edge_pathp{i}")
         current_zigzag = eval(f"zigzag_pathp{i}")
+        current_edge, current_zigzag = _select_path_segments(
+            movement, current_edge, current_zigzag
+        )
+        if not current_edge and not current_zigzag:
+            continue
+        start_point = current_edge[0] if current_edge else current_zigzag[0]
+        current_prepoint = [
+            abs(start_point[0]) + 0.5,
+            start_point[1],
+            start_point[2],
+            start_point[3],
+            start_point[4],
+            start_point[5],
+        ]
 
         # Original sequence with dynamic variables
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         communicate(
             cps=cps, config=config, 
             point=spoint, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         # # turn_vibration_on(cps)
         communicate(
             cps=cps, config=config, 
             point=current_prepoint,  # Dynamic prepoint
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
         # # turn_vibration_on(cps)
         perform_process_top(
@@ -1385,14 +1456,14 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps):
         communicate(
             cps=cps, config=config, 
             point=spoint, 
-            tcp=config['coords']['tcpReal'], 
+            tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
             seventh=-1, 
-            speed=robot_speed, wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
         )
-    #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
+    #communicate(cps=cps,config=config,seventh=0,tcp=tcp_to_use,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
 
-def mod1zigzag(force,innerSandingOffset,cps):
+def mod1zigzag(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
     config = load_config()
 
 
@@ -1410,13 +1481,41 @@ def mod1zigzag(force,innerSandingOffset,cps):
     # port = config['server']['cps']
     # ret = cps.HRIF_Connect(0, IP, port)
 
-    testmodel1zigzagsmallfunction(force,innerSandingOffset,cps)
+    testmodel1zigzagsmallfunction(
+        force,
+        innerSandingOffset,
+        cps,
+        movement=movement,
+        tcp_name=tcp_name,
+    )
     time.sleep(0.5)
-    testmodel2zigzagsmallfunction(force,innerSandingOffset,cps)
+    testmodel2zigzagsmallfunction(
+        force,
+        innerSandingOffset,
+        cps,
+        movement=movement,
+        tcp_name=tcp_name,
+    )
     time.sleep(0.5)
-    testmodel3zigzagsmallfunction(force,innerSandingOffset,cps)
+    testmodel3zigzagsmallfunction(
+        force,
+        innerSandingOffset,
+        cps,
+        movement=movement,
+        tcp_name=tcp_name,
+    )
     time.sleep(0.5)
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=0.7,wait=True)
+    final_tcp = config["coords"].get(tcp_name, config["coords"]["tcptool3plane1"])
+    communicate(
+        cps=cps,
+        config=config,
+        seventh=0,
+        tcp=final_tcp,
+        ucs=config['coords']['ucsTable2'],
+        speed=module_speed_profile['travel'],
+                velocity_profile="robot",
+        wait=True
+    )
     
 if __name__ == "__main__":
     mod1zigzag(force=10,innerSandingOffset=20)

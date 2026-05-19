@@ -125,6 +125,14 @@ def model1pocket1side(force,cps):
     z=-4
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
+    speed_profile = {
+        'travel': speeed,
+        'approach': speeed,
+        'return': speeed,
+        'tool_change': speeed,
+        'contact': sanding_speed,
+    }
 
    
      
@@ -299,7 +307,7 @@ def model1pocket1side(force,cps):
             putForceZplus(
                 cps=cps,
                 force=force,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
@@ -315,7 +323,7 @@ def model1pocket1side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -329,10 +337,11 @@ def model1pocket1side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -348,10 +357,11 @@ def model1pocket1side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -366,7 +376,7 @@ def model1pocket1side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -380,10 +390,11 @@ def model1pocket1side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -399,10 +410,11 @@ def model1pocket1side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -417,7 +429,7 @@ def model1pocket1side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -431,10 +443,11 @@ def model1pocket1side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -450,10 +463,11 @@ def model1pocket1side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -468,7 +482,7 @@ def model1pocket1side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -482,10 +496,11 @@ def model1pocket1side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -501,10 +516,11 @@ def model1pocket1side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -519,7 +535,7 @@ def model1pocket1side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -529,7 +545,7 @@ def model1pocket1side(force,cps):
             if point==pmiddile21:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -539,10 +555,11 @@ def model1pocket1side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -563,35 +580,38 @@ def model1pocket1side(force,cps):
             cps=cps,
             config=config,
             point=robot_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
-            speed=0.8,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
         communicate(
             cps=cps,
             config=config,
             seventh=seventh_axis_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
-            speed=0.5,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
         communicate(
             cps=cps,
             config=config,
             point=robot_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
-            speed=0.8,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
    
     # Pass 1: top -> right -> bottom (x1)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     ensure_force()
     turn_vibration_on(cps)
     turn_tool_spin_on(cps)
@@ -613,7 +633,7 @@ def model1pocket1side(force,cps):
     turn_tool_spin_off(cps)
 
     #Last movement
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
 def model1pocket2side(force,cps):
     # Load configuration from YAML
     config = load_config()
@@ -693,6 +713,14 @@ def model1pocket2side(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
+    speed_profile = {
+        'travel': speeed,
+        'approach': speeed,
+        'return': speeed,
+        'tool_change': speeed,
+        'contact': sanding_speed,
+    }
 
    
      
@@ -867,7 +895,7 @@ def model1pocket2side(force,cps):
             putForceZplus(
                 cps=cps,
                 force=force,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
@@ -883,7 +911,7 @@ def model1pocket2side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -897,10 +925,11 @@ def model1pocket2side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -916,10 +945,11 @@ def model1pocket2side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -934,7 +964,7 @@ def model1pocket2side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -948,10 +978,11 @@ def model1pocket2side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -967,10 +998,11 @@ def model1pocket2side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -985,7 +1017,7 @@ def model1pocket2side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -999,10 +1031,11 @@ def model1pocket2side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -1018,10 +1051,11 @@ def model1pocket2side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1036,7 +1070,7 @@ def model1pocket2side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1050,10 +1084,11 @@ def model1pocket2side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -1069,10 +1104,11 @@ def model1pocket2side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1087,7 +1123,7 @@ def model1pocket2side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1097,7 +1133,7 @@ def model1pocket2side(force,cps):
             if point==pmiddile21:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -1107,10 +1143,11 @@ def model1pocket2side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1127,29 +1164,32 @@ def model1pocket2side(force,cps):
             cps=cps,
             config=config,
             point=robot_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
-            speed=0.8,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
         communicate(
             cps=cps,
             config=config,
             seventh=seventh_axis_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
-            speed=0.5,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
         communicate(
             cps=cps,
             config=config,
             point=robot_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
-            speed=0.8,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
     
@@ -1166,19 +1206,21 @@ def model1pocket2side(force,cps):
     #         cps=cps,
     #         config=config,
     #         point=robot_point,
-    #         tcp=config['coords']['tcpReal'],
+    #         tcp=config['coords']['tcptool4plane2'],
     #         ucs=config['coords']['ucsTable2'],
     #         seventh=-1,
-    #         speed=0.8,
+    #         speed=speed_profile['travel'],
+                # velocity_profile="robot",
     #         wait=True
     #     )
     #     communicate(
     #         cps=cps,
     #         config=config,
     #         seventh=seventh_axis_point,
-    #         tcp=config['coords']['tcpReal'],
+    #         tcp=config['coords']['tcptool4plane2'],
     #         ucs=config['coords']['ucsTable2'],
-    #         speed=0.5,
+    #         speed=speed_profile['travel'],
+                # velocity_profile="robot",
     #         wait=True
     #     )
 
@@ -1206,8 +1248,8 @@ def model1pocket2side(force,cps):
     #     return True
    
     # Pass 1: top -> right -> bottom (x1)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     ensure_force()
     turn_vibration_on(cps)
     turn_tool_spin_on(cps)
@@ -1229,7 +1271,7 @@ def model1pocket2side(force,cps):
     turn_tool_spin_off(cps)
 
     #Last movement
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     
 def model1pocket3side(force,cps):
     # Load configuration from YAML
@@ -1310,6 +1352,14 @@ def model1pocket3side(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
+    speed_profile = {
+        'travel': speeed,
+        'approach': speeed,
+        'return': speeed,
+        'tool_change': speeed,
+        'contact': sanding_speed,
+    }
 
    
      
@@ -1484,7 +1534,7 @@ def model1pocket3side(force,cps):
             putForceZplus(
                 cps=cps,
                 force=force,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
@@ -1500,7 +1550,7 @@ def model1pocket3side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1514,10 +1564,11 @@ def model1pocket3side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -1533,10 +1584,11 @@ def model1pocket3side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1551,7 +1603,7 @@ def model1pocket3side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1565,10 +1617,11 @@ def model1pocket3side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -1584,10 +1637,11 @@ def model1pocket3side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1602,7 +1656,7 @@ def model1pocket3side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1616,10 +1670,11 @@ def model1pocket3side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -1635,10 +1690,11 @@ def model1pocket3side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1653,7 +1709,7 @@ def model1pocket3side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1667,10 +1723,11 @@ def model1pocket3side(force,cps):
                         cps=cps,
                         config=config,
                         point=point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,
-                        speed=0.6 * 0.25,
+                        speed=speed_profile['contact'],
+                velocity_profile="sanding",
                         wait=True
                     )
                     ensure_force()
@@ -1686,10 +1743,11 @@ def model1pocket3side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1704,7 +1762,7 @@ def model1pocket3side(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1714,7 +1772,7 @@ def model1pocket3side(force,cps):
             if point==pmiddile21:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -1724,10 +1782,11 @@ def model1pocket3side(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6 * 0.25,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
                 wait=(idx == 0 or idx == len(points1) - 1)
             )
         
@@ -1744,29 +1803,32 @@ def model1pocket3side(force,cps):
             cps=cps,
             config=config,
             point=robot_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
-            speed=0.8,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
         communicate(
             cps=cps,
             config=config,
             seventh=seventh_axis_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
-            speed=0.5,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
         communicate(
             cps=cps,
             config=config,
             point=robot_point,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
-            speed=0.8,
+            speed=speed_profile['travel'],
+                velocity_profile="robot",
             wait=True
         )
    
@@ -1783,10 +1845,11 @@ def model1pocket3side(force,cps):
     #         cps=cps,
     #         config=config,
     #         point=robot_point,
-    #         tcp=config['coords']['tcpReal'],
+    #         tcp=config['coords']['tcptool4plane2'],
     #         ucs=config['coords']['ucsTable2'],
     #         seventh=-1,
-    #         speed=0.8,
+    #         speed=speed_profile['travel'],
+                # velocity_profile="robot",
     #         wait=True
     #     )
 
@@ -1794,9 +1857,10 @@ def model1pocket3side(force,cps):
     #         cps=cps,
     #         config=config,
     #         seventh=seventh_axis_point,
-    #         tcp=config['coords']['tcpReal'],
+    #         tcp=config['coords']['tcptool4plane2'],
     #         ucs=config['coords']['ucsTable2'],
-    #         speed=0.5,
+    #         speed=speed_profile['travel'],
+                # velocity_profile="robot",
     #         wait=True
     #     )
 
@@ -1822,8 +1886,8 @@ def model1pocket3side(force,cps):
 
     #     return True
     # Pass 1: top -> right -> bottom (x1)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     ensure_force()
     turn_vibration_on(cps)
     turn_tool_spin_on(cps)
@@ -1845,7 +1909,7 @@ def model1pocket3side(force,cps):
     turn_tool_spin_off(cps)
 
     #Last movement
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     
 def mod1tool1siderun(force,cps):
     config = load_config()
@@ -1871,7 +1935,7 @@ def mod1tool1siderun(force,cps):
     time.sleep(0.5)
     model1pocket3side(force,cps)
     time.sleep(0.5)
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=0.7,wait=True)
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
 
     p1 = exported_points["p1"]
     xlen = p1[0]

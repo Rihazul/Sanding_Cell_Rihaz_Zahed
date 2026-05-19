@@ -93,6 +93,7 @@ def mod1tool1pocket1(force,cps):
     
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
     #Outer Pocket Offset
     outeroffset=37
     print("outeroffset=",outeroffset)
@@ -228,7 +229,7 @@ def mod1tool1pocket1(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -238,7 +239,7 @@ def mod1tool1pocket1(force,cps):
             if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -247,10 +248,10 @@ def mod1tool1pocket1(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -269,7 +270,7 @@ def mod1tool1pocket1(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -279,7 +280,7 @@ def mod1tool1pocket1(force,cps):
             if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -288,10 +289,10 @@ def mod1tool1pocket1(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -310,7 +311,7 @@ def mod1tool1pocket1(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -320,7 +321,7 @@ def mod1tool1pocket1(force,cps):
             if point==topointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -329,10 +330,10 @@ def mod1tool1pocket1(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -351,7 +352,7 @@ def mod1tool1pocket1(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -361,7 +362,7 @@ def mod1tool1pocket1(force,cps):
             if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -370,10 +371,10 @@ def mod1tool1pocket1(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -386,56 +387,31 @@ def mod1tool1pocket1(force,cps):
 
 
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
-        """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
-        """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
-   
+        """Start J7 non-blocking, then arm move (small-table style)."""
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool1plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=False,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            seventh=-1,
+            tcp=config['coords']['tcptool1plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=True,
+        )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -450,7 +426,7 @@ def mod1tool1pocket1(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
 def mod1tool1pocket2(force,cps):
     # Load configuration from YAML
@@ -502,6 +478,7 @@ def mod1tool1pocket2(force,cps):
     z=-40
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
     #Outer Pocket Offset
     outeroffset=37
     print("outeroffset=",outeroffset)
@@ -637,7 +614,7 @@ def mod1tool1pocket2(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -647,7 +624,7 @@ def mod1tool1pocket2(force,cps):
             if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -656,10 +633,10 @@ def mod1tool1pocket2(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -678,7 +655,7 @@ def mod1tool1pocket2(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -688,7 +665,7 @@ def mod1tool1pocket2(force,cps):
             if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -697,10 +674,10 @@ def mod1tool1pocket2(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -719,7 +696,7 @@ def mod1tool1pocket2(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -729,7 +706,7 @@ def mod1tool1pocket2(force,cps):
             if point==topointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -738,10 +715,10 @@ def mod1tool1pocket2(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -760,7 +737,7 @@ def mod1tool1pocket2(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -770,7 +747,7 @@ def mod1tool1pocket2(force,cps):
             if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -779,10 +756,10 @@ def mod1tool1pocket2(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -795,56 +772,31 @@ def mod1tool1pocket2(force,cps):
 
 
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
-        """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
-        """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
-   
+        """Start J7 non-blocking, then arm move (small-table style)."""
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool1plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=False,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            seventh=-1,
+            tcp=config['coords']['tcptool1plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=True,
+        )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -859,7 +811,7 @@ def mod1tool1pocket2(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
 def mod1tool1pocket3(force,cps):
     # Load configuration from YAML
@@ -911,6 +863,7 @@ def mod1tool1pocket3(force,cps):
     z=-40
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
     #Outer Pocket Offset
     outeroffset=37
     print("outeroffset=",outeroffset)
@@ -1046,7 +999,7 @@ def mod1tool1pocket3(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1056,7 +1009,7 @@ def mod1tool1pocket3(force,cps):
             if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -1065,10 +1018,10 @@ def mod1tool1pocket3(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -1087,7 +1040,7 @@ def mod1tool1pocket3(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1097,7 +1050,7 @@ def mod1tool1pocket3(force,cps):
             if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -1106,10 +1059,10 @@ def mod1tool1pocket3(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -1128,7 +1081,7 @@ def mod1tool1pocket3(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1138,7 +1091,7 @@ def mod1tool1pocket3(force,cps):
             if point==topointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -1147,10 +1100,10 @@ def mod1tool1pocket3(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -1169,7 +1122,7 @@ def mod1tool1pocket3(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -1179,7 +1132,7 @@ def mod1tool1pocket3(force,cps):
             if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -1188,10 +1141,10 @@ def mod1tool1pocket3(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
                 wait=False
             )
         
@@ -1204,56 +1157,31 @@ def mod1tool1pocket3(force,cps):
 
 
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
-        """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
-        """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool3plane1'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
-   
+        """Start J7 non-blocking, then arm move (small-table style)."""
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool1plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=False,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            seventh=-1,
+            tcp=config['coords']['tcptool1plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=True,
+        )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -1268,7 +1196,7 @@ def mod1tool1pocket3(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
 def mod1tool1(force,cps):
     config = load_config()
@@ -1284,6 +1212,7 @@ def mod1tool1(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config['sandingSpeed'])
 
     mod1tool1pocket1(force,cps)
     time.sleep(0.5)
@@ -1291,7 +1220,7 @@ def mod1tool1(force,cps):
     time.sleep(0.5)
     mod1tool1pocket3(force,cps)
     time.sleep(0.5)
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
 
 if __name__ == "__main__":
     # Call the function with an appropriate force value

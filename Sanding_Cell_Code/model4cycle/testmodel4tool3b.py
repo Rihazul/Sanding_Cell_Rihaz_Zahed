@@ -247,7 +247,7 @@ def testmodel4tool3b(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -257,7 +257,7 @@ def testmodel4tool3b(force,cps):
             if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -266,7 +266,7 @@ def testmodel4tool3b(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
@@ -288,7 +288,7 @@ def testmodel4tool3b(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -298,7 +298,7 @@ def testmodel4tool3b(force,cps):
             if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -307,7 +307,7 @@ def testmodel4tool3b(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
@@ -329,7 +329,7 @@ def testmodel4tool3b(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -339,7 +339,7 @@ def testmodel4tool3b(force,cps):
             if point==topointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -348,7 +348,7 @@ def testmodel4tool3b(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
@@ -370,7 +370,7 @@ def testmodel4tool3b(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcptool3plane1'],
+            #tcp=config['coords']['tcptool1plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -380,7 +380,7 @@ def testmodel4tool3b(force,cps):
             if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcptool3plane1'],
+            tcp=config['coords']['tcptool1plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -389,7 +389,7 @@ def testmodel4tool3b(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=0.6,
@@ -422,7 +422,7 @@ def testmodel4tool3b(force,cps):
                 cps=cps,
                 config=config,
                 point=robot_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,   # or whatever parameter is needed for robot movement
                 speed=0.8,
@@ -436,7 +436,7 @@ def testmodel4tool3b(force,cps):
                 cps=cps,
                 config=config,
                 seventh=seventh_axis_point,
-                tcp=config['coords']['tcptool3plane1'],
+                tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 speed=0.5,
                 wait=True
@@ -454,8 +454,8 @@ def testmodel4tool3b(force,cps):
         axis_thread.join()
    
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # # # #Cycles With Loops

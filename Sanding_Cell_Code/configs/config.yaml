@@ -26,11 +26,15 @@ coords:
   tcpEdgeTool   : "TCP_toolVert" # This is TCP for square side facing sanding tool for outer edge
   tcpEdgeToolIn : "TCP_toolVert" # This is TCP for square side facing sanding tool for inner edge
   tcpReal       : "TCP_tool1_real" # This is the TCP for the real tool
+  
   tcpLaserPlane1 : "TCP_laserplane1" #This is the laser for Plane 1
   tcptool1plane1 : "TCP_tool1plane1" #This is the tcp for tool 1
   tcptool2plane1 : "TCP_tool2plane1" #THis is the tcp for tool 2
   tcptool3plane1 : "TCP_tool3plane1" # This is the tcp for tool 3
   tcptool4plane1 : "TCP_tool4plane1" # This is the tcp for tool 4
+  
+  tcptool1plane2 : "TCP_tool1plane2" #This is the tcp for tool 1 for plane 2
+  tcptool4plane2 : "TCP_tool4plane2" # This is the tcp for tool 4 for plane 2
   
   # We have 2 UCS (User Coordinate System)
   ucsDefault: "Base"  # This is the base UCS (used while homing, tool changing etc.)
