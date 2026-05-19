@@ -321,32 +321,19 @@ def model1pocket1side(force,cps):
         force_active = True
 
     def move_to_contact_point(first_point):
-        # Reach the contact point first; do not enable force unless position is reached.
-        for attempt in range(2):
-            communicate(
-                cps=cps,
-                config=config,
-                point=first_point,
-                tcp=config['coords']['tcptool4plane2'],
-                ucs=config['coords']['ucsTable2'],
-                seventh=-1,
-                speed=safe_approach_speed,
-                velocity_profile="robot",
-                wait=True
-            )
-            try:
-                act = []
-                nret = cps.HRIF_ReadActPos(0, 0, act)
-                if nret == 0 and isinstance(act, (list, tuple)) and len(act) > 8:
-                    dx = float(act[6]) - float(first_point[0])
-                    dy = float(act[7]) - float(first_point[1])
-                    dz = float(act[8]) - float(first_point[2])
-                    if (dx * dx + dy * dy + dz * dz) ** 0.5 <= 2.0:
-                        return True
-            except Exception:
-                pass
-        print("[model1 frame] Could not confirm first contact point reach; skipping force for this segment")
-        return False
+        # Command the first contact point before force/vibration.
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        return True
     def perform_process_bottom(cps, config, points1,force):
         if not points1:
             return
@@ -828,32 +815,19 @@ def model1pocket2side(force,cps):
         force_active = True
 
     def move_to_contact_point(first_point):
-        # Reach the contact point first; do not enable force unless position is reached.
-        for attempt in range(2):
-            communicate(
-                cps=cps,
-                config=config,
-                point=first_point,
-                tcp=config['coords']['tcptool4plane2'],
-                ucs=config['coords']['ucsTable2'],
-                seventh=-1,
-                speed=safe_approach_speed,
-                velocity_profile="robot",
-                wait=True
-            )
-            try:
-                act = []
-                nret = cps.HRIF_ReadActPos(0, 0, act)
-                if nret == 0 and isinstance(act, (list, tuple)) and len(act) > 8:
-                    dx = float(act[6]) - float(first_point[0])
-                    dy = float(act[7]) - float(first_point[1])
-                    dz = float(act[8]) - float(first_point[2])
-                    if (dx * dx + dy * dy + dz * dz) ** 0.5 <= 2.0:
-                        return True
-            except Exception:
-                pass
-        print("[model1 frame] Could not confirm first contact point reach; skipping force for this segment")
-        return False
+        # Command the first contact point before force/vibration.
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        return True
     def perform_process_bottom(cps, config, points1,force):
         if not points1:
             return
@@ -1386,32 +1360,19 @@ def model1pocket3side(force,cps):
         force_active = True
 
     def move_to_contact_point(first_point):
-        # Reach the contact point first; do not enable force unless position is reached.
-        for attempt in range(2):
-            communicate(
-                cps=cps,
-                config=config,
-                point=first_point,
-                tcp=config['coords']['tcptool4plane2'],
-                ucs=config['coords']['ucsTable2'],
-                seventh=-1,
-                speed=safe_approach_speed,
-                velocity_profile="robot",
-                wait=True
-            )
-            try:
-                act = []
-                nret = cps.HRIF_ReadActPos(0, 0, act)
-                if nret == 0 and isinstance(act, (list, tuple)) and len(act) > 8:
-                    dx = float(act[6]) - float(first_point[0])
-                    dy = float(act[7]) - float(first_point[1])
-                    dz = float(act[8]) - float(first_point[2])
-                    if (dx * dx + dy * dy + dz * dz) ** 0.5 <= 2.0:
-                        return True
-            except Exception:
-                pass
-        print("[model1 frame] Could not confirm first contact point reach; skipping force for this segment")
-        return False
+        # Command the first contact point before force/vibration.
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        return True
     def perform_process_bottom(cps, config, points1,force):
         if not points1:
             return
@@ -1692,7 +1653,11 @@ def mod1tool1siderun(force,cps):
     time.sleep(0.5)
     model1pocket3side(force,cps)
     time.sleep(0.5)
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    json_config = load_json_config()
+    travel_speed = float(json_config.get('robotSpeed', 0.9) or 0.9)
+    if travel_speed <= 0:
+        travel_speed = 0.9
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=travel_speed,velocity_profile="robot",wait=True)
 
     p1 = exported_points["p1"]
     xlen = p1[0]
