@@ -89,6 +89,15 @@ def _get_motion_speeds(config):
     return robot_speed, sanding_speed
 
 
+def _resolve_inner_sanding_offset(cycle_cfg, default=50.0):
+    """Use raw UI pocket overlap value directly as innerSandingOffset."""
+    try:
+        raw_value = float((cycle_cfg or {}).get("inverseOverlapping", default))
+        return raw_value
+    except Exception:
+        return float(default)
+
+
 def _with_lift(point, lift_mm):
     if not point:
         return point
@@ -500,8 +509,10 @@ def _split_big_door_zigzag(path_points, orientation):
 def _run_door_small(door_num, force, z, cps, orientation):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
+    cycle_cfg = load_json_config()
 
     robot_speed, sanding_speed = _get_motion_speeds(config)
+    inner_sanding_offset = _resolve_inner_sanding_offset(cycle_cfg, default=50.0)
 
     frame_offset = 0
     points = _compute_boundary_points(door_num, frame_offset, z)
@@ -516,6 +527,7 @@ def _run_door_small(door_num, force, z, cps, orientation):
         innerOffset=0,
         innerOffsetX=0,
         orientation=orientation,
+        innerSandingOffset=inner_sanding_offset,
         edge_coverage=False,
     )
 
@@ -543,8 +555,10 @@ def _run_door_small(door_num, force, z, cps, orientation):
 def _run_door_big(door_num, force, z, cps, orientation):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
+    cycle_cfg = load_json_config()
 
     robot_speed, sanding_speed = _get_motion_speeds(config)
+    inner_sanding_offset = _resolve_inner_sanding_offset(cycle_cfg, default=50.0)
 
     frame_offset = 0
     points = _compute_boundary_points(door_num, frame_offset, z)
@@ -562,6 +576,7 @@ def _run_door_big(door_num, force, z, cps, orientation):
         innerOffset=0,
         innerOffsetX=0,
         orientation=orientation,
+        innerSandingOffset=inner_sanding_offset,
         edge_coverage=False,
     )
     zigzag_path1, zigzag_path2_global = _split_big_door_zigzag(zigzag_full, orientation)
@@ -670,7 +685,7 @@ def _run_door(door_num, force, z, cps, orientation, movement):
         return
 
     # Large door rule: split only when BOTH dimensions exceed thresholds.
-    if ylen_num > 600 and xlen_num > 280:
+    if ylen_num > 600 and xlen_num > 350:
         print(
             f"[ModelF] Door {door_num}: large area detected (x={xlen_num:.1f}, y={ylen_num:.1f}) -> 2 seventh-axis passes."
         )

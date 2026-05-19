@@ -573,7 +573,7 @@ def generate_zigzag_path(
     zigzag_coords = []
     # Circular Tool 4: use one radius only; ignore rectangular inner offsets.
     del innerOffset, innerOffsetX
-    tool_radius = 77.5
+    tool_radius = 73
 
     boundary_coords = []
     for i in range(len(x_coords)):
@@ -757,6 +757,15 @@ def load_json_config():
     return config
 
 
+def _resolve_inner_sanding_offset(cycle_cfg, default=67.5):
+    """Use raw UI pocket overlap value directly as innerSandingOffset."""
+    try:
+        raw_value = float((cycle_cfg or {}).get("inverseOverlapping", default))
+        return raw_value
+    except Exception:
+        return float(default)
+
+
 def get_pocket_size(door_number, default_on_error=True):
     """Return pocket size (xlen, ylen) using pocket corner points."""
     points = []
@@ -859,7 +868,7 @@ def smalldoor1zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        inner_sanding_offset = 50.0
+        inner_sanding_offset = _resolve_inner_sanding_offset(json_config, default=67.5)
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
@@ -868,7 +877,7 @@ def smalldoor1zizag(
             innerOffsetX=60,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=67.5,
+            innerSandingOffset=inner_sanding_offset,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -881,7 +890,7 @@ def smalldoor1zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
@@ -891,7 +900,7 @@ def smalldoor1zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -1225,7 +1234,7 @@ def smalldoor2zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        inner_sanding_offset = 50.0
+        inner_sanding_offset = _resolve_inner_sanding_offset(json_config, default=67.5)
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
@@ -1234,7 +1243,7 @@ def smalldoor2zizag(
             innerOffsetX=60,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=67.5,
+            innerSandingOffset=inner_sanding_offset,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -1247,7 +1256,7 @@ def smalldoor2zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
@@ -1257,7 +1266,7 @@ def smalldoor2zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -1560,7 +1569,7 @@ def smalldoor3zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        inner_sanding_offset = 50.0
+        inner_sanding_offset = _resolve_inner_sanding_offset(json_config, default=67.5)
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
@@ -1569,7 +1578,7 @@ def smalldoor3zizag(
             innerOffsetX=60,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=67.5,
+            innerSandingOffset=inner_sanding_offset,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -1582,7 +1591,7 @@ def smalldoor3zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
@@ -1592,7 +1601,7 @@ def smalldoor3zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -1894,7 +1903,7 @@ def smalldoor4zizag(
             x_coords_path = [coord / 2 for coord in x_coords1]
 
         orientation_mode = (orientation or "horizontal").lower()
-        inner_sanding_offset = 50.0
+        inner_sanding_offset = _resolve_inner_sanding_offset(json_config, default=67.5)
         _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
@@ -1903,7 +1912,7 @@ def smalldoor4zizag(
             innerOffsetX=60,
             orientation=orientation,
             movement=movement,
-            innerSandingOffset=67.5,
+            innerSandingOffset=inner_sanding_offset,
         )
         zigzag_pathp1_left = zigzag_pathp1
         zigzag_pathp1_right = zigzag_pathp1
@@ -1916,7 +1925,7 @@ def smalldoor4zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
             _, zigzag_pathp1_right, _ = generate_zigzag_path(
                 x_coords=x_coords_path,
@@ -1926,7 +1935,7 @@ def smalldoor4zizag(
                 innerOffsetX=60,
                 orientation=orientation,
                 movement=movement,
-                innerSandingOffset=67.5,
+                innerSandingOffset=inner_sanding_offset,
             )
         print("zigzag_pathp=", zigzag_pathp1)
         print("prepointp:", prepointp1)
@@ -2154,6 +2163,7 @@ if __name__ == "__main__":
     smalldoor2zizag(force=5, z=-6.5)
     smalldoor3zizag(force=5, z=-6.5)
     # smalldoor4zizag(force=5,z=-6.5)# Uncommented to call smalldoor4zizag
+
 
 
 
