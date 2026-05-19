@@ -33,8 +33,8 @@ coords:
   tcptool3plane1 : "TCP_tool3plane1" # This is the tcp for tool 3
   tcptool4plane1 : "TCP_tool4plane1" # This is the tcp for tool 4
   
-  tcptool1plane2 : "TCP_tool1plane2" #This is the tcp for tool 1 for plane 2
-  tcptool4plane2 : "TCP_tool4plane2" # This is the tcp for tool 4 for plane 2
+  tcptool1plane2 : "TCP_tool1Plane2" #This is the tcp for tool 1 for plane 2
+  tcptool4plane2 : "TCP_tool4Plane2" # This is the tcp for tool 4 for plane 2
   
   # We have 2 UCS (User Coordinate System)
   ucsDefault: "Base"  # This is the base UCS (used while homing, tool changing etc.)
