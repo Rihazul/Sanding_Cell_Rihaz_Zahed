@@ -13,7 +13,7 @@ from model1cycle.mod1zigzag import mod1zigzag, testmodel1zigzagsmallfunction, te
 from model1cycle.mod1tool2edge import mod1tool2outedge
 from model1cycle.mod1tool2sideb import mod1tool2sidesrun
 from model1cycle.mod1tool3 import mod1tool1
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepToolupdated,getToolUpdated, stop_requested
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate, stop_requested
 from modules.CPS import CPSClient
 import time
 
@@ -157,15 +157,35 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
 
     if tool_in_hand is None:
         print("No tool in hand")
-        return None
+        return False
 
     if tool_in_hand == tool_num:
         print(f"Tool {tool_in_hand} already in hand; skipping drop/pick.")
-        return tool_in_hand
+        return True
 
-    print(f"Tool {tool_in_hand} detected → executing keepTool11()")
-    keepTool11(cps, toolNumber=tool_in_hand, config=config)
-    return None
+    print(f"Tool {tool_in_hand} detected; dropping before picking Tool {tool_num}.")
+    seventh_result = communicate(
+        cps=cps,
+        config=config,
+        seventh=0,
+        tcp=config["coords"]["tcptool1plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        speed=0.3,
+        wait=True,
+        require_seventh_ok=True,
+    )
+    if seventh_result is None:
+        raise RuntimeError(
+            f"Failed to move 7th axis to tool station before dropping Tool {tool_in_hand}."
+        )
+    keepTool11(
+        cps=cps,
+        toolNumber=tool_in_hand,
+        config=config,
+        goToSafe=False,
+        startFromSafe=True,
+    )
+    return False
 
 
 def startingRobotToSandmodel1():
@@ -241,6 +261,84 @@ def startingRobotToSandmodel1():
     
     def read_ci_triplet():
         return read_ci_bit(cps, 0), read_ci_bit(cps, 1), read_ci_bit(cps, 2)
+
+    def decode_tool_in_hand(ci0, ci1, ci2):
+        if ci0 is None or ci1 is None or ci2 is None:
+            raise RuntimeError("Failed to read one or more CI bits.")
+        if ci0 == 1 and ci1 == 0 and ci2 == 0:
+            return 3
+        if ci0 == 0 and ci1 == 1 and ci2 == 0:
+            return 2
+        if ci0 == 0 and ci1 == 1 and ci2 == 1:
+            return 1
+        if ci0 == 0 and ci1 == 0 and ci2 == 1:
+            return 4
+        if ci0 == 0 and ci1 == 0 and ci2 == 0:
+            return None
+        raise RuntimeError(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
+
+    def move_to_safe_point():
+        communicate(
+            cps=cps,
+            point=config['point']['safePoint'],
+            tcp=config['coords']['tcpDefault'],
+            ucs=config['coords']['ucsDefault'],
+            seventh=-1,
+            config=config,
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True,
+        )
+
+    def move_seventh_to_tool_station():
+        seventh_result = communicate(
+            cps=cps,
+            config=config,
+            seventh=0,
+            tcp=config['coords']['tcptool1plane1'],
+            ucs=config['coords']['ucsTable1'],
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True,
+            require_seventh_ok=True,
+        )
+        if seventh_result is None:
+            raise RuntimeError("Failed to move 7th axis to tool station.")
+
+    def ensure_tool_in_hand(tool_num):
+        ci0, ci1, ci2 = read_ci_triplet()
+        current_tool_before = decode_tool_in_hand(ci0, ci1, ci2)
+        has_requested_tool = check_tool(
+            cps=cps, config=config, tool_num=tool_num, ci0=ci0, ci1=ci1, ci2=ci2
+        )
+        if has_requested_tool:
+            return
+        switching_from_other_tool = (
+            current_tool_before is not None and current_tool_before != tool_num
+        )
+        if not switching_from_other_tool:
+            move_to_safe_point()
+            move_seventh_to_tool_station()
+        picked = getTool11(
+            cps=cps,
+            toolNumber=tool_num,
+            config=config,
+            startFromSafe=not switching_from_other_tool,
+            exitToSafe=True,
+        )
+        if picked is False:
+            raise RuntimeError(f"Failed to pick tool {tool_num}.")
+
+    def drop_tool_safely(tool_num):
+        move_to_safe_point()
+        move_seventh_to_tool_station()
+        keepTool11(
+            cps=cps,
+            toolNumber=tool_num,
+            config=config,
+            goToSafe=False,
+            startFromSafe=True,
+        )
     """Main control function"""
     try:
         has_pocket_work = zigzag_cycles > 0
@@ -252,23 +350,10 @@ def startingRobotToSandmodel1():
 
         # Tool 3 batch: pocket edge-coverage only
         if has_tool3_edge_pass:
-            ci0, ci1, ci2 = read_ci_triplet()
-            tool_in_hand = check_tool(
-                cps=cps,
-                config=config,
-                tool_num=3,
-                ci0=ci0,
-                ci1=ci1,
-                ci2=ci2,
-            )
+            ensure_tool_in_hand(3)
             if stop_requested():
                 return
-        #Intitial Position
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-            #Pick Tool 3
-            if tool_in_hand != 3:
-                getTool11(cps, toolNumber=3, config=config)
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+            move_to_safe_point()
             run_zigzag_cycles(
                 zigzag_cycles,
                 force_zigzag_cycles,
@@ -286,42 +371,18 @@ def startingRobotToSandmodel1():
             )
             if not stop_requested():
                 if has_followup_after_tool3 or not keep_tool_after_task:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    communicate(cps=cps, config=config, seventh=0, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    cycles = [zigzag_cycles, tool2_side_cycle, tool2_sideoutedge, tool1_cycles]
-                    if any(cycle > 0 for cycle in cycles):
-                        keepToolupdated(cps, toolNumber=3, config=config)
-                    else:
-                        keepTool11(cps, toolNumber=3, config=config)
-                        communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                    drop_tool_safely(3)
                 else:
                     # Single-task run: keep tool mounted but return to homing/safe point.
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                    move_to_safe_point()
             
             print("\nTool 3 edge-coverage batch completed successfully!")
         
         if has_tool4_pocket_pass:
-            ci0, ci1, ci2 = read_ci_triplet()
-            tool_in_hand = check_tool(
-                cps=cps,
-                config=config,
-                tool_num=4,
-                ci0=ci0,
-                ci1=ci1,
-                ci2=ci2,
-            )
+            ensure_tool_in_hand(4)
             if stop_requested():
                 return
-
-            cycles = [side_cycles, zigzag_cycles]
-            if tool_in_hand != 4:
-                if any(cycle > 0 for cycle in cycles):
-                    print("At least one cycle > 0 -> running getToolUpdated() for Tool 4")
-                    getToolUpdated(cps, toolNumber=4, config=config)
-                else:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    getTool11(cps, toolNumber=4, config=config)
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+            move_to_safe_point()
 
             # Tool 4 batch: section-by-section (frame + pocket zigzag per section)
             run_tool4_section_cycles(
@@ -338,39 +399,17 @@ def startingRobotToSandmodel1():
             has_followup_after_tool4 = (tool2_side_cycle > 0 or tool2_sideoutedge > 0 or tool1_cycles > 0)
             if not stop_requested():
                 if has_followup_after_tool4 or not keep_tool_after_task:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    communicate(cps=cps, config=config, seventh=0, tcp=config['coords']['tcptool4plane1'], ucs=config['coords']['ucsTable1'], speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    cycles = [tool2_side_cycle, tool2_sideoutedge,tool1_cycles]
-                    if any(cycle > 0 for cycle in cycles):
-                        keepToolupdated(cps, toolNumber=4, config=config)
-                    else:
-                        keepTool11(cps, toolNumber=4, config=config)
-                        communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                    drop_tool_safely(4)
                 else:
                     # Single-task run: keep tool mounted but return to homing/safe point.
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                    move_to_safe_point()
             
         
         if tool2_side_cycle > 0 or  tool2_sideoutedge > 0:
-            ci0, ci1, ci2 = read_ci_triplet()
-            tool_in_hand = check_tool(cps=cps,config=config,tool_num=2,ci0=ci0,ci1=ci1,ci2=ci2)
+            ensure_tool_in_hand(2)
             if stop_requested():
                 return
-
-            #Pick Tool 2
-            # getTool11(cps, toolNumber=2, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['door']['homingSpeed'], wait=True)
-            cycles = [side_cycles,zigzag_cycles]
-            
-            if tool_in_hand != 2:
-                if any(cycle > 0 for cycle in cycles):
-                    print("At least one cycle > 0 → running getToolUpdated()")
-                    getToolUpdated(cps, toolNumber=2, config=config)
-                else:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    getTool11(cps, toolNumber=2, config=config)
-            
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+            move_to_safe_point()
 
             #Tool 2 Side Cycles
             run_tool2side_cycles(tool2_side_cycle,force_tool2_side_cycle,cps)
@@ -384,51 +423,28 @@ def startingRobotToSandmodel1():
             has_followup_after_tool2 = tool1_cycles > 0
             if not stop_requested():
                 if has_followup_after_tool2 or not keep_tool_after_task:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-                    cycles = [tool1_cycles]
-                    if any(cycle > 0 for cycle in cycles):
-                        keepToolupdated(cps, toolNumber=2, config=config)
-                    else:
-                        keepTool11(cps, toolNumber=2, config=config)
-                        communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                    drop_tool_safely(2)
                 else:
                     # Single-task run: keep tool mounted but return to homing/safe point.
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                    move_to_safe_point()
             #communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['door']['homingSpeed'], wait=True)
 
         if tool1_cycles>0:
-            ci0, ci1, ci2 = read_ci_triplet()
-            tool_in_hand = check_tool(cps=cps,config=config,tool_num=1,ci0=ci0,ci1=ci1,ci2=ci2)
+            ensure_tool_in_hand(1)
             if stop_requested():
                 return
-
-            #Pick Tool 2
-            # getTool11(cps, toolNumber=1, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['door']['homingSpeed'], wait=True)
-            cycles = [tool2_side_cycle, tool2_sideoutedge, side_cycles,zigzag_cycles]
-
-            if tool_in_hand != 1:
-                if any(cycle > 0 for cycle in cycles):
-                    print("At least one cycle > 0 → running getToolUpdated()")
-                    getToolUpdated(cps, toolNumber=1, config=config)
-                else:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                    getTool11(cps, toolNumber=1, config=config)
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+            move_to_safe_point()
             #Tool 3Cycle
             run_tool1_cycles(tool1_cycles,force_tool3,cps)
             if stop_requested():
                 return
             if not keep_tool_after_task:
                 #Drop Tool 1
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
-                communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-                keepTool11(cps, toolNumber=1, config=config)
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                drop_tool_safely(1)
+                move_to_safe_point()
             else:
                 # Single-task run: keep tool mounted but return to homing/safe point.
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
+                move_to_safe_point()
 
 
     except Exception as e:

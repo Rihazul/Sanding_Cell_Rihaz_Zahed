@@ -6933,7 +6933,7 @@ def keepToolupdated(cps, toolNumber, config):
         config=config,
         speed=0.9,
         velocity_profile="robotspeed",
-        wait=False,
+        wait=True,
     )
     # go to tool's home
     communicate(
@@ -6945,7 +6945,7 @@ def keepToolupdated(cps, toolNumber, config):
         config=config,
         speed=0.9,
         velocity_profile="robotspeed",
-        wait=False,
+        wait=True,
     )
     # touch the tool (slowly)
     communicate(
@@ -6957,7 +6957,7 @@ def keepToolupdated(cps, toolNumber, config):
         config=config,
         speed=0.1,
         velocity_profile="sandingspeed",
-        wait=False,
+        wait=True,
     )
     # drop the tool
     waitForBlending(cps=cps, config=config)
@@ -7006,7 +7006,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         config=config,
         speed=0.9,
         velocity_profile="robotspeed",
-        wait=False,
+        wait=True,
     )
     # drop (for safety, to open the valve)
     waitForBlending(cps=cps, config=config)
@@ -7052,7 +7052,7 @@ def getToolUpdated(cps, toolNumber, config, startFromSafe=True):
         config=config,
         speed=0.9,
         velocity_profile="robotspeed",
-        wait=False,
+        wait=True,
     )
 
 def turn_tool_spin_on(cps, debug=False):
