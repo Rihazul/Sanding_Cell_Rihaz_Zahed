@@ -113,6 +113,8 @@ def model1bottombig(force,cps):
         'tool_change': speeed,
         'contact': sanding_speed,
     }
+    if speed_profile['contact'] <= 0:
+        speed_profile['contact'] = speed_profile['travel']
 
 
     #Boottom Points
@@ -195,28 +197,39 @@ def model1bottombig(force,cps):
 
 
     def perform_process_bottom(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        for point in points1:
-            if point==pointybottomb12m:putForceZplus(
+        if not points1:
+            return
+        communicate(
+            cps=cps,
+            config=config,
+            point=points1[0],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['approach'],
+            velocity_profile="robot",
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=points1[1],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['contact'],
+            velocity_profile="sanding",
+            wait=True
+        )
+        putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
-            )
-            if point==pointybottomb2m:turn_vibration_on(cps)
+        )
+        turn_vibration_on(cps)
+        for idx, point in enumerate(points1[2:], start=2):
             communicate(
                 cps=cps,
                 config=config,
@@ -226,39 +239,47 @@ def model1bottombig(force,cps):
                 seventh=-1,
                 speed=speed_profile['contact'],
                 velocity_profile="sanding",
-                wait=False
+                wait=(idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
-        
-        # Release Force Control
-        releaseForce(cps=cps, config=config) 
+        releaseForce(cps=cps, config=config, wait_for_blending=False)
     
     def perform_process_bottoma(cps, config, points1,force):
-        # Vibration on
-        # turn_vibration_on(cps)
-        
-        # Force Control Activated
-        #putForceZplus(
-            #cps=cps,
-            #force=15,
-            #tcp=config['coords']['tcptool4plane2'],
-            #ucs=config['coords']['ucsTable2'],
-            #config=config
-        #)
-        
-        # Communicate to each point in points1
-        for point in points1:
-            if point==pointybottoma12m:putForceZplus(
+        if not points1:
+            return
+        communicate(
+            cps=cps,
+            config=config,
+            point=points1[0],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['approach'],
+            velocity_profile="robot",
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=points1[1],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['contact'],
+            velocity_profile="sanding",
+            wait=True
+        )
+        putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
-            )
-            if point==pointybottoma1:turn_vibration_on(cps)
+        )
+        turn_vibration_on(cps)
+        for idx, point in enumerate(points1[2:], start=2):
             communicate(
                 cps=cps,
                 config=config,
@@ -268,18 +289,15 @@ def model1bottombig(force,cps):
                 seventh=-1,
                 speed=speed_profile['contact'],
                 velocity_profile="sanding",
-                wait=False
+                wait=(idx == len(points1) - 1)
             )
-        
-        # Wait for blending and turn off vibration
+
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
-        
-        # Release Force Control
-        releaseForce(cps=cps, config=config) 
+        releaseForce(cps=cps, config=config, wait_for_blending=False)
     
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        """Start J7 non-blocking, then arm move (small-table style)."""
+        """Start J7 non-blocking, move robot, then sync J7 before sanding."""
         communicate(
             cps=cps,
             config=config,
@@ -295,6 +313,16 @@ def model1bottombig(force,cps):
             config=config,
             point=robot_point,
             seventh=-1,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             speed=speed_profile['travel'],

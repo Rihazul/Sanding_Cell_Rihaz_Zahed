@@ -473,10 +473,9 @@ def model1pocket1side(force,cps):
 
     def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
-        Moves seventh axis first, then repositions the robot.
-        This avoids the frame shift that happens when both move at once.
+        Move 7th axis and robot arm simultaneously for faster transitions.
         """
-        # Lift to prepoint before moving the 7th axis so the tool clears the surface.
+        # Lift/reposition before simultaneous handoff.
         communicate(
             cps=cps,
             config=config,
@@ -485,9 +484,10 @@ def model1pocket1side(force,cps):
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speed_profile['travel'],
-                velocity_profile="robot",
+            velocity_profile="robot",
             wait=True
         )
+        # Start 7th-axis move without blocking so arm move can run simultaneously.
         communicate(
             cps=cps,
             config=config,
@@ -495,9 +495,10 @@ def model1pocket1side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             speed=speed_profile['travel'],
-                velocity_profile="robot",
-            wait=True
+            velocity_profile="robot",
+            wait=False
         )
+        # Reposition robot while 7th axis is traveling.
         communicate(
             cps=cps,
             config=config,
@@ -506,10 +507,9 @@ def model1pocket1side(force,cps):
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speed_profile['travel'],
-                velocity_profile="robot",
+            velocity_profile="robot",
             wait=True
         )
-   
     # Ensure we always start from a released force/vibration state.
     releaseForce(cps=cps, config=config, wait_for_blending=False)
     turn_vibration_off(cps)
@@ -963,10 +963,9 @@ def model1pocket2side(force,cps):
         # Release Force Control
     def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
-        Moves seventh axis first, then repositions the robot.
-        This avoids the frame shift that happens when both move at once.
+        Move 7th axis and robot arm simultaneously for faster transitions.
         """
-        # Lift to prepoint before moving the 7th axis so the tool clears the surface.
+        # Lift/reposition before simultaneous handoff.
         communicate(
             cps=cps,
             config=config,
@@ -975,9 +974,10 @@ def model1pocket2side(force,cps):
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speed_profile['travel'],
-                velocity_profile="robot",
+            velocity_profile="robot",
             wait=True
         )
+        # Start 7th-axis move without blocking so arm move can run simultaneously.
         communicate(
             cps=cps,
             config=config,
@@ -985,9 +985,10 @@ def model1pocket2side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             speed=speed_profile['travel'],
-                velocity_profile="robot",
-            wait=True
+            velocity_profile="robot",
+            wait=False
         )
+        # Reposition robot while 7th axis is traveling.
         communicate(
             cps=cps,
             config=config,
@@ -996,11 +997,9 @@ def model1pocket2side(force,cps):
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speed_profile['travel'],
-                velocity_profile="robot",
+            velocity_profile="robot",
             wait=True
         )
-    
-
     # def run_single_movement(robot_point, seventh_axis_point, cps, config):
     #     """
     #     Moves the robot and seventh axis simultaneously (parallel motion).
@@ -1508,10 +1507,9 @@ def model1pocket3side(force,cps):
         # Release Force Control
     def move_axis_then_robot(robot_point, seventh_axis_point, cps, config):
         """
-        Moves seventh axis first, then repositions the robot.
-        This avoids the frame shift that happens when both move at once.
+        Move 7th axis and robot arm simultaneously for faster transitions.
         """
-        # Lift to prepoint before moving the 7th axis so the tool clears the surface.
+        # Lift/reposition before simultaneous handoff.
         communicate(
             cps=cps,
             config=config,
@@ -1520,9 +1518,10 @@ def model1pocket3side(force,cps):
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speed_profile['travel'],
-                velocity_profile="robot",
+            velocity_profile="robot",
             wait=True
         )
+        # Start 7th-axis move without blocking so arm move can run simultaneously.
         communicate(
             cps=cps,
             config=config,
@@ -1530,9 +1529,10 @@ def model1pocket3side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             speed=speed_profile['travel'],
-                velocity_profile="robot",
-            wait=True
+            velocity_profile="robot",
+            wait=False
         )
+        # Reposition robot while 7th axis is traveling.
         communicate(
             cps=cps,
             config=config,
@@ -1541,12 +1541,9 @@ def model1pocket3side(force,cps):
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speed_profile['travel'],
-                velocity_profile="robot",
+            velocity_profile="robot",
             wait=True
         )
-   
-   
-
     # def run_single_movement(robot_point, seventh_axis_point, cps, config):
     #     """
     #     Moves the robot and seventh axis simultaneously (parallel motion).
@@ -1653,11 +1650,7 @@ def mod1tool1siderun(force,cps):
     time.sleep(0.5)
     model1pocket3side(force,cps)
     time.sleep(0.5)
-    json_config = load_json_config()
-    travel_speed = float(json_config.get('robotSpeed', 0.9) or 0.9)
-    if travel_speed <= 0:
-        travel_speed = 0.9
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool3plane1'],ucs=config['coords']['ucsTable2'],speed=travel_speed,velocity_profile="robot",wait=True)
+    # Keep current 7th-axis position from pocket-side; bottom routine will handle its own indexed passes.
 
     p1 = exported_points["p1"]
     xlen = p1[0]
