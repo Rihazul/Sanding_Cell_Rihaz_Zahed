@@ -136,6 +136,8 @@ def model1pocket1side(force,cps):
     if speed_profile['contact'] <= 0:
         speed_profile['contact'] = speed_profile['travel']
         print("[model1pocket1side] sandingSpeed<=0, using travel speed for contact moves")
+    safe_approach_speed = speed_profile['approach'] if speed_profile['approach'] > 0 else 0.2
+    safe_contact_speed = speed_profile['contact'] if speed_profile['contact'] > 0 else safe_approach_speed
 
    
      
@@ -318,7 +320,23 @@ def model1pocket1side(force,cps):
         turn_vibration_on(cps)
         force_active = True
     def perform_process_bottom(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -326,18 +344,31 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -345,18 +376,31 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -364,18 +408,31 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -383,13 +440,10 @@ def model1pocket1side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
@@ -595,6 +649,8 @@ def model1pocket2side(force,cps):
     if speed_profile['contact'] <= 0:
         speed_profile['contact'] = speed_profile['travel']
         print("[model1pocket2side] sandingSpeed<=0, using travel speed for contact moves")
+    safe_approach_speed = speed_profile['approach'] if speed_profile['approach'] > 0 else 0.2
+    safe_contact_speed = speed_profile['contact'] if speed_profile['contact'] > 0 else safe_approach_speed
 
    
      
@@ -777,7 +833,23 @@ def model1pocket2side(force,cps):
         turn_vibration_on(cps)
         force_active = True
     def perform_process_bottom(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -785,18 +857,31 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -804,18 +889,31 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -823,18 +921,31 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -842,13 +953,10 @@ def model1pocket2side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
@@ -1105,6 +1213,8 @@ def model1pocket3side(force,cps):
     if speed_profile['contact'] <= 0:
         speed_profile['contact'] = speed_profile['travel']
         print("[model1pocket3side] sandingSpeed<=0, using travel speed for contact moves")
+    safe_approach_speed = speed_profile['approach'] if speed_profile['approach'] > 0 else 0.2
+    safe_contact_speed = speed_profile['contact'] if speed_profile['contact'] > 0 else safe_approach_speed
 
    
      
@@ -1287,7 +1397,23 @@ def model1pocket3side(force,cps):
         turn_vibration_on(cps)
         force_active = True
     def perform_process_bottom(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1295,18 +1421,31 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_left(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1314,18 +1453,31 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_top(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1333,18 +1485,31 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
     def perform_process_right(cps, config, points1,force):
-        for idx, point in enumerate(points1):
+        if not points1:
+            return
+        first_point = points1[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=safe_approach_speed,
+            velocity_profile="robot",
+            wait=True
+        )
+        # Force is enabled only after we reach the first contact point.
+        start_force_if_needed()
+        for idx, point in enumerate(points1[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1352,13 +1517,10 @@ def model1pocket3side(force,cps):
                 tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speed_profile['contact'],
+                speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == 0 or idx == len(points1) - 1)
+                wait=(idx == len(points1) - 1)
             )
-            if idx == 0:
-                # Match small-table behavior: reach first contact point, then enable force/vibration.
-                start_force_if_needed()
 
         waitForBlending(cps=cps, config=config)
         # Release Force Control
