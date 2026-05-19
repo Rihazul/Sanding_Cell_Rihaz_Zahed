@@ -319,21 +319,40 @@ def model1pocket1side(force,cps):
         )
         turn_vibration_on(cps)
         force_active = True
+
+    def move_to_contact_point(first_point):
+        # Reach the contact point first; do not enable force unless position is reached.
+        for attempt in range(2):
+            communicate(
+                cps=cps,
+                config=config,
+                point=first_point,
+                tcp=config['coords']['tcptool4plane2'],
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=safe_approach_speed,
+                velocity_profile="robot",
+                wait=True
+            )
+            try:
+                act = []
+                nret = cps.HRIF_ReadActPos(0, 0, act)
+                if nret == 0 and isinstance(act, (list, tuple)) and len(act) > 8:
+                    dx = float(act[6]) - float(first_point[0])
+                    dy = float(act[7]) - float(first_point[1])
+                    dz = float(act[8]) - float(first_point[2])
+                    if (dx * dx + dy * dy + dz * dz) ** 0.5 <= 2.0:
+                        return True
+            except Exception:
+                pass
+        print("[model1 frame] Could not confirm first contact point reach; skipping force for this segment")
+        return False
     def perform_process_bottom(cps, config, points1,force):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -355,17 +374,8 @@ def model1pocket1side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -387,17 +397,8 @@ def model1pocket1side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -419,17 +420,8 @@ def model1pocket1side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -462,14 +454,16 @@ def model1pocket1side(force,cps):
         
         # Communicate to each point in points1
         for idx, point in enumerate(points1):
-            if point==pmiddile21:putForceZplus(
+            if point == pmiddile21:
+                if not move_to_contact_point(point):
+                    return
+                putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-    
 
             communicate(
                 cps=cps,
@@ -832,21 +826,40 @@ def model1pocket2side(force,cps):
         )
         turn_vibration_on(cps)
         force_active = True
+
+    def move_to_contact_point(first_point):
+        # Reach the contact point first; do not enable force unless position is reached.
+        for attempt in range(2):
+            communicate(
+                cps=cps,
+                config=config,
+                point=first_point,
+                tcp=config['coords']['tcptool4plane2'],
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=safe_approach_speed,
+                velocity_profile="robot",
+                wait=True
+            )
+            try:
+                act = []
+                nret = cps.HRIF_ReadActPos(0, 0, act)
+                if nret == 0 and isinstance(act, (list, tuple)) and len(act) > 8:
+                    dx = float(act[6]) - float(first_point[0])
+                    dy = float(act[7]) - float(first_point[1])
+                    dz = float(act[8]) - float(first_point[2])
+                    if (dx * dx + dy * dy + dz * dz) ** 0.5 <= 2.0:
+                        return True
+            except Exception:
+                pass
+        print("[model1 frame] Could not confirm first contact point reach; skipping force for this segment")
+        return False
     def perform_process_bottom(cps, config, points1,force):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -868,17 +881,8 @@ def model1pocket2side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -900,17 +904,8 @@ def model1pocket2side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -932,17 +927,8 @@ def model1pocket2side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -975,14 +961,16 @@ def model1pocket2side(force,cps):
         
         # Communicate to each point in points1
         for idx, point in enumerate(points1):
-            if point==pmiddile21:putForceZplus(
+            if point == pmiddile21:
+                if not move_to_contact_point(point):
+                    return
+                putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-           
 
             communicate(
                 cps=cps,
@@ -1396,21 +1384,40 @@ def model1pocket3side(force,cps):
         )
         turn_vibration_on(cps)
         force_active = True
+
+    def move_to_contact_point(first_point):
+        # Reach the contact point first; do not enable force unless position is reached.
+        for attempt in range(2):
+            communicate(
+                cps=cps,
+                config=config,
+                point=first_point,
+                tcp=config['coords']['tcptool4plane2'],
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=safe_approach_speed,
+                velocity_profile="robot",
+                wait=True
+            )
+            try:
+                act = []
+                nret = cps.HRIF_ReadActPos(0, 0, act)
+                if nret == 0 and isinstance(act, (list, tuple)) and len(act) > 8:
+                    dx = float(act[6]) - float(first_point[0])
+                    dy = float(act[7]) - float(first_point[1])
+                    dz = float(act[8]) - float(first_point[2])
+                    if (dx * dx + dy * dy + dz * dz) ** 0.5 <= 2.0:
+                        return True
+            except Exception:
+                pass
+        print("[model1 frame] Could not confirm first contact point reach; skipping force for this segment")
+        return False
     def perform_process_bottom(cps, config, points1,force):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -1432,17 +1439,8 @@ def model1pocket3side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -1464,17 +1462,8 @@ def model1pocket3side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -1496,17 +1485,8 @@ def model1pocket3side(force,cps):
         if not points1:
             return
         first_point = points1[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=safe_approach_speed,
-            velocity_profile="robot",
-            wait=True
-        )
+        if not move_to_contact_point(first_point):
+            return
         # Force is enabled only after we reach the first contact point.
         start_force_if_needed()
         for idx, point in enumerate(points1[1:], start=1):
@@ -1539,14 +1519,16 @@ def model1pocket3side(force,cps):
         
         # Communicate to each point in points1
         for idx, point in enumerate(points1):
-            if point==pmiddile21:putForceZplus(
+            if point == pmiddile21:
+                if not move_to_contact_point(point):
+                    return
+                putForceZplus(
             cps=cps,
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
-            
 
             communicate(
                 cps=cps,
