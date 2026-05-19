@@ -8,8 +8,8 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-from model1cycle.mod1pocketside import mod1tool1siderun
-from model1cycle.mod1zigzag import mod1zigzag
+from model1cycle.mod1pocketside import mod1tool1siderun, model1pocket1side, model1pocket2side, model1pocket3side
+from model1cycle.mod1zigzag import mod1zigzag, testmodel1zigzagsmallfunction, testmodel2zigzagsmallfunction, testmodel3zigzagsmallfunction
 from model1cycle.mod1tool2edge import mod1tool2outedge
 from model1cycle.mod1tool2sideb import mod1tool2sidesrun
 from model1cycle.mod1tool3 import mod1tool1
@@ -48,6 +48,47 @@ def run_zigzag_cycles(count,force,innerSandingOffset,cps,movement="both",tcp_nam
         if i < count-1:
             print("Pausing 3 seconds before next zigzag cycle...")
             time.sleep(3)
+
+def run_tool4_section_cycles(side_cycles, force_side, zigzag_cycles, force_zigzag, innerSandingOffset, cps):
+    """
+    Execute Tool 4 work section-by-section:
+    section frame + section zigzag, then move to next section.
+    """
+    section_handlers = [
+        ("SECTION 1", model1pocket1side, testmodel1zigzagsmallfunction),
+        ("SECTION 2", model1pocket2side, testmodel2zigzagsmallfunction),
+        ("SECTION 3", model1pocket3side, testmodel3zigzagsmallfunction),
+    ]
+
+    for section_name, side_fn, zigzag_fn in section_handlers:
+        if stop_requested():
+            return
+
+        print(f"\n=== TOOL 4 {section_name} ===")
+
+        if side_cycles > 0:
+            for i in range(side_cycles):
+                if stop_requested():
+                    return
+                print(f"Frame cycle {i+1}/{side_cycles}")
+                side_fn(force=force_side, cps=cps)
+                if i < side_cycles - 1:
+                    time.sleep(0.5)
+
+        if zigzag_cycles > 0:
+            for i in range(zigzag_cycles):
+                if stop_requested():
+                    return
+                print(f"Zigzag cycle {i+1}/{zigzag_cycles}")
+                zigzag_fn(
+                    force=force_zigzag,
+                    innerSandingOffset=innerSandingOffset,
+                    cps=cps,
+                    movement="zigzag_only",
+                    tcp_name="tcptool4plane2",
+                )
+                if i < zigzag_cycles - 1:
+                    time.sleep(0.5)
 
 
 def run_tool2side_cycles(count,force,cps):
@@ -282,18 +323,15 @@ def startingRobotToSandmodel1():
                     getTool11(cps, toolNumber=4, config=config)
             communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speed_profile['travel'], velocity_profile="robot", wait=True)
 
-            # Tool 4 batch: frame + pocket zigzag
-            if side_cycles > 0:
-                run_side_cycles(side_cycles,force_side_cycles,cps)
-            if zigzag_cycles > 0:
-                run_zigzag_cycles(
-                    zigzag_cycles,
-                    force_zigzag_cycles,
-                    innerSandingOffset,
-                    cps,
-                    movement="zigzag_only",
-                    tcp_name="tcptool4plane2",
-                )
+            # Tool 4 batch: section-by-section (frame + pocket zigzag per section)
+            run_tool4_section_cycles(
+                side_cycles=side_cycles,
+                force_side=force_side_cycles,
+                zigzag_cycles=zigzag_cycles,
+                force_zigzag=force_zigzag_cycles,
+                innerSandingOffset=innerSandingOffset,
+                cps=cps,
+            )
             if stop_requested():
                 return
 

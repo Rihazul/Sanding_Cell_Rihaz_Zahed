@@ -279,6 +279,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     
     speeed = module_speed_profile['contact']
     tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
+    corner_offset = 73.0 if tcp_name == "tcptool4plane2" else 33.5
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
 
     # Hard-coded points for Pocket4
@@ -495,8 +496,8 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     #Second Pocket 1st Cycle
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
-        innerOffset=33.5, innerOffsetX=33.5, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True
+        innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=corner_offset
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
@@ -698,6 +699,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed = module_speed_profile['contact']
     tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
+    corner_offset = 73.0 if tcp_name == "tcptool4plane2" else 33.5
 
     # Hard-coded points for Pocket4
     # Format: [x, y, z, rotX, rotY, rotZ]
@@ -913,8 +915,8 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     #Second Pocket 1st Cycle
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
-        innerOffset=33.5, innerOffsetX=33.5, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True
+        innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=corner_offset
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
@@ -1107,6 +1109,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed = module_speed_profile['contact']
     tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
+    corner_offset = 73.0 if tcp_name == "tcptool4plane2" else 33.5
 
     # print("p9:",p9)
     # print("p10:",p10)
@@ -1332,8 +1335,8 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     #Second Pocket 1st Cycle
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
-        innerOffset=33.5, innerOffsetX=33.5, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True
+        innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=corner_offset
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
