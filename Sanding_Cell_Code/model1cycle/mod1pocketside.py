@@ -612,9 +612,8 @@ def model1pocket1side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    ensure_force()
     turn_vibration_on(cps)
-    turn_tool_spin_on(cps)
+    # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
@@ -630,7 +629,7 @@ def model1pocket1side(force,cps):
     force_active = False
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
-    turn_tool_spin_off(cps)
+    # turn_tool_spin_off(cps)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
@@ -1250,9 +1249,8 @@ def model1pocket2side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    ensure_force()
     turn_vibration_on(cps)
-    turn_tool_spin_on(cps)
+    # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
@@ -1268,7 +1266,7 @@ def model1pocket2side(force,cps):
     force_active = False
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
-    turn_tool_spin_off(cps)
+    # turn_tool_spin_off(cps)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
@@ -1888,9 +1886,8 @@ def model1pocket3side(force,cps):
     # Pass 1: top -> right -> bottom (x1)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    ensure_force()
     turn_vibration_on(cps)
-    turn_tool_spin_on(cps)
+    # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
@@ -1906,7 +1903,7 @@ def model1pocket3side(force,cps):
     force_active = False
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
-    turn_tool_spin_off(cps)
+    # turn_tool_spin_off(cps)
 
     #Last movement
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)

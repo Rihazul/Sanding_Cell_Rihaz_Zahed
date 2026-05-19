@@ -539,7 +539,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         )
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
-        turn_tool_spin_on(cps)
+        # turn_tool_spin_on(cps)
         
         edge_path = list(edge_points or [])
         zigzag_points = list(points1 or [])
@@ -580,7 +580,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         # #Release force and turn off vibration after path is complete
         releaseForce(cps=cps, config=config)
         turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
+        # turn_tool_spin_off(cps)
         
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
@@ -948,7 +948,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         )
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
-        turn_tool_spin_on(cps)
+        # turn_tool_spin_on(cps)
         
         edge_path = list(edge_points or [])
         zigzag_points = list(points1 or [])
@@ -989,7 +989,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         # #Release force and turn off vibration after path is complete
         releaseForce(cps=cps, config=config)
         turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
+        # turn_tool_spin_off(cps)
     
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)
@@ -1357,7 +1357,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         )
         time.sleep(0.2)  # allow force control to settle
         turn_vibration_on(cps)
-        turn_tool_spin_on(cps)
+        # turn_tool_spin_on(cps)
         
         edge_path = list(edge_points or [])
         zigzag_points = list(points1 or [])
@@ -1398,7 +1398,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         # #Release force and turn off vibration after path is complete
         releaseForce(cps=cps, config=config)
         turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
+        # turn_tool_spin_off(cps)
     
     for i in range(1, 2):  # Single full pass for pocket p1
     # Get the current tcx (0-indexed)

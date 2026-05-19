@@ -229,7 +229,7 @@ def model1bottomsmall(force,cps):
 
                 turn_vibration_on(cps)
 
-                turn_tool_spin_on(cps)
+                # turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -245,7 +245,7 @@ def model1bottomsmall(force,cps):
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
+        # turn_tool_spin_off(cps)
         
         # Release Force Control
         releaseForce(cps=cps, config=config) 
@@ -276,7 +276,7 @@ def model1bottomsmall(force,cps):
 
                 turn_vibration_on(cps)
 
-                turn_tool_spin_on(cps)
+                # turn_tool_spin_on(cps)
             communicate(
                 cps=cps,
                 config=config,
@@ -292,7 +292,7 @@ def model1bottomsmall(force,cps):
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
         turn_vibration_off(cps)
-        turn_tool_spin_off(cps)
+        # turn_tool_spin_off(cps)
         
         # Release Force Control
         releaseForce(cps=cps, config=config) 
