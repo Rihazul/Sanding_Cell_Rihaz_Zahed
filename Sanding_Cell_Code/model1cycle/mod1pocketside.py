@@ -240,7 +240,7 @@ def model1pocket1side(force,cps):
 
 
     #Hpoints for top
-    htoppoints=[0, point7[1], -20, 180, 0, 0]
+    htoppoints=[0, point7[1], -50, 180, 0, 0]
     print("htoppoints:", htoppoints)
 
 
@@ -273,6 +273,8 @@ def model1pocket1side(force,cps):
     bottom_mid_to_left_shifted = [shift_point(p) for p in bottom_mid_to_left]
     leftpoints_shifted = [shift_point(p) for p in leftpoints]
     top_left_to_mid_shifted = [shift_point(p) for p in top_left_to_mid]
+    pretpointmiddle_shifted = shift_point(pretpointmiddle)
+    htoppoints_shifted = shift_point(htoppoints)
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -471,33 +473,11 @@ def model1pocket1side(force,cps):
 
     
 
-    def move_axis_then_robot(from_point, to_point, seventh_axis_point, cps, config):
+    def move_axis_then_robot(to_point, seventh_axis_point, cps, config):
         """
-        Move 7th axis and robot prepoint transition simultaneously.
+        Move 7th axis and robot prepoint transition simultaneously from current pose.
         Then hold at prepoint until 7th-axis target is fully reached.
         """
-        communicate(
-            cps=cps,
-            config=config,
-            point=from_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=True
-        )
-        # Ensure 7th-axis move is complete before entering contact from prepoint.
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=seventh_axis_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=True
-        )
         # Start 7th-axis move without blocking so arm move can run simultaneously.
         communicate(
             cps=cps,
@@ -538,7 +518,7 @@ def model1pocket1side(force,cps):
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2, centered)
-    move_axis_then_robot(from_point=prebpointmiddle, to_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
+    move_axis_then_robot(to_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left_shifted,force=force)
     perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
@@ -546,6 +526,8 @@ def model1pocket1side(force,cps):
     force_active = False
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
+    communicate(cps=cps,config=config,point=pretpointmiddle_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,point=htoppoints_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     # turn_tool_spin_off(cps)
 
 def model1pocket2side(force,cps):
@@ -742,7 +724,7 @@ def model1pocket2side(force,cps):
 
 
     #Hpoints for top
-    htoppoints=[0, point7[1], -20, 180, 0, 0]
+    htoppoints=[0, point7[1], -50, 180, 0, 0]
     print("htoppoints:", htoppoints)
 
 
@@ -775,6 +757,8 @@ def model1pocket2side(force,cps):
     bottom_mid_to_left_shifted = [shift_point(p) for p in bottom_mid_to_left]
     leftpoints_shifted = [shift_point(p) for p in leftpoints]
     top_left_to_mid_shifted = [shift_point(p) for p in top_left_to_mid]
+    pretpointmiddle_shifted = shift_point(pretpointmiddle)
+    htoppoints_shifted = shift_point(htoppoints)
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -969,33 +953,11 @@ def model1pocket2side(force,cps):
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
         # Release Force Control
-    def move_axis_then_robot(from_point, to_point, seventh_axis_point, cps, config):
+    def move_axis_then_robot(to_point, seventh_axis_point, cps, config):
         """
-        Move 7th axis and robot prepoint transition simultaneously.
+        Move 7th axis and robot prepoint transition simultaneously from current pose.
         Then hold at prepoint until 7th-axis target is fully reached.
         """
-        communicate(
-            cps=cps,
-            config=config,
-            point=from_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=True
-        )
-        # Ensure 7th-axis move is complete before entering contact from prepoint.
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=seventh_axis_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=True
-        )
         # Start 7th-axis move without blocking so arm move can run simultaneously.
         communicate(
             cps=cps,
@@ -1015,6 +977,17 @@ def model1pocket2side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True
+        )
+        # Ensure 7th-axis move is complete before entering contact from prepoint.
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
             speed=speed_profile['travel'],
             velocity_profile="robot",
             wait=True
@@ -1089,7 +1062,7 @@ def model1pocket2side(force,cps):
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2, centered)
-    move_axis_then_robot(from_point=prebpointmiddle, to_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
+    move_axis_then_robot(to_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left_shifted,force=force)
     perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
@@ -1097,6 +1070,8 @@ def model1pocket2side(force,cps):
     force_active = False
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
+    communicate(cps=cps,config=config,point=pretpointmiddle_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,point=htoppoints_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     # turn_tool_spin_off(cps)
 
     
@@ -1294,7 +1269,7 @@ def model1pocket3side(force,cps):
 
 
     #Hpoints for top
-    htoppoints=[0, point7[1], -20, 180, 0, 0]
+    htoppoints=[0, point7[1], -50, 180, 0, 0]
     print("htoppoints:", htoppoints)
 
 
@@ -1327,6 +1302,8 @@ def model1pocket3side(force,cps):
     bottom_mid_to_left_shifted = [shift_point(p) for p in bottom_mid_to_left]
     leftpoints_shifted = [shift_point(p) for p in leftpoints]
     top_left_to_mid_shifted = [shift_point(p) for p in top_left_to_mid]
+    pretpointmiddle_shifted = shift_point(pretpointmiddle)
+    htoppoints_shifted = shift_point(htoppoints)
 
     #Middle Points
     pmiddile1=[0+ outeroffset, p10[1] - outeroffset, z, 180, 0, 0]
@@ -1521,33 +1498,11 @@ def model1pocket3side(force,cps):
         # Wait for blending and turn off vibration
         waitForBlending(cps=cps, config=config)
         # Release Force Control
-    def move_axis_then_robot(from_point, to_point, seventh_axis_point, cps, config):
+    def move_axis_then_robot(to_point, seventh_axis_point, cps, config):
         """
-        Move 7th axis and robot prepoint transition simultaneously.
+        Move 7th axis and robot prepoint transition simultaneously from current pose.
         Then hold at prepoint until 7th-axis target is fully reached.
         """
-        communicate(
-            cps=cps,
-            config=config,
-            point=from_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            seventh=-1,
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=True
-        )
-        # Ensure 7th-axis move is complete before entering contact from prepoint.
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=seventh_axis_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=True
-        )
         # Start 7th-axis move without blocking so arm move can run simultaneously.
         communicate(
             cps=cps,
@@ -1567,6 +1522,17 @@ def model1pocket3side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True
+        )
+        # Ensure 7th-axis move is complete before entering contact from prepoint.
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
             speed=speed_profile['travel'],
             velocity_profile="robot",
             wait=True
@@ -1639,7 +1605,7 @@ def model1pocket3side(force,cps):
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2, centered)
-    move_axis_then_robot(from_point=prebpointmiddle, to_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
+    move_axis_then_robot(to_point=prebpointmiddle_shifted, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom(cps, config, points1=bottom_mid_to_left_shifted,force=force)
     perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
@@ -1647,6 +1613,8 @@ def model1pocket3side(force,cps):
     force_active = False
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
+    communicate(cps=cps,config=config,point=pretpointmiddle_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,point=htoppoints_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     # turn_tool_spin_off(cps)
 
     
