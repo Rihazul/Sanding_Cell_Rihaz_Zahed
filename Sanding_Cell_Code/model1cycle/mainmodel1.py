@@ -164,6 +164,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         return True
 
     print(f"Tool {tool_in_hand} detected; dropping before picking Tool {tool_num}.")
+    print("[mainmodel1][switch] step 1/4: move to safePoint (homing-safe)")
     communicate(
         cps=cps,
         point=config["point"]["safePoint"],
@@ -175,6 +176,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         velocity_profile="robot",
         wait=True,
     )
+    print("[mainmodel1][switch] step 2/4: move 7th axis to tool station")
     seventh_result = communicate(
         cps=cps,
         config=config,
@@ -189,12 +191,25 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         raise RuntimeError(
             f"Failed to move 7th axis to tool station before dropping Tool {tool_in_hand}."
         )
+    print("[mainmodel1][switch] step 3/4: move to safePointTool")
+    communicate(
+        cps=cps,
+        point=config["point"]["safePointTool"],
+        tcp=config["coords"]["tcpDefault"],
+        ucs=config["coords"]["ucsDefault"],
+        seventh=-1,
+        config=config,
+        speed=config["door"]["homingSpeed"],
+        velocity_profile="robot",
+        wait=True,
+    )
+    print("[mainmodel1][switch] step 4/4: drop current tool via tool home")
     keepTool11(
         cps=cps,
         toolNumber=tool_in_hand,
         config=config,
         goToSafe=False,
-        startFromSafe=True,
+        startFromSafe=False,
     )
     return False
 
@@ -323,13 +338,25 @@ def startingRobotToSandmodel1():
         )
         if has_requested_tool:
             return False
+        print(f"[mainmodel1][switch] prepare pick Tool {tool_num}: safePoint -> 7th tool station -> safePointTool -> tool{tool_num}home")
         move_to_safe_point()
         move_seventh_to_tool_station()
+        communicate(
+            cps=cps,
+            point=config["point"]["safePointTool"],
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            seventh=-1,
+            config=config,
+            speed=speed_profile["travel"],
+            velocity_profile="robot",
+            wait=True,
+        )
         picked = getTool11(
             cps=cps,
             toolNumber=tool_num,
             config=config,
-            startFromSafe=True,
+            startFromSafe=False,
             exitToSafe=True,
         )
         if picked is False:
