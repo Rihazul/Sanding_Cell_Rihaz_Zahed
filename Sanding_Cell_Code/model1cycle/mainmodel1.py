@@ -164,6 +164,17 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         return True
 
     print(f"Tool {tool_in_hand} detected; dropping before picking Tool {tool_num}.")
+    communicate(
+        cps=cps,
+        point=config["point"]["safePoint"],
+        tcp=config["coords"]["tcpDefault"],
+        ucs=config["coords"]["ucsDefault"],
+        seventh=-1,
+        config=config,
+        speed=config["door"]["homingSpeed"],
+        velocity_profile="robot",
+        wait=True,
+    )
     seventh_result = communicate(
         cps=cps,
         config=config,
@@ -183,7 +194,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         toolNumber=tool_in_hand,
         config=config,
         goToSafe=False,
-        startFromSafe=False,
+        startFromSafe=True,
     )
     return False
 
@@ -307,28 +318,23 @@ def startingRobotToSandmodel1():
 
     def ensure_tool_in_hand(tool_num):
         ci0, ci1, ci2 = read_ci_triplet()
-        current_tool_before = decode_tool_in_hand(ci0, ci1, ci2)
         has_requested_tool = check_tool(
             cps=cps, config=config, tool_num=tool_num, ci0=ci0, ci1=ci1, ci2=ci2
         )
         if has_requested_tool:
             return False
-        switching_from_other_tool = (
-            current_tool_before is not None and current_tool_before != tool_num
-        )
-        if not switching_from_other_tool:
-            move_to_safe_point()
-            move_seventh_to_tool_station()
+        move_to_safe_point()
+        move_seventh_to_tool_station()
         picked = getTool11(
             cps=cps,
             toolNumber=tool_num,
             config=config,
-            startFromSafe=not switching_from_other_tool,
-            exitToSafe=not switching_from_other_tool,
+            startFromSafe=True,
+            exitToSafe=True,
         )
         if picked is False:
             raise RuntimeError(f"Failed to pick tool {tool_num}.")
-        return switching_from_other_tool
+        return True
 
     def move_to_homing_with_tool():
         """Return to homing/safe position without dropping the mounted tool."""
