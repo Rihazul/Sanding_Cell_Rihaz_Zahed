@@ -133,9 +133,9 @@ def _generate_zigzag_edge_path(
     raw_y_min = min(y_coords)
     raw_y_max = max(y_coords)
 
-    x_min_edge = raw_x_min + tool3x 
+    x_min_edge = raw_x_min + tool3x + edge_offset
     x_max_edge = raw_x_max - tool3x - edge_offset
-    y_min_edge = raw_y_min + tool3y 
+    y_min_edge = raw_y_min + tool3y + edge_offset
     y_max_edge = raw_y_max - tool3y - edge_offset
 
     edge_points = []
@@ -478,7 +478,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=7
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
@@ -897,7 +897,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=7
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
@@ -1317,7 +1317,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=7
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
