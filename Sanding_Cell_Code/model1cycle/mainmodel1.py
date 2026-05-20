@@ -312,7 +312,7 @@ def startingRobotToSandmodel1():
             cps=cps, config=config, tool_num=tool_num, ci0=ci0, ci1=ci1, ci2=ci2
         )
         if has_requested_tool:
-            return
+            return False
         switching_from_other_tool = (
             current_tool_before is not None and current_tool_before != tool_num
         )
@@ -324,10 +324,11 @@ def startingRobotToSandmodel1():
             toolNumber=tool_num,
             config=config,
             startFromSafe=not switching_from_other_tool,
-            exitToSafe=True,
+            exitToSafe=not switching_from_other_tool,
         )
         if picked is False:
             raise RuntimeError(f"Failed to pick tool {tool_num}.")
+        return switching_from_other_tool
 
     def drop_tool_safely(tool_num):
         move_to_safe_point()
@@ -344,16 +345,27 @@ def startingRobotToSandmodel1():
         has_pocket_work = zigzag_cycles > 0
         has_tool3_edge_pass = has_pocket_work
         has_tool4_pocket_pass = (side_cycles > 0 or has_pocket_work)
+        has_any_task = (
+            has_tool3_edge_pass
+            or has_tool4_pocket_pass
+            or tool2_side_cycle > 0
+            or tool2_sideoutedge > 0
+            or tool1_cycles > 0
+        )
+
+        if has_any_task:
+            move_to_safe_point()
 
         if has_pocket_work and not edge_coverage:
             print("Pocket zigzag is selected: forcing edge-coverage pass on Tool 3.")
 
         # Tool 3 batch: pocket edge-coverage only
         if has_tool3_edge_pass:
-            ensure_tool_in_hand(3)
+            switched = ensure_tool_in_hand(3)
             if stop_requested():
                 return
-            move_to_safe_point()
+            if switched:
+                move_to_safe_point()
             run_zigzag_cycles(
                 zigzag_cycles,
                 force_zigzag_cycles,
@@ -379,10 +391,11 @@ def startingRobotToSandmodel1():
             print("\nTool 3 edge-coverage batch completed successfully!")
         
         if has_tool4_pocket_pass:
-            ensure_tool_in_hand(4)
+            switched = ensure_tool_in_hand(4)
             if stop_requested():
                 return
-            move_to_safe_point()
+            if switched:
+                move_to_safe_point()
 
             # Tool 4 batch: section-by-section (frame + pocket zigzag per section)
             run_tool4_section_cycles(
@@ -406,10 +419,11 @@ def startingRobotToSandmodel1():
             
         
         if tool2_side_cycle > 0 or  tool2_sideoutedge > 0:
-            ensure_tool_in_hand(2)
+            switched = ensure_tool_in_hand(2)
             if stop_requested():
                 return
-            move_to_safe_point()
+            if switched:
+                move_to_safe_point()
 
             #Tool 2 Side Cycles
             run_tool2side_cycles(tool2_side_cycle,force_tool2_side_cycle,cps)
@@ -430,10 +444,11 @@ def startingRobotToSandmodel1():
             #communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['door']['homingSpeed'], wait=True)
 
         if tool1_cycles>0:
-            ensure_tool_in_hand(1)
+            switched = ensure_tool_in_hand(1)
             if stop_requested():
                 return
-            move_to_safe_point()
+            if switched:
+                move_to_safe_point()
             #Tool 3Cycle
             run_tool1_cycles(tool1_cycles,force_tool3,cps)
             if stop_requested():

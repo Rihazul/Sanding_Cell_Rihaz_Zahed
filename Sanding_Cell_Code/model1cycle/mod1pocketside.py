@@ -501,13 +501,13 @@ def model1pocket1side(force,cps):
             velocity_profile="robot",
             wait=True
         )
+        
     # Ensure we always start from a released force/vibration state.
     releaseForce(cps=cps, config=config, wait_for_blending=False)
     turn_vibration_off(cps)
 
     # Pass 1: top -> right -> bottom (x1)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    move_axis_then_robot(to_point=pretpointmiddle, seventh_axis_point=x1, cps=cps, config=config)
     communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
     # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
@@ -1050,8 +1050,7 @@ def model1pocket2side(force,cps):
     turn_vibration_off(cps)
 
     # Pass 1: top -> right -> bottom (x1)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    move_axis_then_robot(to_point=pretpointmiddle, seventh_axis_point=x1, cps=cps, config=config)
     communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
     # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
@@ -1593,8 +1592,7 @@ def model1pocket3side(force,cps):
     turn_vibration_off(cps)
 
     # Pass 1: top -> right -> bottom (x1)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
-    communicate(cps=cps,config=config,point=pretpointmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+    move_axis_then_robot(to_point=pretpointmiddle, seventh_axis_point=x1, cps=cps, config=config)
     communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
     # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
@@ -1665,11 +1663,3 @@ if __name__ == "__main__":
     # model1pocket2side(5)
     # model1pocket3side(5)
     mod1tool1siderun(5)
-
-
-
-
-
-
-
-

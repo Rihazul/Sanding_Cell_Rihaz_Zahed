@@ -420,7 +420,7 @@ def mod1tool2sidesrun(force,cps):
                 wait=True,
             )
         #Bottom Cycle 1
-        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
         communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         perform_process_bottom(cps, config, points1=pointsb,force=force)
         
@@ -445,7 +445,7 @@ def mod1tool2sidesrun(force,cps):
                     tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     speed=speeed,
-                    wait=True)
+                    wait=False)
         # run_single_movement(robot_point=point2bottomextra, 
         #                         seventh_axis_point=tcx3, 
         #                         cps=cps, config=config)
@@ -481,7 +481,7 @@ def mod1tool2sidesrun(force,cps):
         perform_process_right(cps, config, points1=pointsright,force=force)
 
         #Last Tune
-        communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
         communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
     
