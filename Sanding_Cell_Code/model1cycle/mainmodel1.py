@@ -331,8 +331,6 @@ def startingRobotToSandmodel1():
         return switching_from_other_tool
 
     def drop_tool_safely(tool_num, for_switch=False):
-        if not for_switch:
-            move_to_safe_point()
         move_seventh_to_tool_station()
         keepTool11(
             cps=cps,
