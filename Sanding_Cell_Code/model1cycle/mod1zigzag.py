@@ -126,37 +126,17 @@ def _generate_zigzag_edge_path(
     if orientation_mode not in ("horizontal", "vertical"):
         orientation_mode = "vertical"
 
-    # Edge coverage uses a dedicated offset (not innerOffset/innerOffsetX).
-    # Add +2 mm clearance so the tool still covers the edge without diving too close.
-    edge_Point2 = [
-        (x_coords[1]) + tool3x + edge_offset,
-        y_coords[1] - tool3y - edge_offset,
-    ]
-    edge_Point3 = [
-        x_coords[2] - tool3x - edge_offset,
-        y_coords[2] - tool3y - edge_offset,
-    ]
-    edge_Point1 = [
-        (x_coords[0]) + tool3x + edge_offset,
-        y_coords[0] + tool3y + edge_offset,
-    ]
-    edge_Point4 = [
-        x_coords[3] - tool3x - edge_offset,
-        y_coords[3] + tool3y + edge_offset,
-    ]
+    # Edge coverage uses a dedicated offset and must be symmetric on all sides.
+    # Compute from raw pocket bounds so it is independent of corner ordering.
+    raw_x_min = min(x_coords)
+    raw_x_max = max(x_coords)
+    raw_y_min = min(y_coords)
+    raw_y_max = max(y_coords)
 
-    x_min_edge = min(
-        edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0]
-    )
-    x_max_edge = max(
-        edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0]
-    )
-    y_min_edge = min(
-        edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1]
-    )
-    y_max_edge = max(
-        edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1]
-    )
+    x_min_edge = raw_x_min + tool3x + edge_offset
+    x_max_edge = raw_x_max - tool3x - edge_offset
+    y_min_edge = raw_y_min + tool3y + edge_offset
+    y_max_edge = raw_y_max - tool3y - edge_offset
 
     edge_points = []
     if edge_coverage:
