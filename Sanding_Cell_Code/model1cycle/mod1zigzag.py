@@ -135,9 +135,9 @@ def _generate_zigzag_edge_path(
     raw_y_min = min(y_coords)
     raw_y_max = max(y_coords)
 
-    x_min_edge = raw_x_min + tool3x - 2
+    x_min_edge = raw_x_min + tool3x 
     x_max_edge = raw_x_max - tool3x - 6
-    y_min_edge = raw_y_min + tool3y - 2
+    y_min_edge = raw_y_min + tool3y 
     y_max_edge = raw_y_max - tool3y - 6
 
     edge_points = []
