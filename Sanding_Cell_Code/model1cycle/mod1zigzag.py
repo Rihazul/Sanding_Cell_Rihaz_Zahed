@@ -138,11 +138,11 @@ def _generate_zigzag_edge_path(
     ]
     edge_Point1 = [
         (x_coords[0]) + tool3x + edge_offset,
-        y_coords[0] + tool3y + edge_offset,
+        y_coords[0] + tool3y + (edge_offset-3),
     ]
     edge_Point4 = [
         x_coords[3] - tool3x - edge_offset,
-        y_coords[3] + tool3y + edge_offset,
+        y_coords[3] + tool3y + (edge_offset-3),
     ]
 
     x_min_edge = min(

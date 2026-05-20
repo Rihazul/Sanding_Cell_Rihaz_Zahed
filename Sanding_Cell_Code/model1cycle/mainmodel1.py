@@ -183,7 +183,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         toolNumber=tool_in_hand,
         config=config,
         goToSafe=False,
-        startFromSafe=True,
+        startFromSafe=False,
     )
     return False
 
@@ -330,15 +330,16 @@ def startingRobotToSandmodel1():
             raise RuntimeError(f"Failed to pick tool {tool_num}.")
         return switching_from_other_tool
 
-    def drop_tool_safely(tool_num):
-        move_to_safe_point()
+    def drop_tool_safely(tool_num, for_switch=False):
+        if not for_switch:
+            move_to_safe_point()
         move_seventh_to_tool_station()
         keepTool11(
             cps=cps,
             toolNumber=tool_num,
             config=config,
             goToSafe=False,
-            startFromSafe=True,
+            startFromSafe=not for_switch,
         )
     """Main control function"""
     try:
@@ -364,8 +365,6 @@ def startingRobotToSandmodel1():
             switched = ensure_tool_in_hand(3)
             if stop_requested():
                 return
-            if switched:
-                move_to_safe_point()
             run_zigzag_cycles(
                 zigzag_cycles,
                 force_zigzag_cycles,
@@ -383,7 +382,7 @@ def startingRobotToSandmodel1():
             )
             if not stop_requested():
                 if has_followup_after_tool3 or not keep_tool_after_task:
-                    drop_tool_safely(3)
+                    drop_tool_safely(3, for_switch=has_followup_after_tool3)
                 else:
                     # Single-task run: keep tool mounted but return to homing/safe point.
                     move_to_safe_point()
@@ -394,8 +393,6 @@ def startingRobotToSandmodel1():
             switched = ensure_tool_in_hand(4)
             if stop_requested():
                 return
-            if switched:
-                move_to_safe_point()
 
             # Tool 4 batch: section-by-section (frame + pocket zigzag per section)
             run_tool4_section_cycles(
@@ -412,7 +409,7 @@ def startingRobotToSandmodel1():
             has_followup_after_tool4 = (tool2_side_cycle > 0 or tool2_sideoutedge > 0 or tool1_cycles > 0)
             if not stop_requested():
                 if has_followup_after_tool4 or not keep_tool_after_task:
-                    drop_tool_safely(4)
+                    drop_tool_safely(4, for_switch=has_followup_after_tool4)
                 else:
                     # Single-task run: keep tool mounted but return to homing/safe point.
                     move_to_safe_point()
@@ -422,8 +419,6 @@ def startingRobotToSandmodel1():
             switched = ensure_tool_in_hand(2)
             if stop_requested():
                 return
-            if switched:
-                move_to_safe_point()
 
             #Tool 2 Side Cycles
             run_tool2side_cycles(tool2_side_cycle,force_tool2_side_cycle,cps)
@@ -437,7 +432,7 @@ def startingRobotToSandmodel1():
             has_followup_after_tool2 = tool1_cycles > 0
             if not stop_requested():
                 if has_followup_after_tool2 or not keep_tool_after_task:
-                    drop_tool_safely(2)
+                    drop_tool_safely(2, for_switch=has_followup_after_tool2)
                 else:
                     # Single-task run: keep tool mounted but return to homing/safe point.
                     move_to_safe_point()
@@ -447,8 +442,6 @@ def startingRobotToSandmodel1():
             switched = ensure_tool_in_hand(1)
             if stop_requested():
                 return
-            if switched:
-                move_to_safe_point()
             #Tool 3Cycle
             run_tool1_cycles(tool1_cycles,force_tool3,cps)
             if stop_requested():
