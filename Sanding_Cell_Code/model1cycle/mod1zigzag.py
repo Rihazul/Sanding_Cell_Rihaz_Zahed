@@ -82,13 +82,15 @@ def _generate_zigzag_edge_path(
     orientation="vertical",
     edge_coverage=False,
     edge_offset=2,
+    tool_offset_x=38.1,
+    tool_offset_y=50.8,
 ):
     """Generate zigzag points with optional perimeter edge coverage."""
     if not (x_coords and y_coords and z_coords):
         return [], [], None
 
-    tool3y = 50.8
-    tool3x = 38.1
+    tool3y = float(tool_offset_y)
+    tool3x = float(tool_offset_x)
     z_zigzag = z_coords[0]
     rx, ry, rz = 180, 0, 0
 
@@ -133,10 +135,10 @@ def _generate_zigzag_edge_path(
     raw_y_min = min(y_coords)
     raw_y_max = max(y_coords)
 
-    x_min_edge = raw_x_min + tool3x 
-    x_max_edge = raw_x_max - tool3x - 8
-    y_min_edge = raw_y_min + tool3y 
-    y_max_edge = raw_y_max - tool3y - 8
+    x_min_edge = raw_x_min + tool3x - 2
+    x_max_edge = raw_x_max - tool3x - 6
+    y_min_edge = raw_y_min + tool3y - 2
+    y_max_edge = raw_y_max - tool3y - 6
 
     edge_points = []
     if edge_coverage:
@@ -260,7 +262,9 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     
     speeed = module_speed_profile['contact']
     tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
-    corner_offset = 73.0 if tcp_name == "tcptool4plane2" else 33.5
+    is_tool4 = tcp_name == "tcptool4plane2"
+    corner_offset = 0.0 if is_tool4 else 33.5
+    active_tool_offset = 73.0 if is_tool4 else 38.1
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
 
     # Hard-coded points for Pocket4
@@ -478,7 +482,8 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5,
+        tool_offset_x=active_tool_offset, tool_offset_y=active_tool_offset
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
@@ -680,7 +685,9 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed = module_speed_profile['contact']
     tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
-    corner_offset = 73.0 if tcp_name == "tcptool4plane2" else 33.5
+    is_tool4 = tcp_name == "tcptool4plane2"
+    corner_offset = 0.0 if is_tool4 else 33.5
+    active_tool_offset = 73.0 if is_tool4 else 38.1
 
     # Hard-coded points for Pocket4
     # Format: [x, y, z, rotX, rotY, rotZ]
@@ -897,7 +904,8 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5,
+        tool_offset_x=active_tool_offset, tool_offset_y=active_tool_offset
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
@@ -1090,7 +1098,9 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     zigzag_orientation, _ = _get_zigzag_mode_and_edge(json_config)
     speeed = module_speed_profile['contact']
     tcp_to_use = config["coords"].get(tcp_name, config["coords"]["tcpReal"])
-    corner_offset = 73.0 if tcp_name == "tcptool4plane2" else 33.5
+    is_tool4 = tcp_name == "tcptool4plane2"
+    corner_offset = 0.0 if is_tool4 else 33.5
+    active_tool_offset = 73.0 if is_tool4 else 38.1
 
     # print("p9:",p9)
     # print("p10:",p10)
@@ -1317,7 +1327,8 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=5,
+        tool_offset_x=active_tool_offset, tool_offset_y=active_tool_offset
     )
     print("edge_pathp=", edge_pathp1)
     print("zigzag_pathp=",zigzag_pathp1)
