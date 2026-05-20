@@ -138,12 +138,10 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     # Check Conditions
     if ci0 is None or ci1 is None or ci2 is None:
         print("Failed to read one or more CI bits.")
-        return None
+        return False
 
     tool_in_hand = None
-    if ci0 == 0 and ci1 == 0 and ci2 == 0:
-        tool_in_hand = None
-    elif ci0 == 1 and ci1 == 0 and ci2 == 0:
+    if ci0 == 1 and ci1 == 0 and ci2 == 0:
         tool_in_hand = 3
     elif ci0 == 0 and ci1 == 1 and ci2 == 0:
         tool_in_hand = 2
@@ -151,9 +149,11 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         tool_in_hand = 1
     elif ci0 == 0 and ci1 == 0 and ci2 == 1:
         tool_in_hand = 4
+    elif ci0 == 0 and ci1 == 0 and ci2 == 0:
+        tool_in_hand = None
     else:
         print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
-        return None
+        return False
 
     if tool_in_hand is None:
         print("No tool in hand")
@@ -163,20 +163,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         print(f"Tool {tool_in_hand} already in hand; skipping drop/pick.")
         return True
 
-    print(f"Tool {tool_in_hand} detected; dropping before picking Tool {tool_num}.")
-    print("[mainmodel1][switch] step 1/4: move to safePoint (homing-safe)")
-    communicate(
-        cps=cps,
-        point=config["point"]["safePoint"],
-        tcp=config["coords"]["tcpDefault"],
-        ucs=config["coords"]["ucsDefault"],
-        seventh=-1,
-        config=config,
-        speed=config["door"]["homingSpeed"],
-        velocity_profile="robot",
-        wait=True,
-    )
-    print("[mainmodel1][switch] step 2/4: move 7th axis to tool station")
+    print(f"Tool {tool_in_hand} detected; dropping before picking tool {tool_num}.")
     seventh_result = communicate(
         cps=cps,
         config=config,
@@ -189,27 +176,14 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     )
     if seventh_result is None:
         raise RuntimeError(
-            f"Failed to move 7th axis to tool station before dropping Tool {tool_in_hand}."
+            f"Failed to move 7th axis to tool station before dropping tool {tool_in_hand}."
         )
-    print("[mainmodel1][switch] step 3/4: move to safePointTool")
-    communicate(
-        cps=cps,
-        point=config["point"]["safePointTool"],
-        tcp=config["coords"]["tcpDefault"],
-        ucs=config["coords"]["ucsDefault"],
-        seventh=-1,
-        config=config,
-        speed=config["door"]["homingSpeed"],
-        velocity_profile="robot",
-        wait=True,
-    )
-    print("[mainmodel1][switch] step 4/4: drop current tool via tool home")
     keepTool11(
-        cps=cps,
+        cps,
         toolNumber=tool_in_hand,
         config=config,
         goToSafe=False,
-        startFromSafe=False,
+        startFromSafe=True,
     )
     return False
 
@@ -333,35 +307,25 @@ def startingRobotToSandmodel1():
 
     def ensure_tool_in_hand(tool_num):
         ci0, ci1, ci2 = read_ci_triplet()
+        current_tool_before = decode_tool_in_hand(ci0, ci1, ci2)
         has_requested_tool = check_tool(
             cps=cps, config=config, tool_num=tool_num, ci0=ci0, ci1=ci1, ci2=ci2
         )
         if has_requested_tool:
             return False
-        print(f"[mainmodel1][switch] prepare pick Tool {tool_num}: safePoint -> 7th tool station -> safePointTool -> tool{tool_num}home")
-        move_to_safe_point()
-        move_seventh_to_tool_station()
-        communicate(
-            cps=cps,
-            point=config["point"]["safePointTool"],
-            tcp=config["coords"]["tcpDefault"],
-            ucs=config["coords"]["ucsDefault"],
-            seventh=-1,
-            config=config,
-            speed=speed_profile["travel"],
-            velocity_profile="robot",
-            wait=True,
+        switching_from_other_tool = (
+            current_tool_before is not None and current_tool_before != tool_num
         )
         picked = getTool11(
             cps=cps,
             toolNumber=tool_num,
             config=config,
-            startFromSafe=False,
+            startFromSafe=not switching_from_other_tool,
             exitToSafe=True,
         )
         if picked is False:
             raise RuntimeError(f"Failed to pick tool {tool_num}.")
-        return True
+        return switching_from_other_tool
 
     def move_to_homing_with_tool():
         """Return to homing/safe position without dropping the mounted tool."""
