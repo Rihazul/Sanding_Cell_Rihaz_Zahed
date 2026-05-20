@@ -330,15 +330,11 @@ def startingRobotToSandmodel1():
             raise RuntimeError(f"Failed to pick tool {tool_num}.")
         return switching_from_other_tool
 
-    def drop_tool_safely(tool_num, for_switch=False):
+    def move_to_homing_with_tool():
+        """Return to homing/safe position without dropping the mounted tool."""
+        move_to_safe_point()
         move_seventh_to_tool_station()
-        keepTool11(
-            cps=cps,
-            toolNumber=tool_num,
-            config=config,
-            goToSafe=False,
-            startFromSafe=not for_switch,
-        )
+        move_to_safe_point()
     """Main control function"""
     try:
         has_pocket_work = zigzag_cycles > 0
@@ -354,13 +350,14 @@ def startingRobotToSandmodel1():
 
         if has_any_task:
             move_to_safe_point()
+        work_executed = False
 
         if has_pocket_work and not edge_coverage:
             print("Pocket zigzag is selected: forcing edge-coverage pass on Tool 3.")
 
         # Tool 3 batch: pocket edge-coverage only
         if has_tool3_edge_pass:
-            switched = ensure_tool_in_hand(3)
+            ensure_tool_in_hand(3)
             if stop_requested():
                 return
             run_zigzag_cycles(
@@ -373,22 +370,12 @@ def startingRobotToSandmodel1():
             )
             if stop_requested():
                 return
-
-            #Keep Tool 3
-            has_followup_after_tool3 = (
-                has_tool4_pocket_pass or tool2_side_cycle > 0 or tool2_sideoutedge > 0 or tool1_cycles > 0
-            )
-            if not stop_requested():
-                if has_followup_after_tool3 or not keep_tool_after_task:
-                    drop_tool_safely(3, for_switch=has_followup_after_tool3)
-                else:
-                    # Single-task run: keep tool mounted but return to homing/safe point.
-                    move_to_safe_point()
+            work_executed = True
             
             print("\nTool 3 edge-coverage batch completed successfully!")
         
         if has_tool4_pocket_pass:
-            switched = ensure_tool_in_hand(4)
+            ensure_tool_in_hand(4)
             if stop_requested():
                 return
 
@@ -403,18 +390,11 @@ def startingRobotToSandmodel1():
             )
             if stop_requested():
                 return
-
-            has_followup_after_tool4 = (tool2_side_cycle > 0 or tool2_sideoutedge > 0 or tool1_cycles > 0)
-            if not stop_requested():
-                if has_followup_after_tool4 or not keep_tool_after_task:
-                    drop_tool_safely(4, for_switch=has_followup_after_tool4)
-                else:
-                    # Single-task run: keep tool mounted but return to homing/safe point.
-                    move_to_safe_point()
+            work_executed = True
             
         
         if tool2_side_cycle > 0 or  tool2_sideoutedge > 0:
-            switched = ensure_tool_in_hand(2)
+            ensure_tool_in_hand(2)
             if stop_requested():
                 return
 
@@ -425,32 +405,33 @@ def startingRobotToSandmodel1():
             run_tool2sideoutedge_cycles(tool2_sideoutedge,force_tool2_sideoutedge,cps)
             if stop_requested():
                 return
-
-            #Drop Tool 2
-            has_followup_after_tool2 = tool1_cycles > 0
-            if not stop_requested():
-                if has_followup_after_tool2 or not keep_tool_after_task:
-                    drop_tool_safely(2, for_switch=has_followup_after_tool2)
-                else:
-                    # Single-task run: keep tool mounted but return to homing/safe point.
-                    move_to_safe_point()
-            #communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=config['door']['homingSpeed'], wait=True)
+            work_executed = True
 
         if tool1_cycles>0:
-            switched = ensure_tool_in_hand(1)
+            ensure_tool_in_hand(1)
             if stop_requested():
                 return
             #Tool 3Cycle
             run_tool1_cycles(tool1_cycles,force_tool3,cps)
             if stop_requested():
                 return
-            if not keep_tool_after_task:
-                #Drop Tool 1
-                drop_tool_safely(1)
-                move_to_safe_point()
+            work_executed = True
+
+        if work_executed:
+            if keep_tool_after_task:
+                move_to_homing_with_tool()
+                print(
+                    "Task completed: moved to homing position while keeping current tool mounted."
+                )
             else:
-                # Single-task run: keep tool mounted but return to homing/safe point.
-                move_to_safe_point()
+                ci0_end, ci1_end, ci2_end = read_ci_triplet()
+                tool_in_hand = decode_tool_in_hand(ci0_end, ci1_end, ci2_end)
+                if tool_in_hand is not None:
+                    move_to_safe_point()
+                    move_seventh_to_tool_station()
+                    keepTool11(cps, toolNumber=tool_in_hand, config=config)
+                else:
+                    print("Task completed: no mounted tool to drop.")
 
 
     except Exception as e:
