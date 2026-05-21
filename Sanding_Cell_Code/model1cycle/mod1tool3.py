@@ -252,6 +252,7 @@ def mod1tool1pocket1(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -293,6 +294,7 @@ def mod1tool1pocket1(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -334,6 +336,7 @@ def mod1tool1pocket1(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -375,6 +378,7 @@ def mod1tool1pocket1(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -410,8 +414,8 @@ def mod1tool1pocket1(force,cps):
             wait=True,
         )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -426,7 +430,7 @@ def mod1tool1pocket1(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
 
 def mod1tool1pocket2(force,cps):
     # Load configuration from YAML
@@ -637,6 +641,7 @@ def mod1tool1pocket2(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -678,6 +683,7 @@ def mod1tool1pocket2(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -719,6 +725,7 @@ def mod1tool1pocket2(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -760,6 +767,7 @@ def mod1tool1pocket2(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -795,8 +803,8 @@ def mod1tool1pocket2(force,cps):
             wait=True,
         )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -811,7 +819,7 @@ def mod1tool1pocket2(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
 
 def mod1tool1pocket3(force,cps):
     # Load configuration from YAML
@@ -1022,6 +1030,7 @@ def mod1tool1pocket3(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -1063,6 +1072,7 @@ def mod1tool1pocket3(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -1104,6 +1114,7 @@ def mod1tool1pocket3(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -1145,6 +1156,7 @@ def mod1tool1pocket3(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -1180,8 +1192,8 @@ def mod1tool1pocket3(force,cps):
             wait=True,
         )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -1196,7 +1208,7 @@ def mod1tool1pocket3(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=homeprepoint2nd,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
 
 def mod1tool1(force,cps):
     config = load_config()
@@ -1220,7 +1232,7 @@ def mod1tool1(force,cps):
     time.sleep(0.5)
     mod1tool1pocket3(force,cps)
     time.sleep(0.5)
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=True)
 
 if __name__ == "__main__":
     # Call the function with an appropriate force value

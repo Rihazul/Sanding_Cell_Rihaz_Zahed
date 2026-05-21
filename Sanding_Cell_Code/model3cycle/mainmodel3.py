@@ -104,6 +104,25 @@ def run_tool2sideoutedge_cycles(count, force, cps):
             time.sleep(0.5)
 
 
+def run_tool2_combined_cycles(side_count, side_force, edge_count, edge_force, cps):
+    """
+    Run Tool 2 side+edge together in one grouped sequence while Tool 2 is mounted.
+    This keeps task selection grouped by the same tool and same 7th-axis family.
+    """
+    total_steps = max(side_count, edge_count)
+    for step in range(total_steps):
+        if stop_requested():
+            return
+        if step < side_count:
+            print(f"\n=== TOOL2 GROUP STEP {step+1}: SIDE ===")
+            run_tool2side_cycles(1, side_force, cps)
+        if step < edge_count:
+            print(f"\n=== TOOL2 GROUP STEP {step+1}: EDGE ===")
+            run_tool2sideoutedge_cycles(1, edge_force, cps)
+        if step < total_steps - 1:
+            time.sleep(0.5)
+
+
 def run_tool3_cycles(count, force, cps):
     for i in range(count):
         print(f"\n=== TOOL 1 (3D) CYCLE {i+1}/{count} ===")
@@ -350,8 +369,17 @@ def startingRobotToSandmodel3():
             ensure_tool_in_hand(2)
             if stop_requested():
                 return
-            run_tool2side_cycles(tool2_side_cycle, force_tool2_side_cycle, cps)
-            run_tool2sideoutedge_cycles(tool2_sideoutedge, force_tool2_sideoutedge, cps)
+            if tool2_side_cycle > 0 and tool2_sideoutedge > 0:
+                run_tool2_combined_cycles(
+                    tool2_side_cycle,
+                    force_tool2_side_cycle,
+                    tool2_sideoutedge,
+                    force_tool2_sideoutedge,
+                    cps,
+                )
+            else:
+                run_tool2side_cycles(tool2_side_cycle, force_tool2_side_cycle, cps)
+                run_tool2sideoutedge_cycles(tool2_sideoutedge, force_tool2_sideoutedge, cps)
             if stop_requested():
                 return
             work_executed = True

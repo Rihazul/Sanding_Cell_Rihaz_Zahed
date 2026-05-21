@@ -261,7 +261,8 @@ def mod1tool2sidesmall(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
-                wait=False
+                    velocity_profile="sandingspeed",
+                    wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -302,7 +303,8 @@ def mod1tool2sidesmall(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
-                wait=False
+                    velocity_profile="sandingspeed",
+                    wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -344,7 +346,8 @@ def mod1tool2sidesmall(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
-                wait=False
+                    velocity_profile="sandingspeed",
+                    wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -386,7 +389,8 @@ def mod1tool2sidesmall(force,cps):
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
                 speed=sanding_speed,
-                wait=False
+                    velocity_profile="sandingspeed",
+                    wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -420,8 +424,8 @@ def mod1tool2sidesmall(force,cps):
             wait=True,
         )
     #Bottom Cycle 1
-    communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+    communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=False)
     perform_process_bottom(cps, config, points1=pointsb,force=force)
     
     # Bottom Cycles 2 (2 passes total incl. initial)
@@ -431,13 +435,13 @@ def mod1tool2sidesmall(force,cps):
         communicate(cps=cps, config=config, point=point2air, 
                 tcp=config['coords']['tcpSideTool'], 
                 ucs=config['coords']['ucsTable2'],
-                seventh=-1, speed=speeed, wait=True)
+                seventh=-1, speed=speeed, velocity_profile="robot", wait=True)
         run_single_movement(robot_point=point1Combo, 
                             seventh_axis_point=cx, 
                             cps=cps, config=config)
         perform_process_bottom(cps, config, points1=pointsb,force=force)
 
-    communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
     # communicate(
     #             cps=cps,
     #             config=config,
@@ -452,12 +456,12 @@ def mod1tool2sidesmall(force,cps):
 
 
     #Bottom Extra for Adjustment
-    communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
 
     #Left Cycle
     perform_process_left(cps, config, points1=pointsleft,force=force)
     # #Left Cycle Extrea
-    communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
     
     # #Top Cycle 2 (2 passes)
     cx_points = [tcx1, tcx]
@@ -471,18 +475,18 @@ def mod1tool2sidesmall(force,cps):
         communicate(cps=cps, config=config, point=pointtop3air, 
                 tcp=config['coords']['tcpSideTool'], 
                 ucs=config['coords']['ucsTable2'],
-                seventh=-1, speed=speeed, wait=True)
+                seventh=-1, speed=speeed, velocity_profile="robot", wait=True)
     
     #Top Cycle Extra
     
-    communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
     #Right Cycle
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=True)
     perform_process_right(cps, config, points1=pointsright,force=force)
 
     #Last Tune
-    communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=True)
+    communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
 
    
     # #Joint 6 movement 
