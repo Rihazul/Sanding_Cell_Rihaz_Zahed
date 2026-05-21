@@ -10,6 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from model1cycle.mod1pocketside import mod1tool1siderun, model1pocket1side, model1pocket2side, model1pocket3side
 from model1cycle.mod1zigzag import mod1zigzag, testmodel1zigzagsmallfunction, testmodel2zigzagsmallfunction, testmodel3zigzagsmallfunction
+from model1cycle.mod1bottoms import model1bottomsmall
 from model1cycle.mod1tool2edge import mod1tool2outedge
 from model1cycle.mod1tool2sideb import mod1tool2sidesrun
 from model1cycle.mod1tool3 import mod1tool1
@@ -89,6 +90,17 @@ def run_tool4_section_cycles(side_cycles, force_side, zigzag_cycles, force_zigza
                 )
                 if i < zigzag_cycles - 1:
                     time.sleep(0.5)
+
+    # Include bottom Tool-4 routine whenever frame is selected
+    # (applies to both "frame only" and "frame + pocket").
+    if side_cycles > 0:
+        for i in range(side_cycles):
+            if stop_requested():
+                return
+            print(f"Bottom cycle {i+1}/{side_cycles}")
+            model1bottomsmall(force=force_side, cps=cps)
+            if i < side_cycles - 1:
+                time.sleep(0.5)
 
 
 def run_tool2side_cycles(count,force,cps):
@@ -225,6 +237,14 @@ def startingRobotToSandmodel1():
     force_tool2_side_cycle = int(json_config_TableB['side']['force'])
     force_tool2_sideoutedge = int(json_config_TableB['edgeOutside']['force']) 
     force_tool3=int(json_config_TableB['3D']['force'])
+    print(
+        "[mainmodel1] Task config -> "
+        f"frame(cycle={side_cycles}, force={force_side_cycles}), "
+        f"pocket(cycle={zigzag_cycles}, force={force_zigzag_cycles}), "
+        f"side(cycle={tool2_side_cycle}, force={force_tool2_side_cycle}), "
+        f"edgeOutside(cycle={tool2_sideoutedge}, force={force_tool2_sideoutedge}), "
+        f"3D(cycle={tool1_cycles}, force={force_tool3})"
+    )
 
     speeed = float(json_config['robotSpeed'])
     speed_profile = {

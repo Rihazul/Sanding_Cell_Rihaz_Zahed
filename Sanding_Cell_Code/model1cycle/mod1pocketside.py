@@ -501,6 +501,17 @@ def model1pocket1side(force,cps):
             velocity_profile="robot",
             wait=True
         )
+        # Ensure 7th-axis move is complete before entering contact from prepoint.
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True
+        )
         
     # Ensure we always start from a released force/vibration state.
     releaseForce(cps=cps, config=config, wait_for_blending=False)
