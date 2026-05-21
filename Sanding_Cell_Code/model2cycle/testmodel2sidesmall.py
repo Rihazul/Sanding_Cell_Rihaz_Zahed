@@ -79,6 +79,9 @@ def testmodel2siderun(force,cps):
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config.get('sandingSpeed', speeed))
+    if sanding_speed <= 0:
+        sanding_speed = speeed
         print("speeed=", speeed)
 
 
@@ -181,7 +184,7 @@ def testmodel2siderun(force,cps):
                     putForceZplus(
                         cps=cps,
                         force=force,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         config=config
                     )
@@ -193,11 +196,12 @@ def testmodel2siderun(force,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=sanding_speed,
+                velocity_profile="sanding",
+                wait=False
                 )
 
             waitForBlending(cps=cps, config=config)
@@ -222,11 +226,12 @@ def testmodel2siderun(force,cps):
                         cps=cps,
                         config=config,
                         point=robot_point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
                         seventh=-1,   # or whatever parameter is needed for robot movement
-                        speed=0.8,
-                        wait=True
+                        speed=speeed,
+                    velocity_profile="robot",
+                    wait=True
                     )
 
             def run_axis_movement():
@@ -235,10 +240,11 @@ def testmodel2siderun(force,cps):
                         cps=cps,
                         config=config,
                         seventh=seventh_axis_point,
-                        tcp=config['coords']['tcpReal'],
+                        tcp=config['coords']['tcptool4plane2'],
                         ucs=config['coords']['ucsTable2'],
-                        speed=0.5,
-                        wait=True
+                        speed=speeed,
+                    velocity_profile="robot",
+                    wait=False
                     )
 
             # Start each movement in its own thread
@@ -257,21 +263,34 @@ def testmodel2siderun(force,cps):
         communicate(
             cps=cps,
             config=config,
+            point=prehoming,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speeed,
+            velocity_profile="robot",
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
             seventh=x1,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             speed=speeed,
-            wait=True
+            velocity_profile="robot",
+            wait=False
         )
         perform_process_bottom_u(cps, config, points1=u_points, force=force)
         communicate(
             cps=cps,
             config=config,
             point=prehoming,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
             speed=speeed,
+            velocity_profile="robot",
             wait=True
         )
         # cps.HRIF_DisConnect(0)
@@ -298,3 +317,5 @@ def testmodel2siderun(force,cps):
 
 if __name__ == "__main__":
     testmodel2siderun(force=5)
+
+

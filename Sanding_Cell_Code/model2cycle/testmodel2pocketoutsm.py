@@ -80,6 +80,9 @@ def testmodelpocketoutsmall(force,cps):
     # p12 = exported_points["p12"]
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config.get('sandingSpeed', speeed))
+    if sanding_speed <= 0:
+        sanding_speed = speeed
     print(speeed)
     #speeed = 0.7
     print("speeed=", speeed)
@@ -234,7 +237,7 @@ def testmodelpocketoutsmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -244,7 +247,7 @@ def testmodelpocketoutsmall(force,cps):
             if point==bpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -253,10 +256,11 @@ def testmodelpocketoutsmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sanding",
                 wait=False
             )
         
@@ -275,7 +279,7 @@ def testmodelpocketoutsmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -285,7 +289,7 @@ def testmodelpocketoutsmall(force,cps):
             if point==lpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -294,10 +298,11 @@ def testmodelpocketoutsmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sanding",
                 wait=False
             )
         
@@ -316,7 +321,7 @@ def testmodelpocketoutsmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -326,7 +331,7 @@ def testmodelpocketoutsmall(force,cps):
             if point==topointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -335,10 +340,11 @@ def testmodelpocketoutsmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sanding",
                 wait=False
             )
         
@@ -357,7 +363,7 @@ def testmodelpocketoutsmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -367,7 +373,7 @@ def testmodelpocketoutsmall(force,cps):
             if point==rpointmiddle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -376,10 +382,11 @@ def testmodelpocketoutsmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sanding",
                 wait=False
             )
         
@@ -409,10 +416,11 @@ def testmodelpocketoutsmall(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
+                    speed=speeed,
+                    velocity_profile="robot",
                     wait=True
                 )
 
@@ -422,10 +430,11 @@ def testmodelpocketoutsmall(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
+                    speed=speeed,
+                    velocity_profile="robot",
+                    wait=False
                 )
 
         # Start each movement in its own thread
@@ -441,15 +450,16 @@ def testmodelpocketoutsmall(force,cps):
    
     # Two-pass flow:
     # Pass 1: top half -> right side -> bottom half
-    communicate(
-        cps=cps,
-        config=config,
-        seventh=x1,
-        tcp=config['coords']['tcpReal'],
-        ucs=config['coords']['ucsTable2'],
-        speed=speeed,
-        wait=True
-    )
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=x1,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=False
+        )
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
@@ -467,4 +477,6 @@ if __name__ == "__main__":
     # Call the function with an appropriate force value
     # Replace 10 with your desired force value
     testmodelpocketoutsmall(5)
+
+
 

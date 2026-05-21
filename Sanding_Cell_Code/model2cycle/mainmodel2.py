@@ -16,7 +16,7 @@ from model2cycle.testmodel2tool2sides import testmodel2tool2sidesrun
 from model2cycle.testmodeltool2edgesm import testmodel2tool2edgerun
 from model2cycle.testmodel2thirdtool import model2thirdtoolrun
 
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepToolupdated,getToolUpdated, stop_requested
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate, stop_requested
 from modules.CPS import CPSClient
 import time
 
@@ -43,11 +43,17 @@ def run_side_cycles(count,force,cps):
             print("Pausing 3 seconds before next side cycle...")
             time.sleep(3)
 
-def run_zigzag_cycles(count,force,innerSandingOffset,cps):
+def run_zigzag_cycles(count, force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
     """Execute zigzag function with specified number of cycles"""
     for i in range(count):
         print(f"\n=== ZIGZAG CYCLE {i+1}/{count} ===")
-        model2zigzagrun(force=force,innerSandingOffset=innerSandingOffset,cps=cps)
+        model2zigzagrun(
+            force=force,
+            innerSandingOffset=innerSandingOffset,
+            cps=cps,
+            movement=movement,
+            tcp_name=tcp_name,
+        )
         if i < count-1:
             print("Pausing 3 seconds before next zigzag cycle...")
             time.sleep(3)
@@ -96,21 +102,43 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         tool_in_hand = 2
     elif ci0 == 0 and ci1 == 1 and ci2 == 1:
         tool_in_hand = 1
+    elif ci0 == 0 and ci1 == 0 and ci2 == 1:
+        tool_in_hand = 4
     else:
         print(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
         return None
 
     if tool_in_hand is None:
         print("No tool in hand")
-        return None
+        return False
 
     if tool_in_hand == tool_num:
         print(f"Tool {tool_in_hand} already in hand; skipping drop/pick.")
-        return tool_in_hand
+        return True
 
-    print(f"Tool {tool_in_hand} detected → executing keepTool11()")
-    keepTool11(cps, toolNumber=tool_in_hand, config=config)
-    return None
+    print(f"Tool {tool_in_hand} detected; dropping before picking Tool {tool_num}.")
+    seventh_result = communicate(
+        cps=cps,
+        config=config,
+        seventh=0,
+        tcp=config["coords"]["tcptool1plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        speed=0.3,
+        wait=False,
+        require_seventh_ok=True,
+    )
+    if seventh_result is None:
+        raise RuntimeError(
+            f"Failed to move 7th axis to tool station before dropping Tool {tool_in_hand}."
+        )
+    keepTool11(
+        cps=cps,
+        toolNumber=tool_in_hand,
+        config=config,
+        goToSafe=False,
+        startFromSafe=True,
+    )
+    return False
 
 def startingRobotToSandmodel2():
 
@@ -150,6 +178,10 @@ def startingRobotToSandmodel2():
     force_tool3=int(json_config_TableB['3D']['force'])
     
     speeed = float(json_config['robotSpeed'])
+    speed_profile = {
+        'travel': speeed,
+        'tool_change': speeed,
+    }
 
 
     # Load configuration from YAML
@@ -158,6 +190,9 @@ def startingRobotToSandmodel2():
     #Set up logger
     config['logger'] = setup_logger(config['settings']['debug'])
     keep_tool_after_task = bool(config.get("settings", {}).get("keepToolAfterTask", True))
+    # Model B workflow:
+    # Tool 3 => edge coverage only
+    # Tool 4 => frame + pocket zigzag
 
     #Establish connection with robot
     cps = CPSClient()
@@ -178,64 +213,145 @@ def startingRobotToSandmodel2():
             return None
         return int(result[0])
 
-    # Read CI values
-    ci0 = read_ci_bit(cps, 0)
-    ci1 = read_ci_bit(cps, 1)
-    ci2 = read_ci_bit(cps, 2)
+    def read_ci_triplet():
+        return read_ci_bit(cps, 0), read_ci_bit(cps, 1), read_ci_bit(cps, 2)
+
+    def decode_tool_in_hand(ci0, ci1, ci2):
+        if ci0 is None or ci1 is None or ci2 is None:
+            raise RuntimeError("Failed to read one or more CI bits.")
+        if ci0 == 1 and ci1 == 0 and ci2 == 0:
+            return 3
+        if ci0 == 0 and ci1 == 1 and ci2 == 0:
+            return 2
+        if ci0 == 0 and ci1 == 1 and ci2 == 1:
+            return 1
+        if ci0 == 0 and ci1 == 0 and ci2 == 1:
+            return 4
+        if ci0 == 0 and ci1 == 0 and ci2 == 0:
+            return None
+        raise RuntimeError(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
+
+    def move_to_safe_point():
+        communicate(
+            cps=cps,
+            point=config['point']['safePoint'],
+            tcp=config['coords']['tcpDefault'],
+            ucs=config['coords']['ucsDefault'],
+            seventh=-1,
+            config=config,
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=True,
+        )
+
+    def move_seventh_to_tool_station():
+        seventh_result = communicate(
+            cps=cps,
+            config=config,
+            seventh=0,
+            tcp=config['coords']['tcptool1plane1'],
+            ucs=config['coords']['ucsTable1'],
+            speed=speed_profile['travel'],
+            velocity_profile="robot",
+            wait=False,
+            require_seventh_ok=True,
+        )
+        if seventh_result is None:
+            raise RuntimeError("Failed to move 7th axis to tool station.")
+
+    def ensure_tool_in_hand(tool_num):
+        ci0, ci1, ci2 = read_ci_triplet()
+        current_tool_before = decode_tool_in_hand(ci0, ci1, ci2)
+        has_requested_tool = check_tool(
+            cps=cps, config=config, tool_num=tool_num, ci0=ci0, ci1=ci1, ci2=ci2
+        )
+        if has_requested_tool:
+            return False
+        switching_from_other_tool = (
+            current_tool_before is not None and current_tool_before != tool_num
+        )
+        picked = getTool11(
+            cps=cps,
+            toolNumber=tool_num,
+            config=config,
+            startFromSafe=not switching_from_other_tool,
+            exitToSafe=True,
+        )
+        if picked is False:
+            raise RuntimeError(f"Failed to pick tool {tool_num}.")
+        return switching_from_other_tool
+
+    def move_to_homing_with_tool():
+        """Return to homing/safe position without dropping the mounted tool."""
+        move_to_safe_point()
+        move_seventh_to_tool_station()
+        move_to_safe_point()
+
     """Main control function"""
     try:
-        if side_cycles > 0 or zigzag_cycles > 0:
-            tool_in_hand = check_tool(cps=cps,config=config,tool_num=3,ci0=ci0,ci1=ci1,ci2=ci2)
-            if stop_requested():
-                return
-        #Intitial Position
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-            #Pick Tool 3
-            if tool_in_hand != 3:
-                getTool11(cps, toolNumber=3, config=config)
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-            # Run side cycles
-            run_side_cycles(side_cycles,force_side_cycles,cps)
-            
-            # Run zigzag cycles
-            run_zigzag_cycles(zigzag_cycles,force_zigzag_cycles, innerSandingOffset,cps) 
+        has_pocket_work = zigzag_cycles > 0
+        has_tool3_edge_pass = has_pocket_work
+        has_tool4_frame_and_zigzag = (side_cycles > 0 or has_pocket_work)
+        has_any_task = (
+            has_tool3_edge_pass
+            or has_tool4_frame_and_zigzag
+            or tool2_side_cycle > 0
+            or tool2_sideoutedge > 0
+            or tool3_cycles > 0
+        )
+
+        if has_any_task:
+            move_to_safe_point()
+        work_executed = False
+
+        if has_pocket_work and not edge_coverage:
+            print("Pocket zigzag is selected: forcing edge-coverage pass on Tool 3.")
+
+        if has_tool3_edge_pass:
+            ensure_tool_in_hand(3)
             if stop_requested():
                 return
 
-            #Keep Tool 3
-            has_followup_after_tool3 = (tool2_side_cycle > 0 or tool2_sideoutedge > 0 or tool3_cycles > 0)
-            if not stop_requested():
-                if has_followup_after_tool3 or not keep_tool_after_task:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-                    communicate(cps=cps, config=config, seventh=0, tcp=config['coords']['tcptool1plane1'], ucs=config['coords']['ucsTable1'], speed=0.3, wait=True)
-                    cycles = [tool2_side_cycle, tool2_sideoutedge,tool3_cycles]
-                    if any(cycle > 0 for cycle in cycles):
-                        keepToolupdated(cps, toolNumber=3, config=config)
-                    else:
-                        keepTool11(cps, toolNumber=3, config=config)
-                        communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
+            # Edge coverage pass only.
+            run_zigzag_cycles(
+                count=zigzag_cycles,
+                force=force_zigzag_cycles,
+                innerSandingOffset=innerSandingOffset,
+                cps=cps,
+                movement="edge_only",
+                tcp_name="tcpReal",
+            )
+            if stop_requested():
+                return
+            work_executed = True
             
-            print("\nAll operations completed for Tool1 successfully!")
+            print("\nTool 3 edge coverage completed successfully!")
+
+        if has_tool4_frame_and_zigzag:
+            ensure_tool_in_hand(4)
+            if stop_requested():
+                return
+
+            # Frame with Tool 4
+            run_side_cycles(side_cycles,force_side_cycles,cps)
+            # Zigzag only with Tool 4 (edge is excluded)
+            run_zigzag_cycles(
+                count=zigzag_cycles,
+                force=force_zigzag_cycles,
+                innerSandingOffset=innerSandingOffset,
+                cps=cps,
+                movement="zigzag_only",
+                tcp_name="tcptool4plane2",
+            )
+            if stop_requested():
+                return
+            work_executed = True
+            print("\nTool 4 frame+zigzag completed successfully!")
         
         if tool2_side_cycle > 0 or  tool2_sideoutedge > 0:
-            tool_in_hand = check_tool(cps=cps,config=config,tool_num=2,ci0=ci0,ci1=ci1,ci2=ci2)
+            ensure_tool_in_hand(2)
             if stop_requested():
                 return
-
-            #Pick Tool 2
-            # getTool11(cps, toolNumber=2, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-            cycles = [side_cycles,zigzag_cycles]
-            
-            if tool_in_hand != 2:
-                if any(cycle > 0 for cycle in cycles):
-                    print("At least one cycle > 0 → running getToolUpdated()")
-                    getToolUpdated(cps, toolNumber=2, config=config)
-                else:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-                    getTool11(cps, toolNumber=2, config=config)
-            
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
 
             #Tool 2 Side Cycles
             run_tool2side_cycles(tool2_side_cycle,force_tool2_side_cycle,cps)
@@ -244,50 +360,34 @@ def startingRobotToSandmodel2():
             run_tool2sideoutedge_cycles(tool2_sideoutedge,force_tool2_sideoutedge,cps)
             if stop_requested():
                 return
-
-            #Drop Tool 2
-            has_followup_after_tool2 = tool3_cycles > 0
-            if not stop_requested():
-                if has_followup_after_tool2 or not keep_tool_after_task:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-                    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)
-                    cycles = [tool3_cycles]
-                    if any(cycle > 0 for cycle in cycles):
-                        keepToolupdated(cps, toolNumber=2, config=config)
-                    else:
-                        keepTool11(cps, toolNumber=2, config=config)
-                        communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-            #communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
+            work_executed = True
 
         if tool3_cycles>0:
-            tool_in_hand = check_tool(cps=cps,config=config,tool_num=1,ci0=ci0,ci1=ci1,ci2=ci2)
+            ensure_tool_in_hand(1)
             if stop_requested():
                 return
-
-            #Pick Tool 2
-            # getTool11(cps, toolNumber=1, config=config)
-            # communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-            cycles = [tool2_side_cycle, tool2_sideoutedge, side_cycles,zigzag_cycles]
-
-            if tool_in_hand != 1:
-                if any(cycle > 0 for cycle in cycles):
-                    print("At least one cycle > 0 → running getToolUpdated()")
-                    getToolUpdated(cps, toolNumber=1, config=config)
-                else:
-                    communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-                    getTool11(cps, toolNumber=1, config=config)
-            communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
 
             #Tool 3Cycle
             run_tool3_cycles(tool3_cycles,force_tool3,cps)
             if stop_requested():
                 return
-            if not keep_tool_after_task:
-                #Drop Tool 1
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
-                communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=0.3,wait=True)
-                keepTool11(cps, toolNumber=1, config=config)
-                communicate(cps=cps, point=config['point']['safePoint'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=speeed, wait=True)
+            work_executed = True
+
+        if work_executed:
+            if keep_tool_after_task:
+                move_to_homing_with_tool()
+                print(
+                    "Task completed: moved to homing position while keeping current tool mounted."
+                )
+            else:
+                ci0_end, ci1_end, ci2_end = read_ci_triplet()
+                tool_in_hand = decode_tool_in_hand(ci0_end, ci1_end, ci2_end)
+                if tool_in_hand is not None:
+                    move_to_safe_point()
+                    move_seventh_to_tool_station()
+                    keepTool11(cps, toolNumber=tool_in_hand, config=config)
+                else:
+                    print("Task completed: no mounted tool to drop.")
 
 
     except Exception as e:

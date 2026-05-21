@@ -26,8 +26,8 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def model2zigzagrun(force, innerSandingOffset,cps):
-    def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps):
+def model2zigzagrun(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
+    def testmodel2zigzagsmallfunction(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
 
 
         # Load configuration
@@ -65,6 +65,10 @@ def model2zigzagrun(force, innerSandingOffset,cps):
         print("p8:",p8)
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
+        sanding_speed = float(json_config.get('sandingSpeed', speeed))
+        if sanding_speed <= 0:
+            sanding_speed = speeed
+        active_tcp = config['coords'].get(tcp_name, config['coords']['tcpReal'])
         pocketzigzag_cfg = json_config.get('TableB', {}).get('pocketzigzag', {})
         zigzag_orientation = str(pocketzigzag_cfg.get("orientation", "vertical")).lower()
         if pocketzigzag_cfg.get("horizontalSpiral"):
@@ -74,7 +78,7 @@ def model2zigzagrun(force, innerSandingOffset,cps):
         if zigzag_orientation not in ("horizontal", "vertical"):
             zigzag_orientation = "vertical"
         edge_coverage = bool(pocketzigzag_cfg.get('edgeCoverage', pocketzigzag_cfg.get('edge', False)))
-        edge_offset = float(pocketzigzag_cfg.get("edgeOffset", 1.75))
+        edge_offset = 5.0
         print(speeed)
 
 
@@ -210,26 +214,33 @@ def model2zigzagrun(force, innerSandingOffset,cps):
             if not (x_coords and y_coords and z_coords):
                 return [], [], None
 
+            # Legacy parameters kept for signature compatibility only.
+            # Model 2 rule:
+            # - edge coverage => Tool 3 offsets (+ edge_offset)
+            # - zigzag       => Tool 4 radius only
+            _ = (innerOffset, innerOffsetX)
+
             tool3y = 50.8
             tool3x = 38.1
+            tool4_radius = 73.0
             z_zigzag = z_coords[0]
             rx, ry, rz = 180, 0, 0
 
             modified_Point2 = [
-                (x_coords[1]) + tool3x + innerOffsetX,
-                y_coords[1] - tool3y - innerOffset,
+                (x_coords[1]) + tool4_radius,
+                y_coords[1] - tool4_radius,
             ]
             modified_Point3 = [
-                x_coords[2] - tool3x - innerOffset,
-                y_coords[2] - tool3y - innerOffset,
+                x_coords[2] - tool4_radius,
+                y_coords[2] - tool4_radius,
             ]
             modified_Point1 = [
-                (x_coords[0]) + tool3x + innerOffsetX,
-                y_coords[0] + tool3y + innerOffset,
+                (x_coords[0]) + tool4_radius,
+                y_coords[0] + tool4_radius,
             ]
             modified_Point4 = [
-                x_coords[3] - tool3x - innerOffset,
-                y_coords[3] + tool3y + innerOffset,
+                x_coords[3] - tool4_radius,
+                y_coords[3] + tool4_radius,
             ]
 
             x_min = min(
@@ -262,20 +273,20 @@ def model2zigzagrun(force, innerSandingOffset,cps):
                 orientation_mode = "vertical"
 
             edge_Point2 = [
-                (x_coords[1]) + tool3x + edge_offset,
-                y_coords[1] - tool3y - edge_offset,
+                (x_coords[1]) + tool3x + 3,
+                y_coords[1] - tool3y - 20,
             ]
             edge_Point3 = [
-                x_coords[2] - tool3x - edge_offset,
-                y_coords[2] - tool3y - edge_offset,
+                x_coords[2] - tool3x - 3,
+                y_coords[2] - tool3y - 20,
             ]
             edge_Point1 = [
-                (x_coords[0]) + tool3x + edge_offset,
-                y_coords[0] + tool3y + edge_offset,
+                (x_coords[0]) + tool3x + 3,
+                y_coords[0] + tool3y + 8,
             ]
             edge_Point4 = [
-                x_coords[3] - tool3x - edge_offset,
-                y_coords[3] + tool3y + edge_offset,
+                x_coords[3] - tool3x - 3,
+                y_coords[3] + tool3y + 8,
             ]
 
             x_min_edge = min(
@@ -387,8 +398,8 @@ def model2zigzagrun(force, innerSandingOffset,cps):
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
-            innerOffset=15,
-            innerOffsetX=15,
+            innerOffset=0,
+            innerOffsetX=0,
             innerSandingOffset=innerSandingOffset,
             orientation=zigzag_orientation,
             edge_coverage=edge_coverage,
@@ -418,7 +429,9 @@ def model2zigzagrun(force, innerSandingOffset,cps):
         
 
 
-        def perform_process_top(cps, config, points1,force):
+        def perform_process_top(cps, config, points1, force):
+            if not points1:
+                return
             # Vibration on
             
             
@@ -426,7 +439,7 @@ def model2zigzagrun(force, innerSandingOffset,cps):
             putForceZplus(
                 cps=cps,
                 force=force,
-                tcp=config['coords']['tcpReal'],
+                tcp=active_tcp,
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
@@ -438,10 +451,11 @@ def model2zigzagrun(force, innerSandingOffset,cps):
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=active_tcp,
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sanding",
                     wait=False
                 )
             
@@ -457,48 +471,70 @@ def model2zigzagrun(force, innerSandingOffset,cps):
             
             # Get the current prepoint and zigzag path (1-indexed)
             current_prepoint = eval(f"prepointp{i}")
-            current_zigzag = eval(f"zigzag_pathp{i}")
-            current_edge = eval(f"edge_pathp{i}") if edge_coverage else []
+            full_zigzag = eval(f"zigzag_pathp{i}")
+            full_edge = eval(f"edge_pathp{i}") if edge_coverage else []
+            mode = (movement or "both").lower()
+            if mode == "edge_only":
+                current_edge = full_edge
+                current_zigzag = []
+            elif mode == "zigzag_only":
+                current_edge = []
+                current_zigzag = full_zigzag
+                if current_zigzag:
+                    first_point = current_zigzag[0]
+                    current_prepoint = [
+                        abs(first_point[0]) + 0.5,
+                        first_point[1],
+                        first_point[2],
+                        first_point[3],
+                        first_point[4],
+                        first_point[5],
+                    ]
+            else:
+                current_edge = full_edge
+                current_zigzag = full_zigzag
 
             # Original sequence with dynamic variables
             communicate(
                 cps=cps, config=config, 
-                seventh=current_tcx, 
-                tcp=config['coords']['tcpReal'], 
+                point=spoint, 
+                tcp=active_tcp, 
                 ucs=config['coords']['ucsTable2'], 
-                speed=speeed, wait=True
+                seventh=-1, 
+                speed=speeed, velocity_profile="robot", wait=True
             )
             communicate(
                 cps=cps, config=config, 
-                point=spoint, 
-                tcp=config['coords']['tcpReal'], 
+                seventh=current_tcx, 
+                tcp=active_tcp, 
                 ucs=config['coords']['ucsTable2'], 
-                seventh=-1, 
-                speed=speeed, wait=True
+                speed=speeed, velocity_profile="robot", wait=False
             )
             # # turn_vibration_on(cps)
-            communicate(
-                cps=cps, config=config, 
-                point=current_prepoint,  # Dynamic prepoint
-                tcp=config['coords']['tcpReal'], 
-                ucs=config['coords']['ucsTable2'], 
-                seventh=-1, 
-                speed=speeed, wait=True
-            )
+            if current_prepoint and (current_edge or current_zigzag):
+                communicate(
+                    cps=cps, config=config, 
+                    point=current_prepoint,  # Dynamic prepoint
+                    tcp=active_tcp, 
+                    ucs=config['coords']['ucsTable2'], 
+                    seventh=-1, 
+                    speed=speeed, velocity_profile="robot", wait=True
+                )
             # # turn_vibration_on(cps)
             if current_edge:
                 perform_process_top(cps, config, points1=current_edge,force=force)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+            if current_zigzag:
+                perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
             # # turn_vibration_off(cps)
             communicate(
                 cps=cps, config=config, 
                 point=spoint, 
-                tcp=config['coords']['tcpReal'], 
+                tcp=active_tcp, 
                 ucs=config['coords']['ucsTable2'], 
                 seventh=-1, 
-                speed=speeed, wait=True
+                speed=speeed, velocity_profile="robot", wait=True
             )
-        communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=0,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
     #Main Cycle
     p1 = exported_points["p1"]
     xlen = p1[0]
@@ -508,9 +544,21 @@ def model2zigzagrun(force, innerSandingOffset,cps):
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
         if xlen > 600:
-            model2zigzagbig(force,cps)
+            model2zigzagbig(
+                force=force,
+                innerSandingOffset=innerSandingOffset,
+                cps=cps,
+                movement=movement,
+                tcp_name=tcp_name,
+            )
         else:
-            testmodel2zigzagsmallfunction(force, innerSandingOffset,cps)
+            testmodel2zigzagsmallfunction(
+                force=force,
+                innerSandingOffset=innerSandingOffset,
+                cps=cps,
+                movement=movement,
+                tcp_name=tcp_name,
+            )
     else:
         print(f"Invalid xlen value type: {type(xlen)} - expected number or 'null'")
     

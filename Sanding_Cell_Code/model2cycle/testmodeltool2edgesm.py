@@ -59,6 +59,9 @@ def testmodel2tool2edgerun(force,cps):
         #speeed=0.7
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
+        sanding_speed = float(json_config.get('sandingSpeed', speeed))
+        if sanding_speed <= 0:
+            sanding_speed = speeed
         print(speeed)
     
         #Global Shared Lock
@@ -258,7 +261,8 @@ def testmodel2tool2edgerun(force,cps):
                     tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sanding",
                     wait=False
                 )
             
@@ -299,7 +303,8 @@ def testmodel2tool2edgerun(force,cps):
                     tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sanding",
                     wait=False
                 )
             
@@ -341,7 +346,8 @@ def testmodel2tool2edgerun(force,cps):
                     tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sanding",
                     wait=False
                 )
             
@@ -383,7 +389,8 @@ def testmodel2tool2edgerun(force,cps):
                     tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
+                    speed=sanding_speed,
+                    velocity_profile="sanding",
                     wait=False
                 )
             
@@ -395,59 +402,30 @@ def testmodel2tool2edgerun(force,cps):
             releaseForce(cps=cps, config=config)
 
         def run_single_movement(robot_point, seventh_axis_point, cps, config):
-            lock = threading.Lock()
-            # time.sleep(0.2)
-            """
-            Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-            :param robot_point: A single set of coordinates for the robot to move to.
-            :param seventh_axis_point: A single point or value for the seventh axis.
-            :param cps: The CPS object or any required instance used inside communicate().
-            :param config: A configuration dictionary that contains coords, etc.
-            """
-
-            def run_robot_movement():
-                with lock:
-                    #with communicate_lock:
-                    communicate(
-                            cps=cps,
-                            config=config,
-                            point=robot_point,
-                            tcp=config['coords']['tcpSideTool'],
-                            ucs=config['coords']['ucsTable2'],
-                            seventh=-1,   # or whatever parameter is needed for robot movement
-                            speed=0.8,
-                            wait=True
-                        )
-
-            def run_axis_movement():
-                with lock:
-                    #with communicate_lock:
-                    communicate(
-                            cps=cps,
-                            config=config,
-                            seventh=seventh_axis_point,
-                            tcp=config['coords']['tcpSideTool'],
-                            ucs=config['coords']['ucsTable2'],
-                            speed=0.5,
-                            wait=True
-                        )
-
-            # Start each movement in its own thread
-            robot_thread = threading.Thread(target=run_robot_movement)
-            axis_thread = threading.Thread(target=run_axis_movement)
-
-            robot_thread.start()
-            #time.sleep(0.2)
-            axis_thread.start()
-
-            # Wait for both movements to finish before returning
-            robot_thread.join()
-            axis_thread.join()
-
-        #Bottom Cycle 1
-        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-        communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            # Safety: lift/position tool before asynchronous 7th-axis motion.
+            communicate(
+                cps=cps,
+                config=config,
+                point=robot_point,
+                tcp=config['coords']['tcpSideTool'],
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=speeed,
+                velocity_profile="robot",
+                wait=True
+            )
+            communicate(
+                cps=cps,
+                config=config,
+                seventh=seventh_axis_point,
+                tcp=config['coords']['tcpSideTool'],
+                ucs=config['coords']['ucsTable2'],
+                speed=speeed,
+                velocity_profile="robot",
+                wait=False
+            )        #Bottom Cycle 1
+        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
+        communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=pointsb,force=force)
         
         # Bottom Cycles 2-6
@@ -457,14 +435,14 @@ def testmodel2tool2edgerun(force,cps):
             communicate(cps=cps, config=config, point=point2air, 
                     tcp=config['coords']['tcpSideTool'], 
                     ucs=config['coords']['ucsTable2'],
-                    seventh=-1, speed=speeed, wait=True)
+                    seventh=-1, speed=speeed,velocity_profile="robot",wait=True)
             #time.sleep(0.2)
             run_single_movement(robot_point=point1Combo, 
                                 seventh_axis_point=cx, 
                                 cps=cps, config=config)
             perform_process_bottom(cps, config, points1=pointsb,force=force)
 
-        communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
         # communicate(
         #             cps=cps,
         #             config=config,
@@ -472,19 +450,19 @@ def testmodel2tool2edgerun(force,cps):
         #             tcp=config['coords']['tcpSideTool'],
         #             ucs=config['coords']['ucsTable2'],
         #             speed=speeed,
-        #             wait=True)
+        #             wait=False)
         # run_single_movement(robot_point=point2bottomextra, 
         #                         seventh_axis_point=tcx11, 
         #                         cps=cps, config=config)
 
 
         #Bottom Extra for Adjustment
-        communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
 
         #Left Cycle
         perform_process_left(cps, config, points1=pointsleft,force=force)
         # #Left Cycle Extrea
-        communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
         
         # #Top Cycle 2
         cx_points = [tcx1,tcx]
@@ -498,18 +476,18 @@ def testmodel2tool2edgerun(force,cps):
             communicate(cps=cps, config=config, point=pointtop2air, 
                     tcp=config['coords']['tcpSideTool'], 
                     ucs=config['coords']['ucsTable2'],
-                    seventh=-1, speed=speeed, wait=True)
+                    seventh=-1, speed=speeed,velocity_profile="robot",wait=True)
         
         #Top Cycle Extra
         
-        communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
         #Right Cycle
-        #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+        #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
         perform_process_right(cps, config, points1=pointsright,force=force)
 
         #Last Tune
-        communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-        communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
+        communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
 
     
         # #Joint 6 movement 
@@ -535,3 +513,4 @@ def testmodel2tool2edgerun(force,cps):
 if __name__ == "__main__":
     testmodel2tool2edgerun(force=3)
     
+

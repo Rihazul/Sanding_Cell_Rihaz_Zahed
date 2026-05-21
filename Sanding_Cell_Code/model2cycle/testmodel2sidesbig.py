@@ -80,6 +80,9 @@ def testmodel2sidebig(force,cps):
     # p12 = exported_points["p12"]
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config.get('sandingSpeed', speeed))
+    if sanding_speed <= 0:
+        sanding_speed = speeed
     print(speeed)
 
 
@@ -182,7 +185,7 @@ def testmodel2sidebig(force,cps):
                 putForceZplus(
                     cps=cps,
                     force=force,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
                     config=config
                 )
@@ -194,10 +197,11 @@ def testmodel2sidebig(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sanding",
                 wait=False
             )
 
@@ -223,10 +227,11 @@ def testmodel2sidebig(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
+                    speed=speeed,
+                    velocity_profile="robot",
                     wait=True
                 )
 
@@ -236,10 +241,11 @@ def testmodel2sidebig(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
+                    speed=speeed,
+                    velocity_profile="robot",
+                    wait=False
                 )
 
         # Start each movement in its own thread
@@ -255,24 +261,37 @@ def testmodel2sidebig(force,cps):
 
     # Two-pass U pattern for big side:
     u_points = bottompointsb + bottompointsa
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(
+        cps=cps,
+        config=config,
+        point=prehoming,
+        tcp=config['coords']['tcptool4plane2'],
+        ucs=config['coords']['ucsTable2'],
+        seventh=-1,
+        speed=speeed,
+        velocity_profile="robot",
+        wait=True
+    )
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
     perform_process_bottom_u(cps, config, points1=u_points,force=force)
 
     run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
     perform_process_bottom_u(cps, config, points1=u_points,force=force)
 
-    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
 
     
     # #Bottom Cycle a
-    # communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     # perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
     # run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
     # perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
     # #last cycle
-    # communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
 
 if __name__ == "__main__":
     testmodel2sidebig(force=5)
+
+
