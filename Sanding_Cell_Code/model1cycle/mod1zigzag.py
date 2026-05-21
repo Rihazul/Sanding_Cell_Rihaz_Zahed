@@ -482,7 +482,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=6,
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=10,
         tool_offset_x=active_tool_offset, tool_offset_y=active_tool_offset
     )
     print("edge_pathp=", edge_pathp1)
@@ -904,7 +904,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=6,
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=10,
         tool_offset_x=active_tool_offset, tool_offset_y=active_tool_offset
     )
     print("edge_pathp=", edge_pathp1)
@@ -1327,7 +1327,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     edge_pathp1, zigzag_pathp1, prepointp1 = _generate_zigzag_edge_path(
         x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1,
         innerOffset=corner_offset, innerOffsetX=corner_offset, innerSandingOffset=innerSandingOffset,
-        orientation=zigzag_orientation, edge_coverage=True, edge_offset=6,
+        orientation=zigzag_orientation, edge_coverage=True, edge_offset=10,
         tool_offset_x=active_tool_offset, tool_offset_y=active_tool_offset
     )
     print("edge_pathp=", edge_pathp1)
