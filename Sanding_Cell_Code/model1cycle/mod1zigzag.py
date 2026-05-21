@@ -135,10 +135,10 @@ def _generate_zigzag_edge_path(
     raw_y_min = min(y_coords)
     raw_y_max = max(y_coords)
 
-    x_min_edge = raw_x_min + tool3x + edge_offset
-    x_max_edge = raw_x_max - tool3x - edge_offset
-    y_min_edge = raw_y_min + tool3y + edge_offset
-    y_max_edge = raw_y_max - tool3y - edge_offset
+    x_min_edge = raw_x_min + tool3x + 8
+    x_max_edge = raw_x_max - tool3x - 8
+    y_min_edge = raw_y_min + tool3y + 8
+    y_max_edge = raw_y_max - tool3y - 15
 
     edge_points = []
     if edge_coverage:
