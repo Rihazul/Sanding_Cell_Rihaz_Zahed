@@ -392,59 +392,33 @@ def testmodel2pocketoutbig(force,cps):
 
 
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        lock = threading.Lock()
-        # time.sleep(0.2)
-        """
-        Moves the robot and seventh axis using one robot point and one seventh-axis point.
-
-        :param robot_point: A single set of coordinates for the robot to move to.
-        :param seventh_axis_point: A single point or value for the seventh axis.
-        :param cps: The CPS object or any required instance used inside communicate().
-        :param config: A configuration dictionary that contains coords, etc.
-        """
-
-        def run_robot_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=robot_point,
-                    tcp=config['coords']['tcptool4plane2'],
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=speeed,
-                    velocity_profile="robot",
-                    wait=True
-                )
-
-        def run_axis_movement():
-            with lock:
-                communicate(
-                    cps=cps,
-                    config=config,
-                    seventh=seventh_axis_point,
-                    tcp=config['coords']['tcptool4plane2'],
-                    ucs=config['coords']['ucsTable2'],
-                    speed=speeed,
-                    velocity_profile="robot",
-                    wait=False
-                )
-
-        # Start each movement in its own thread
-        robot_thread = threading.Thread(target=run_robot_movement)
-        axis_thread = threading.Thread(target=run_axis_movement)
-
-        robot_thread.start()
-        axis_thread.start()
-
-        # Wait for both movements to finish before returning
-        robot_thread.join()
-        axis_thread.join()
+        # Safety: place arm at lifted prepoint first, then start J7 move.
+        communicate(
+            cps=cps,
+            config=config,
+            point=robot_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speeed,
+            velocity_profile="robot",
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_axis_point,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            speed=speeed,
+            velocity_profile="robot",
+            wait=False
+        )
    
     # #Movement Bottom
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot",wait=False)
     #perform_process_bottom(cps, config, points1=bpoints,force=force)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot",wait=True)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # #Cycles With Loops

@@ -43,7 +43,15 @@ def run_side_cycles(count,force,cps):
             print("Pausing 3 seconds before next side cycle...")
             time.sleep(3)
 
-def run_zigzag_cycles(count, force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
+def run_zigzag_cycles(
+    count,
+    force,
+    innerSandingOffset,
+    cps,
+    movement="both",
+    tcp_name="tcpReal",
+    direct_prepoint=False,
+):
     """Execute zigzag function with specified number of cycles"""
     for i in range(count):
         print(f"\n=== ZIGZAG CYCLE {i+1}/{count} ===")
@@ -53,6 +61,7 @@ def run_zigzag_cycles(count, force, innerSandingOffset, cps, movement="both", tc
             cps=cps,
             movement=movement,
             tcp_name=tcp_name,
+            direct_prepoint=direct_prepoint,
         )
         if i < count-1:
             print("Pausing 3 seconds before next zigzag cycle...")
@@ -342,6 +351,7 @@ def startingRobotToSandmodel2():
                 cps=cps,
                 movement="zigzag_only",
                 tcp_name="tcptool4plane2",
+                direct_prepoint=(side_cycles > 0),
             )
             if stop_requested():
                 return

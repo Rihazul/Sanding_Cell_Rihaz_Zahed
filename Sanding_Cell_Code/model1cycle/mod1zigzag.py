@@ -214,7 +214,7 @@ def _generate_zigzag_edge_path(
     prepoint = [
         abs(start_point[0]) + 0.5,
         start_point[1],
-        start_point[2],
+        start_point[2] - 5,
         start_point[3],
         start_point[4],
         start_point[5],
@@ -463,7 +463,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
                 point[1] = abs(point[1])
                 point[0] = abs(point[0])
         
-            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 180, 0, 0]  
+            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag - 5, 180, 0, 0]  
         return zigzag_coords,prepoint
     #3rd Cycle for Door 1
     # zigzag_path,prepoint= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=5,innerOffsetX=5)
@@ -598,7 +598,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         current_prepoint = [
             abs(start_point[0]) + 0.5,
             start_point[1],
-            start_point[2],
+            start_point[2] - 5,
             start_point[3],
             start_point[4],
             start_point[5],
@@ -886,7 +886,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
                 point[1] = abs(point[1])
                 point[0] = abs(point[0])
         
-            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 180, 0, 0]  
+            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag - 5, 180, 0, 0]  
         return zigzag_coords,prepoint
     #3rd Cycle for Door 1
     # zigzag_path,prepoint= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=5,innerOffsetX=5)
@@ -1021,7 +1021,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         current_prepoint = [
             abs(start_point[0]) + 0.5,
             start_point[1],
-            start_point[2],
+            start_point[2] - 5,
             start_point[3],
             start_point[4],
             start_point[5],
@@ -1310,7 +1310,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
                 point[1] = abs(point[1])
                 point[0] = abs(point[0])
         
-            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag, 180, 0, 0]  
+            prepoint = [abs(modified_Point1[0])+0.5, modified_Point1[1], z_zigzag - 5, 180, 0, 0]  
         return zigzag_coords,prepoint
     #3rd Cycle for Door 1
     # zigzag_path,prepoint= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=5,innerOffsetX=5)
@@ -1444,7 +1444,7 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         current_prepoint = [
             abs(start_point[0]) + 0.5,
             start_point[1],
-            start_point[2],
+            start_point[2] - 5,
             start_point[3],
             start_point[4],
             start_point[5],

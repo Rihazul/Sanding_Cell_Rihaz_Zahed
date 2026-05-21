@@ -23,7 +23,7 @@ def load_json_config():
     with open('./configs/cycleData.json', 'r') as file:
         config = json.load(file)
     return config
-def model2zigzagbig(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
+def model2zigzagbig(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal", direct_prepoint=False):
 
 
     # Load configuration
@@ -487,14 +487,15 @@ def model2zigzagbig(force, innerSandingOffset, cps, movement="both", tcp_name="t
             current_edge_start = full_edge_start
 
         # Original sequence with dynamic variables
-        communicate(
-            cps=cps, config=config, 
-            point=spoint, 
-            tcp=active_tcp, 
-            ucs=config['coords']['ucsTable2'], 
-            seventh=-1, 
-            speed=speeed, velocity_profile="robot", wait=True
-        )
+        if not direct_prepoint:
+            communicate(
+                cps=cps, config=config, 
+                point=spoint, 
+                tcp=active_tcp, 
+                ucs=config['coords']['ucsTable2'], 
+                seventh=-1, 
+                speed=speeed, velocity_profile="robot", wait=True
+            )
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 

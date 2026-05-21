@@ -26,8 +26,8 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def model2zigzagrun(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
-    def testmodel2zigzagsmallfunction(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal"):
+def model2zigzagrun(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal", direct_prepoint=False):
+    def testmodel2zigzagsmallfunction(force, innerSandingOffset, cps, movement="both", tcp_name="tcpReal", direct_prepoint=False):
 
 
         # Load configuration
@@ -495,14 +495,15 @@ def model2zigzagrun(force, innerSandingOffset, cps, movement="both", tcp_name="t
                 current_zigzag = full_zigzag
 
             # Original sequence with dynamic variables
-            communicate(
-                cps=cps, config=config, 
-                point=spoint, 
-                tcp=active_tcp, 
-                ucs=config['coords']['ucsTable2'], 
-                seventh=-1, 
-                speed=speeed, velocity_profile="robot", wait=True
-            )
+            if not direct_prepoint:
+                communicate(
+                    cps=cps, config=config, 
+                    point=spoint, 
+                    tcp=active_tcp, 
+                    ucs=config['coords']['ucsTable2'], 
+                    seventh=-1, 
+                    speed=speeed, velocity_profile="robot", wait=True
+                )
             communicate(
                 cps=cps, config=config, 
                 seventh=current_tcx, 
@@ -550,6 +551,7 @@ def model2zigzagrun(force, innerSandingOffset, cps, movement="both", tcp_name="t
                 cps=cps,
                 movement=movement,
                 tcp_name=tcp_name,
+                direct_prepoint=direct_prepoint,
             )
         else:
             testmodel2zigzagsmallfunction(
@@ -558,6 +560,7 @@ def model2zigzagrun(force, innerSandingOffset, cps, movement="both", tcp_name="t
                 cps=cps,
                 movement=movement,
                 tcp_name=tcp_name,
+                direct_prepoint=direct_prepoint,
             )
     else:
         print(f"Invalid xlen value type: {type(xlen)} - expected number or 'null'")
