@@ -129,16 +129,38 @@ def run_tool2_combined_cycles(side_count, side_force, edge_count, edge_force, cp
     Run Tool 2 side+edge together in one grouped sequence while Tool 2 is mounted.
     This keeps task selection grouped by the same tool and same 7th-axis family.
     """
+    sections = ("bottom", "left", "top", "right")
     total_steps = max(side_count, edge_count)
     for step in range(total_steps):
         if stop_requested():
             return
-        if step < side_count:
-            print(f"\n=== TOOL2 GROUP STEP {step+1}: SIDE ===")
-            run_tool2side_cycles(1, side_force, cps)
-        if step < edge_count:
-            print(f"\n=== TOOL2 GROUP STEP {step+1}: EDGE ===")
-            run_tool2sideoutedge_cycles(1, edge_force, cps)
+        print(f"\n=== TOOL2 GROUP STEP {step+1}/{total_steps} (section-by-section) ===")
+        for idx, section_name in enumerate(sections):
+            if stop_requested():
+                return
+
+            side_runs = step < side_count
+            edge_runs = step < edge_count
+            is_final_section = (step == total_steps - 1) and (idx == len(sections) - 1)
+
+            if side_runs:
+                side_return_home = is_final_section and not edge_runs
+                print(f"Tool2 SIDE section: {section_name}")
+                mod1tool2sidesrun(
+                    force=side_force,
+                    cps=cps,
+                    section=section_name,
+                    return_home=side_return_home,
+                )
+            if edge_runs:
+                edge_return_home = is_final_section
+                print(f"Tool2 EDGE section: {section_name}")
+                mod1tool2outedge(
+                    force=edge_force,
+                    cps=cps,
+                    section=section_name,
+                    return_home=edge_return_home,
+                )
         if step < total_steps - 1:
             time.sleep(0.5)
 

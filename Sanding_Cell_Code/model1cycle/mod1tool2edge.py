@@ -30,8 +30,8 @@ def load_json_config():
 
 
 
-def mod1tool2outedge(force,cps):
-    def mod1tool2outedgebig(force,cps):
+def mod1tool2outedge(force,cps,section=None,return_home=True):
+    def mod1tool2outedgebig(force,cps,section=None,return_home=True):
         # Load configuration from YAML
         config = load_config()
 
@@ -422,74 +422,65 @@ def mod1tool2outedge(force,cps):
                 velocity_profile="robot",
                 wait=True,
             )
-        #Bottom Cycle 1
-        communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
-        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=False)
-        perform_process_bottom(cps, config, points1=pointsb,force=force)
-        
-        # Bottom Cycles 2-6
-        cx_points = [cx1, cx2]
+        selected_section = section.lower() if isinstance(section, str) else None
 
-        for cx in cx_points:
-            communicate(cps=cps, config=config, point=point2air, 
-                    tcp=config['coords']['tcpSideTool'], 
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1, speed=speeed, velocity_profile="robot", wait=True)
-            run_single_movement(robot_point=point1Combo, 
-                                seventh_axis_point=cx, 
-                                cps=cps, config=config)
+        if selected_section in (None, "bottom"):
+            #Bottom Cycle 1
+            communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+            communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=False)
             perform_process_bottom(cps, config, points1=pointsb,force=force)
-
-        communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
-        # communicate(
-        #             cps=cps,
-        #             config=config,
-        #             seventh=tcx1,
-        #             tcp=config['coords']['tcpSideTool'],
-        #             ucs=config['coords']['ucsTable2'],
-        #             speed=speeed,
-        #             wait=True)
-        # run_single_movement(robot_point=point2bottomextra, 
-        #                         seventh_axis_point=tcx11, 
-        #                         cps=cps, config=config)
-
-
-        #Bottom Extra for Adjustment
-        communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
-
-        #Left Cycle
-        perform_process_left(cps, config, points1=pointsleft,force=force)
-        # #Left Cycle Extrea
-        communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
-        
-        # #Top Cycle 2
-        cx_points = [tcx2, tcx1, tcx]
-
-        for cx in cx_points:
             
-            run_single_movement(robot_point=pointtop1Combo, 
-                                seventh_axis_point=cx, 
-                                cps=cps, config=config)
-            perform_process_top(cps, config, points1=pointstopmain,force=force)
-            communicate(cps=cps, config=config, point=pointtop2air, 
-                    tcp=config['coords']['tcpSideTool'], 
-                    ucs=config['coords']['ucsTable2'],
-                    seventh=-1, speed=speeed, velocity_profile="robot", wait=True)
-        
-        #Top Cycle Extra
-        
-        communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
-        #Right Cycle
-        #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=True)
-        perform_process_right(cps, config, points1=pointsright,force=force)
+            # Bottom Cycles 2-6
+            cx_points = [cx1, cx2]
 
-        #Last Tune
-        communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=False)
-        communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+            for cx in cx_points:
+                communicate(cps=cps, config=config, point=point2air, 
+                        tcp=config['coords']['tcpSideTool'], 
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1, speed=speeed, velocity_profile="robot", wait=True)
+                run_single_movement(robot_point=point1Combo, 
+                                    seventh_axis_point=cx, 
+                                    cps=cps, config=config)
+                perform_process_bottom(cps, config, points1=pointsb,force=force)
 
-    
-        # #Joint 6 movement 
-        moveOnlyJ6r(cps, -326, config)
+        if selected_section in (None, "left"):
+            communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+            #Bottom Extra for Adjustment
+            communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+
+            #Left Cycle
+            perform_process_left(cps, config, points1=pointsleft,force=force)
+            # #Left Cycle Extrea
+            communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+        
+        if selected_section in (None, "top"):
+            # #Top Cycle 2
+            cx_points = [tcx2, tcx1, tcx]
+
+            for cx in cx_points:
+                run_single_movement(robot_point=pointtop1Combo, 
+                                    seventh_axis_point=cx, 
+                                    cps=cps, config=config)
+                perform_process_top(cps, config, points1=pointstopmain,force=force)
+                communicate(cps=cps, config=config, point=pointtop2air, 
+                        tcp=config['coords']['tcpSideTool'], 
+                        ucs=config['coords']['ucsTable2'],
+                        seventh=-1, speed=speeed, velocity_profile="robot", wait=True)
+            
+            #Top Cycle Extra
+            communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+        
+        if selected_section in (None, "right"):
+            #Right Cycle
+            perform_process_right(cps, config, points1=pointsright,force=force)
+
+        if return_home:
+            #Last Tune
+            communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot", wait=False)
+            communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
+
+            # #Joint 6 movement 
+            moveOnlyJ6r(cps, -326, config)
     #Main Cycle
     p1 = exported_points["p1"]
     xlen = p1[0]
@@ -499,9 +490,9 @@ def mod1tool2outedge(force,cps):
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
         if xlen > 600:
-            mod1tool2outedgebig(force,cps)
+            mod1tool2outedgebig(force,cps,section=section,return_home=return_home)
         else:
-            mod1tool2outedgesmall(force,cps)
+            mod1tool2outedgesmall(force,cps,section=section,return_home=return_home)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
     

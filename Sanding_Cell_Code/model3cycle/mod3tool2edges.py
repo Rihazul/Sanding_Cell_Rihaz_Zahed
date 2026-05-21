@@ -24,7 +24,7 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def mod3tool2edgesmall(force,cps):
+def mod3tool2edgesmall(force,cps,section=None,return_home=True):
     # Load configuration from YAML
     config = load_config()
 
@@ -391,51 +391,39 @@ def mod3tool2edgesmall(force,cps):
         robot_thread.join()
         axis_thread.join()
 
-    #Bottom Cycle 1
-    communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
-    perform_process_bottom(cps, config, points1=pointsb)
-    #Bottom Cycle 2
-    communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    run_single_movement(robot_point=point1Combo, seventh_axis_point=cx1, cps=cps, config=config)
-    perform_process_bottom(cps, config, points1=pointsb)
-    communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    selected_section = section.lower() if isinstance(section, str) else None
 
-    #Bottom Extra for Adjustment
-    communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    if selected_section in (None, "bottom"):
+        communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
+        perform_process_bottom(cps, config, points1=pointsb,force=force)
+        communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        run_single_movement(robot_point=point1Combo, seventh_axis_point=cx1, cps=cps, config=config)
+        perform_process_bottom(cps, config, points1=pointsb,force=force)
 
-    #Left Cycle
-    perform_process_left(cps, config, points1=pointsleft)
-    #Left Cycle Extrea
-    communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    #Top Cycle 1
-    # communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    # run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx3, cps=cps, config=config)
-    # perform_process_top(cps, config, points1=pointstop)
-    # #Top Cycle 3
-    # communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    # run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx2, cps=cps, config=config)
-    # perform_process_top(cps, config, points1=pointstop)
-    #Top Cycle 1
-    communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx1, cps=cps, config=config)
-    perform_process_top(cps, config, points1=pointstop)
-    #Top Cycle 2
-    communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx, cps=cps, config=config)
-    perform_process_top(cps, config, points1=pointstop)
+    if selected_section in (None, "left"):
+        communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        perform_process_left(cps, config, points1=pointsleft,force=force)
+        communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
-    #Top Cycle Extra
-    communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
-    communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    if selected_section in (None, "top"):
+        communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx1, cps=cps, config=config)
+        perform_process_top(cps, config, points1=pointstop,force=force)
+        communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx, cps=cps, config=config)
+        perform_process_top(cps, config, points1=pointstop,force=force)
+        communicate(cps=cps,config=config,point=pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
-    #Right Cycle
-    perform_process_right(cps, config, points1=pointsright)
-    communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
-    communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    if selected_section in (None, "right"):
+        perform_process_right(cps, config, points1=pointsright,force=force)
 
-    #Joint 6 movement 
-    moveOnlyJ6r(cps, -326, config)
+    if return_home:
+        communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
+        communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+        moveOnlyJ6r(cps, -326, config)
 
 
    
