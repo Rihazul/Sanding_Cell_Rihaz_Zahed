@@ -310,17 +310,7 @@ def model1bottomsmall(force,cps):
         releaseForce(cps=cps, config=config, wait_for_blending=False)
     
     def run_single_movement(robot_point, seventh_axis_point, cps, config):
-        """Start J7 non-blocking, move robot, then sync J7 before sanding."""
-        communicate(
-            cps=cps,
-            config=config,
-            seventh=seventh_axis_point,
-            tcp=config['coords']['tcptool4plane2'],
-            ucs=config['coords']['ucsTable2'],
-            speed=speed_profile['travel'],
-            velocity_profile="robot",
-            wait=False,
-        )
+        """Lift/position first, then start J7 non-blocking, then sync J7."""
         communicate(
             cps=cps,
             config=config,
@@ -344,7 +334,8 @@ def model1bottomsmall(force,cps):
         )
     if not bigger:
         #Bottom Cycle at x2 (U pattern: bottom -> top)
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=False)
         perform_process_bottom(cps, config, points1=bottompointsb,force=force)
         perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
 
@@ -358,7 +349,8 @@ def model1bottomsmall(force,cps):
 
     else:
         #Bottom Cycle at x3 (U pattern: bottom -> top)
-        communicate(cps=cps,config=config,seventh=x3,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=x3,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=False)
         perform_process_bottom(cps, config, points1=bottompointsb,force=force)
         perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
         

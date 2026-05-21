@@ -410,8 +410,8 @@ def mod1tool1pocket1(force,cps):
             wait=True,
         )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -795,8 +795,8 @@ def mod1tool1pocket2(force,cps):
             wait=True,
         )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)
@@ -1180,8 +1180,8 @@ def mod1tool1pocket3(force,cps):
             wait=True,
         )
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # Single pass only (no extra seventh-axis shifts)

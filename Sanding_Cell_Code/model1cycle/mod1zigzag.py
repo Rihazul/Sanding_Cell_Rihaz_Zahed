@@ -221,7 +221,7 @@ def _generate_zigzag_edge_path(
     ]
     return edge_points, zigzag_points, prepoint
 
-def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
+def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal",direct_prepoint=False):
 
 
     # Load configuration
@@ -605,20 +605,21 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         ]
 
         # Original sequence with dynamic variables
+        if not direct_prepoint:
+            communicate(
+                cps=cps, config=config, 
+                point=spoint, 
+                tcp=tcp_to_use, 
+                ucs=config['coords']['ucsTable2'], 
+                seventh=-1, 
+                speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
+            )
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 
             tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
-            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
-        )
-        communicate(
-            cps=cps, config=config, 
-            point=spoint, 
-            tcp=tcp_to_use, 
-            ucs=config['coords']['ucsTable2'], 
-            seventh=-1, 
-            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=False
         )
         # # turn_vibration_on(cps)
         communicate(
@@ -644,7 +645,7 @@ def testmodel3zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         )
     #communicate(cps=cps,config=config,seventh=0,tcp=tcp_to_use,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
 
-def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
+def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal",direct_prepoint=False):
 
 
     # Load configuration
@@ -1027,20 +1028,21 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         ]
 
         # Original sequence with dynamic variables
+        if not direct_prepoint:
+            communicate(
+                cps=cps, config=config, 
+                point=spoint, 
+                tcp=tcp_to_use, 
+                ucs=config['coords']['ucsTable2'], 
+                seventh=-1, 
+                speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
+            )
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 
             tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
-            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
-        )
-        communicate(
-            cps=cps, config=config, 
-            point=spoint, 
-            tcp=tcp_to_use, 
-            ucs=config['coords']['ucsTable2'], 
-            seventh=-1, 
-            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=False
         )
         # # turn_vibration_on(cps)
         communicate(
@@ -1067,7 +1069,7 @@ def testmodel2zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
     #communicate(cps=cps,config=config,seventh=0,tcp=tcp_to_use,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True) 
 
 
-def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal"):
+def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal",direct_prepoint=False):
 
 
     # Load configuration
@@ -1449,20 +1451,21 @@ def testmodel1zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",t
         ]
 
         # Original sequence with dynamic variables
+        if not direct_prepoint:
+            communicate(
+                cps=cps, config=config, 
+                point=spoint, 
+                tcp=tcp_to_use, 
+                ucs=config['coords']['ucsTable2'], 
+                seventh=-1, 
+                speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
+            )
         communicate(
             cps=cps, config=config, 
             seventh=current_tcx, 
             tcp=tcp_to_use, 
             ucs=config['coords']['ucsTable2'], 
-            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
-        )
-        communicate(
-            cps=cps, config=config, 
-            point=spoint, 
-            tcp=tcp_to_use, 
-            ucs=config['coords']['ucsTable2'], 
-            seventh=-1, 
-            speed=module_speed_profile['travel'], velocity_profile="robot", wait=True
+            speed=module_speed_profile['travel'], velocity_profile="robot", wait=False
         )
         # # turn_vibration_on(cps)
         communicate(

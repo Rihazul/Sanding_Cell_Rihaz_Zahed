@@ -420,8 +420,8 @@ def mod1tool2sidesrun(force,cps):
                 wait=True,
             )
         #Bottom Cycle 1
-        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
         communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
         perform_process_bottom(cps, config, points1=pointsb,force=force)
         
         # Bottom Cycles 2-3 (1/3 and 2/3)

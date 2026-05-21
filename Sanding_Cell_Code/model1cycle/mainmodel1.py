@@ -87,6 +87,7 @@ def run_tool4_section_cycles(side_cycles, force_side, zigzag_cycles, force_zigza
                     cps=cps,
                     movement="zigzag_only",
                     tcp_name="tcptool4plane2",
+                    direct_prepoint=(side_cycles > 0),
                 )
                 if i < zigzag_cycles - 1:
                     time.sleep(0.5)
