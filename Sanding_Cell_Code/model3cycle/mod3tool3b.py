@@ -78,7 +78,11 @@ def mod3tool3bigfirst(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
-    print(speeed)
+    robot_speed = speeed
+    sanding_speed = float(json_config.get('sandingSpeed', robot_speed))
+    if sanding_speed <= 0:
+        sanding_speed = robot_speed
+    print(robot_speed)
 
 
    
@@ -158,7 +162,7 @@ def mod3tool3bigfirst(force,cps):
 
 
     #Hpoints for bottom
-    hbpoint1st=[0, point8[1], -70, 180, 0, 0]
+    hbpoint1st=[0, point8[1], z-5, 180, 0, 0]
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
@@ -206,7 +210,7 @@ def mod3tool3bigfirst(force,cps):
 
 
     #Hpoints for top
-    htoppoints=[0, point7[1], -100, 180, 0, 0]
+    htoppoints=[0, point7[1], z-5, 180, 0, 0]
     print("htoppoints:", htoppoints)
 
 
@@ -259,8 +263,7 @@ def mod3tool3bigfirst(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -300,8 +303,7 @@ def mod3tool3bigfirst(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -341,8 +343,7 @@ def mod3tool3bigfirst(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -382,8 +383,7 @@ def mod3tool3bigfirst(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -415,8 +415,7 @@ def mod3tool3bigfirst(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
+                    speed=robot_speed, velocity_profile="robotspeed", wait=True
                 )
 
         def run_axis_movement():
@@ -427,8 +426,7 @@ def mod3tool3bigfirst(force,cps):
                     seventh=seventh_axis_point,
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
+                    speed=robot_speed, velocity_profile="robotspeed", wait=False
                 )
 
         # Start each movement in its own thread
@@ -443,8 +441,8 @@ def mod3tool3bigfirst(force,cps):
         axis_thread.join()
    
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # # # #Cycles With Loops
@@ -479,7 +477,7 @@ def mod3tool3bigfirst(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
 
 def mod3tool3bigsecond(force,cps):
@@ -517,7 +515,11 @@ def mod3tool3bigsecond(force,cps):
     # p12 = exported_points["p12"]
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
-    print(speeed)
+    robot_speed = speeed
+    sanding_speed = float(json_config.get('sandingSpeed', robot_speed))
+    if sanding_speed <= 0:
+        sanding_speed = robot_speed
+    print(robot_speed)
 
 
 
@@ -599,7 +601,7 @@ def mod3tool3bigsecond(force,cps):
 
 
     #Hpoints for bottom
-    hbpoint1st=[0, point8[1], -70, 180, 0, 0]
+    hbpoint1st=[0, point8[1], z-5, 180, 0, 0]
     print("hbpoint1st:", hbpoint1st)
     bpoints=[prebpoint1st,bpoint1st, bpointmiddle, bpoint2nd,prebpoint2nd]
     print("bpoints:", bpoints)
@@ -647,7 +649,7 @@ def mod3tool3bigsecond(force,cps):
 
 
     #Hpoints for top
-    htoppoints=[0, point7[1], -100, 180, 0, 0]
+    htoppoints=[0, point7[1], z-5, 180, 0, 0]
     print("htoppoints:", htoppoints)
 
 
@@ -700,8 +702,7 @@ def mod3tool3bigsecond(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -741,8 +742,7 @@ def mod3tool3bigsecond(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -782,8 +782,7 @@ def mod3tool3bigsecond(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -823,8 +822,7 @@ def mod3tool3bigsecond(force,cps):
                 tcp=config['coords']['tcptool1plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=sanding_speed, velocity_profile="sandingspeed", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -856,8 +854,7 @@ def mod3tool3bigsecond(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
+                    speed=robot_speed, velocity_profile="robotspeed", wait=True
                 )
 
         def run_axis_movement():
@@ -868,8 +865,7 @@ def mod3tool3bigsecond(force,cps):
                     seventh=seventh_axis_point,
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
+                    speed=robot_speed, velocity_profile="robotspeed", wait=False
                 )
 
         # Start each movement in its own thread
@@ -884,8 +880,8 @@ def mod3tool3bigsecond(force,cps):
         axis_thread.join()
    
     # #Bottom Cycles
-    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
     perform_process_bottom(cps, config, points1=bpoints,force=force)
 
     # # # #Cycles With Loops
@@ -920,7 +916,7 @@ def mod3tool3bigsecond(force,cps):
 
     #Left Cycle
     perform_process_right(cps, config, points1=rightpoints,force=force)
-    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     
 def mod3tool3bigrun(force,cps):
     config = load_config()
@@ -942,11 +938,12 @@ def mod3tool3bigrun(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
-    print(speeed)
+    robot_speed = speeed
+    print(robot_speed)
 
     mod3tool3bigfirst(force,cps)
     mod3tool3bigsecond(force,cps)
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
 
 if __name__ == "__main__":
     # Call the function with an appropriate force value

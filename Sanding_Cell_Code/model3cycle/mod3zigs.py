@@ -26,7 +26,7 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def mod3zigsmall(force,innerSandingOffset,cps):
+def mod3zigsmall(force,innerSandingOffset,cps, edge_coverage_override=None):
 
 
     # Load configuration
@@ -55,6 +55,10 @@ def mod3zigsmall(force,innerSandingOffset,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    robot_speed = speeed
+    sanding_speed = float(json_config.get('sandingSpeed', robot_speed))
+    if sanding_speed <= 0:
+        sanding_speed = robot_speed
     pocketzigzag_cfg = json_config.get("TableB", {}).get("pocketzigzag", {})
     zigzag_orientation = str(pocketzigzag_cfg.get("orientation", "vertical")).lower()
     if pocketzigzag_cfg.get("horizontalSpiral"):
@@ -64,6 +68,8 @@ def mod3zigsmall(force,innerSandingOffset,cps):
     if zigzag_orientation not in ("horizontal", "vertical"):
         zigzag_orientation = "vertical"
     edge_coverage = bool(pocketzigzag_cfg.get("edgeCoverage", pocketzigzag_cfg.get("edge", False)))
+    if edge_coverage_override is not None:
+        edge_coverage = bool(edge_coverage_override)
     edge_offset = float(pocketzigzag_cfg.get("edgeOffset", 1.75))
     print(speeed)
 
@@ -364,7 +370,7 @@ def mod3zigsmall(force,innerSandingOffset,cps):
         putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
         )
@@ -376,10 +382,11 @@ def mod3zigsmall(force,innerSandingOffset,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -393,9 +400,9 @@ def mod3zigsmall(force,innerSandingOffset,cps):
     # 3) Move the robot through the zigzag points
     # ------------------------------------------------------
     # Assuming 'cps' and 'config' are defined elsewhere in your code
-    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
+    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     # turn_vibration_on(cps)
     if edge_coverage:
         edge_path2, edge_start2 = generate_edge_path(
@@ -418,34 +425,35 @@ def mod3zigsmall(force,innerSandingOffset,cps):
                 cps=cps,
                 config=config,
                 point=edge_prepoint2,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speeed,
+                speed=robot_speed,
+                velocity_profile="robotspeed",
                 wait=True,
             )
             perform_process_top(cps, config, points1=edge_path2, force=force)
 
-    communicate(cps=cps,config=config,point=prepoint2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=prepoint2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     #turn_vibration_on(cps)
     perform_process_top(cps, config, points1=zigzag_path2, force=force)
     #turn_vibration_off(cps)
-    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     # #Third Cycle of First Pocket
-    # communicate(cps=cps,config=config,seventh=cx2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,seventh=cx2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     # # turn_vibration_on(cps)
-    # communicate(cps=cps,config=config,point=prepoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,point=prepoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     # #turn_vibration_on(cps)
     # perform_process_top(cps, config, points1=zigzag_path)
     #turn_vibration_off(cps)
-    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
     #Second Pocket
     #Second Pocket First Cycle
-    #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
-    communicate(cps=cps,config=config,seventh=tcx,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+    communicate(cps=cps,config=config,seventh=tcx,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
+    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     # turn_vibration_on(cps)
     if edge_coverage:
         edge_pathp, edge_startp = generate_edge_path(
@@ -468,35 +476,39 @@ def mod3zigsmall(force,innerSandingOffset,cps):
                 cps=cps,
                 config=config,
                 point=edge_prepointp,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=speeed,
+                speed=robot_speed,
+                velocity_profile="robotspeed",
                 wait=True,
             )
             perform_process_top(cps, config, points1=edge_pathp, force=force)
 
-    communicate(cps=cps,config=config,point=prepointp,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=prepointp,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     #turn_vibration_on(cps)
     perform_process_top(cps, config, points1=zigzag_pathp, force=force)
     #turn_vibration_off(cps)
-    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
 
     # #Second Pocket Third Cycle
-    # #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
-    # communicate(cps=cps,config=config,seventh=tcx2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+    # communicate(cps=cps,config=config,seventh=tcx2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     # #turn_vibration_on(cps)
-    # communicate(cps=cps,config=config,point=prepointp3,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,point=prepointp3,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     # #turn_vibration_on(cps)
     # perform_process_top(cps, config, points1=zigzag_pathp3)
     # #turn_vibration_off(cps)
-    # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
     #Home Position
-    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
 
     
 if __name__ == "__main__":
     mod3zigsmall()
+
+
+

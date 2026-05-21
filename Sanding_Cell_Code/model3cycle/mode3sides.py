@@ -72,7 +72,11 @@ def mod3sidesmall(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
-    print(speeed)
+    robot_speed = speeed
+    sanding_speed = float(json_config.get('sandingSpeed', robot_speed))
+    if sanding_speed <= 0:
+        sanding_speed = robot_speed
+    print(robot_speed)
     
     # p1= [2012.95000001, 0.0, 0, 180, 0, 0]
     # p2= [2012.95000001, 381.000000002, 0, 180, 0, 0]
@@ -113,9 +117,9 @@ def mod3sidesmall(force,cps):
     print("point4pre=",point4pre)
     point1pre=[p1[0]/2,p4[1]+tool3y-19.243,p4[2]-1-3-10,p4[3],p4[4],p4[5]]
     print("point1pre=",point1pre)
-    point1air=[p1[0]/2,p4[1]+tool3y-19.243,p4[2]-1-10,p4[3],p4[4],p4[5]]
+    point1air=[p1[0]/2,p4[1]+tool3y-19.243,p4[2]-9,p4[3],p4[4],p4[5]]
     print("point1air=",point1air)
-    point4air=[p4[0]+tool3x-9.749,p4[1]+tool3y-19.243,p4[2]-1-10,p4[3],p4[4],p4[5]]
+    point4air=[p4[0]+tool3x-9.749,p4[1]+tool3y-19.243,p4[2]-9,p4[3],p4[4],p4[5]]
     print("point4air=",point4air)
 
     #Left Side
@@ -127,7 +131,7 @@ def mod3sidesmall(force,cps):
     print("pointl2pre=",pointl2pre)
     pointl3pre=[p4[0]-tool3x+11.138,p3[1]-tool3y+23.769,p4[2]-1-3-10,p4[3],p4[4],p4[5]]
     print("pointl3pre=",pointl3pre)
-    pointl3air=[p4[0]-tool3x+11.138,p3[1]-tool3y+23.769,p4[2]-1-3-10,p4[3],p4[4],p4[5]]
+    pointl3air=[p4[0]-tool3x+11.138,p3[1]-tool3y+23.769,p4[2]-9,p4[3],p4[4],p4[5]]
     print("pointl3air=",pointl3air)
     pointl23=[p4[0]-tool3x+11.138,p4[1]+tool3y-19.243+1+1,p4[2]-4,p4[3],p4[4],p4[5]]
     print("pointl23=",pointl23)
@@ -143,9 +147,9 @@ def mod3sidesmall(force,cps):
     print("pointtop1=",pointtop1)
     pointtop1pre=[0,p2[1]-27.04,p2[2]-1-3-10,p2[3],p2[4],p2[5]]
     print("pointtop1pre=",pointtop1pre)
-    pointtop1air=[0,p2[1]-27.04,p2[2]-1-3-6,p2[3],p2[4],p2[5]]
+    pointtop1air=[0,p2[1]-27.04,p2[2]-9,p2[3],p2[4],p2[5]]
     print("pointtop1air=",pointtop1air)
-    pointtop2air=[p2[0]/2-32.4,p2[1]-27.04,p2[2]-1-9,p2[3],p2[4],p2[5]]
+    pointtop2air=[p2[0]/2-32.4,p2[1]-27.04,p2[2]-9,p2[3],p2[4],p2[5]]
     print("pointtop2air=",pointtop2air)
 
     #Right Points
@@ -160,7 +164,7 @@ def mod3sidesmall(force,cps):
     print("point4right=",point4right)
     point4rightpre=[0+tool3x-9.749,p4[1],p2[2]-1-3-10,p2[3],p2[4],p2[5]]
     print("point4rightpre=",point4rightpre)
-    point4rightair=[0+tool3x-9.749,p4[1],p2[2]-1-3-6,p2[3],p2[4],p2[5]]
+    point4rightair=[0+tool3x-9.749,p4[1],p2[2]-9,p2[3],p2[4],p2[5]]
     print("point4rightair=",point4rightair)
 
     #Middle Cycle
@@ -178,7 +182,7 @@ def mod3sidesmall(force,cps):
     print("point4middle=",point4middle)
     point4middlepre=[((p12[0]/2)*3)+4.28,0+tool3y-20.8,-1-3-10,180,0,0]
     print("point4middlepre=",point4middlepre)
-    point4middleair=[((p12[0]/2)*3)+4.28,0+tool3y-20.8,-1-3-6,180,0,0]
+    point4middleair=[((p12[0]/2)*3)+4.28,0+tool3y-20.8,-9,180,0,0]
     print("point4middleair=",point4middleair)
 
     #fOR Bottom points
@@ -196,7 +200,7 @@ def mod3sidesmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -206,7 +210,7 @@ def mod3sidesmall(force,cps):
             if point==point41:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -215,10 +219,11 @@ def mod3sidesmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -237,7 +242,7 @@ def mod3sidesmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -247,7 +252,7 @@ def mod3sidesmall(force,cps):
             if point==pointl23:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -256,10 +261,11 @@ def mod3sidesmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -278,7 +284,7 @@ def mod3sidesmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -288,7 +294,7 @@ def mod3sidesmall(force,cps):
             if point==pointtop21:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -297,10 +303,11 @@ def mod3sidesmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -319,7 +326,7 @@ def mod3sidesmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -329,7 +336,7 @@ def mod3sidesmall(force,cps):
             if point==point14right:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -338,10 +345,11 @@ def mod3sidesmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -360,7 +368,7 @@ def mod3sidesmall(force,cps):
         #putForceZplus(
             #cps=cps,
             #force=15,
-            #tcp=config['coords']['tcpReal'],
+            #tcp=config['coords']['tcptool4plane2'],
             #ucs=config['coords']['ucsTable2'],
             #config=config
         #)
@@ -370,7 +378,7 @@ def mod3sidesmall(force,cps):
             if point==point12middle:putForceZplus(
             cps=cps,
             force=force,
-            tcp=config['coords']['tcpReal'],
+            tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config
             )
@@ -379,10 +387,11 @@ def mod3sidesmall(force,cps):
                 cps=cps,
                 config=config,
                 point=point,
-                tcp=config['coords']['tcpReal'],
+                tcp=config['coords']['tcptool4plane2'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
                 wait=False
             )
         
@@ -411,10 +420,11 @@ def mod3sidesmall(force,cps):
                     cps=cps,
                     config=config,
                     point=robot_point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
+                    speed=robot_speed,
+                    velocity_profile="robotspeed",
                     wait=True
                 )
 
@@ -424,10 +434,11 @@ def mod3sidesmall(force,cps):
                     cps=cps,
                     config=config,
                     seventh=seventh_axis_point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=config['coords']['tcptool4plane2'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
+                    speed=robot_speed,
+                    velocity_profile="robotspeed",
+                    wait=False
                 )
 
         # Start each movement in its own thread
@@ -441,55 +452,58 @@ def mod3sidesmall(force,cps):
         robot_thread.join()
         axis_thread.join()
 
-    communicate(cps=cps,config=config,seventh=x,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=point4air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=point4air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    communicate(cps=cps,config=config,seventh=x,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
     #turn_vibration_on(cps)
-    #communicate(cps=cps,config=config,point=point1pre,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+    #communicate(cps=cps,config=config,point=point1pre,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
     #Bottom1
-    perform_process_top(cps, config, points1=points1)
-    communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=points1, force=force)
+    communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     run_single_movement(robot_point=point4air, seventh_axis_point=x1, cps=cps, config=config)
     #Bottom2
-    perform_process_top(cps, config, points1=points1)
-    communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_top(cps, config, points1=points1, force=force)
+    communicate(cps=cps,config=config,point=point1air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     run_single_movement(robot_point=point4air, seventh_axis_point=x2, cps=cps, config=config)
     # Two passes only (x and x1)
     #Left Side Cycle
-    perform_process_left(cps, config, points1=pointsleft)
-    communicate(cps=cps,config=config,point=pointl3air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_left(cps, config, points1=pointsleft, force=force)
+    communicate(cps=cps,config=config,point=pointl3air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
     # #Top Cycle
     #Top Cycle 1
     run_single_movement(robot_point=pointtop2air, seventh_axis_point=x1, cps=cps, config=config)
-    perform_process_topreal(cps, config, points1=pointstop)
-    communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_topreal(cps, config, points1=pointstop, force=force)
+    communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
     # # #Top Cycle 3
     # # run_single_movement(robot_point=pointtop2air, seventh_axis_point=x2, cps=cps, config=config)
-    # # perform_process_topreal(cps, config, points1=pointstop)
-    # # communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # # perform_process_topreal(cps, config, points1=pointstop, force=force)
+    # # communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
     # # #Top Cycle 4
     # # run_single_movement(robot_point=pointtop2air, seventh_axis_point=x1, cps=cps, config=config)
-    # # perform_process_topreal(cps, config, points1=pointstop)
-    # # communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    # # perform_process_topreal(cps, config, points1=pointstop, force=force)
+    # # communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
     #Top Cycle 5
     run_single_movement(robot_point=pointtop2air, seventh_axis_point=x, cps=cps, config=config)
-    perform_process_topreal(cps, config, points1=pointstop)
-    communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_topreal(cps, config, points1=pointstop, force=force)
+    communicate(cps=cps,config=config,point=pointtop1air,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
     #Right Cycle
-    perform_process_right(cps, config, points1=pointright)
-    communicate(cps=cps,config=config,point=point4rightair,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    perform_process_right(cps, config, points1=pointright, force=force)
+    communicate(cps=cps,config=config,point=point4rightair,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
 
     #Middle Cycle
-    communicate(cps=cps,config=config,seventh=xmiddle,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    perform_process_middle(cps, config, points1=pointmiddle)
-    communicate(cps=cps,config=config,point=point4middleair,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-    communicate(cps=cps,config=config,seventh=x,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=xmiddle,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
+    perform_process_middle(cps, config, points1=pointmiddle, force=force)
+    communicate(cps=cps,config=config,point=point4middleair,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=robot_speed, velocity_profile="robotspeed", wait=True)
+    communicate(cps=cps,config=config,seventh=x,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=robot_speed, velocity_profile="robotspeed", wait=False)
     
 
 
 if __name__ == "__main__":
     mod3sidesmall()
     
+
+
+
