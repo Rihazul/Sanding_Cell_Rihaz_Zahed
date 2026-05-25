@@ -118,6 +118,8 @@ def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dic
     # New format
     doors_list = tableA_cfg.get("doors")
     if isinstance(doors_list, list):
+        shared_task_cfg = tableA_cfg.get(task_key) if isinstance(tableA_cfg.get(task_key), Mapping) else {}
+        shared_fields = _extract_task_fields(shared_task_cfg) if shared_task_cfg else {}
         for door_entry in doors_list:
             if not isinstance(door_entry, Mapping):
                 continue
@@ -131,7 +133,23 @@ def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dic
             task_cfg = tasks.get(task_key)
             if not isinstance(task_cfg, Mapping):
                 continue
-            by_door[door_num] = _extract_task_fields(task_cfg)
+            fields = _extract_task_fields(task_cfg)
+
+            # Pocket ZigZag resilience:
+            # if a per-door payload omits orientation/spiral flags, inherit from shared task config
+            # instead of defaulting back to vertical.
+            if task_key == "pocketzigzag" and shared_fields:
+                has_orientation = bool(str(task_cfg.get("orientation") or "").strip())
+                has_vertical = "verticalSpiral" in task_cfg
+                has_horizontal = "horizontalSpiral" in task_cfg
+                if not has_orientation and not has_vertical and not has_horizontal:
+                    fields["orientation"] = str(shared_fields.get("orientation") or fields.get("orientation") or "vertical")
+                    fields["verticalSpiral"] = _to_bool(shared_fields.get("verticalSpiral"), fields.get("verticalSpiral", False))
+                    fields["horizontalSpiral"] = _to_bool(shared_fields.get("horizontalSpiral"), fields.get("horizontalSpiral", False))
+                    fields["edgeCoverage"] = _to_bool(shared_fields.get("edgeCoverage"), fields.get("edgeCoverage", False))
+                    fields["edge"] = fields["edgeCoverage"]
+
+            by_door[door_num] = fields
         return by_door
 
     # Legacy format

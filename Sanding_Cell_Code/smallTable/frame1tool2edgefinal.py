@@ -257,16 +257,7 @@ def door1frametool2sideedge(force,cps):
 
         def perform_process_right(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
+            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             for point in points1:
@@ -292,23 +283,14 @@ def door1frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
         def perform_process_upright(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
+            turn_vibration_on(cps)
             
             # Communicate to each point in points1
             for point in points1:
@@ -334,7 +316,7 @@ def door1frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -384,16 +366,8 @@ def door1frametool2sideedge(force,cps):
 
         def perform_process_topup(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -419,7 +393,7 @@ def door1frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -427,16 +401,8 @@ def door1frametool2sideedge(force,cps):
         
         def perform_process_upleft(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -462,23 +428,15 @@ def door1frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_left(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -504,23 +462,15 @@ def door1frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_bottom(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -546,7 +496,7 @@ def door1frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1131,16 +1081,8 @@ def door2frametool2sideedge(force,cps):
 
         def perform_process_right(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -1166,23 +1108,15 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
         def perform_process_upright(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -1208,7 +1142,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1258,16 +1192,8 @@ def door2frametool2sideedge(force,cps):
 
         def perform_process_topup(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -1293,7 +1219,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -1301,16 +1227,8 @@ def door2frametool2sideedge(force,cps):
         
         def perform_process_upleft(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -1336,23 +1254,15 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_left(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
             
             # Communicate to each point in points1
             for point in points1:
@@ -1378,23 +1288,15 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_bottom(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
+            turn_vibration_on(cps)
+
             
             # Communicate to each point in points1
             for point in points1:
@@ -1420,7 +1322,7 @@ def door2frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2005,7 +1907,7 @@ def door3frametool2sideedge(force,cps):
 
         def perform_process_right(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2040,14 +1942,14 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
         def perform_process_upright(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2082,7 +1984,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2132,7 +2034,7 @@ def door3frametool2sideedge(force,cps):
 
         def perform_process_topup(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2167,7 +2069,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2175,7 +2077,7 @@ def door3frametool2sideedge(force,cps):
         
         def perform_process_upleft(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2210,14 +2112,14 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_left(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2252,14 +2154,14 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_bottom(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2294,7 +2196,7 @@ def door3frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -2879,7 +2781,7 @@ def door4frametool2sideedge(force,cps):
 
         def perform_process_right(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2914,14 +2816,14 @@ def door4frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
         def perform_process_upright(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -2956,7 +2858,7 @@ def door4frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -3006,7 +2908,7 @@ def door4frametool2sideedge(force,cps):
 
         def perform_process_topup(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -3041,7 +2943,7 @@ def door4frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
@@ -3049,7 +2951,7 @@ def door4frametool2sideedge(force,cps):
         
         def perform_process_upleft(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -3084,14 +2986,14 @@ def door4frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_left(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -3126,14 +3028,14 @@ def door4frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)
         
         def perform_process_bottom(cps, config, points1,force):
             # Vibration on
-            # turn_vibration_on(cps)
+            turn_vibration_on(cps)
             
             # Force Control Activated
             #putForceZplus(
@@ -3168,7 +3070,7 @@ def door4frametool2sideedge(force,cps):
             
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
+            turn_vibration_off(cps)
             
             # Release Force Control
             releaseForce(cps=cps, config=config)

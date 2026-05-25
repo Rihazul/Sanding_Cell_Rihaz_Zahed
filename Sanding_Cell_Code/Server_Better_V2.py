@@ -3751,8 +3751,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # Scan is executed on small-door Table A.
         # On this cell, operation-time table IO mapping is swapped, so we use:
         # tableBOpenClose -> physical Table A, tableAOpenClose -> physical Table B.
-        set_table_state(cps, "tableBOpenClose", "Open")
-        set_table_state(cps, "tableAOpenClose", "Close")
+        open_result = set_table_state(cps, "tableBOpenClose", "Open")
+        close_result = set_table_state(cps, "tableAOpenClose", "Close")
+        if not open_result.get("success", False) or not close_result.get("success", False):
+            msg = (
+                "Scan aborted: table position not confirmed by controller/sensors. "
+                "Please verify table state and retry."
+            )
+            config["logger"].error(
+                "[scan] %s open_result=%s close_result=%s",
+                msg,
+                open_result,
+                close_result,
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message=msg,
+            )
+            return ([], [], [], [], [], [], [])
 
         if config["settings"]["actualScan"]:
             connect_j7()
@@ -7417,19 +7433,55 @@ def set_table_state(CPS, table_id, desired_state):
     """
     Set the table to a specific desired state
     """
+    timeout_s = 6.0
+    poll_s = 0.05
+
+    def _wait_until(state_reader, expected_fn, timeout=timeout_s, poll=poll_s):
+        end_t = time.monotonic() + max(0.2, float(timeout))
+        last_value = None
+        while time.monotonic() < end_t:
+            if stop_requested():
+                return False, "Stop requested", last_value
+            ok, value = state_reader()
+            last_value = value
+            if ok and expected_fn(value):
+                return True, "confirmed", value
+            time.sleep(max(0.01, float(poll)))
+        return False, "timeout", last_value
+
+    def _read_table_a_di():
+        di_state_0 = []
+        di_state_1 = []
+        nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+        nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+        ok = (
+            nRet0 == 0
+            and nRet1 == 0
+            and len(di_state_0) > 0
+            and len(di_state_1) > 0
+        )
+        value = (
+            str(di_state_0[0]) if len(di_state_0) > 0 else None,
+            str(di_state_1[0]) if len(di_state_1) > 0 else None,
+        )
+        return ok, value
+
+    def _read_table_b_co():
+        robot_state = []
+        nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
+        ok = nRet == 0 and len(robot_state) > 0
+        value = str(robot_state[0]) if len(robot_state) > 0 else None
+        return ok, value
+
     if table_id == "tableAOpenClose":
         if desired_state == "Open":
             # Set Table A to Open position (horizontal)
             nRet = CPS.HRIF_SetBoxDO(0, 1, 0)
             nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-
-            # Verify the state with sensors
-            di_state_0 = []
-            di_state_1 = []
-            nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
-            nRet = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
-
-            if di_state_0[0] == "1" and di_state_1[0] == "0":
+            confirmed, reason, last_value = _wait_until(
+                _read_table_a_di, lambda v: v == ("1", "0")
+            )
+            if confirmed:
                 return {
                     "success": True,
                     "newState": "Open",
@@ -7439,21 +7491,17 @@ def set_table_state(CPS, table_id, desired_state):
                 return {
                     "success": False,
                     "newState": "Error",
-                    "message": "Failed to set Table A to open position",
+                    "message": f"Failed to set Table A to open position ({reason}, sensor={last_value})",
                 }
 
         elif desired_state == "Close":
             # Set Table A to Close position (45 degrees)
             nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
             nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
-
-            # Verify the state with sensors
-            di_state_0 = []
-            di_state_1 = []
-            nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
-            nRet = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
-
-            if di_state_0[0] == "0" and di_state_1[0] == "1":
+            confirmed, reason, last_value = _wait_until(
+                _read_table_a_di, lambda v: v == ("0", "1")
+            )
+            if confirmed:
                 return {
                     "success": True,
                     "newState": "Close",
@@ -7463,7 +7511,7 @@ def set_table_state(CPS, table_id, desired_state):
                 return {
                     "success": False,
                     "newState": "Error",
-                    "message": "Failed to set Table A to close position",
+                    "message": f"Failed to set Table A to close position ({reason}, sensor={last_value})",
                 }
         else:
             return {
@@ -7477,12 +7525,10 @@ def set_table_state(CPS, table_id, desired_state):
             # Set Table B to Open position (horizontal)
             nRet = CPS.HRIF_SetBoxCO(0, 1, 0)
             nRet = CPS.HRIF_SetBoxCO(0, 0, 1)
-
-            # Verify the state
-            robot_state = []
-            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-
-            if robot_state[0] == "0":  # Assuming '0' means Open for Table B
+            confirmed, reason, last_value = _wait_until(
+                _read_table_b_co, lambda v: v == "0"
+            )
+            if confirmed:  # Assuming '0' means Open for Table B
                 return {
                     "success": True,
                     "newState": "Open",
@@ -7492,19 +7538,17 @@ def set_table_state(CPS, table_id, desired_state):
                 return {
                     "success": False,
                     "newState": "Error",
-                    "message": "Failed to set Table B to open position",
+                    "message": f"Failed to set Table B to open position ({reason}, state={last_value})",
                 }
 
         elif desired_state == "Close":
             # Set Table B to Close position (45 degrees)
             nRet = CPS.HRIF_SetBoxCO(0, 0, 0)
             nRet = CPS.HRIF_SetBoxCO(0, 1, 1)
-
-            # Verify the state
-            robot_state = []
-            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-
-            if robot_state[0] == "1":  # Assuming '1' means Close for Table B
+            confirmed, reason, last_value = _wait_until(
+                _read_table_b_co, lambda v: v == "1"
+            )
+            if confirmed:  # Assuming '1' means Close for Table B
                 return {
                     "success": True,
                     "newState": "Close",
@@ -7514,7 +7558,7 @@ def set_table_state(CPS, table_id, desired_state):
                 return {
                     "success": False,
                     "newState": "Error",
-                    "message": "Failed to set Table B to close position",
+                    "message": f"Failed to set Table B to close position ({reason}, state={last_value})",
                 }
         else:
             return {

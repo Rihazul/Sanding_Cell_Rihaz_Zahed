@@ -1502,7 +1502,7 @@ def smalldoor2zizag(
 
 
 def smalldoor3zizag(
-    force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
+    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
 ):
     apply_spiral_settings(spiral_settings)
 
@@ -1836,7 +1836,7 @@ def smalldoor3zizag(
 
 
 def smalldoor4zizag(
-    force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None
+    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
 ):
     apply_spiral_settings(spiral_settings)
 
