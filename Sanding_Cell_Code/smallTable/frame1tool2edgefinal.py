@@ -620,11 +620,11 @@ def door1frametool2sideedge(force,cps):
         #Right Points
         rightpoint1=[p1[0]+40,p1[1],10,0,22,0]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,0,22,0]
+        prerightpoint1=[p1[0]+40-10,p1[1],10,0,22,0]
         print("prerightpoint1:", prerightpoint1)
         rightpoint2=[p2[0]+40,p2[1],10,0,22,0]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,0,22,0]
+        prerightpoint2=[p2[0]+40-10,p2[1],10,0,22,0]
         print("prerightpoint2:", prerightpoint2)
         rightpoint12=[p1[0]+40,p1[1]+2,10,0,22,0]
         print("rightpoint12:", rightpoint12)
@@ -1492,11 +1492,11 @@ def door2frametool2sideedge(force,cps):
         #Right Points
         rightpoint1=[p1[0]+40,p1[1],10,0,22,0]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,0,22,0]
+        prerightpoint1=[p1[0]+40-10,p1[1],10,0,22,0]
         print("prerightpoint1:", prerightpoint1)
         rightpoint2=[p2[0]+40,p2[1],10,0,22,0]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,0,22,0]
+        prerightpoint2=[p2[0]+40-10,p2[1],10,0,22,0]
         print("prerightpoint2:", prerightpoint2)
         rightpoint12=[p1[0]+40,p1[1]+2,10,0,22,0]
         print("rightpoint12:", rightpoint12)
@@ -2364,11 +2364,11 @@ def door3frametool2sideedge(force,cps):
         #Right Points
         rightpoint1=[p1[0]+40,p1[1],10,0,22,0]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,0,22,0]
+        prerightpoint1=[p1[0]+40-10,p1[1],10,0,22,0]
         print("prerightpoint1:", prerightpoint1)
         rightpoint2=[p2[0]+40,p2[1],10,0,22,0]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,0,22,0]
+        prerightpoint2=[p2[0]+40-10,p2[1],10,0,22,0]
         print("prerightpoint2:", prerightpoint2)
         rightpoint12=[p1[0]+40,p1[1]+2,10,0,22,0]
         print("rightpoint12:", rightpoint12)
@@ -3236,11 +3236,11 @@ def door4frametool2sideedge(force,cps):
         #Right Points
         rightpoint1=[p1[0]+40,p1[1],10,0,22,0]
         print("rightpoint1:", rightpoint1)
-        prerightpoint1=[p1[0]-10,p1[1],10,0,22,0]
+        prerightpoint1=[p1[0]+40-10,p1[1],10,0,22,0]
         print("prerightpoint1:", prerightpoint1)
         rightpoint2=[p2[0]+40,p2[1],10,0,22,0]
         print("rightpoint2:", rightpoint2)
-        prerightpoint2=[p2[0]-10,p2[1],10,0,22,0]
+        prerightpoint2=[p2[0]+40-10,p2[1],10,0,22,0]
         print("prerightpoint2:", prerightpoint2)
         rightpoint12=[p1[0]+40,p1[1]+2,10,0,22,0]
         print("rightpoint12:", rightpoint12)
