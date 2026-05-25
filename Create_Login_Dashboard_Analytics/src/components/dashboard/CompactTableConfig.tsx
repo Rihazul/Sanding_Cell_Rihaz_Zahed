@@ -114,6 +114,13 @@ export function CompactTableConfig({
     'Edge Outside': [],
     Side: [],
   });
+  const [rowActiveDoor, setRowActiveDoor] = React.useState<Record<string, number>>({
+    Frame: 1,
+    'Pocket ZigZag': 1,
+    '3D': 1,
+    'Edge Outside': 1,
+    Side: 1,
+  });
 
   const formatModelName = (value: string) => {
     if (value === 'modelA') return 'Model A - Shaker A';
@@ -658,7 +665,41 @@ export function CompactTableConfig({
   
   // Get current door configuration
   const currentDoorConfig = doorConfigs?.find(d => d.doorNumber === selectedDoor);
-  const currentRows = tableName === 'A' && doorConfigs ? (currentDoorConfig?.rows || rows) : rows;
+  const resolveActiveDoorForRow = (
+    rowLabel: string,
+    preferredDoor: number
+  ): number => {
+    if (tableName !== 'A' || !doorConfigs) return preferredDoor;
+    const selectedForRow = rowDoorSelections[rowLabel] || [];
+    if (!selectedForRow.length) return preferredDoor;
+    if (selectedForRow.includes(preferredDoor)) return preferredDoor;
+
+    const rowIndex = rows.findIndex(r => r.label === rowLabel);
+    if (rowIndex >= 0) {
+      const withValues = selectedForRow.find((doorNumber) => {
+        const row = doorConfigs.find(dc => dc.doorNumber === doorNumber)?.rows?.[rowIndex];
+        return !!row && (
+          (row.force ?? 0) > 0 ||
+          (row.cycle ?? 0) > 0 ||
+          !!row.verticalSpiral ||
+          !!row.horizontalSpiral ||
+          !!row.edgeCoverage
+        );
+      });
+      if (withValues !== undefined) return withValues;
+    }
+    return selectedForRow[0];
+  };
+
+  const getRowForTableA = (idx: number, rowLabel: string): RowConfig => {
+    if (tableName !== 'A' || !doorConfigs) return rows[idx];
+    const activeDoor = rowActiveDoor[rowLabel] ?? selectedDoor;
+    const activeDoorConfig = doorConfigs.find(d => d.doorNumber === activeDoor);
+    return activeDoorConfig?.rows?.[idx] || rows[idx];
+  };
+  const currentRows = tableName === 'A' && doorConfigs
+    ? rows.map((r, idx) => getRowForTableA(idx, r.label))
+    : rows;
   const buildDisplayRows = (sourceRows: RowConfig[]) =>
     sourceRows
       .map((row, idx) => ({ row, idx }))
@@ -685,17 +726,11 @@ export function CompactTableConfig({
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
       const rowLabel = rows[idx]?.label;
       if (!rowLabel) return;
-      setRowDoorSelections(prev => {
-        const current = prev[rowLabel] || [];
-        if (current.includes(selectedDoor)) {
-          return prev;
-        }
-        return { ...prev, [rowLabel]: [...current, selectedDoor].sort() };
-      });
+      const targetDoor = rowActiveDoor[rowLabel] ?? selectedDoor;
 
       setDoorConfigs(prev =>
         prev.map(dc => {
-          if (dc.doorNumber !== selectedDoor) return dc;
+          if (dc.doorNumber !== targetDoor) return dc;
           const newRows = [...dc.rows];
           newRows[idx] = { ...newRows[idx], [field]: value };
           return { ...dc, rows: newRows };
@@ -712,7 +747,7 @@ export function CompactTableConfig({
 
   const toggleRowDoor = (label: string, doorNumber: number) => {
     const rowIndex = rows.findIndex(r => r.label === label);
-    const sourceDoorNumber = selectedDoor;
+    const sourceDoorNumber = rowActiveDoor[label] ?? selectedDoor;
     const currentSelection = rowDoorSelections[label] || [];
     const wasSelected = currentSelection.includes(doorNumber);
 
@@ -720,10 +755,8 @@ export function CompactTableConfig({
       // Allow door deselection without page refresh.
       const nextSelection = currentSelection.filter(d => d !== doorNumber);
       setRowDoorSelections(prev => ({ ...prev, [label]: nextSelection }));
-      if (selectedDoor === doorNumber) {
-        // Keep editing context on another selected door when possible.
-        setSelectedDoor(nextSelection[0] ?? 1);
-      }
+      // Keep active door unchanged while toggling membership to avoid visual flips.
+      setRowActiveDoor(prev => ({ ...prev }));
       return;
     }
 
@@ -733,7 +766,11 @@ export function CompactTableConfig({
       const next = exists ? current : [...current, doorNumber].sort();
       return { ...prev, [label]: next };
     });
-    setSelectedDoor(doorNumber);
+    // Only initialize active door when row had no selected doors before.
+    if (currentSelection.length === 0) {
+      setSelectedDoor(doorNumber);
+      setRowActiveDoor(prev => ({ ...prev, [label]: doorNumber }));
+    }
 
     if (!wasSelected && tableName === 'A' && doorConfigs && setDoorConfigs && rowIndex >= 0) {
       setDoorConfigs(prev =>
@@ -752,7 +789,13 @@ export function CompactTableConfig({
           const sourceDoor = prev.find(d => d.doorNumber === sourceDoorNumber);
           const sourceRow = sourceDoor?.rows[rowIndex];
           if (!sourceRow) return dc;
-          newRows[rowIndex] = { ...targetRow, ...sourceRow };
+          // Keep Pocket ZigZag orientation owned by the target door.
+          // Only carry numeric task intensity defaults on door re-select.
+          newRows[rowIndex] = {
+            ...targetRow,
+            force: sourceRow.force,
+            cycle: sourceRow.cycle,
+          };
           return { ...dc, rows: newRows };
         })
       );
@@ -764,19 +807,40 @@ export function CompactTableConfig({
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
       const rowLabel = rows[idx]?.label;
       if (!rowLabel) return;
-      setRowDoorSelections(prev => {
-        const current = prev[rowLabel] || [];
-        if (current.includes(selectedDoor)) {
-          return prev;
-        }
-        return { ...prev, [rowLabel]: [...current, selectedDoor].sort() };
-      });
+      const selectedForRow = rowDoorSelections[rowLabel] || [];
+      if (!selectedForRow.length) {
+        return;
+      }
+      const targetDoor = rowActiveDoor[rowLabel] ?? selectedDoor;
+      if (!selectedForRow.includes(targetDoor)) {
+        // If the active door is currently deselected for this row, do not
+        // implicitly retarget and mutate another door's pattern.
+        return;
+      }
 
       setDoorConfigs(prev =>
         prev.map(dc => {
-          if (dc.doorNumber !== selectedDoor) return dc;
+          if (!selectedForRow.includes(dc.doorNumber)) return dc;
+
           const newRows = [...dc.rows];
-          const nextRow = { ...newRows[idx], [option]: checked };
+          const currentRow = newRows[idx];
+          if (!currentRow) return dc;
+
+          const sourceDoor = prev.find(d => d.doorNumber === targetDoor);
+          const sourceRow = sourceDoor?.rows[idx];
+
+          const nextRow = { ...currentRow };
+          const rowHasNoIntensity = (nextRow.force ?? 0) <= 0 && (nextRow.cycle ?? 0) <= 0;
+          const sourceHasIntensity = !!sourceRow && ((sourceRow.force ?? 0) > 0 || (sourceRow.cycle ?? 0) > 0);
+
+          // Preserve visible force/cycle continuity when active door was deselected
+          // and the fallback selected door has empty values.
+          if (rowHasNoIntensity && sourceHasIntensity) {
+            nextRow.force = sourceRow!.force;
+            nextRow.cycle = sourceRow!.cycle;
+          }
+
+          (nextRow as any)[option] = checked;
           if (option === 'verticalSpiral' && checked) {
             nextRow.horizontalSpiral = false;
           }

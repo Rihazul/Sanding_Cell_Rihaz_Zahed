@@ -511,8 +511,10 @@ process_state = {
     'last_action': None,
 }
 tool_override_state = {1: False, 2: False, 3: False, 4: False}
-# Since J7 position cannot be read, track "homed" in software (persisted).
-j7_home_confirmed = _load_j7_home_state()
+# Require homing after every app/server restart.
+# Do not trust persisted state across process restarts.
+j7_home_confirmed = False
+_persist_j7_home_state(False)
 
 
 def _set_j7_home_confirmed(value: bool) -> None:
