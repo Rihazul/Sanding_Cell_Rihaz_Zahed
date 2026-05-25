@@ -466,12 +466,16 @@ export function CompactTableConfig({
 
           const templateRow =
             rowsForSelectedDoors.find(r =>
+              r.force > 0 && r.cycle > 0
+            ) ||
+            rowsForSelectedDoors.find(r =>
               r.force > 0 ||
               r.cycle > 0 ||
               !!r.verticalSpiral ||
               !!r.horizontalSpiral ||
               !!r.edgeCoverage
-            ) || rowsForSelectedDoors[0];
+            ) ||
+            rowsForSelectedDoors[0];
 
           if (!templateRow) continue;
 
@@ -479,15 +483,14 @@ export function CompactTableConfig({
             if (!selectedDoors.includes(dc.doorNumber)) return;
             const currentRow = dc.rows[rowIndex];
             if (!currentRow) return;
-            const shouldPopulateValues = currentRow.force <= 0 && currentRow.cycle <= 0;
+            const needsForce = currentRow.force <= 0 && templateRow.force > 0;
+            const needsCycle = currentRow.cycle <= 0 && templateRow.cycle > 0;
+            const shouldPopulateValues = needsForce || needsCycle;
             if (!shouldPopulateValues) return;
             dc.rows[rowIndex] = {
               ...currentRow,
-              force: templateRow.force,
-              cycle: templateRow.cycle,
-              verticalSpiral: templateRow.verticalSpiral,
-              horizontalSpiral: templateRow.horizontalSpiral,
-              edgeCoverage: templateRow.edgeCoverage,
+              force: needsForce ? templateRow.force : currentRow.force,
+              cycle: needsCycle ? templateRow.cycle : currentRow.cycle,
             };
           });
         }
