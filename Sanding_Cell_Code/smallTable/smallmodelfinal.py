@@ -761,6 +761,7 @@ def sandingModelATableA():
     except Exception as e:
         print(f"\nExecution error: {str(e)}")
         traceback.print_exc()
+        raise
     finally:
         print("\nSequence terminated")
 

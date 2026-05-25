@@ -10,6 +10,7 @@ from Server_Better_V2 import (
 from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
 import math
+import time
 import yaml
 
 
@@ -86,6 +87,29 @@ def _estimate_edge_blend_timeout(config, edge_points, edge_speed):
     # Include force-control drag and blending uncertainty with generous margin.
     dynamic_timeout = (est_travel_s * 2.5) + 8.0
     return min(120.0, max(float(base_timeout), dynamic_timeout))
+
+
+def _verify_reached_last_edge_point(cps, target_point, timeout_s=25.0, tol_mm=25.0):
+    """
+    Fallback verifier when blending status times out:
+    confirm TCP reached near the last contour point.
+    """
+    end_t = time.time() + max(1.0, float(timeout_s))
+    while time.time() < end_t:
+        act_pos = []
+        nret = cps.HRIF_ReadActPos(0, 0, act_pos)
+        if nret == 0 and isinstance(act_pos, (list, tuple)) and len(act_pos) > 8:
+            try:
+                dx = float(act_pos[6]) - float(target_point[0])
+                dy = float(act_pos[7]) - float(target_point[1])
+                dz = float(act_pos[8]) - float(target_point[2])
+                dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+                if dist <= float(tol_mm):
+                    return True
+            except Exception:
+                pass
+        time.sleep(0.05)
+    return False
 
 
 def _resolve_force_seek_timeout(edge_speed, fallback=10.0):
@@ -262,9 +286,20 @@ def execute_edge_coverage(
             timeout_s=blend_timeout,
         )
         if not blend_ok:
-            raise RuntimeError(
-                "[Edge Coverage] Blending wait timed out before contour completion."
+            reached_last = _verify_reached_last_edge_point(
+                cps=cps,
+                target_point=edge_points[-1],
+                timeout_s=25.0,
+                tol_mm=25.0,
             )
+            if not reached_last:
+                raise RuntimeError(
+                    "[Edge Coverage] Blending wait timed out before contour completion."
+                )
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].warning(
+                    "[Edge Coverage] Blending timeout reported, but final edge point was reached; continuing."
+                )
         print("[Edge Coverage] Completed linear edge path")
         return True
     finally:

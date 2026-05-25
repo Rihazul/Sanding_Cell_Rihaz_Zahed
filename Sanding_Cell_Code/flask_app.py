@@ -563,12 +563,16 @@ def _track_process(proc: Process) -> None:
 
         # Only clear process_state/client_process if this watcher belongs to the current process slot.
         if client_process is proc:
-            process_state['status'] = 'completed'
+            exit_code = proc.exitcode
+            process_state['status'] = 'completed' if exit_code == 0 else 'failed'
             if process_state.get('last_action') == 'homing':
                 _set_j7_home_confirmed(True)
             process_state['last_action'] = None
             client_process = None
-            socketio.emit('flash_message', {"message": "Process finished"})
+            if exit_code == 0:
+                socketio.emit('flash_message', {"message": "Process finished"})
+            else:
+                socketio.emit('flash_message', {"message": f"Process failed (exit={exit_code})"})
 
         # Parent keeps a global CPS wrapper; reset it after child exits to avoid stale handles.
         with robot_lock:
