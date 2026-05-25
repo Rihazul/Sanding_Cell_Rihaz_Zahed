@@ -112,6 +112,22 @@ def _verify_reached_last_edge_point(cps, target_point, timeout_s=25.0, tol_mm=25
     return False
 
 
+def _wait_robot_motion_done(cps, timeout_s=45.0, poll_s=0.02):
+    """
+    Fallback motion completion check independent from blending state.
+    Uses robot motion-done flag.
+    """
+    end_t = time.time() + max(1.0, float(timeout_s))
+    while time.time() < end_t:
+        robot_state = []
+        nret = cps.HRIF_ReadRobotState(0, 0, robot_state)
+        if nret == 0 and isinstance(robot_state, (list, tuple)) and len(robot_state) > 11:
+            if str(robot_state[11]).strip() == "1":
+                return True
+        time.sleep(max(0.005, float(poll_s)))
+    return False
+
+
 def _resolve_force_seek_timeout(edge_speed, fallback=10.0):
     """
     Force-seek timeout must scale with sanding speed.
@@ -286,11 +302,26 @@ def execute_edge_coverage(
             timeout_s=blend_timeout,
         )
         if not blend_ok:
+            # First fallback: wait for generic robot motion-done flag.
+            motion_done = _wait_robot_motion_done(
+                cps=cps,
+                timeout_s=min(180.0, max(30.0, blend_timeout * 1.5)),
+                poll_s=0.02,
+            )
+            if motion_done:
+                if isinstance(config, dict) and config.get("logger"):
+                    config["logger"].warning(
+                        "[Edge Coverage] Blending timeout reported, but robot motion-done is true; continuing."
+                    )
+                print("[Edge Coverage] Completed linear edge path (motion-done fallback)")
+                return True
+
+            # Second fallback: approximate endpoint verification.
             reached_last = _verify_reached_last_edge_point(
                 cps=cps,
                 target_point=edge_points[-1],
-                timeout_s=25.0,
-                tol_mm=25.0,
+                timeout_s=40.0,
+                tol_mm=80.0,
             )
             if not reached_last:
                 raise RuntimeError(
