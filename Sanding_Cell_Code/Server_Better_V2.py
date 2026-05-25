@@ -1811,7 +1811,8 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
         return
 
     # Stiffness
-    Stiff = [1500, 1500, 1500, 100, 100, 100]
+    # Keep X engagement softer to avoid pushing/shifting the door on angled edge contact.
+    Stiff = [1000, 1000, 1000, 100, 100, 100]
     nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
     if nRet != 0:
@@ -1914,11 +1915,10 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    # X- often encounters higher mechanical/pneumatic resistance than X+ on the same path.
-    # Allow a slightly higher seek speed (configurable) to match engagement time.
+    # Use same default seek speed as X+ for a gentler, symmetric contact behavior.
     force_cfg = config.get("forceControl", {}) if isinstance(config, dict) else {}
     try:
-        linear_velocity = float(force_cfg.get("xminusLinearVelocity", 7))
+        linear_velocity = float(force_cfg.get("xminusLinearVelocity", 5))
     except (TypeError, ValueError):
         linear_velocity = 7
     try:
@@ -1957,7 +1957,8 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
         return
 
     # Stiffness
-    Stiff = [1500, 1500, 1500, 100, 100, 100]
+    # Keep X engagement softer to avoid pushing/shifting the door on angled edge contact.
+    Stiff = [1000, 1000, 1000, 100, 100, 100]
     nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
     if nRet != 0:
