@@ -9,6 +9,7 @@ from Server_Better_V2 import (
 )
 from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
+import math
 import yaml
 
 
@@ -48,6 +49,43 @@ def _resolve_sanding_blend_timeout(config, fallback=12.0):
         return max(2.0, float(value))
     except Exception:
         return float(fallback)
+
+
+def _estimate_edge_blend_timeout(config, edge_points, edge_speed):
+    """
+    Compute a realistic blend wait timeout for the full edge contour.
+    Low sanding speed + long contour can exceed fixed 12s easily.
+    """
+    base_timeout = _resolve_sanding_blend_timeout(config, fallback=20.0)
+    if not edge_points or len(edge_points) < 2:
+        return max(12.0, float(base_timeout))
+
+    total_dist_mm = 0.0
+    for i in range(1, len(edge_points)):
+        prev = edge_points[i - 1]
+        curr = edge_points[i]
+        try:
+            dx = float(curr[0]) - float(prev[0])
+            dy = float(curr[1]) - float(prev[1])
+            dz = float(curr[2]) - float(prev[2])
+            total_dist_mm += math.sqrt(dx * dx + dy * dy + dz * dz)
+        except Exception:
+            continue
+
+    try:
+        base_velocity = float(config.get("door", {}).get("sanding", 375.0))
+    except Exception:
+        base_velocity = 375.0
+    try:
+        speed_ratio = max(0.01, min(1.0, float(edge_speed)))
+    except Exception:
+        speed_ratio = 1.0
+    cmd_velocity = max(1.0, base_velocity * speed_ratio)
+    est_travel_s = total_dist_mm / cmd_velocity
+
+    # Include force-control drag and blending uncertainty with generous margin.
+    dynamic_timeout = (est_travel_s * 2.5) + 8.0
+    return min(120.0, max(float(base_timeout), dynamic_timeout))
 
 
 def _resolve_force_seek_timeout(edge_speed, fallback=10.0):
@@ -196,6 +234,14 @@ def execute_edge_coverage(
     print(f"[Edge Coverage] Starting linear MoveL for {len(edge_points)} edge points")
 
     try:
+        blend_timeout = _estimate_edge_blend_timeout(config, edge_points, edge_speed)
+        if isinstance(config, dict) and config.get("logger"):
+            config["logger"].info(
+                "[Edge Coverage] blend timeout set to %.1fs (edge_speed=%.3f)",
+                blend_timeout,
+                float(edge_speed),
+            )
+
         for idx, point in enumerate(edge_points):
             communicate(
                 cps=cps,
@@ -207,14 +253,18 @@ def execute_edge_coverage(
                 speed=edge_speed,
                 velocity_profile="sanding",
                 speed_mode="linear",
-                wait=idx == (len(edge_points) - 1),
+                wait=False,
             )
 
-        waitForBlending(
+        blend_ok = waitForBlending(
             cps=cps,
             config=config,
-            timeout_s=_resolve_sanding_blend_timeout(config),
+            timeout_s=blend_timeout,
         )
+        if not blend_ok:
+            raise RuntimeError(
+                "[Edge Coverage] Blending wait timed out before contour completion."
+            )
         print("[Edge Coverage] Completed linear edge path")
         return True
     finally:
