@@ -33,6 +33,7 @@ from smallTable.waypoint2 import (
     generate_arc_line_segments_between,
 )
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
+from cycle_data_utils import get_inverse_overlap_step
 from smallTable.scancord import (
     read_scan_results,
     get_door_position,
@@ -633,6 +634,7 @@ def generate_zigzag_path(
 
         xinner = abs(x_max - x_min)
         print("xinner=", xinner)
+        step_mm = max(1.0, float(innerSandingOffset))
 
         orientation_mode = (orientation or "vertical").lower()
         movement_mode = (movement or "zigzag").lower()
@@ -652,7 +654,7 @@ def generate_zigzag_path(
         elif orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
             if yinner > 0:
-                num_steps = math.floor(yinner / innerSandingOffset)
+                num_steps = math.floor(yinner / step_mm)
                 if num_steps == 0:
                     num_steps = 1
                 adjusted_step = yinner / num_steps
@@ -681,7 +683,7 @@ def generate_zigzag_path(
                 )
         else:
             if xinner > 0:
-                num_steps = math.ceil(xinner / innerSandingOffset)
+                num_steps = math.ceil(xinner / step_mm)
                 if num_steps == 0:
                     num_steps = 1
                 adjusted_step = xinner / num_steps
@@ -758,12 +760,22 @@ def load_json_config():
 
 
 def _resolve_inner_sanding_offset(cycle_cfg, default=67.5):
-    """Use raw UI pocket overlap value directly as innerSandingOffset."""
+    """
+    Convert UI overlap (mm) to sanding step (mm) safely.
+    UI range is overlap=0..110; step must never be 0.
+    """
     try:
-        raw_value = float((cycle_cfg or {}).get("inverseOverlapping", default))
-        return raw_value
+        return float(
+            get_inverse_overlap_step(
+                cycle_cfg or {},
+                key="inverseOverlapping",
+                tool_diameter_mm=146.0,
+                max_overlap_mm=110.0,
+                min_step_mm=1.0,
+            )
+        )
     except Exception:
-        return float(default)
+        return max(1.0, float(default))
 
 
 def get_pocket_size(door_number, default_on_error=True):

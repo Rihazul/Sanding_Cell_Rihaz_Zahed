@@ -25,6 +25,7 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values,
 )
+from cycle_data_utils import get_inverse_overlap_step
 
 TRANSFER_LIFT_Z_MM = 70.0
 FORCE_APPROACH_LIFT_MM = 15.0
@@ -90,12 +91,22 @@ def _get_motion_speeds(config):
 
 
 def _resolve_inner_sanding_offset(cycle_cfg, default=50.0):
-    """Use raw UI pocket overlap value directly as innerSandingOffset."""
+    """
+    Convert UI overlap (mm) to sanding step (mm) safely.
+    UI range is overlap=0..110; step must never be 0.
+    """
     try:
-        raw_value = float((cycle_cfg or {}).get("inverseOverlapping", default))
-        return raw_value
+        return float(
+            get_inverse_overlap_step(
+                cycle_cfg or {},
+                key="inverseOverlapping",
+                tool_diameter_mm=146.0,
+                max_overlap_mm=110.0,
+                min_step_mm=1.0,
+            )
+        )
     except Exception:
-        return float(default)
+        return max(1.0, float(default))
 
 
 def _with_lift(point, lift_mm):
@@ -198,6 +209,7 @@ def generate_zigzag_path(
         x_max = max(modified_Point1[0], modified_Point2[0], modified_Point3[0], modified_Point4[0])
         y_min = min(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
         y_max = max(modified_Point1[1], modified_Point2[1], modified_Point3[1], modified_Point4[1])
+        step_mm = max(1.0, float(innerSandingOffset))
 
         orientation_mode = str(orientation or "vertical").strip().lower()
         if orientation_mode not in {"vertical", "horizontal"}:
@@ -245,7 +257,7 @@ def generate_zigzag_path(
         if orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
             if yinner > 0:
-                num_steps = math.floor(yinner / innerSandingOffset)
+                num_steps = math.floor(yinner / step_mm)
                 if num_steps == 0:
                     num_steps = 1
                 adjusted_step = yinner / num_steps
@@ -277,7 +289,7 @@ def generate_zigzag_path(
             # This keeps the expected bottom->top, top->bottom behavior per column.
             xinner = abs(x_max - x_min)
             if xinner > 0:
-                num_steps = math.ceil(xinner / innerSandingOffset)
+                num_steps = math.ceil(xinner / step_mm)
                 if num_steps == 0:
                     num_steps = 1
                 adjusted_step = xinner / num_steps
