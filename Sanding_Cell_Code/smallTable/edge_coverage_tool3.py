@@ -165,12 +165,12 @@ def build_edge_coverage_path(
     orientation_mode = (orientation or "horizontal").lower()
 
     edge_point1 = [
-        x_coords[0] + tool3x + edge_margin + 3,
+        x_coords[0] + tool3x + edge_margin + 4,
         y_coords[0] + tool3y + edge_margin,
         z_level,
     ]
     edge_point2 = [
-        x_coords[1] + tool3x + edge_margin + 3, 
+        x_coords[1] + tool3x + edge_margin + 4, 
         y_coords[1] - tool3y - edge_margin,
         z_level,
     ]
