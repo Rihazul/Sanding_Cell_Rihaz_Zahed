@@ -2299,12 +2299,12 @@ def handle_action():
                     # - tableBOpenClose -> physical Table A
                     # - tableAOpenClose -> physical Table B
                     # Enforce scan posture:
-                    # - Table A DOWN (45°)         => "Close"
+                    # - Table A 45° (down)         => "Close"
                     # - Table B HORIZONTAL         => "Open"
                     active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
                     parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
                     config["logger"].info(
-                        "[scan][INTERLOCK_V2] runtime=%s active(tableA->down)=%s parked(tableB->horizontal)=%s",
+                        "[scan][INTERLOCK_V2] runtime=%s active(tableA->45deg)=%s parked(tableB->horizontal)=%s",
                         os.path.abspath(__file__),
                         active_table_result,
                         parked_table_result,
@@ -2313,7 +2313,7 @@ def handle_action():
                         'flash_message',
                         {
                             "message": (
-                                "Scan interlock V2: Table A -> down(45°), "
+                                "Scan interlock V2: Table A -> 45deg, "
                                 f"Table B -> horizontal | A={active_table_result.get('success')} "
                                 f"B={parked_table_result.get('success')}"
                             )
@@ -2321,7 +2321,7 @@ def handle_action():
                     )
                     if not active_table_result.get("success", False):
                         raise RuntimeError(
-                            f"[INTERLOCK_V2] Scan aborted: Table A down position was not confirmed. "
+                            f"[INTERLOCK_V2] Scan aborted: Table A 45 degree position was not confirmed. "
                             f"Details: {active_table_result.get('message', 'unknown')}"
                         )
                     if not parked_table_result.get("success", False):
@@ -2330,11 +2330,11 @@ def handle_action():
                             {
                                 "message": (
                                     "Scan warning: Table B horizontal position was not confirmed by sensors. "
-                                    "Continuing because Table A down position is confirmed."
+                                    "Continuing because Table A 45 degree position is confirmed."
                                 )
                             },
                         )
-                    socketio.emit('flash_message', {"message": "Operation table mode: Table A Down (45°), Table B Horizontal"})
+                    socketio.emit('flash_message', {"message": "Operation table mode: Table A 45°, Table B Horizontal"})
                     scanTableA(cps=cps, config=runtime_scan_config)
                 finally:
                     laser(cps, "off", config=config)

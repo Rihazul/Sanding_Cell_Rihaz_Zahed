@@ -3758,12 +3758,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # - tableBOpenClose -> physical Table A
         # - tableAOpenClose -> physical Table B
         # Required scan posture:
-        # - physical Table A DOWN (45°)   => tableBOpenClose "Close"
-        # - physical Table B HORIZONTAL   => tableAOpenClose "Open"
+        # - physical Table A 45° (down)        => tableBOpenClose "Close"
+        # - physical Table B HORIZONTAL (open) => tableAOpenClose "Open"
         active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
         parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
         config["logger"].info(
-            "[scan][INTERLOCK_V2] runtime=%s active(tableA->down)=%s parked(tableB->horizontal)=%s",
+            "[scan][INTERLOCK_V2] runtime=%s active(tableA->45deg)=%s parked(tableB->horizontal)=%s",
             os.path.abspath(__file__),
             active_table_result,
             parked_table_result,
@@ -3775,7 +3775,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # Non-scanning table close is best-effort; warn but do not block scan.
         if not active_ok:
             msg = (
-                "[INTERLOCK_V2] Scan aborted: Table A down position not confirmed by controller/sensors. "
+                "[INTERLOCK_V2] Scan aborted: Table A 45 degree position not confirmed by controller/sensors. "
                 "Please verify table state and retry."
             )
             config["_scan_last_error"] = msg
@@ -3794,7 +3794,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if not parked_ok:
             warn_msg = (
                 "Scan warning: Table B horizontal position not confirmed by sensors. "
-                "Continuing because Table A down position is confirmed."
+                "Continuing because Table A 45 degree position is confirmed."
             )
             config["logger"].warning(
                 "[scan] %s active_table_result=%s parked_table_result=%s",
