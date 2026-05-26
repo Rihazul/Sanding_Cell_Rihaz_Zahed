@@ -244,32 +244,30 @@ def _get_tool_in_hand(cps):
     di6 = sensors["di6"]
     di7 = sensors["di7"]
 
-    if any(val is None for val in (ci0, ci1, ci2, di4, di5, di6, di7)):
+    # CI bits are the primary and sufficient source for tool decode.
+    # Do not fail decode just because one DI read is temporarily missing.
+    if any(val is None for val in (ci0, ci1, ci2)):
         return None
 
-    # First, decode by CI bits (primary source for attached tool state).
+    # First, decode by CI bits.
     ci_decoded = _decode_tool_from_ci(ci0, ci1, ci2)
-    if ci_decoded in (1, 2, 3, 4):
+    if ci_decoded in (0, 1, 2, 3, 4):
         return ci_decoded
 
-    # No tool in hand.
-    if ci0 == 0 and ci1 == 0 and ci2 == 0:
-        return 0
-
     # Tool 1 attached: CI=011, DI7=0
-    if ci0 == 0 and ci1 == 1 and ci2 == 1 and di7 == 0:
+    if di7 is not None and ci0 == 0 and ci1 == 1 and ci2 == 1 and di7 == 0:
         return 1
 
     # Tool 2 attached: CI=010, DI5=0
-    if ci0 == 0 and ci1 == 1 and ci2 == 0 and di5 == 0:
+    if di5 is not None and ci0 == 0 and ci1 == 1 and ci2 == 0 and di5 == 0:
         return 2
 
     # Tool 3 attached: CI=100, DI6=0
-    if ci0 == 1 and ci1 == 0 and ci2 == 0 and di6 == 0:
+    if di6 is not None and ci0 == 1 and ci1 == 0 and ci2 == 0 and di6 == 0:
         return 3
 
     # Tool 4 attached: CI=001, DI4=0
-    if ci0 == 0 and ci1 == 0 and ci2 == 1 and di4 == 0:
+    if di4 is not None and ci0 == 0 and ci1 == 0 and ci2 == 1 and di4 == 0:
         return 4
 
     # Fallback to CI decode if DI values are inconsistent/lagging.
