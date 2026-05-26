@@ -254,9 +254,8 @@ def _get_tool_in_hand(cps):
     if ci_decoded in (1, 2, 3, 4):
         return ci_decoded
 
-    # DI fallback: if CI is temporarily ambiguous OR transiently reports empty
-    # but DI is clean one-hot-low, infer attached tool.
-    if ci_decoded in (-1, 0) and all(val is not None for val in (di4, di5, di6, di7)):
+    # DI fallback only when CI is ambiguous/invalid (not when CI says empty).
+    if ci_decoded == -1 and all(val is not None for val in (di4, di5, di6, di7)):
         low_bits = [idx for idx, val in enumerate((di4, di5, di6, di7), start=4) if val == 0]
         if len(low_bits) == 1:
             if low_bits[0] == 7:
