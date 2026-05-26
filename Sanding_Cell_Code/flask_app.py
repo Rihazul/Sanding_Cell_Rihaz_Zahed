@@ -2299,12 +2299,46 @@ def handle_action():
                     # - tableBOpenClose -> physical Table A
                     # - tableAOpenClose -> physical Table B
                     # Enforce scan posture:
-                    # - Table A 45° (down)         => tableAOpenClose "Close" (DI-sensor confirmed)
-                    # - Table B HORIZONTAL         => tableBOpenClose "Open"
-                    active_table_result = set_table_state(cps, "tableAOpenClose", "Close")
-                    parked_table_result = set_table_state(cps, "tableBOpenClose", "Open")
+                    # - Table A 45° (down):
+                    #     actuator path is swapped on this cell, so drive via tableBOpenClose -> "Close"
+                    #     then confirm using Table A DI sensors (DI0/DI1 == 0/1).
+                    # - Table B HORIZONTAL:
+                    #     drive via tableAOpenClose -> "Open" (warning only if not confirmed).
+                    active_drive_result = set_table_state(cps, "tableBOpenClose", "Close")
+                    parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+
+                    def _read_table_a_di_pair_local():
+                        di0 = []
+                        di1 = []
+                        n0 = cps.HRIF_ReadBoxDI(0, 0, di0)
+                        n1 = cps.HRIF_ReadBoxDI(0, 1, di1)
+                        if n0 != 0 or n1 != 0 or not di0 or not di1:
+                            return False, (None, None)
+                        return True, (str(di0[0]), str(di1[0]))
+
+                    def _wait_table_a_down_local(timeout_s=6.0, poll_s=0.05):
+                        end_t = time.monotonic() + max(0.2, float(timeout_s))
+                        last = (None, None)
+                        while time.monotonic() < end_t:
+                            if stop_requested():
+                                return False, "stop_requested", last
+                            ok, pair = _read_table_a_di_pair_local()
+                            last = pair
+                            if ok and pair == ("0", "1"):
+                                return True, "confirmed", last
+                            time.sleep(max(0.01, float(poll_s)))
+                        return False, "timeout", last
+
+                    down_confirmed, down_reason, down_sensor = _wait_table_a_down_local()
+                    active_table_result = {
+                        "success": bool(down_confirmed),
+                        "newState": "Close" if down_confirmed else "Error",
+                        "message": f"Table A DI down confirm={down_confirmed} ({down_reason}, sensor={down_sensor})",
+                        "driveResult": active_drive_result,
+                        "sensor": down_sensor,
+                    }
                     config["logger"].info(
-                        "[scan][INTERLOCK_V2] runtime=%s active(tableA(di)->45deg)=%s parked(tableB(co)->horizontal)=%s",
+                        "[scan][INTERLOCK_V2] runtime=%s active(tableA(di)->45deg)=%s parked(tableB)->horizontal=%s",
                         os.path.abspath(__file__),
                         active_table_result,
                         parked_table_result,
