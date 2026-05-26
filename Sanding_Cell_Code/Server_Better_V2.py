@@ -3754,27 +3754,52 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         config["_scan_last_error"] = None
 
         # Scan is executed on small-door Table A.
-        # On this cell, operation-time table IO mapping is swapped, so we use:
-        # tableBOpenClose -> physical Table A, tableAOpenClose -> physical Table B.
-        open_result = set_table_state(cps, "tableBOpenClose", "Open")
-        close_result = set_table_state(cps, "tableAOpenClose", "Close")
-        if not open_result.get("success", False) or not close_result.get("success", False):
+        # On this cell, operation-time table IO mapping is swapped:
+        # - tableBOpenClose -> physical Table A
+        # - tableAOpenClose -> physical Table B
+        # Required scan posture:
+        # - physical Table A DOWN (45°)   => tableBOpenClose "Close"
+        # - physical Table B HORIZONTAL   => tableAOpenClose "Open"
+        active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
+        parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+        active_ok = bool(active_table_result.get("success", False))
+        parked_ok = bool(parked_table_result.get("success", False))
+
+        # Safety-critical gate: scanning table (physical Table A) must be confirmed open/horizontal.
+        # Non-scanning table close is best-effort; warn but do not block scan.
+        if not active_ok:
             msg = (
-                "Scan aborted: table position not confirmed by controller/sensors. "
+                "Scan aborted: Table A down position not confirmed by controller/sensors. "
                 "Please verify table state and retry."
             )
             config["_scan_last_error"] = msg
             config["logger"].error(
-                "[scan] %s open_result=%s close_result=%s",
+                "[scan] %s active_table_result=%s parked_table_result=%s",
                 msg,
-                open_result,
-                close_result,
+                active_table_result,
+                parked_table_result,
             )
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message=msg,
             )
             return ([], [], [], [], [], [], [])
+
+        if not parked_ok:
+            warn_msg = (
+                "Scan warning: Table B horizontal position not confirmed by sensors. "
+                "Continuing because Table A down position is confirmed."
+            )
+            config["logger"].warning(
+                "[scan] %s active_table_result=%s parked_table_result=%s",
+                warn_msg,
+                active_table_result,
+                parked_table_result,
+            )
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message=warn_msg,
+            )
 
         if config["settings"]["actualScan"]:
             connect_j7()

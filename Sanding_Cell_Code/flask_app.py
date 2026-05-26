@@ -2295,11 +2295,30 @@ def handle_action():
                             {"message": f"Scan runtime: using {runtime_count} configured door(s) for Table A."},
                         )
 
-                    # Scan is for small-door Table A; use swapped IO table IDs so
-                    # physical Table A opens and physical Table B closes.
-                    set_table_state(cps, "tableBOpenClose", "Open")
-                    set_table_state(cps, "tableAOpenClose", "Close")
-                    socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
+                    # Scan is for small-door Table A; use swapped IO table IDs:
+                    # - tableBOpenClose -> physical Table A
+                    # - tableAOpenClose -> physical Table B
+                    # Enforce scan posture:
+                    # - Table A DOWN (45°)         => "Close"
+                    # - Table B HORIZONTAL         => "Open"
+                    active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
+                    parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+                    if not active_table_result.get("success", False):
+                        raise RuntimeError(
+                            f"Scan aborted: Table A down position was not confirmed. "
+                            f"Details: {active_table_result.get('message', 'unknown')}"
+                        )
+                    if not parked_table_result.get("success", False):
+                        socketio.emit(
+                            'flash_message',
+                            {
+                                "message": (
+                                    "Scan warning: Table B horizontal position was not confirmed by sensors. "
+                                    "Continuing because Table A down position is confirmed."
+                                )
+                            },
+                        )
+                    socketio.emit('flash_message', {"message": "Operation table mode: Table A Down (45°), Table B Horizontal"})
                     scanTableA(cps=cps, config=runtime_scan_config)
                 finally:
                     laser(cps, "off", config=config)
