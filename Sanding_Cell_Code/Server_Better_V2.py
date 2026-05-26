@@ -270,6 +270,19 @@ def _get_tool_in_hand(cps):
     if di4 is not None and ci0 == 0 and ci1 == 0 and ci2 == 1 and di4 == 0:
         return 4
 
+    # If CI is temporarily ambiguous but DI is clean one-hot-low, infer tool.
+    if ci_decoded == -1 and all(val is not None for val in (di4, di5, di6, di7)):
+        low_bits = [idx for idx, val in enumerate((di4, di5, di6, di7), start=4) if val == 0]
+        if len(low_bits) == 1:
+            if low_bits[0] == 7:
+                return 1
+            if low_bits[0] == 5:
+                return 2
+            if low_bits[0] == 6:
+                return 3
+            if low_bits[0] == 4:
+                return 4
+
     # Fallback to CI decode if DI values are inconsistent/lagging.
     return ci_decoded
 
@@ -284,6 +297,14 @@ def _verify_tool_attached(cps, tool_number, config):
         timeout_s = float(config.get("tool", {}).get("signalWaitTimeoutSeconds"))
     except (TypeError, ValueError):
         timeout_s = None
+    # Tool 2 often has a slower CI stabilization right after lift.
+    if tool_number == 2:
+        try:
+            t2_timeout = float(config.get("tool", {}).get("signalWaitTimeoutTool2Seconds", 4.0))
+            if timeout_s is None or t2_timeout > timeout_s:
+                timeout_s = t2_timeout
+        except (TypeError, ValueError):
+            pass
     try:
         poll_s = float(config.get("tool", {}).get("signalPollIntervalSeconds"))
     except (TypeError, ValueError):

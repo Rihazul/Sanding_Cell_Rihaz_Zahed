@@ -1450,7 +1450,8 @@ def tool_toggle2():
                     settle_s = float(config_data_UI.get("tool", {}).get("sensorSettleSeconds", 0.4) or 0.4)
                     if settle_s > 0:
                         time.sleep(settle_s)
-                    confirmed_tool = _get_tool_in_hand_stable(cps)
+                    # Tool 2 can take longer for CI/DI to settle after lift.
+                    confirmed_tool = _get_tool_in_hand_stable(cps, attempts=20, delay_s=0.1)
                     if confirmed_tool != tool_num:
                         return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
