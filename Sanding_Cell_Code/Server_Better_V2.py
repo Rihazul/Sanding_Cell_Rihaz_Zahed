@@ -6744,14 +6744,6 @@ def getTool11(
         wait=True,
     )
 
-    # Verify tool is actually attached before reporting pick success.
-    if not _verify_tool_attached(cps, toolNumber, config):
-        return False
-
-    msg_to_frontend(
-        api_url=config["server"]["frontEnd_messaging_url"],
-        message=f"Tool {toolNumber} Collection Successful!",
-    )
     if exitToSafe:
         config["logger"].info(
             "[toolMotion][manualPick] phase=exit_safe profile=robot ratio=%.3f",
@@ -6769,6 +6761,20 @@ def getTool11(
             speed_mode="linear",
             wait=True,
         )
+
+    # Verify attachment after retract path. Tool 2 can report CI transition late
+    # right at tool home; re-check after safe exit before failing.
+    if not _verify_tool_attached(cps, toolNumber, config):
+        settle_s = float(config.get("tool", {}).get("sensorSettleSeconds", 0.4) or 0.4)
+        if settle_s > 0:
+            time.sleep(settle_s)
+        if not _verify_tool_attached(cps, toolNumber, config):
+            return False
+
+    msg_to_frontend(
+        api_url=config["server"]["frontEnd_messaging_url"],
+        message=f"Tool {toolNumber} Collection Successful!",
+    )
     return True
 
 
