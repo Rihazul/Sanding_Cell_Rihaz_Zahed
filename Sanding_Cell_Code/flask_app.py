@@ -2299,12 +2299,12 @@ def handle_action():
                     # - tableBOpenClose -> physical Table A
                     # - tableAOpenClose -> physical Table B
                     # Enforce scan posture:
-                    # - Table A 45° (down)         => "Close"
-                    # - Table B HORIZONTAL         => "Open"
-                    active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
-                    parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+                    # - Table A 45° (down)         => tableAOpenClose "Close" (DI-sensor confirmed)
+                    # - Table B HORIZONTAL         => tableBOpenClose "Open"
+                    active_table_result = set_table_state(cps, "tableAOpenClose", "Close")
+                    parked_table_result = set_table_state(cps, "tableBOpenClose", "Open")
                     config["logger"].info(
-                        "[scan][INTERLOCK_V2] runtime=%s active(tableA->45deg)=%s parked(tableB->horizontal)=%s",
+                        "[scan][INTERLOCK_V2] runtime=%s active(tableA(di)->45deg)=%s parked(tableB(co)->horizontal)=%s",
                         os.path.abspath(__file__),
                         active_table_result,
                         parked_table_result,
