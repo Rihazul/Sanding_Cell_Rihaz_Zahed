@@ -134,6 +134,11 @@ def scanTableA(cps=None, config=None):
     if scan_failed:
         if stop_requested():
             raise InterruptedError("Scan cancelled by stop request.")
+        detailed_reason = ""
+        if isinstance(config, dict):
+            detailed_reason = str(config.get("_scan_last_error") or "").strip()
+        if detailed_reason:
+            raise RuntimeError(detailed_reason)
         raise RuntimeError(
             "Scan did not collect any door data. Check J7 readiness and scan path, then retry."
         )

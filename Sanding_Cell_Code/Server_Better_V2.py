@@ -3752,6 +3752,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Table Scanning Started...",
         )
+        config["_scan_last_error"] = None
 
         # Scan is executed on small-door Table A.
         # On this cell, operation-time table IO mapping is swapped, so we use:
@@ -3763,6 +3764,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 "Scan aborted: table position not confirmed by controller/sensors. "
                 "Please verify table state and retry."
             )
+            config["_scan_last_error"] = msg
             config["logger"].error(
                 "[scan] %s open_result=%s close_result=%s",
                 msg,
@@ -3809,6 +3811,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         api_url=config["server"]["frontEnd_messaging_url"],
                         message="Scan safety check failed: J7 did not stop. Please verify J7 and try again.",
                     )
+                    config["_scan_last_error"] = "Scan safety check failed: J7 did not stop."
                     exit(-1)
 
             if apply_j7_offset and j7_zero_offset:
@@ -3846,6 +3849,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         api_url=config["server"]["frontEnd_messaging_url"],
                         message="Scan aborted: failed to move J7 to starting position.",
                     )
+                    config["_scan_last_error"] = "Scan aborted: failed to move J7 to starting position."
                     return ([], [], [], [], [], [], [])
 
             for tblCnt, roboPos in enumerate(robo7thPos):
@@ -3904,6 +3908,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                             api_url=config["server"]["frontEnd_messaging_url"],
                             message=f"Scan aborted: failed to move J7 to table section {tblCnt + 1}.",
                         )
+                        config["_scan_last_error"] = (
+                            f"Scan aborted: failed to move J7 to table section {tblCnt + 1}."
+                        )
                         return ([], [], [], [], [], [], [])
                     communicate(
                         cps=cps,
@@ -3919,6 +3926,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         msg_to_frontend(
                             api_url=config["server"]["frontEnd_messaging_url"],
                             message=f"Scan aborted: J7 timeout while moving to section {tblCnt + 1}.",
+                        )
+                        config["_scan_last_error"] = (
+                            f"Scan aborted: J7 timeout while moving to section {tblCnt + 1}."
                         )
                         return ([], [], [], [], [], [], [])
                 else:
@@ -3936,6 +3946,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         msg_to_frontend(
                             api_url=config["server"]["frontEnd_messaging_url"],
                             message=f"Scan aborted: failed to move J7 to table section {tblCnt + 1}.",
+                        )
+                        config["_scan_last_error"] = (
+                            f"Scan aborted: failed to move J7 to table section {tblCnt + 1}."
                         )
                         return ([], [], [], [], [], [], [])
                     communicate(
@@ -4003,6 +4016,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Scan aborted: no valid horizontal scan groups found.",
             )
+            config["_scan_last_error"] = "Scan aborted: no valid horizontal scan groups found."
             return ([], [], [], [], [], [], [])
 
         expected_doors = int(config["table"]["count"])
