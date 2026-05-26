@@ -154,13 +154,13 @@ tool:
 
   # Tool change motion speeds
   manualPickFastSpeed: 1.0
-  manualPickSlowSpeed: 0.3
+  manualPickSlowSpeed: 0.18
   manualDropFastSpeed: 1.0
-  manualDropSlowSpeed: 0.3
+  manualDropSlowSpeed: 0.18
   autoPickFastSpeed: 1.0
-  autoPickSlowSpeed: 0.3
+  autoPickSlowSpeed: 0.18
   autoDropFastSpeed: 1.0
-  autoDropSlowSpeed: 0.3
+  autoDropSlowSpeed: 0.18
   toolValvePreDelaySec: 0.15
   toolValvePostDelaySec: 0.15
   sensorSettleSeconds: 0.4

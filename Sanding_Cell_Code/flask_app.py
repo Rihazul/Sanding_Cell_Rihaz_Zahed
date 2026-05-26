@@ -1393,45 +1393,35 @@ def tool_toggle2():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    def check_conditions(condition_list):
-        """Helper to check CPS conditions."""
-        for func, box_id, nBit, expected in condition_list:
-            print(func, box_id, nBit, expected)
-            result = []
-            nRet = func(box_id, nBit, result)
-            print('output t2', nRet, result)
-            if nRet != 0 or result[0] != str(expected):
-                return False
-        return True
-
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            # Validate Pick Conditions
-            pick_conditions = [
-                (cps.HRIF_ReadBoxCI, 0, 0, 0),
-                (cps.HRIF_ReadBoxCI, 0, 1, 0),
-                (cps.HRIF_ReadBoxCI, 0, 2, 0),
-                (cps.HRIF_ReadBoxDI, 0, 5, 1)
-            ]
-            if check_conditions(pick_conditions):
-                # Pick the tool
+            detected_tool = _get_tool_in_hand(cps)
+            can_pick = detected_tool in (0, -1, None)
+            if can_pick:
                 try:
                     success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 except RuntimeError as exc:
                     socketio.emit('flash_message', {"message": f"Tool {tool_num} pick failed: {exc}"})
                     return jsonify({"error": str(exc)}), 409
                 if not success:
-                    return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
+                    # One extra settle-check handles slow CI/DI transitions after valve close.
+                    settle_s = float(config_data_UI.get("tool", {}).get("sensorSettleSeconds", 0.4) or 0.4)
+                    if settle_s > 0:
+                        time.sleep(settle_s)
+                    confirmed_tool = _get_tool_in_hand(cps)
+                    if confirmed_tool != tool_num:
+                        return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
-                # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             else:
-                socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
-                # cps.HRIF_DisConnect(0)
+                socketio.emit(
+                    'flash_message',
+                    {"message": f"Already holding Tool {detected_tool}. Can't pick Tool {tool_num}"}
+                )
                 return jsonify({"error": "Pick conditions not met"}), 400
 
     elif action == "keep":
@@ -1439,26 +1429,46 @@ def tool_toggle2():
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            # Validate Drop Conditions
-            drop_conditions = [
-                (cps.HRIF_ReadBoxCI, 0, 0, 0),
-                (cps.HRIF_ReadBoxCI, 0, 1, 1),
-                (cps.HRIF_ReadBoxCI, 0, 2, 0),
-                (cps.HRIF_ReadBoxDI, 0, 5, 0)
-            ]
-            if check_conditions(drop_conditions):
-                # Keep the tool
+            force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
+            detected_tool = _get_tool_in_hand(cps)
+            if detected_tool == tool_num:
                 try:
                     keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 except RuntimeError as exc:
                     socketio.emit('flash_message', {"message": f"Tool {tool_num} drop failed: {exc}"})
                     return jsonify({"error": str(exc)}), 409
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
-                # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
             else:
-                socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
-                # cps.HRIF_DisConnect(0)
+                # Recovery path for uncertain decode after abrupt stop/restart.
+                if force_keep and detected_tool in (-1, None):
+                    try:
+                        keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                    except RuntimeError as exc:
+                        socketio.emit('flash_message', {"message": f"Tool {tool_num} forced drop failed: {exc}"})
+                        return jsonify({"error": str(exc)}), 409
+                    socketio.emit('flash_message', {"message": f"Kept Tool {tool_num} via forced recovery path"})
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "message": f"Tool {tool_num} kept via forced recovery path",
+                        }
+                    )
+
+                sensors = _read_tool_sensors(cps)
+                sensor_msg = (
+                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
+                )
+                socketio.emit(
+                    'flash_message',
+                    {
+                        "message": (
+                            f"Not holding Tool {tool_num} to drop "
+                            f"(detected={detected_tool}). {sensor_msg}"
+                        )
+                    },
+                )
                 return jsonify({"error": "Drop conditions not met"}), 400
     else:
         return jsonify({"error": "Invalid action. Must be 'pick' or 'keep'."}), 400
@@ -1492,45 +1502,34 @@ def tool_toggle1():
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
     
-    def check_conditions(condition_list):
-        """Helper to check CPS conditions."""
-        print(condition_list)
-        for func, box_id, nBit, expected in condition_list:
-            result = []
-            nRet = func(box_id, nBit, result)
-            print('output tool_toggle1', nRet, result)
-            if nRet != 0 or result[0] != str(expected):
-                return False
-        return True
-
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
         with locked_cps() as ok:
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            # Validate Pick Conditions
-            pick_conditions = [
-                (cps.HRIF_ReadBoxCI, 0, 0, 0),
-                (cps.HRIF_ReadBoxCI, 0, 1, 0),
-                (cps.HRIF_ReadBoxCI, 0, 2, 0),
-                (cps.HRIF_ReadBoxDI, 0, 7, 1),
-            ]
-            if check_conditions(pick_conditions):
-                # Pick the tool
+            detected_tool = _get_tool_in_hand(cps)
+            can_pick = detected_tool in (0, -1, None)
+            if can_pick:
                 try:
                     success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 except RuntimeError as exc:
                     socketio.emit('flash_message', {"message": f"Tool {tool_num} pick failed: {exc}"})
                     return jsonify({"error": str(exc)}), 409
                 if not success:
-                    return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
+                    settle_s = float(config_data_UI.get("tool", {}).get("sensorSettleSeconds", 0.4) or 0.4)
+                    if settle_s > 0:
+                        time.sleep(settle_s)
+                    confirmed_tool = _get_tool_in_hand(cps)
+                    if confirmed_tool != tool_num:
+                        return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
-                # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             else:
-                socketio.emit('flash_message', {"message": f"Already holding a tool. Can't pick Tool {tool_num}"})
-                # cps.HRIF_DisConnect(0)
+                socketio.emit(
+                    'flash_message',
+                    {"message": f"Already holding Tool {detected_tool}. Can't pick Tool {tool_num}"}
+                )
                 return jsonify({"error": "Pick conditions not met"}), 400
 
     elif action == "keep":
@@ -1538,26 +1537,45 @@ def tool_toggle1():
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            # Validate Drop Conditions
-            drop_conditions = [
-                (cps.HRIF_ReadBoxCI, 0, 0, 0),
-                (cps.HRIF_ReadBoxCI, 0, 1, 1),
-                (cps.HRIF_ReadBoxCI, 0, 2, 1),
-                (cps.HRIF_ReadBoxDI, 0, 7, 0)
-            ]
-            if check_conditions(drop_conditions):
-                # Keep the tool
+            force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
+            detected_tool = _get_tool_in_hand(cps)
+            if detected_tool == tool_num:
                 try:
                     keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 except RuntimeError as exc:
                     socketio.emit('flash_message', {"message": f"Tool {tool_num} drop failed: {exc}"})
                     return jsonify({"error": str(exc)}), 409
                 socketio.emit('flash_message', {"message": f"Kept Tool {tool_num}"})
-                # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} kept successfully"})
             else:
-                socketio.emit('flash_message', {"message": f"Not holding Tool {tool_num} to drop"})
-                # cps.HRIF_DisConnect(0)
+                if force_keep and detected_tool in (-1, None):
+                    try:
+                        keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
+                    except RuntimeError as exc:
+                        socketio.emit('flash_message', {"message": f"Tool {tool_num} forced drop failed: {exc}"})
+                        return jsonify({"error": str(exc)}), 409
+                    socketio.emit('flash_message', {"message": f"Kept Tool {tool_num} via forced recovery path"})
+                    return jsonify(
+                        {
+                            "status": "success",
+                            "message": f"Tool {tool_num} kept via forced recovery path",
+                        }
+                    )
+
+                sensors = _read_tool_sensors(cps)
+                sensor_msg = (
+                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
+                )
+                socketio.emit(
+                    'flash_message',
+                    {
+                        "message": (
+                            f"Not holding Tool {tool_num} to drop "
+                            f"(detected={detected_tool}). {sensor_msg}"
+                        )
+                    },
+                )
                 return jsonify({"error": "Drop conditions not met"}), 400
     else:
         return jsonify({"error": "Invalid action. Must be 'pick' or 'keep'."}), 400
