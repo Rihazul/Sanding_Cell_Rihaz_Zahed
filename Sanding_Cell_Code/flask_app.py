@@ -1906,10 +1906,15 @@ def _compute_homing_requirement():
     reason = "not_homed"
     if not required:
         j7_state = _probe_j7_state()
-        if j7_state in (None, "-1"):
+        # Do not clear homing on transient read failures (None), otherwise
+        # users can get re-blocked right after a valid homing.
+        if j7_state == "-1":
             _set_j7_home_confirmed(False)
             required = True
             reason = "j7_state_unknown"
+        elif j7_state is None:
+            required = False
+            reason = "j7_probe_unavailable_keep_homed"
         else:
             reason = "ok"
     return required, reason

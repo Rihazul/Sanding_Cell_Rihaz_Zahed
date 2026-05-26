@@ -2920,8 +2920,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             return False
         # pick the tool
         toolValve(cps, valveState="pick", config=config)
-        if not _verify_tool_attached(cps, toolNumber, config):
-            return False
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -2941,6 +2939,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed_mode="linear",
             wait=True,
         )
+        # Verify after retract; CI/DI transitions can lag while still at touch depth.
+        if not _verify_tool_attached(cps, toolNumber, config):
+            return False
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -6731,9 +6732,6 @@ def getTool11(
         raise RuntimeError("Blending timeout/error before tool pick.")
     toolValve1(cps, valveState="pick", config=config)
 
-    if not _verify_tool_attached(cps, toolNumber, config):
-        return False
-
     config["logger"].info(
         "[toolMotion][manualPick] phase=retract_home profile=sanding ratio=%.3f",
         float(pick_slow),
@@ -6899,6 +6897,10 @@ def keepTool11(
         speed_mode="linear",
         wait=True,
     )
+
+    # Verify after retract; CI/DI transitions can lag while still at touch depth.
+    if not _verify_tool_attached(cps, toolNumber, config):
+        return False
 
     if not _verify_tool_released(
         cps=cps, config=config, expected_tool_number=toolNumber
