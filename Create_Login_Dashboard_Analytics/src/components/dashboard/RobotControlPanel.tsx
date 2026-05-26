@@ -140,7 +140,7 @@ export function RobotControlPanel({
             <ToggleButton label="Stopper A" isActive={stopperAUp} onToggle={async () => { 
               try {
                 if (tableAOpen) {
-                  addActivity('Close Table A before activating Stopper A.', 'warning');
+                  addActivity('Set Table A to Horizontal before activating Stopper A.', 'warning');
                   return;
                 }
                 await performAction(!stopperAUp ? 'stopperUp' : 'stopperDown');
@@ -153,7 +153,7 @@ export function RobotControlPanel({
             <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={async () => { 
               try {
                 if (tableBOpen) {
-                  addActivity('Close Table B before activating Stopper B.', 'warning');
+                  addActivity('Set Table B to Horizontal before activating Stopper B.', 'warning');
                   return;
                 }
                 await performAction(!stopperBUp ? 'stopperUpB' : 'stopperDownB');
@@ -173,7 +173,7 @@ export function RobotControlPanel({
                 label="Table A"
                 isActive={tableAOpen}
                 isPending={!!tableAPending}
-                pendingLabel={tableAPending === 'opening' ? 'OPENING' : 'CLOSING'}
+                pendingLabel={tableAPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableAOpen;
@@ -184,14 +184,14 @@ export function RobotControlPanel({
                     addActivity(response?.error || 'Table A action blocked. Please try again.', 'warning');
                     return;
                   }
-                  addActivity(`Table A ${willOpen ? 'OPENING' : 'CLOSING'}`, willOpen ? 'info' : 'warning'); 
+                  addActivity(`Table A moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning'); 
                 } catch (error) {
                   setTableAPending(null);
                   addActivity(`Table A action failed: ${error}`, 'error');
                 }
               }}
-                activeLabel="OPEN"
-                inactiveLabel="CLOSED"
+                activeLabel="45°"
+                inactiveLabel="HORIZONTAL"
                 disabled={isOperating || !robotEnabled}
               />
             </div>
@@ -200,7 +200,7 @@ export function RobotControlPanel({
                 label="Table B"
                 isActive={tableBOpen}
                 isPending={!!tableBPending}
-                pendingLabel={tableBPending === 'opening' ? 'OPENING' : 'CLOSING'}
+                pendingLabel={tableBPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableBOpen;
@@ -211,14 +211,14 @@ export function RobotControlPanel({
                     addActivity(response?.error || 'Table B action blocked. Please try again.', 'warning');
                     return;
                   }
-                  addActivity(`Table B ${willOpen ? 'OPENING' : 'CLOSING'}`, willOpen ? 'info' : 'warning'); 
+                  addActivity(`Table B moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning'); 
                 } catch (error) {
                   setTableBPending(null);
                   addActivity(`Table B action failed: ${error}`, 'error');
                 }
               }}
-                activeLabel="OPEN"
-                inactiveLabel="CLOSED"
+                activeLabel="45°"
+                inactiveLabel="HORIZONTAL"
                 disabled={isOperating || !robotEnabled}
               />
             </div>
@@ -239,12 +239,20 @@ export function RobotControlPanel({
                     return;
                   }
                 }
-                setT1Pending({ state: willPick ? 'picking' : 'dropping', since: Date.now() });
+                const pendingSince = Date.now();
+                const pendingState = willPick ? 'picking' : 'dropping';
+                setT1Pending({ state: pendingState, since: pendingSince });
                 await toolToggle(1, !t1Picked ? 'pick' : 'keep');
                 setT1Picked(!t1Picked); 
                 addActivity(`Tool 1 ${!t1Picked ? 'picked up' : 'dropped'}`, 'success'); 
                 const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(() => setT1Pending(prev => (prev ? null : prev)), fallbackMs);
+                window.setTimeout(
+                  () =>
+                    setT1Pending(prev =>
+                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
+                    ),
+                  fallbackMs
+                );
               } catch (error) {
                 setT1Pending(null);
                 addActivity(`Tool 1 action failed: ${error}`, 'error');
@@ -260,12 +268,20 @@ export function RobotControlPanel({
                     return;
                   }
                 }
-                setT2Pending({ state: willPick ? 'picking' : 'dropping', since: Date.now() });
+                const pendingSince = Date.now();
+                const pendingState = willPick ? 'picking' : 'dropping';
+                setT2Pending({ state: pendingState, since: pendingSince });
                 await toolToggle(2, !t2Picked ? 'pick' : 'keep');
                 setT2Picked(!t2Picked); 
                 addActivity(`Tool 2 ${!t2Picked ? 'picked up' : 'dropped'}`, 'success'); 
                 const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(() => setT2Pending(prev => (prev ? null : prev)), fallbackMs);
+                window.setTimeout(
+                  () =>
+                    setT2Pending(prev =>
+                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
+                    ),
+                  fallbackMs
+                );
               } catch (error) {
                 setT2Pending(null);
                 addActivity(`Tool 2 action failed: ${error}`, 'error');
@@ -281,12 +297,20 @@ export function RobotControlPanel({
                     return;
                   }
                 }
-                setT3Pending({ state: willPick ? 'picking' : 'dropping', since: Date.now() });
+                const pendingSince = Date.now();
+                const pendingState = willPick ? 'picking' : 'dropping';
+                setT3Pending({ state: pendingState, since: pendingSince });
                 await toolToggle(3, !t3Picked ? 'pick' : 'keep');
                 setT3Picked(!t3Picked); 
                 addActivity(`Tool 3 ${!t3Picked ? 'picked up' : 'dropped'}`, 'success'); 
                 const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(() => setT3Pending(prev => (prev ? null : prev)), fallbackMs);
+                window.setTimeout(
+                  () =>
+                    setT3Pending(prev =>
+                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
+                    ),
+                  fallbackMs
+                );
               } catch (error) {
                 setT3Pending(null);
                 addActivity(`Tool 3 action failed: ${error}`, 'error');
@@ -302,12 +326,20 @@ export function RobotControlPanel({
                     return;
                   }
                 }
-                setT4Pending({ state: willPick ? 'picking' : 'dropping', since: Date.now() });
+                const pendingSince = Date.now();
+                const pendingState = willPick ? 'picking' : 'dropping';
+                setT4Pending({ state: pendingState, since: pendingSince });
                 await toolToggle(4, !t4Picked ? 'pick' : 'keep');
                 setT4Picked(!t4Picked); 
                 addActivity(`Tool 4 ${!t4Picked ? 'picked up' : 'dropped'}`, 'success'); 
                 const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(() => setT4Pending(prev => (prev ? null : prev)), fallbackMs);
+                window.setTimeout(
+                  () =>
+                    setT4Pending(prev =>
+                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
+                    ),
+                  fallbackMs
+                );
               } catch (error) {
                 setT4Pending(null);
                 addActivity(`Tool 4 action failed: ${error}`, 'error');
