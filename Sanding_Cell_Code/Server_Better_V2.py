@@ -2939,9 +2939,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed_mode="linear",
             wait=True,
         )
-        # Verify after retract; CI/DI transitions can lag while still at touch depth.
-        if not _verify_tool_attached(cps, toolNumber, config):
-            return False
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -6749,6 +6746,10 @@ def getTool11(
         wait=True,
     )
 
+    # Verify tool is actually attached before reporting pick success.
+    if not _verify_tool_attached(cps, toolNumber, config):
+        return False
+
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Collection Successful!",
@@ -6898,10 +6899,9 @@ def keepTool11(
         wait=True,
     )
 
-    # Verify after retract; CI/DI transitions can lag while still at touch depth.
-    if not _verify_tool_attached(cps, toolNumber, config):
-        return False
-
+    # After drop, tool must not remain attached.
+    if _verify_tool_attached(cps, toolNumber, config):
+        raise RuntimeError("Tool still detected after drop command.")
     if not _verify_tool_released(
         cps=cps, config=config, expected_tool_number=toolNumber
     ):
@@ -7579,4 +7579,5 @@ if __name__ == "__main__":
         config = yaml.safe_load(file)
 
     handle_client(config)
+
 

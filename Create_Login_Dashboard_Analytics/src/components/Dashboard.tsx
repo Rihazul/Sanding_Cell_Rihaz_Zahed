@@ -158,48 +158,60 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
       }
 
       if (tool1Result.status === 'fulfilled') {
-        const picked = !!tool1Result.value?.shouldBlink;
-        setT1Picked(picked);
-        setT1Pending(prev => {
-          if (!prev) return prev;
-          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
-          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
-          if (done && Date.now() - prev.since >= minMs) return null;
-          return prev;
-        });
+        const status = tool1Result.value?.status;
+        if (status === 'OK') {
+          const picked = !!tool1Result.value?.shouldBlink;
+          setT1Picked(picked);
+          setT1Pending(prev => {
+            if (!prev) return prev;
+            const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+            const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+            if (done && Date.now() - prev.since >= minMs) return null;
+            return prev;
+          });
+        }
       }
       if (tool2Result.status === 'fulfilled') {
-        const picked = !!tool2Result.value?.shouldBlink;
-        setT2Picked(picked);
-        setT2Pending(prev => {
-          if (!prev) return prev;
-          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
-          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
-          if (done && Date.now() - prev.since >= minMs) return null;
-          return prev;
-        });
+        const status = tool2Result.value?.status;
+        if (status === 'OK') {
+          const picked = !!tool2Result.value?.shouldBlink;
+          setT2Picked(picked);
+          setT2Pending(prev => {
+            if (!prev) return prev;
+            const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+            const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+            if (done && Date.now() - prev.since >= minMs) return null;
+            return prev;
+          });
+        }
       }
       if (tool3Result.status === 'fulfilled') {
-        const picked = !!tool3Result.value?.shouldBlink;
-        setT3Picked(picked);
-        setT3Pending(prev => {
-          if (!prev) return prev;
-          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
-          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
-          if (done && Date.now() - prev.since >= minMs) return null;
-          return prev;
-        });
+        const status = tool3Result.value?.status;
+        if (status === 'OK') {
+          const picked = !!tool3Result.value?.shouldBlink;
+          setT3Picked(picked);
+          setT3Pending(prev => {
+            if (!prev) return prev;
+            const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+            const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+            if (done && Date.now() - prev.since >= minMs) return null;
+            return prev;
+          });
+        }
       }
       if (tool4Result.status === 'fulfilled') {
-        const picked = !!tool4Result.value?.shouldBlink;
-        setT4Picked(picked);
-        setT4Pending(prev => {
-          if (!prev) return prev;
-          const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
-          const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
-          if (done && Date.now() - prev.since >= minMs) return null;
-          return prev;
-        });
+        const status = tool4Result.value?.status;
+        if (status === 'OK') {
+          const picked = !!tool4Result.value?.shouldBlink;
+          setT4Picked(picked);
+          setT4Pending(prev => {
+            if (!prev) return prev;
+            const done = (prev.state === 'picking' && picked) || (prev.state === 'dropping' && !picked);
+            const minMs = prev.state === 'dropping' ? TOOL_PENDING_MIN_DROP_MS : TOOL_PENDING_MIN_PICK_MS;
+            if (done && Date.now() - prev.since >= minMs) return null;
+            return prev;
+          });
+        }
       }
     };
 
