@@ -1853,23 +1853,19 @@ def robot_status():
 # Process status (homing / sanding / scan child process)
 @app.route('/process_status', methods=['GET'])
 def process_status():
-    return jsonify({'status': process_state.get('status', 'completed')})
+    required, reason = _compute_homing_requirement()
+    return jsonify(
+        {
+            'status': process_state.get('status', 'completed'),
+            'homingRequired': required,
+            'homingReason': reason,
+        }
+    )
 
 
 @app.route('/homing_status', methods=['GET'])
 def homing_status():
-    # True means user must run homing before operation.
-    # Persisted homing is accepted only if J7 still reports a valid state.
-    required = not bool(j7_home_confirmed)
-    reason = "not_homed"
-    if not required:
-        j7_state = _probe_j7_state()
-        if j7_state in (None, "-1"):
-            _set_j7_home_confirmed(False)
-            required = True
-            reason = "j7_state_unknown"
-        else:
-            reason = "ok"
+    required, reason = _compute_homing_requirement()
     return jsonify({'required': required, 'reason': reason})
 
 
@@ -1882,6 +1878,23 @@ def load_config():
     with open('./configs/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     return config
+
+
+def _compute_homing_requirement():
+    """
+    Return (required: bool, reason: str) for whether homing must be run now.
+    """
+    required = not bool(j7_home_confirmed)
+    reason = "not_homed"
+    if not required:
+        j7_state = _probe_j7_state()
+        if j7_state in (None, "-1"):
+            _set_j7_home_confirmed(False)
+            required = True
+            reason = "j7_state_unknown"
+        else:
+            reason = "ok"
+    return required, reason
 
 ############################################################################################
 # Receives all the button actions and send to the respective functions or trigger the functions in the SDK.
@@ -2074,6 +2087,18 @@ def handle_action():
     #     return start_process(config_data_UI)
     
     elif action == "scan":
+        required, reason = _compute_homing_requirement()
+        if required:
+            msg = "Please run Homing before Scan. 7th axis calibration is required after app/server restart."
+            socketio.emit('flash_message', {"message": msg})
+            return jsonify(
+                {
+                    'status': 'error',
+                    'code': 'homing_required',
+                    'reason': reason,
+                    'message': msg,
+                }
+            ), 409
         clear_stop()
         if _inline_scan_active.is_set():
             return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409

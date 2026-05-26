@@ -69,6 +69,7 @@ interface CompactTableConfigProps {
     radiusMm: number;
     linearSpeedMmS: number;
   };
+  homingRequired?: boolean;
   doorConfigs?: DoorConfig[];
   setDoorConfigs?: React.Dispatch<React.SetStateAction<DoorConfig[]>>;
 }
@@ -87,6 +88,7 @@ export function CompactTableConfig({
   sandingSpeed,
   inverseOverlapping,
   spiralSettings,
+  homingRequired = false,
   doorConfigs,
   setDoorConfigs,
 }: CompactTableConfigProps) {
@@ -335,6 +337,21 @@ export function CompactTableConfig({
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
     if (isOperating || isScanning) return;
+    if (tableName === 'A' && homingRequired) {
+      const warning = 'Homing is required before scan. Please run Homing to calibrate the 7th axis.';
+      addActivity(`Table ${tableName}: ${warning}`, 'warning');
+      const swal = getSwal();
+      if (swal?.fire) {
+        await swal.fire({
+          title: 'Homing Required',
+          text: warning,
+          icon: 'warning',
+          timer: 2200,
+          showConfirmButton: false,
+        });
+      }
+      return;
+    }
     const confirmed = await confirmScanForTableA();
     if (!confirmed) {
       addActivity(`Table ${tableName}: Scan cancelled by user for safety check`, 'warning');
@@ -1234,10 +1251,10 @@ export function CompactTableConfig({
                 <>
                   <Button 
                     onClick={handleStartScan} 
-                    disabled={isOperating || isScanning}
+                    disabled={isOperating || isScanning || (tableName === 'A' && homingRequired)}
                     className={`scan-button ${isScanning ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-purple-600'} text-white disabled:bg-green-600 disabled:text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed`}
                   >
-                    {isScanning ? 'Scanning...' : 'Scan'}
+                    {isScanning ? 'Scanning...' : (tableName === 'A' && homingRequired ? 'Home First' : 'Scan')}
                   </Button>
                   <Button 
                     onClick={handleStartTask} 
@@ -1266,6 +1283,11 @@ export function CompactTableConfig({
                 </>
               )}
             </div>
+            {tableName === 'A' && homingRequired && (
+              <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Homing required before scan after app/server restart.
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

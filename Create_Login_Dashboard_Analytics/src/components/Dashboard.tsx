@@ -350,6 +350,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                   radiusMm: spiralRadius[0],
                   linearSpeedMmS: spiralLinearSpeed[0],
                 }}
+                homingRequired={homingRequired}
                 doorConfigs={doorConfigs}
                 setDoorConfigs={setDoorConfigs}
               />
@@ -374,6 +375,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                   radiusMm: spiralRadius[0],
                   linearSpeedMmS: spiralLinearSpeed[0],
                 }}
+                homingRequired={homingRequired}
               />
             </SlidingPanel>
             
