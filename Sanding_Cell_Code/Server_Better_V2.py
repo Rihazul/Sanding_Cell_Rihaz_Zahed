@@ -251,27 +251,12 @@ def _get_tool_in_hand(cps):
 
     # First, decode by CI bits.
     ci_decoded = _decode_tool_from_ci(ci0, ci1, ci2)
-    if ci_decoded in (0, 1, 2, 3, 4):
+    if ci_decoded in (1, 2, 3, 4):
         return ci_decoded
 
-    # Tool 1 attached: CI=011, DI7=0
-    if di7 is not None and ci0 == 0 and ci1 == 1 and ci2 == 1 and di7 == 0:
-        return 1
-
-    # Tool 2 attached: CI=010, DI5=0
-    if di5 is not None and ci0 == 0 and ci1 == 1 and ci2 == 0 and di5 == 0:
-        return 2
-
-    # Tool 3 attached: CI=100, DI6=0
-    if di6 is not None and ci0 == 1 and ci1 == 0 and ci2 == 0 and di6 == 0:
-        return 3
-
-    # Tool 4 attached: CI=001, DI4=0
-    if di4 is not None and ci0 == 0 and ci1 == 0 and ci2 == 1 and di4 == 0:
-        return 4
-
-    # If CI is temporarily ambiguous but DI is clean one-hot-low, infer tool.
-    if ci_decoded == -1 and all(val is not None for val in (di4, di5, di6, di7)):
+    # DI fallback: if CI is temporarily ambiguous OR transiently reports empty
+    # but DI is clean one-hot-low, infer attached tool.
+    if ci_decoded in (-1, 0) and all(val is not None for val in (di4, di5, di6, di7)):
         low_bits = [idx for idx, val in enumerate((di4, di5, di6, di7), start=4) if val == 0]
         if len(low_bits) == 1:
             if low_bits[0] == 7:
@@ -282,6 +267,9 @@ def _get_tool_in_hand(cps):
                 return 3
             if low_bits[0] == 4:
                 return 4
+
+    if ci_decoded == 0:
+        return 0
 
     # Fallback to CI decode if DI values are inconsistent/lagging.
     return ci_decoded
