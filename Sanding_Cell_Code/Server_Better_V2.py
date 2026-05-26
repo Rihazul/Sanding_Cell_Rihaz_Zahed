@@ -3762,6 +3762,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # - physical Table B HORIZONTAL   => tableAOpenClose "Open"
         active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
         parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+        config["logger"].info(
+            "[scan][INTERLOCK_V2] runtime=%s active(tableA->down)=%s parked(tableB->horizontal)=%s",
+            os.path.abspath(__file__),
+            active_table_result,
+            parked_table_result,
+        )
         active_ok = bool(active_table_result.get("success", False))
         parked_ok = bool(parked_table_result.get("success", False))
 
@@ -3769,7 +3775,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # Non-scanning table close is best-effort; warn but do not block scan.
         if not active_ok:
             msg = (
-                "Scan aborted: Table A down position not confirmed by controller/sensors. "
+                "[INTERLOCK_V2] Scan aborted: Table A down position not confirmed by controller/sensors. "
                 "Please verify table state and retry."
             )
             config["_scan_last_error"] = msg

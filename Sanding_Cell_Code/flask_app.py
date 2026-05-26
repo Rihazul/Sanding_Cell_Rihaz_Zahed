@@ -2303,9 +2303,25 @@ def handle_action():
                     # - Table B HORIZONTAL         => "Open"
                     active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
                     parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+                    config["logger"].info(
+                        "[scan][INTERLOCK_V2] runtime=%s active(tableA->down)=%s parked(tableB->horizontal)=%s",
+                        os.path.abspath(__file__),
+                        active_table_result,
+                        parked_table_result,
+                    )
+                    socketio.emit(
+                        'flash_message',
+                        {
+                            "message": (
+                                "Scan interlock V2: Table A -> down(45°), "
+                                f"Table B -> horizontal | A={active_table_result.get('success')} "
+                                f"B={parked_table_result.get('success')}"
+                            )
+                        },
+                    )
                     if not active_table_result.get("success", False):
                         raise RuntimeError(
-                            f"Scan aborted: Table A down position was not confirmed. "
+                            f"[INTERLOCK_V2] Scan aborted: Table A down position was not confirmed. "
                             f"Details: {active_table_result.get('message', 'unknown')}"
                         )
                     if not parked_table_result.get("success", False):
