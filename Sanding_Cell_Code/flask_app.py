@@ -1118,6 +1118,30 @@ def _wait_cps_ready_after_stop(config, max_wait_s=STOP_TO_HOMING_PROBE_TIMEOUT_S
     return False
 
 
+def _get_tool_in_hand_stable(cps, attempts=4, delay_s=0.08):
+    """
+    Read tool-in-hand with short retries to reduce transient CI/DI flicker.
+    Returns first stable valid decode in 0..4 when possible; otherwise last read.
+    """
+    last = None
+    stable_hits = 0
+    prev_valid = None
+    for idx in range(max(1, int(attempts))):
+        detected = _get_tool_in_hand(cps)
+        last = detected
+        if detected in (0, 1, 2, 3, 4):
+            if detected == prev_valid:
+                stable_hits += 1
+            else:
+                stable_hits = 1
+                prev_valid = detected
+            if stable_hits >= 2:
+                return detected
+        if idx < attempts - 1:
+            time.sleep(max(0.0, float(delay_s)))
+    return last
+
+
 def _disconnect_global_cps_for_child_start():
     """Atomically disconnect/reset parent CPS before spawning a child worker."""
     with robot_lock:
@@ -1273,9 +1297,8 @@ def tool_toggle():
             cps = CPS
             # Validate pick state by decoded tool-in-hand status so adding Tool 4
             # does not break hard-coded CI/DI expectations.
-            detected_tool = _get_tool_in_hand(cps)
-            can_pick = detected_tool in (0, -1, None)
-            if can_pick:
+            detected_tool = _get_tool_in_hand_stable(cps)
+            if detected_tool == 0:
                 # Pick the tool
                 try:
                     success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
@@ -1289,6 +1312,22 @@ def tool_toggle():
                     tool_override_state[3] = True
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
+            elif detected_tool in (-1, None):
+                sensors = _read_tool_sensors(cps)
+                sensor_msg = (
+                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
+                )
+                socketio.emit(
+                    'flash_message',
+                    {
+                        "message": (
+                            f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
+                            f"{sensor_msg}"
+                        )
+                    },
+                )
+                return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
             else:
                 socketio.emit(
                     'flash_message',
@@ -1315,7 +1354,7 @@ def tool_toggle():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            detected_tool = _get_tool_in_hand(cps)
+            detected_tool = _get_tool_in_hand_stable(cps)
             if detected_tool == tool_num:
                 # Keep the tool
                 try:
@@ -1399,9 +1438,8 @@ def tool_toggle2():
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            detected_tool = _get_tool_in_hand(cps)
-            can_pick = detected_tool in (0, -1, None)
-            if can_pick:
+            detected_tool = _get_tool_in_hand_stable(cps)
+            if detected_tool == 0:
                 try:
                     success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 except RuntimeError as exc:
@@ -1412,11 +1450,27 @@ def tool_toggle2():
                     settle_s = float(config_data_UI.get("tool", {}).get("sensorSettleSeconds", 0.4) or 0.4)
                     if settle_s > 0:
                         time.sleep(settle_s)
-                    confirmed_tool = _get_tool_in_hand(cps)
+                    confirmed_tool = _get_tool_in_hand_stable(cps)
                     if confirmed_tool != tool_num:
                         return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
+            elif detected_tool in (-1, None):
+                sensors = _read_tool_sensors(cps)
+                sensor_msg = (
+                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
+                )
+                socketio.emit(
+                    'flash_message',
+                    {
+                        "message": (
+                            f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
+                            f"{sensor_msg}"
+                        )
+                    },
+                )
+                return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
             else:
                 socketio.emit(
                     'flash_message',
@@ -1430,7 +1484,7 @@ def tool_toggle2():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            detected_tool = _get_tool_in_hand(cps)
+            detected_tool = _get_tool_in_hand_stable(cps)
             if detected_tool == tool_num:
                 try:
                     keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
@@ -1508,9 +1562,8 @@ def tool_toggle1():
             if not ok:
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
-            detected_tool = _get_tool_in_hand(cps)
-            can_pick = detected_tool in (0, -1, None)
-            if can_pick:
+            detected_tool = _get_tool_in_hand_stable(cps)
+            if detected_tool == 0:
                 try:
                     success = getTool11(cps, toolNumber=tool_num, config=config_data_UI)
                 except RuntimeError as exc:
@@ -1520,11 +1573,27 @@ def tool_toggle1():
                     settle_s = float(config_data_UI.get("tool", {}).get("sensorSettleSeconds", 0.4) or 0.4)
                     if settle_s > 0:
                         time.sleep(settle_s)
-                    confirmed_tool = _get_tool_in_hand(cps)
+                    confirmed_tool = _get_tool_in_hand_stable(cps)
                     if confirmed_tool != tool_num:
                         return jsonify({"error": f"Tool {tool_num} not detected after pick"}), 409
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
+            elif detected_tool in (-1, None):
+                sensors = _read_tool_sensors(cps)
+                sensor_msg = (
+                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
+                )
+                socketio.emit(
+                    'flash_message',
+                    {
+                        "message": (
+                            f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
+                            f"{sensor_msg}"
+                        )
+                    },
+                )
+                return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
             else:
                 socketio.emit(
                     'flash_message',
@@ -1538,7 +1607,7 @@ def tool_toggle1():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            detected_tool = _get_tool_in_hand(cps)
+            detected_tool = _get_tool_in_hand_stable(cps)
             if detected_tool == tool_num:
                 try:
                     keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
@@ -1582,7 +1651,7 @@ def tool_toggle1():
 
 ############################################################################################
 def check_tool1_attachment_condition(cps):
-    detected = _get_tool_in_hand(cps)
+    detected = _get_tool_in_hand_stable(cps)
     all_met = detected == 1
     if all_met:
         socketio.emit('blink_circle_button', {'shouldBlink': True})
@@ -1608,7 +1677,7 @@ def check_tool1_status():
 ############################################################################################
 # For Tool 2 Status function
 def check_tool2_attachment_condition(cps):
-    detected = _get_tool_in_hand(cps)
+    detected = _get_tool_in_hand_stable(cps)
     all_met = detected == 2
     if all_met:
         socketio.emit('blink_circle_button2', {'shouldBlink': True})
@@ -1635,7 +1704,7 @@ def check_tool3_attachment_condition(cps):
     if tool_override_state.get(3):
         socketio.emit('blink_circle_button3', {'shouldBlink': True})
         return True
-    detected = _get_tool_in_hand(cps)
+    detected = _get_tool_in_hand_stable(cps)
     all_met = detected == 3
     if all_met:
         socketio.emit('blink_circle_button3', {'shouldBlink': True})
@@ -1659,7 +1728,7 @@ def check_tool3_status():
 
 ############################################################################################
 def check_tool4_attachment_condition(cps):
-    detected = _get_tool_in_hand(cps)
+    detected = _get_tool_in_hand_stable(cps)
     all_met = detected == 4
     if all_met:
         socketio.emit('blink_circle_button4', {'shouldBlink': True})

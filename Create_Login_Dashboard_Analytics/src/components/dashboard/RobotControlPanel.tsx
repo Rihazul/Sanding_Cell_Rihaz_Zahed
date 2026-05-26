@@ -243,6 +243,8 @@ export function RobotControlPanel({
                 await toolToggle(1, !t1Picked ? 'pick' : 'keep');
                 setT1Picked(!t1Picked); 
                 addActivity(`Tool 1 ${!t1Picked ? 'picked up' : 'dropped'}`, 'success'); 
+                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
+                window.setTimeout(() => setT1Pending(prev => (prev ? null : prev)), fallbackMs);
               } catch (error) {
                 setT1Pending(null);
                 addActivity(`Tool 1 action failed: ${error}`, 'error');
@@ -262,6 +264,8 @@ export function RobotControlPanel({
                 await toolToggle(2, !t2Picked ? 'pick' : 'keep');
                 setT2Picked(!t2Picked); 
                 addActivity(`Tool 2 ${!t2Picked ? 'picked up' : 'dropped'}`, 'success'); 
+                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
+                window.setTimeout(() => setT2Pending(prev => (prev ? null : prev)), fallbackMs);
               } catch (error) {
                 setT2Pending(null);
                 addActivity(`Tool 2 action failed: ${error}`, 'error');
@@ -281,6 +285,8 @@ export function RobotControlPanel({
                 await toolToggle(3, !t3Picked ? 'pick' : 'keep');
                 setT3Picked(!t3Picked); 
                 addActivity(`Tool 3 ${!t3Picked ? 'picked up' : 'dropped'}`, 'success'); 
+                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
+                window.setTimeout(() => setT3Pending(prev => (prev ? null : prev)), fallbackMs);
               } catch (error) {
                 setT3Pending(null);
                 addActivity(`Tool 3 action failed: ${error}`, 'error');
