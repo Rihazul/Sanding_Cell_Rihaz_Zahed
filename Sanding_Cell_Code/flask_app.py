@@ -2299,11 +2299,11 @@ def handle_action():
                     # - tableBOpenClose -> physical Table A
                     # - tableAOpenClose -> physical Table B
                     # Old non-blocking scan posture behavior (no sensor interlock gate):
-                    # drive Table A down (45°) and keep Table B closed, then proceed.
+                    # drive only Table A down (45°), leave Table B unchanged, then proceed.
                     active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
-                    parked_table_result = set_table_state(cps, "tableAOpenClose", "Close")
+                    parked_table_result = {"success": True, "newState": "Unchanged", "message": "Table B left unchanged for scan"}
                     config["logger"].info(
-                        "[scan][INTERLOCK_LEGACY] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->45deg_cmd)=%s",
+                        "[scan][INTERLOCK_LEGACY] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->unchanged)=%s",
                         os.path.abspath(__file__),
                         active_table_result,
                         parked_table_result,
@@ -2313,11 +2313,11 @@ def handle_action():
                         {
                             "message": (
                                 "Scan interlock legacy mode: Table A command -> 45deg, "
-                                "Table B command -> 45deg/closed (non-blocking)."
+                                "Table B unchanged (non-blocking)."
                             )
                         },
                     )
-                    socketio.emit('flash_message', {"message": "Operation table mode: Table A 45°, Table B Closed"})
+                    socketio.emit('flash_message', {"message": "Operation table mode: Table A 45°, Table B unchanged"})
                     scanTableA(cps=cps, config=runtime_scan_config)
                 finally:
                     laser(cps, "off", config=config)
