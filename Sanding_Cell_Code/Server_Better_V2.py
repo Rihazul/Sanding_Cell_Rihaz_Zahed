@@ -4187,13 +4187,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 waitForBlending(cps=cps, config=config, timeout_s=scan_blend_timeout_s)
 
-                stop_on_nan_y = bool(
-                    config.get("settings", {}).get("scanStopOnNanY", False)
-                )
-                config["logger"].info(
-                    "[scan-y] stopWhenNan=%s (set settings.scanStopOnNanY=true to re-enable early stop on NaN)",
-                    stop_on_nan_y,
-                )
                 ymeasurements = communicate(
                     cps=cps,
                     point=yEnd,
@@ -4203,7 +4196,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     doMeasure=1,
                     speed=config["UI"]["scanSpeed"],
                     velocity_profile="sandingspeed",
-                    stopWhenNan=stop_on_nan_y,
+                    stopWhenNan=True,
                 )
                 config["logger"].info(
                     "[scan-y] collected %s samples for door %s",

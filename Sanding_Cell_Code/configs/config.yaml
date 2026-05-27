@@ -207,7 +207,7 @@ UI:
   outedgeSandCount: 0 #outsideEdge
   sideSandCount: 0 #sides
   robotSpeed: 0.7
-  scanSpeed: 0.15 # Incresed speed from 0.15 to 0.25 by rafat
+  scanSpeed: 0.19 # Incresed speed from 0.15 to 0.25 by rafat
   sandSpeed: 0.6
   seventhAxisSpeed: 100
   seventhAxisVelocity: 20
