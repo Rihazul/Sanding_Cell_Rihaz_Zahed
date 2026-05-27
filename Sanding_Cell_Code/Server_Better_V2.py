@@ -3758,62 +3758,15 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         # - tableBOpenClose -> physical Table A
         # - tableAOpenClose -> physical Table B
         # Old non-blocking scan posture behavior (no sensor interlock gate):
-        # drive Table A down (45°) and Table B horizontal, then proceed.
+        # drive Table A down (45°) and keep Table B closed, then proceed.
         active_table_result = set_table_state(cps, "tableBOpenClose", "Close")
-        parked_table_result = set_table_state(cps, "tableAOpenClose", "Open")
+        parked_table_result = set_table_state(cps, "tableAOpenClose", "Close")
         config["logger"].info(
-            "[scan][INTERLOCK_LEGACY] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->horizontal_cmd)=%s",
+            "[scan][INTERLOCK_LEGACY] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->45deg_cmd)=%s",
             os.path.abspath(__file__),
             active_table_result,
             parked_table_result,
         )
-
-        # Optional hard gate: wait for Table A down confirmation from DI sensors
-        # before starting any scan motion.
-        scan_require_table_a_down = bool(
-            config.get("settings", {}).get("scanRequireTableADownConfirm", True)
-        )
-        if scan_require_table_a_down:
-            down_timeout_s = max(
-                0.5, float(config.get("settings", {}).get("scanTableDownConfirmTimeoutSec", 8.0))
-            )
-            down_poll_s = max(
-                0.01, float(config.get("settings", {}).get("scanTableDownConfirmPollSec", 0.05))
-            )
-            end_t = time.monotonic() + down_timeout_s
-            last_pair = (None, None)
-            down_confirmed = False
-            while time.monotonic() < end_t:
-                if stop_requested():
-                    break
-                di0 = []
-                di1 = []
-                n0 = cps.HRIF_ReadBoxDI(0, 0, di0)
-                n1 = cps.HRIF_ReadBoxDI(0, 1, di1)
-                if n0 == 0 and n1 == 0 and di0 and di1:
-                    last_pair = (str(di0[0]), str(di1[0]))
-                    if last_pair == ("0", "1"):
-                        down_confirmed = True
-                        break
-                time.sleep(down_poll_s)
-
-            if not down_confirmed:
-                msg = (
-                    "Scan aborted: Table A down (45 degree) was not confirmed by DI sensors "
-                    f"within {down_timeout_s:.1f}s (last DI={last_pair})."
-                )
-                config["_scan_last_error"] = msg
-                config["logger"].error("[scan] %s", msg)
-                msg_to_frontend(
-                    api_url=config["server"]["frontEnd_messaging_url"],
-                    message=msg,
-                )
-                return ([], [], [], [], [], [], [])
-
-            config["logger"].info(
-                "[scan] Table A down confirmed by DI sensors: %s",
-                last_pair,
-            )
 
         if config["settings"]["actualScan"]:
             connect_j7()
