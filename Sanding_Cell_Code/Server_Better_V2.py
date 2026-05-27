@@ -4187,6 +4187,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 waitForBlending(cps=cps, config=config, timeout_s=scan_blend_timeout_s)
 
+                stop_on_nan_y = bool(
+                    config.get("settings", {}).get("scanStopOnNanY", False)
+                )
+                config["logger"].info(
+                    "[scan-y] stopWhenNan=%s (set settings.scanStopOnNanY=true to re-enable early stop on NaN)",
+                    stop_on_nan_y,
+                )
                 ymeasurements = communicate(
                     cps=cps,
                     point=yEnd,
@@ -4196,7 +4203,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     doMeasure=1,
                     speed=config["UI"]["scanSpeed"],
                     velocity_profile="sandingspeed",
-                    stopWhenNan=True,
+                    stopWhenNan=stop_on_nan_y,
+                )
+                config["logger"].info(
+                    "[scan-y] collected %s samples for door %s",
+                    0 if ymeasurements is None else len(ymeasurements),
+                    door_number,
                 )
                 config["logger"].info(f"[scan-y] end point reached: {yEnd}")
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
@@ -6285,10 +6297,15 @@ def communicate(
                         keepgoing = False
                         nRet = cps.HRIF_GrpStop(0, 0)
 
-                # Read robot state and check for another stop condition
+                # Read robot state and stop only when motion is actually done.
                 cps.HRIF_ReadRobotState(0, 0, result)
-                if result[0] == "0":
-                    keepgoing = False
+                if isinstance(result, (list, tuple)) and len(result) > 11:
+                    if str(result[11]).strip() == "1":
+                        keepgoing = False
+                elif isinstance(result, (list, tuple)) and len(result) > 0:
+                    # Fallback for unexpected payload shape.
+                    if str(result[0]).strip() == "0":
+                        keepgoing = False
         finally:
             try:
                 if hasattr(instrument, "serial") and instrument.serial:
