@@ -6480,6 +6480,31 @@ def communicate(
         move_wait_timeout_s = max(
             5.0, float(door_cfg.get("seventhAxisMoveTimeoutSec", 45.0))
         )
+        # Since MotorGetState only reports -1/0/1 (unknown/stopped/running),
+        # we need a motion-state transition check to avoid false "arrived".
+        require_run_transition = bool(
+            door_cfg.get("seventhAxisRequireRunTransition", True)
+        )
+        run_transition_grace_s = max(
+            0.05, float(door_cfg.get("seventhAxisRunTransitionGraceSec", 0.35))
+        )
+        min_delta_for_transition_mm = max(
+            0.0, float(door_cfg.get("seventhAxisTransitionDeltaMm", 20.0))
+        )
+
+        # Track last commanded J7 target as a heuristic for "meaningful move".
+        last_cmd = None
+        if isinstance(config, dict):
+            try:
+                last_cmd = float(config.get("_last_j7_command"))
+            except (TypeError, ValueError):
+                last_cmd = None
+        cmd_delta = None
+        if last_cmd is not None:
+            try:
+                cmd_delta = abs(float(position) - float(last_cmd))
+            except Exception:
+                cmd_delta = None
 
         # Read state first; only reconnect J7 if state read is unavailable.
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
@@ -6575,6 +6600,7 @@ def communicate(
 
         wait_start = time.time()
         consecutive_state_errors = 0
+        saw_running = False
         while wait:
             if stop_requested():
                 try:
@@ -6601,8 +6627,42 @@ def communicate(
                     return False
             else:
                 consecutive_state_errors = 0
+                motion_state = read_motion_state(pluginRes)
+                if motion_state in ("1", "true", "running"):
+                    saw_running = True
+
                 if state_done(pluginRes):
                     # Motor reports idle/done.
+                    if require_run_transition:
+                        meaningful_move = True
+                        if cmd_delta is not None:
+                            meaningful_move = cmd_delta >= float(min_delta_for_transition_mm)
+
+                        if meaningful_move and (not saw_running):
+                            elapsed = time.time() - wait_start
+                            if elapsed < run_transition_grace_s:
+                                time.sleep(move_poll_s)
+                                continue
+                            try:
+                                cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                            except Exception:
+                                pass
+                            config["logger"].error(
+                                "[7thAxisMove] Move finished without RUNNING transition "
+                                "(target=%.3f, last_cmd=%s, delta_mm=%s, state=%s).",
+                                float(position),
+                                "None" if last_cmd is None else f"{float(last_cmd):.3f}",
+                                "None" if cmd_delta is None else f"{float(cmd_delta):.3f}",
+                                pluginRes,
+                            )
+                            msg_to_frontend(
+                                api_url=config["server"]["frontEnd_messaging_url"],
+                                message=(
+                                    "7th axis did not report a running state during move. "
+                                    "Movement stopped for safety."
+                                ),
+                            )
+                            return False
                     break
 
             if (time.time() - wait_start) >= move_wait_timeout_s:
@@ -6672,6 +6732,8 @@ def communicate(
                 float(position),
                 pluginRes,
             )
+        if isinstance(config, dict):
+            config["_last_j7_command"] = float(position)
         return True
 
     time.sleep(0.0001)

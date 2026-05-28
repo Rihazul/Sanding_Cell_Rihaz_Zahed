@@ -365,15 +365,15 @@ def _build_pocket_xy_for_door(door_num, z):
     x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
     y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
     z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
-    # Respect selected door station exactly for J7 positioning.
-    # Pocket local X geometry stays in the local frame [-distance .. 0].
+    # Required pocket anchoring convention:
+    # J7 target must be p8 local X + door station for every door.
     try:
         door_station = float(get_door_position(door_num))
     except (TypeError, ValueError):
         raise RuntimeError(
             f"Invalid 7th-axis door position for door {door_num}: {get_door_position(door_num)}"
         )
-    seventh_pos = door_station
+    seventh_pos = float(p8[0]) + door_station
     return x_coords, y_coords, z_coords, seventh_pos, float(p8[0]), door_station
 
 
