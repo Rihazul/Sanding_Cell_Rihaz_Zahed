@@ -4263,9 +4263,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     doMeasure=1,
                     speed=config["UI"]["scanSpeed"],
                     velocity_profile="sandingspeed",
-                    # Keep classic NaN-stop behavior, but only near end-of-scan to avoid early cuts.
+                    # Stop on sustained NaN only after valid data tail (handled in data_collection).
                     stopWhenNan=True,
-                    stopWhenNanMinDist=0.90 * max(1.0, abs(float(yEnd[1]) - float(yStart[1]))),
                 )
                 config["logger"].info(
                     "[scan-y] collected %s samples for door %s",
@@ -6298,9 +6297,17 @@ def communicate(
         initPos = [float(result[6]), float(result[7]), float(result[8])]
         keepgoing = True
         nan_count = 0
-        # Define the consecutive NaN threshold
-        consecutive_nan_threshold = 5
+        # NaN stop tuning: stop only after we already saw valid data,
+        # then encountered a sustained NaN tail (end-of-door).
+        scan_stop_cfg = config.get("settings", {}) if isinstance(config, dict) else {}
+        consecutive_nan_threshold = int(scan_stop_cfg.get("scanStopConsecutiveNan", 5))
+        min_valid_samples_before_nan_stop = int(
+            scan_stop_cfg.get("scanStopMinValidSamples", 10)
+        )
+        nan_tail_travel_mm = float(scan_stop_cfg.get("scanStopNanTailMm", 10.0))
         startStopNan = False
+        valid_sample_count = 0
+        last_valid_dist = None
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Scanning Door Using the Laser Sensor...⚙️",
@@ -6342,6 +6349,7 @@ def communicate(
 
                 if not math.isnan(height):
                     startStopNan = True
+                    valid_sample_count += 1
                 # Calculate the distance from initial position
                 dist = euclidean_distance(point1=initPos, point2=pos)
 
@@ -6361,9 +6369,26 @@ def communicate(
                         nan_count += 1  # Increment the NaN counter
                     else:
                         nan_count = 0  # Reset the NaN counter if height is valid
+                        last_valid_dist = float(dist)
 
                     # Check if NaN count reaches the threshold
-                    if nan_count >= consecutive_nan_threshold:
+                    enough_valid_samples = (
+                        valid_sample_count >= min_valid_samples_before_nan_stop
+                    )
+                    nan_tail_ok = False
+                    if last_valid_dist is not None:
+                        nan_tail_ok = (float(dist) - float(last_valid_dist)) >= float(
+                            nan_tail_travel_mm
+                        )
+                    if nan_count >= consecutive_nan_threshold and enough_valid_samples and nan_tail_ok:
+                        config["logger"].info(
+                            "[scan-stop] stopWhenNan triggered after valid data tail (valid_samples=%s, nan_count=%s, tail_mm=%.2f)",
+                            valid_sample_count,
+                            nan_count,
+                            float(dist) - float(last_valid_dist)
+                            if last_valid_dist is not None
+                            else 0.0,
+                        )
                         keepgoing = False
                         nRet = cps.HRIF_GrpStop(0, 0)
 
