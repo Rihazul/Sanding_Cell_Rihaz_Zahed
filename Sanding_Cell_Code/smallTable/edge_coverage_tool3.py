@@ -365,15 +365,23 @@ def _build_pocket_xy_for_door(door_num, z):
     x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
     y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
     z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
-    seventh_pos = p8[0] + get_door_position(door_num)
-    return x_coords, y_coords, z_coords, seventh_pos
+    # Respect selected door station exactly for J7 positioning.
+    # Pocket local X geometry stays in the local frame [-distance .. 0].
+    try:
+        door_station = float(get_door_position(door_num))
+    except (TypeError, ValueError):
+        raise RuntimeError(
+            f"Invalid 7th-axis door position for door {door_num}: {get_door_position(door_num)}"
+        )
+    seventh_pos = door_station
+    return x_coords, y_coords, z_coords, seventh_pos, float(p8[0]), door_station
 
 
 def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     config = _load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
-    x_coords, y_coords, z_coords, seventh_pos = _build_pocket_xy_for_door(door_num, z)
+    x_coords, y_coords, z_coords, seventh_pos, inner_ref_x, door_station = _build_pocket_xy_for_door(door_num, z)
     edge_points = build_edge_coverage_path(
         x_coords=x_coords,
         y_coords=y_coords,
@@ -394,8 +402,16 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     prehoming = [0, 200, 50, 0, 0, 0]
 
     robot_speed = _resolve_robot_speed(config)
+    if isinstance(config, dict) and config.get("logger"):
+        config["logger"].info(
+            "[Edge Coverage] door=%s seventh_target=%.3f door_station=%.3f inner_ref_x=%.3f",
+            door_num,
+            float(seventh_pos),
+            float(door_station),
+            float(inner_ref_x),
+        )
 
-    communicate(
+    seventh_result = communicate(
         cps=cps,
         config=config,
         seventh=seventh_pos,
@@ -404,7 +420,12 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
+        require_seventh_ok=True,
     )
+    if seventh_result is None:
+        raise RuntimeError(
+            f"[Edge Coverage] Failed to move 7th axis to door {door_num} target {seventh_pos}."
+        )
     communicate(
         cps=cps,
         config=config,
