@@ -389,8 +389,8 @@ def _build_pocket_xy_for_door(door_num, z):
     p2 = _to_xyz(get_pocket_point(door_num, 2), "2")
     p3 = _to_xyz(get_pocket_point(door_num, 3), "3")
 
-    # Keep local pocket X in [-distance .. 0], but keep door stationing strict:
-    # 7th axis must follow scanned robo7thPos directly per door.
+    # Local pocket X is expressed from door-frame reference.
+    # For pocket operations, we must shift J7 by pocket left X anchor.
     left_anchor_x = min(p0[0], p1[0])
     right_anchor_x = max(p2[0], p3[0])
     distance = right_anchor_x - left_anchor_x
@@ -406,19 +406,26 @@ def _build_pocket_xy_for_door(door_num, z):
 
     door_station = get_door_position(door_num)
     try:
-        seventh_pos = float(door_station)
+        seventh_pos = float(door_station) + float(left_anchor_x)
     except (TypeError, ValueError):
         raise RuntimeError(
             f"Invalid 7th-axis door position for door {door_num}: {door_station}"
         )
-    return x_coords, y_coords, z_coords, seventh_pos
+    return x_coords, y_coords, z_coords, seventh_pos, float(left_anchor_x), float(door_station)
 
 
 def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     config = _load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
-    x_coords, y_coords, z_coords, seventh_pos = _build_pocket_xy_for_door(door_num, z)
+    (
+        x_coords,
+        y_coords,
+        z_coords,
+        seventh_pos,
+        pocket_x_offset,
+        door_station,
+    ) = _build_pocket_xy_for_door(door_num, z)
     edge_points = build_edge_coverage_path(
         x_coords=x_coords,
         y_coords=y_coords,
@@ -428,13 +435,22 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Force entry: 5 mm above left-bottom start corner (user requested).
+    # Force entry: 10 mm above left-bottom start corner (raised by extra +5 mm).
     first_point = edge_points[0]
     second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
     prepoint = [
         float(first_point[0]),
         float(first_point[1]),
-        float(first_point[2]) + 5.0,
+        float(first_point[2]) + 10.0,
+        float(first_point[3]),
+        float(first_point[4]),
+        float(first_point[5]),
+    ]
+    # Extra clearance approach to reduce transition risk after J7 repositioning.
+    prepoint_high = [
+        float(first_point[0]),
+        float(first_point[1]),
+        float(first_point[2]) + 25.0,
         float(first_point[3]),
         float(first_point[4]),
         float(first_point[5]),
@@ -444,12 +460,14 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     robot_speed = _resolve_robot_speed(config)
     if isinstance(config, dict) and config.get("logger"):
         config["logger"].info(
-            "[Edge Coverage] door=%s orientation=%s first_point=%s second_point=%s prepoint=%s seventh=%.3f",
+            "[Edge Coverage] door=%s orientation=%s first_point=%s second_point=%s prepoint=%s door_station=%.3f pocket_x_offset=%.3f seventh=%.3f",
             door_num,
             orientation,
             first_point,
             second_point,
             prepoint,
+            float(door_station),
+            float(pocket_x_offset),
             float(seventh_pos),
         )
 
@@ -459,6 +477,20 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         seventh=seventh_pos,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
+        speed=robot_speed,
+        velocity_profile="robot",
+        wait=True,
+        require_seventh_ok=True,
+    )
+    # Give J7 a brief settle window before Cartesian approach.
+    time.sleep(0.15)
+    communicate(
+        cps=cps,
+        config=config,
+        point=prepoint_high,
+        tcp=config["coords"]["tcptool3plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
