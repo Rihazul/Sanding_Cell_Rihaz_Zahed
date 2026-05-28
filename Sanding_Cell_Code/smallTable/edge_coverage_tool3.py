@@ -7,7 +7,7 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
-from smallTable.scancord import get_door_position, get_inner_corner_point
+from smallTable.scancord import get_door_position, get_pocket_point
 import json
 import math
 import time
@@ -365,12 +365,22 @@ def _load_json_config():
 
 
 def _build_pocket_xy_for_door(door_num, z):
-    p8 = get_inner_corner_point(door_num, 0)
-    p7 = get_inner_corner_point(door_num, 1)
-    p6 = get_inner_corner_point(door_num, 2)
-    p5 = get_inner_corner_point(door_num, 3)
-    if not all((p5, p6, p7, p8)):
-        raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
+    def _to_xyz(point, label):
+        if not isinstance(point, (list, tuple)) or len(point) < 3:
+            raise RuntimeError(
+                f"Invalid pocket point {label} for door {door_num}: {point}"
+            )
+        try:
+            return [float(point[0]), float(point[1]), float(point[2])]
+        except (TypeError, ValueError):
+            raise RuntimeError(
+                f"Non-numeric pocket point {label} for door {door_num}: {point}"
+            )
+
+    p8 = _to_xyz(get_pocket_point(door_num, 0), "0")
+    p7 = _to_xyz(get_pocket_point(door_num, 1), "1")
+    p6 = _to_xyz(get_pocket_point(door_num, 2), "2")
+    p5 = _to_xyz(get_pocket_point(door_num, 3), "3")
 
     distance = p6[0] - p8[0]
     point5u = [-distance, p5[1], z]
