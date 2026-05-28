@@ -389,18 +389,29 @@ def _build_pocket_xy_for_door(door_num, z):
     p2 = _to_xyz(get_pocket_point(door_num, 2), "2")
     p3 = _to_xyz(get_pocket_point(door_num, 3), "3")
 
-    # Use absolute pocket geometry directly. Pocket points are already
-    # tool-compensated in scan_results; do not remap to a local [-d..0] frame.
-    x_coords = [p0[0], p1[0], p2[0], p3[0]]
+    # Keep the same coordinate strategy as zigzag:
+    # - local pocket X in [-distance .. 0]
+    # - 7th axis shifted by the left X anchor
+    left_anchor_x = min(p0[0], p1[0])
+    right_anchor_x = max(p2[0], p3[0])
+    distance = right_anchor_x - left_anchor_x
+    if distance <= 0:
+        raise RuntimeError(
+            f"Invalid pocket X span for door {door_num}: left={left_anchor_x}, right={right_anchor_x}"
+        )
+
+    # Local points order: bottom-left, top-left, top-right, bottom-right
+    x_coords = [-distance, -distance, 0.0, 0.0]
     y_coords = [p0[1], p1[1], p2[1], p3[1]]
     z_coords = [z, z, z, z]
 
-    # Scan data already stores per-door 7th-axis station; do not add pocket-x.
-    seventh_pos = get_door_position(door_num)
+    door_station = get_door_position(door_num)
     try:
-        seventh_pos = float(seventh_pos)
+        seventh_pos = float(door_station) + float(left_anchor_x)
     except (TypeError, ValueError):
-        raise RuntimeError(f"Invalid 7th-axis door position for door {door_num}: {seventh_pos}")
+        raise RuntimeError(
+            f"Invalid 7th-axis door position for door {door_num}: {door_station}"
+        )
     return x_coords, y_coords, z_coords, seventh_pos
 
 
@@ -418,17 +429,13 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Force entry should be at pocket center to avoid any frame-lip contact.
+    # Force entry: 5 mm above left-bottom start corner (user requested).
     first_point = edge_points[0]
     second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
-    x_min = min(float(x) for x in x_coords)
-    x_max = max(float(x) for x in x_coords)
-    y_min = min(float(y) for y in y_coords)
-    y_max = max(float(y) for y in y_coords)
     prepoint = [
-        (x_min + x_max) / 2.0,
-        (y_min + y_max) / 2.0,
-        float(first_point[2]),
+        float(first_point[0]),
+        float(first_point[1]),
+        float(first_point[2]) + 5.0,
         float(first_point[3]),
         float(first_point[4]),
         float(first_point[5]),
