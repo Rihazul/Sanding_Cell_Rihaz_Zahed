@@ -6458,13 +6458,15 @@ def communicate(
             Best-effort J7 position extraction from MotorGetState payload.
             Different firmware variants return position in different slots.
             """
-            if not isinstance(state, (list, tuple)) or len(state) < 4:
+            if not isinstance(state, (list, tuple)):
                 return None
-            # Most observed payloads keep motion-state at index 2.
-            # Try index 3 first, then fall back to right-most numeric slot.
-            candidates = [state[3]]
-            if len(state) > 4:
-                candidates.extend(reversed(state[4:]))
+            # Common compact response is ['0', 'OK', <motion>, <motion_detail>]
+            # and does not include physical position. Treat those as unavailable.
+            if len(state) <= 4:
+                return None
+            # Only inspect fields beyond index 3 to avoid confusing motion-state
+            # flags (often '0'/'1') with a position value.
+            candidates = list(reversed(state[4:]))
             for candidate in candidates:
                 pos = _safe_float(candidate)
                 if pos is not None:
@@ -6626,7 +6628,9 @@ def communicate(
         verify_tol_mm = _safe_float(verify_cfg.get("seventhAxisPosToleranceMm"))
         if verify_tol_mm is None or verify_tol_mm <= 0.0:
             verify_tol_mm = 8.0
-        verify_enabled = bool(verify_cfg.get("seventhAxisVerifyPosition", True))
+        # Default OFF: many firmwares do not expose J7 physical position in
+        # MotorGetState, which can cause false mismatches.
+        verify_enabled = bool(verify_cfg.get("seventhAxisVerifyPosition", False))
 
         actual_pos = _extract_pos_from_state(pluginRes)
         if verify_enabled and actual_pos is not None:
