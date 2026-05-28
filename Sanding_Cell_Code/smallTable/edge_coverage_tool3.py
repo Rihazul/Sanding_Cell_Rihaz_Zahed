@@ -7,17 +7,11 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
-from smallTable.scancord import (
-    get_door_position,
-    get_inner_corner_point,
-    get_pocket_point,
-)
+from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
 import math
 import time
 import yaml
-
-EDGE_COVERAGE_REV = "edgecov_inner_anchor_handoff_2026_05_28_r2"
 
 
 def _resolve_edge_speed(config):
@@ -158,7 +152,7 @@ def build_edge_coverage_path(
     orientation="horizontal",
     tool3x=38.1,
     tool3y=50.8,
-    edge_margin=5,
+    edge_margin=2,
     rx=-0.034,
     ry=0.556,
     rz=0.251,
@@ -170,44 +164,47 @@ def build_edge_coverage_path(
     z_level = float(z_coords[0])
     orientation_mode = (orientation or "horizontal").lower()
 
-    # Pocket points are already tool-compensated in scan_results.
-    # Keep only a small inward safety margin for edge coverage.
-    x_min = min(float(x) for x in x_coords)
-    x_max = max(float(x) for x in x_coords)
-    y_min = min(float(y) for y in y_coords)
-    y_max = max(float(y) for y in y_coords)
-
-    if (x_max - x_min) <= (2.0 * edge_margin) or (y_max - y_min) <= (2.0 * edge_margin):
-        raise RuntimeError(
-            f"[Edge Coverage] Pocket span too small after margin: x=[{x_min},{x_max}] y=[{y_min},{y_max}]"
-        )
-
-    # Vertical sanding is more sensitive near corners due to tool tilt;
-    # use a slightly larger inward margin there.
-    corner_margin = float(edge_margin)
-    if orientation_mode == "vertical":
-        corner_margin += 3.0
-
-    left = x_min + corner_margin
-    right = x_max - corner_margin
-    bottom = y_min + corner_margin
-    top = y_max - corner_margin
-
-    # Bottom-left, top-left, top-right, bottom-right
-    edge_point1 = [left, bottom, z_level]
-    edge_point2 = [left, top, z_level]
-    edge_point3 = [right, top, z_level]
-    edge_point4 = [right, bottom, z_level]
-
-    # Edge coverage entry/traversal is fixed for safety:
-    # start at bottom-left and run clockwise.
-    path = [
-        [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
-        [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
-        [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
-        [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
-        [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
+    edge_point1 = [
+        x_coords[0] + tool3x + edge_margin + 4,
+        y_coords[0] + tool3y + edge_margin,
+        z_level,
     ]
+    edge_point2 = [
+        x_coords[1] + tool3x + edge_margin + 4, 
+        y_coords[1] - tool3y - edge_margin,
+        z_level,
+    ]
+    edge_point3 = [
+        x_coords[2] - tool3x - edge_margin ,
+        y_coords[2] - tool3y - edge_margin,
+        z_level,
+    ]
+    edge_point4 = [
+        x_coords[3] - tool3x - edge_margin,
+        y_coords[3] + tool3y + edge_margin,
+        z_level,
+    ]
+
+    if orientation_mode == "horizontal":
+        path = [
+            [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
+            [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
+            [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
+            [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
+            [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
+        ]
+    else:
+        path = [
+            [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
+            [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
+            [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
+            [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
+            [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
+        ]
+
+    for point in path:
+        point[0] = abs(point[0])
+        point[1] = abs(point[1])
 
     return path
 
@@ -278,34 +275,14 @@ def execute_edge_coverage(
 
     try:
         blend_timeout = _estimate_edge_blend_timeout(config, edge_points, edge_speed)
-        contour_blend = bool(
-            config.get("settings", {}).get("edgeCoverageBlend", False)
-        )
         if isinstance(config, dict) and config.get("logger"):
             config["logger"].info(
-                "[Edge Coverage] blend timeout set to %.1fs (edge_speed=%.3f, blend=%s)",
+                "[Edge Coverage] blend timeout set to %.1fs (edge_speed=%.3f)",
                 blend_timeout,
                 float(edge_speed),
-                contour_blend,
             )
 
-        # Enter the contour with a non-blended move first to avoid controller
-        # point-calculation failures on very short first segments.
-        first_point = edge_points[0]
-        communicate(
-            cps=cps,
-            config=config,
-            point=first_point,
-            tcp=config["coords"][tcp_key],
-            ucs=config["coords"][ucs_key],
-            seventh=-1,
-            speed=edge_speed,
-            velocity_profile="sanding",
-            speed_mode="linear",
-            wait=True,
-        )
-
-        for idx, point in enumerate(edge_points[1:], start=1):
+        for idx, point in enumerate(edge_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -316,12 +293,8 @@ def execute_edge_coverage(
                 speed=edge_speed,
                 velocity_profile="sanding",
                 speed_mode="linear",
-                wait=not contour_blend,
+                wait=False,
             )
-
-        if not contour_blend:
-            print("[Edge Coverage] Completed linear edge path (non-blended corner-safe mode)")
-            return True
 
         blend_ok = waitForBlending(
             cps=cps,
@@ -376,76 +349,31 @@ def _load_json_config():
 
 
 def _build_pocket_xy_for_door(door_num, z):
-    def _to_xyz(point, label):
-        if not isinstance(point, (list, tuple)) or len(point) < 3:
-            raise RuntimeError(
-                f"Invalid pocket point {label} for door {door_num}: {point}"
-            )
-        try:
-            return [float(point[0]), float(point[1]), float(point[2])]
-        except (TypeError, ValueError):
-            raise RuntimeError(
-                f"Non-numeric pocket point {label} for door {door_num}: {point}"
-            )
+    p8 = get_inner_corner_point(door_num, 0)
+    p7 = get_inner_corner_point(door_num, 1)
+    p6 = get_inner_corner_point(door_num, 2)
+    p5 = get_inner_corner_point(door_num, 3)
+    if not all((p5, p6, p7, p8)):
+        raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
 
-    # pocket point index map from scan data:
-    # 0=bottom-left, 1=top-left, 2=top-right, 3=bottom-right
-    p0 = _to_xyz(get_pocket_point(door_num, 0), "0")
-    p1 = _to_xyz(get_pocket_point(door_num, 1), "1")
-    p2 = _to_xyz(get_pocket_point(door_num, 2), "2")
-    p3 = _to_xyz(get_pocket_point(door_num, 3), "3")
+    distance = p6[0] - p8[0]
+    point5u = [-distance, p5[1], z]
+    point6u = [-distance, p6[1], z]
+    point7u = [0, p7[1], z]
+    point8u = [0, p8[1], z]
 
-    # Local pocket X is expressed from door-frame reference.
-    # For robustness, keep pocket geometry from pocket points, but anchor J7
-    # using the same inner-corner X reference used by zigzag flow.
-    left_anchor_x = min(p0[0], p1[0])
-    right_anchor_x = max(p2[0], p3[0])
-    distance = right_anchor_x - left_anchor_x
-    if distance <= 0:
-        raise RuntimeError(
-            f"Invalid pocket X span for door {door_num}: left={left_anchor_x}, right={right_anchor_x}"
-        )
-
-    # Local points order: bottom-left, top-left, top-right, bottom-right
-    x_coords = [-distance, -distance, 0.0, 0.0]
-    y_coords = [p0[1], p1[1], p2[1], p3[1]]
-    z_coords = [z, z, z, z]
-
-    inner0 = _to_xyz(get_inner_corner_point(door_num, 0), "inner0")
-    inner1 = _to_xyz(get_inner_corner_point(door_num, 1), "inner1")
-    inner_anchor_x = min(inner0[0], inner1[0])
-
-    door_station = get_door_position(door_num)
-    try:
-        seventh_pos = float(door_station) + float(inner_anchor_x)
-    except (TypeError, ValueError):
-        raise RuntimeError(
-            f"Invalid 7th-axis door position for door {door_num}: {door_station}"
-        )
-    return (
-        x_coords,
-        y_coords,
-        z_coords,
-        seventh_pos,
-        float(left_anchor_x),
-        float(inner_anchor_x),
-        float(door_station),
-    )
+    x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
+    y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
+    z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
+    seventh_pos = p8[0] + get_door_position(door_num)
+    return x_coords, y_coords, z_coords, seventh_pos
 
 
 def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     config = _load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
-    (
-        x_coords,
-        y_coords,
-        z_coords,
-        seventh_pos,
-        pocket_x_offset,
-        inner_x_offset,
-        door_station,
-    ) = _build_pocket_xy_for_door(door_num, z)
+    x_coords, y_coords, z_coords, seventh_pos = _build_pocket_xy_for_door(door_num, z)
     edge_points = build_edge_coverage_path(
         x_coords=x_coords,
         y_coords=y_coords,
@@ -455,54 +383,17 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Use the safest entry corner (closest to X=0 in local frame) to reduce
-    # Cartesian orientation-limit failures on the first approach move.
-    # Keep full contour coverage by rotating the closed path.
-    if len(edge_points) >= 5:
-        base_corners = edge_points[:-1]
-        safest_idx = min(
-            range(len(base_corners)),
-            key=lambda i: abs(float(base_corners[i][0])),
-        )
-        rotated = base_corners[safest_idx:] + base_corners[:safest_idx]
-        edge_points = rotated + [rotated[0]]
-
-    # Force entry: 10 mm above selected start corner (raised by extra +5 mm).
-    first_point = edge_points[0]
-    second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
     prepoint = [
-        float(first_point[0]),
-        float(first_point[1]),
-        float(first_point[2]) + 10.0,
-        float(first_point[3]),
-        float(first_point[4]),
-        float(first_point[5]),
-    ]
-    # Extra clearance approach to reduce transition risk after J7 repositioning.
-    prepoint_high = [
-        float(first_point[0]),
-        float(first_point[1]),
-        float(first_point[2]) + 25.0,
-        float(first_point[3]),
-        float(first_point[4]),
-        float(first_point[5]),
+        edge_points[0][0] + 0.5,
+        edge_points[0][1],
+        edge_points[0][2],
+        edge_points[0][3],
+        edge_points[0][4],
+        edge_points[0][5],
     ]
     prehoming = [0, 200, 50, 0, 0, 0]
 
     robot_speed = _resolve_robot_speed(config)
-    if isinstance(config, dict) and config.get("logger"):
-        config["logger"].info(
-            "[Edge Coverage] door=%s orientation=%s first_point=%s second_point=%s prepoint=%s door_station=%.3f pocket_x_offset=%.3f inner_x_offset=%.3f seventh=%.3f",
-            door_num,
-            orientation,
-            first_point,
-            second_point,
-            prepoint,
-            float(door_station),
-            float(pocket_x_offset),
-            float(inner_x_offset),
-            float(seventh_pos),
-        )
 
     communicate(
         cps=cps,
@@ -510,20 +401,6 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         seventh=seventh_pos,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
-        speed=robot_speed,
-        velocity_profile="robot",
-        wait=True,
-        require_seventh_ok=True,
-    )
-    # Give J7 a brief settle window before Cartesian approach.
-    time.sleep(0.15)
-    communicate(
-        cps=cps,
-        config=config,
-        point=prepoint_high,
-        tcp=config["coords"]["tcptool3plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
@@ -570,7 +447,6 @@ def run_tool3_pocket_edge_cycles(
     spiral_settings=None,
 ):
     """Run Tool 3 pocket edge coverage only (no zigzag) for selected door."""
-    print(f"[Edge Coverage] runtime rev={EDGE_COVERAGE_REV} file={__file__}")
     del spiral_settings  # Compatibility with caller signature.
     if count <= 0:
         return
