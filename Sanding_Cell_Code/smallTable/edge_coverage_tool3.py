@@ -389,9 +389,8 @@ def _build_pocket_xy_for_door(door_num, z):
     p2 = _to_xyz(get_pocket_point(door_num, 2), "2")
     p3 = _to_xyz(get_pocket_point(door_num, 3), "3")
 
-    # Keep the same coordinate strategy as zigzag:
-    # - local pocket X in [-distance .. 0]
-    # - 7th axis shifted by the left X anchor
+    # Keep local pocket X in [-distance .. 0], but keep door stationing strict:
+    # 7th axis must follow scanned robo7thPos directly per door.
     left_anchor_x = min(p0[0], p1[0])
     right_anchor_x = max(p2[0], p3[0])
     distance = right_anchor_x - left_anchor_x
@@ -407,7 +406,7 @@ def _build_pocket_xy_for_door(door_num, z):
 
     door_station = get_door_position(door_num)
     try:
-        seventh_pos = float(door_station) + float(left_anchor_x)
+        seventh_pos = float(door_station)
     except (TypeError, ValueError):
         raise RuntimeError(
             f"Invalid 7th-axis door position for door {door_num}: {door_station}"
