@@ -193,24 +193,15 @@ def build_edge_coverage_path(
     edge_point3 = [right, top, z_level]
     edge_point4 = [right, bottom, z_level]
 
-    if orientation_mode == "horizontal":
-        path = [
-            [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
-            [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
-            [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
-            [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
-            [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
-        ]
-    else:
-        # Vertical mode: start from bottom-left for a safer initial contact
-        # and avoid forcing into the right frame-side corner on entry.
-        path = [
-            [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
-            [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
-            [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
-            [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
-            [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
-        ]
+    # Edge coverage entry/traversal is fixed for safety:
+    # start at bottom-left and run clockwise.
+    path = [
+        [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
+        [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
+        [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
+        [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
+        [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
+    ]
 
     return path
 
@@ -427,13 +418,16 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Force entry should be away from corners to avoid contacting frame first.
-    # Enter at the middle of the first edge segment.
+    # Force entry should be at pocket center to avoid any frame-lip contact.
     first_point = edge_points[0]
     second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
+    x_min = min(float(x) for x in x_coords)
+    x_max = max(float(x) for x in x_coords)
+    y_min = min(float(y) for y in y_coords)
+    y_max = max(float(y) for y in y_coords)
     prepoint = [
-        (float(first_point[0]) + float(second_point[0])) / 2.0,
-        (float(first_point[1]) + float(second_point[1])) / 2.0,
+        (x_min + x_max) / 2.0,
+        (y_min + y_max) / 2.0,
         float(first_point[2]),
         float(first_point[3]),
         float(first_point[4]),
