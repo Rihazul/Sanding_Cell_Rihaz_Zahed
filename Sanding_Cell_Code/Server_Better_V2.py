@@ -4196,7 +4196,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     doMeasure=1,
                     speed=config["UI"]["scanSpeed"],
                     velocity_profile="sandingspeed",
+                    # Keep classic NaN-stop behavior, but only near end-of-scan to avoid early cuts.
                     stopWhenNan=True,
+                    stopWhenNanMinDist=0.90 * max(1.0, abs(float(yEnd[1]) - float(yStart[1]))),
                 )
                 config["logger"].info(
                     "[scan-y] collected %s samples for door %s",
@@ -5950,6 +5952,7 @@ def communicate(
     doMeasure=0,
     speed=None,
     stopWhenNan=False,
+    stopWhenNanMinDist=None,
     wait=None,
     speed_mode="override",
     require_seventh_ok=False,
@@ -6220,7 +6223,7 @@ def communicate(
             )
             exit(-1)
 
-    def data_collection(cps, config, stopWhenNan=False):
+    def data_collection(cps, config, stopWhenNan=False, stopWhenNanMinDist=None):
         measurements = []
         instrument = getInstrument()
         result = []
@@ -6278,7 +6281,14 @@ def communicate(
                 # Append measurement
                 measurements.append({"height": scale_value(height), "dist": dist})
 
-                if stopWhenNan and startStopNan:
+                nan_stop_gate_ok = True
+                if stopWhenNanMinDist is not None:
+                    try:
+                        nan_stop_gate_ok = float(dist) >= float(stopWhenNanMinDist)
+                    except (TypeError, ValueError):
+                        nan_stop_gate_ok = True
+
+                if stopWhenNan and startStopNan and nan_stop_gate_ok:
                     # Check the height for NaN and update nan_count
                     if math.isnan(height):
                         nan_count += 1  # Increment the NaN counter
@@ -6581,7 +6591,7 @@ def communicate(
 
     # the list to collect values in
     if doMeasure:
-        measurements = data_collection(cps, config, stopWhenNan)
+        measurements = data_collection(cps, config, stopWhenNan, stopWhenNanMinDist)
         # Ensure the robot is fully stopped before issuing the next command.
         waitWhileMovingRobot(cps)
     # else:
