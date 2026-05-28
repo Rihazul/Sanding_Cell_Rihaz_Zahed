@@ -17,6 +17,8 @@ import math
 import time
 import yaml
 
+EDGE_COVERAGE_REV = "edgecov_inner_anchor_handoff_2026_05_28_r2"
+
 
 def _resolve_edge_speed(config):
     """
@@ -556,6 +558,7 @@ def run_tool3_pocket_edge_cycles(
     spiral_settings=None,
 ):
     """Run Tool 3 pocket edge coverage only (no zigzag) for selected door."""
+    print(f"[Edge Coverage] runtime rev={EDGE_COVERAGE_REV} file={__file__}")
     del spiral_settings  # Compatibility with caller signature.
     if count <= 0:
         return
