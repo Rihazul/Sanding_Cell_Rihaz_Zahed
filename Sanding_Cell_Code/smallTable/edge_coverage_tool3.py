@@ -7,7 +7,7 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
-from smallTable.scancord import get_door_position, get_inner_corner_point
+from smallTable.scancord import get_door_position, get_inner_corner_point, get_pocket_point
 import json
 import math
 import os
@@ -219,6 +219,7 @@ def execute_edge_coverage(
     split=False,
     tcp_key="tcptool3plane1",
     ucs_key="ucsTable1",
+    seventh_hold=None,
 ):
     """Execute edge coverage path with force and vibration control."""
     if not edge_points:
@@ -290,7 +291,7 @@ def execute_edge_coverage(
                 point=point,
                 tcp=config["coords"][tcp_key],
                 ucs=config["coords"][ucs_key],
-                seventh=-1,
+                seventh=seventh_hold if seventh_hold is not None else -1,
                 speed=edge_speed,
                 velocity_profile="sanding",
                 speed_mode="linear",
@@ -378,6 +379,39 @@ def _build_pocket_xy_for_door(door_num, z):
     return x_coords, y_coords, z_coords, seventh_pos, float(p8[0]), door_station
 
 
+def _build_pocket_prepoint(door_num, orientation, edge_start_point):
+    """
+    Build approach point from scanned pocket corner with +5mm Z height.
+    Corner selection follows edge start corner:
+    - horizontal edge path starts near pocket corner 2 (upper-right)
+    - vertical edge path starts near pocket corner 0 (lower-left)
+    """
+    orientation_mode = (orientation or "horizontal").lower()
+    pocket_corner = 2 if orientation_mode == "horizontal" else 0
+    pocket_pt = get_pocket_point(door_num, pocket_corner)
+    if isinstance(pocket_pt, (list, tuple)) and len(pocket_pt) >= 3:
+        try:
+            return [
+                float(pocket_pt[0]),
+                float(pocket_pt[1]),
+                float(pocket_pt[2]) + 5.0,
+                edge_start_point[3],
+                edge_start_point[4],
+                edge_start_point[5],
+            ]
+        except (TypeError, ValueError):
+            pass
+    # Fallback to previous prepoint behavior if pocket scan data is invalid.
+    return [
+        edge_start_point[0] + 0.5,
+        edge_start_point[1],
+        edge_start_point[2] + 5.0,
+        edge_start_point[3],
+        edge_start_point[4],
+        edge_start_point[5],
+    ]
+
+
 def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     config = _load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
@@ -392,14 +426,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    prepoint = [
-        edge_points[0][0] + 0.5,
-        edge_points[0][1],
-        edge_points[0][2],
-        edge_points[0][3],
-        edge_points[0][4],
-        edge_points[0][5],
-    ]
+    prepoint = _build_pocket_prepoint(door_num, orientation, edge_points[0])
     prehoming = [0, 200, 50, 0, 0, 0]
 
     robot_speed = _resolve_robot_speed(config)
@@ -411,6 +438,10 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
             float(seventh_pos),
             float(door_station),
             float(inner_ref_x),
+        )
+        config["logger"].info(
+            "[Edge Coverage] prepoint from pocket (+5mm): %s",
+            prepoint,
         )
 
     seventh_result = communicate(
@@ -434,10 +465,11 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         point=prepoint,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
+        seventh=seventh_pos,
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
+        require_seventh_ok=True,
     )
     execute_edge_coverage(
         cps=cps,
@@ -445,6 +477,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         edge_points=edge_points,
         force=force,
         split=False,
+        seventh_hold=seventh_pos,
     )
     communicate(
         cps=cps,
