@@ -3673,6 +3673,20 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
             return grouped_valids
 
+        def _non_nan_samples(group):
+            return [
+                item
+                for item in group
+                if not math.isnan(float(item.get("height", float("nan"))))
+            ]
+
+        def _group_span_mm(group):
+            samples = _non_nan_samples(group)
+            if len(samples) < 2:
+                return 0.0
+            dists = [float(item.get("dist", 0.0)) for item in samples]
+            return max(dists) - min(dists)
+
         def connect_j7():
             result = []
             cps.HRIF_HRApp(0, "HR_Motor", "GetMotorList", [], result)
@@ -3735,16 +3749,28 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_robot_speed = _resolve_ui_ratio(
             config, "robotSpeed", config.get("UI", {}).get("robotSpeed")
         )
+        scan_lift_z_mm = float(
+            config.get("offset", {}).get("scanLiftZMm", 15.0)
+        )
+        scan_min_group_points = int(
+            config.get("settings", {}).get("scanMinGroupPoints", 20)
+        )
+        scan_min_group_span_mm = float(
+            config.get("settings", {}).get("scanMinDoorSpanMm", 120.0)
+        )
         door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
         scan_blend_timeout_s = max(
             0.5, float(door_cfg.get("scanBlendTimeoutSeconds", 7.0))
         )
         config["logger"].info(
-            "[scan] Using model-agnostic scan profile: threshold=%s, min_stable_distance=%s, three_d=%s, blend_timeout=%ss",
+            "[scan] Using model-agnostic scan profile: threshold=%s, min_stable_distance=%s, three_d=%s, blend_timeout=%ss, lift_z=%smm, min_group_points=%s, min_group_span=%smm",
             scan_threshold,
             scan_min_stable_distance,
             scan_three_d_compensation,
             scan_blend_timeout_s,
+            scan_lift_z_mm,
+            scan_min_group_points,
+            scan_min_group_span_mm,
         )
 
         msg_to_frontend(
@@ -3865,6 +3891,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     config["table"][f"length{tblCnt}"]
                     - config["offset"]["scannerOffsetInLeft"],
                 )
+                xStart = addZVal(xStart, scan_lift_z_mm)
+                xEnd = addZVal(xEnd, scan_lift_z_mm)
                 config["logger"].info(
                     f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
                 )
@@ -4030,6 +4058,35 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 expected_doors,
             )
 
+        # Filter noisy/false X groups so Y scan runs only on valid detected doors.
+        pre_filter_count = len(allXMeasurements)
+        filtered_groups = []
+        for idx, group in enumerate(allXMeasurements):
+            valid_samples = _non_nan_samples(group)
+            span_mm = _group_span_mm(group)
+            if len(valid_samples) < scan_min_group_points or span_mm < scan_min_group_span_mm:
+                config["logger"].warning(
+                    "[scan] Skipping X group %s as invalid door candidate (samples=%s span=%.2fmm).",
+                    idx + 1,
+                    len(valid_samples),
+                    span_mm,
+                )
+                continue
+            filtered_groups.append(group)
+        allXMeasurements = filtered_groups
+        config["logger"].info(
+            "[scan] Valid X groups after filtering: %s/%s",
+            len(allXMeasurements),
+            pre_filter_count,
+        )
+        if not allXMeasurements:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Scan aborted: no valid doors detected from horizontal scan.",
+            )
+            config["_scan_last_error"] = "Scan aborted: no valid doors detected from horizontal scan."
+            return ([], [], [], [], [], [], [])
+
         # reversing to start from the last to first (to save time)
         beginning_non_nan = next(
             item for item in allXMeasurements[0] if not np.isnan(item["height"])
@@ -4124,17 +4181,27 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 ####### y axis moving #####
                 ###########################
 
+                # Anchor Y scan on the detected door center so each Y run matches the
+                # actual door found in X-scan and avoids tiny/noise segments.
+                x_non_nan = _non_nan_samples(xmeasurements)
+                x_min_dist = min(float(item["dist"]) for item in x_non_nan)
+                x_max_dist = max(float(item["dist"]) for item in x_non_nan)
+                x_center_dist = (x_min_dist + x_max_dist) / 2.0
+                y_scan_anchor_x = max(0.0, x_center_dist - float(xpos))
+
                 yStart = addYVal(
-                    addXVal(config["point"]["table1Origin"], xlen / 4),
+                    addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
                     -config["offset"]["scannerOffsetInBottom"],
                 )
                 yEnd = addYVal(
                     addYVal(
-                        addXVal(config["point"]["table1Origin"], xlen / 3),
+                        addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
                         config["table"]["width"],
                     ),
                     -config["offset"]["scannerOffsetInBottom"],
                 )
+                yStart = addZVal(yStart, scan_lift_z_mm)
+                yEnd = addZVal(yEnd, scan_lift_z_mm)
                 config["logger"].info(
                     f"[scan-y] points to move: <start>: {yStart} >>> <end>:{yEnd}"
                 )
