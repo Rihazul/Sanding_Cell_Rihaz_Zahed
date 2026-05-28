@@ -7,7 +7,11 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
-from smallTable.scancord import get_door_position, get_pocket_point
+from smallTable.scancord import (
+    get_door_position,
+    get_inner_corner_point,
+    get_pocket_point,
+)
 import json
 import math
 import time
@@ -390,7 +394,8 @@ def _build_pocket_xy_for_door(door_num, z):
     p3 = _to_xyz(get_pocket_point(door_num, 3), "3")
 
     # Local pocket X is expressed from door-frame reference.
-    # For pocket operations, we must shift J7 by pocket left X anchor.
+    # For robustness, keep pocket geometry from pocket points, but anchor J7
+    # using the same inner-corner X reference used by zigzag flow.
     left_anchor_x = min(p0[0], p1[0])
     right_anchor_x = max(p2[0], p3[0])
     distance = right_anchor_x - left_anchor_x
@@ -404,14 +409,26 @@ def _build_pocket_xy_for_door(door_num, z):
     y_coords = [p0[1], p1[1], p2[1], p3[1]]
     z_coords = [z, z, z, z]
 
+    inner0 = _to_xyz(get_inner_corner_point(door_num, 0), "inner0")
+    inner1 = _to_xyz(get_inner_corner_point(door_num, 1), "inner1")
+    inner_anchor_x = min(inner0[0], inner1[0])
+
     door_station = get_door_position(door_num)
     try:
-        seventh_pos = float(door_station) + float(left_anchor_x)
+        seventh_pos = float(door_station) + float(inner_anchor_x)
     except (TypeError, ValueError):
         raise RuntimeError(
             f"Invalid 7th-axis door position for door {door_num}: {door_station}"
         )
-    return x_coords, y_coords, z_coords, seventh_pos, float(left_anchor_x), float(door_station)
+    return (
+        x_coords,
+        y_coords,
+        z_coords,
+        seventh_pos,
+        float(left_anchor_x),
+        float(inner_anchor_x),
+        float(door_station),
+    )
 
 
 def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
@@ -424,6 +441,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         z_coords,
         seventh_pos,
         pocket_x_offset,
+        inner_x_offset,
         door_station,
     ) = _build_pocket_xy_for_door(door_num, z)
     edge_points = build_edge_coverage_path(
@@ -460,7 +478,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     robot_speed = _resolve_robot_speed(config)
     if isinstance(config, dict) and config.get("logger"):
         config["logger"].info(
-            "[Edge Coverage] door=%s orientation=%s first_point=%s second_point=%s prepoint=%s door_station=%.3f pocket_x_offset=%.3f seventh=%.3f",
+            "[Edge Coverage] door=%s orientation=%s first_point=%s second_point=%s prepoint=%s door_station=%.3f pocket_x_offset=%.3f inner_x_offset=%.3f seventh=%.3f",
             door_num,
             orientation,
             first_point,
@@ -468,6 +486,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
             prepoint,
             float(door_station),
             float(pocket_x_offset),
+            float(inner_x_offset),
             float(seventh_pos),
         )
 
