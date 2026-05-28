@@ -455,7 +455,19 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Force entry: 10 mm above left-bottom start corner (raised by extra +5 mm).
+    # Use the safest entry corner (closest to X=0 in local frame) to reduce
+    # Cartesian orientation-limit failures on the first approach move.
+    # Keep full contour coverage by rotating the closed path.
+    if len(edge_points) >= 5:
+        base_corners = edge_points[:-1]
+        safest_idx = min(
+            range(len(base_corners)),
+            key=lambda i: abs(float(base_corners[i][0])),
+        )
+        rotated = base_corners[safest_idx:] + base_corners[:safest_idx]
+        edge_points = rotated + [rotated[0]]
+
+    # Force entry: 10 mm above selected start corner (raised by extra +5 mm).
     first_point = edge_points[0]
     second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
     prepoint = [
