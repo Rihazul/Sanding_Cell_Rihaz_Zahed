@@ -196,12 +196,14 @@ def build_edge_coverage_path(
             [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
         ]
     else:
+        # Vertical mode: start from bottom-left for a safer initial contact
+        # and avoid forcing into the right frame-side corner on entry.
         path = [
-            [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
             [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
             [edge_point2[0], edge_point2[1], edge_point2[2], rx, ry, rz],
             [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
             [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
+            [edge_point1[0], edge_point1[1], edge_point1[2], rx, ry, rz],
         ]
 
     return path
@@ -273,11 +275,15 @@ def execute_edge_coverage(
 
     try:
         blend_timeout = _estimate_edge_blend_timeout(config, edge_points, edge_speed)
+        contour_blend = bool(
+            config.get("settings", {}).get("edgeCoverageBlend", False)
+        )
         if isinstance(config, dict) and config.get("logger"):
             config["logger"].info(
-                "[Edge Coverage] blend timeout set to %.1fs (edge_speed=%.3f)",
+                "[Edge Coverage] blend timeout set to %.1fs (edge_speed=%.3f, blend=%s)",
                 blend_timeout,
                 float(edge_speed),
+                contour_blend,
             )
 
         # Enter the contour with a non-blended move first to avoid controller
@@ -307,8 +313,12 @@ def execute_edge_coverage(
                 speed=edge_speed,
                 velocity_profile="sanding",
                 speed_mode="linear",
-                wait=False,
+                wait=not contour_blend,
             )
+
+        if not contour_blend:
+            print("[Edge Coverage] Completed linear edge path (non-blended corner-safe mode)")
+            return True
 
         blend_ok = waitForBlending(
             cps=cps,
