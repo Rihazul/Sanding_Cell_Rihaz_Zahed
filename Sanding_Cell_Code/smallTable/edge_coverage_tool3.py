@@ -421,18 +421,39 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Keep a practical lead-in so start-of-contour move is not degenerate.
+    # Build prepoint in the direction of the first contour segment
+    # so entry stays inside pocket regardless of start corner.
+    first_point = edge_points[0]
+    second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
+    dx = float(second_point[0]) - float(first_point[0])
+    dy = float(second_point[1]) - float(first_point[1])
+    seg_len = math.hypot(dx, dy)
+    if seg_len < 1e-6:
+        ux, uy = 1.0, 0.0
+    else:
+        ux, uy = dx / seg_len, dy / seg_len
+    lead_in_mm = 5.0
     prepoint = [
-        edge_points[0][0] + 5.0,
-        edge_points[0][1],
-        edge_points[0][2],
-        edge_points[0][3],
-        edge_points[0][4],
-        edge_points[0][5],
+        float(first_point[0]) + (ux * lead_in_mm),
+        float(first_point[1]) + (uy * lead_in_mm),
+        float(first_point[2]),
+        float(first_point[3]),
+        float(first_point[4]),
+        float(first_point[5]),
     ]
     prehoming = [0, 200, 50, 0, 0, 0]
 
     robot_speed = _resolve_robot_speed(config)
+    if isinstance(config, dict) and config.get("logger"):
+        config["logger"].info(
+            "[Edge Coverage] door=%s orientation=%s first_point=%s second_point=%s prepoint=%s seventh=%.3f",
+            door_num,
+            orientation,
+            first_point,
+            second_point,
+            prepoint,
+            float(seventh_pos),
+        )
 
     communicate(
         cps=cps,
