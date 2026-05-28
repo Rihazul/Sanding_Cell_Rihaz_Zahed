@@ -282,7 +282,23 @@ def execute_edge_coverage(
                 float(edge_speed),
             )
 
-        for idx, point in enumerate(edge_points):
+        # Enter the contour with a non-blended move first to avoid controller
+        # point-calculation failures on very short first segments.
+        first_point = edge_points[0]
+        communicate(
+            cps=cps,
+            config=config,
+            point=first_point,
+            tcp=config["coords"][tcp_key],
+            ucs=config["coords"][ucs_key],
+            seventh=-1,
+            speed=edge_speed,
+            velocity_profile="sanding",
+            speed_mode="linear",
+            wait=True,
+        )
+
+        for idx, point in enumerate(edge_points[1:], start=1):
             communicate(
                 cps=cps,
                 config=config,
@@ -383,8 +399,9 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
+    # Keep a practical lead-in so start-of-contour move is not degenerate.
     prepoint = [
-        edge_points[0][0] + 0.5,
+        edge_points[0][0] + 5.0,
         edge_points[0][1],
         edge_points[0][2],
         edge_points[0][3],
