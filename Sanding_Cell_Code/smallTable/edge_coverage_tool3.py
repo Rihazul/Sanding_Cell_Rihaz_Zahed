@@ -164,26 +164,28 @@ def build_edge_coverage_path(
     z_level = float(z_coords[0])
     orientation_mode = (orientation or "horizontal").lower()
 
-    edge_point1 = [
-        x_coords[0] + tool3x + edge_margin + 4,
-        y_coords[0] + tool3y + edge_margin,
-        z_level,
-    ]
-    edge_point2 = [
-        x_coords[1] + tool3x + edge_margin + 4, 
-        y_coords[1] - tool3y - edge_margin,
-        z_level,
-    ]
-    edge_point3 = [
-        x_coords[2] - tool3x - edge_margin ,
-        y_coords[2] - tool3y - edge_margin,
-        z_level,
-    ]
-    edge_point4 = [
-        x_coords[3] - tool3x - edge_margin,
-        y_coords[3] + tool3y + edge_margin,
-        z_level,
-    ]
+    # Pocket points are already tool-compensated in scan_results.
+    # Keep only a small inward safety margin for edge coverage.
+    x_min = min(float(x) for x in x_coords)
+    x_max = max(float(x) for x in x_coords)
+    y_min = min(float(y) for y in y_coords)
+    y_max = max(float(y) for y in y_coords)
+
+    if (x_max - x_min) <= (2.0 * edge_margin) or (y_max - y_min) <= (2.0 * edge_margin):
+        raise RuntimeError(
+            f"[Edge Coverage] Pocket span too small after margin: x=[{x_min},{x_max}] y=[{y_min},{y_max}]"
+        )
+
+    left = x_min + edge_margin
+    right = x_max - edge_margin
+    bottom = y_min + edge_margin
+    top = y_max - edge_margin
+
+    # Bottom-left, top-left, top-right, bottom-right
+    edge_point1 = [left, bottom, z_level]
+    edge_point2 = [left, top, z_level]
+    edge_point3 = [right, top, z_level]
+    edge_point4 = [right, bottom, z_level]
 
     if orientation_mode == "horizontal":
         path = [
@@ -201,10 +203,6 @@ def build_edge_coverage_path(
             [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
             [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
         ]
-
-    for point in path:
-        point[0] = abs(point[0])
-        point[1] = abs(point[1])
 
     return path
 
@@ -377,21 +375,25 @@ def _build_pocket_xy_for_door(door_num, z):
                 f"Non-numeric pocket point {label} for door {door_num}: {point}"
             )
 
-    p8 = _to_xyz(get_pocket_point(door_num, 0), "0")
-    p7 = _to_xyz(get_pocket_point(door_num, 1), "1")
-    p6 = _to_xyz(get_pocket_point(door_num, 2), "2")
-    p5 = _to_xyz(get_pocket_point(door_num, 3), "3")
+    # pocket point index map from scan data:
+    # 0=bottom-left, 1=top-left, 2=top-right, 3=bottom-right
+    p0 = _to_xyz(get_pocket_point(door_num, 0), "0")
+    p1 = _to_xyz(get_pocket_point(door_num, 1), "1")
+    p2 = _to_xyz(get_pocket_point(door_num, 2), "2")
+    p3 = _to_xyz(get_pocket_point(door_num, 3), "3")
 
-    distance = p6[0] - p8[0]
-    point5u = [-distance, p5[1], z]
-    point6u = [-distance, p6[1], z]
-    point7u = [0, p7[1], z]
-    point8u = [0, p8[1], z]
+    # Use absolute pocket geometry directly. Pocket points are already
+    # tool-compensated in scan_results; do not remap to a local [-d..0] frame.
+    x_coords = [p0[0], p1[0], p2[0], p3[0]]
+    y_coords = [p0[1], p1[1], p2[1], p3[1]]
+    z_coords = [z, z, z, z]
 
-    x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
-    y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
-    z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
-    seventh_pos = p8[0] + get_door_position(door_num)
+    # Scan data already stores per-door 7th-axis station; do not add pocket-x.
+    seventh_pos = get_door_position(door_num)
+    try:
+        seventh_pos = float(seventh_pos)
+    except (TypeError, ValueError):
+        raise RuntimeError(f"Invalid 7th-axis door position for door {door_num}: {seventh_pos}")
     return x_coords, y_coords, z_coords, seventh_pos
 
 
