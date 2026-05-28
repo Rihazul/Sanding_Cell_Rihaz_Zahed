@@ -152,7 +152,7 @@ def build_edge_coverage_path(
     orientation="horizontal",
     tool3x=38.1,
     tool3y=50.8,
-    edge_margin=2,
+    edge_margin=5,
     rx=-0.034,
     ry=0.556,
     rz=0.251,
@@ -176,10 +176,16 @@ def build_edge_coverage_path(
             f"[Edge Coverage] Pocket span too small after margin: x=[{x_min},{x_max}] y=[{y_min},{y_max}]"
         )
 
-    left = x_min + edge_margin
-    right = x_max - edge_margin
-    bottom = y_min + edge_margin
-    top = y_max - edge_margin
+    # Vertical sanding is more sensitive near corners due to tool tilt;
+    # use a slightly larger inward margin there.
+    corner_margin = float(edge_margin)
+    if orientation_mode == "vertical":
+        corner_margin += 3.0
+
+    left = x_min + corner_margin
+    right = x_max - corner_margin
+    bottom = y_min + corner_margin
+    top = y_max - corner_margin
 
     # Bottom-left, top-left, top-right, bottom-right
     edge_point1 = [left, bottom, z_level]
@@ -421,21 +427,13 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    # Build prepoint in the direction of the first contour segment
-    # so entry stays inside pocket regardless of start corner.
+    # Force entry should be away from corners to avoid contacting frame first.
+    # Enter at the middle of the first edge segment.
     first_point = edge_points[0]
     second_point = edge_points[1] if len(edge_points) > 1 else edge_points[0]
-    dx = float(second_point[0]) - float(first_point[0])
-    dy = float(second_point[1]) - float(first_point[1])
-    seg_len = math.hypot(dx, dy)
-    if seg_len < 1e-6:
-        ux, uy = 1.0, 0.0
-    else:
-        ux, uy = dx / seg_len, dy / seg_len
-    lead_in_mm = 5.0
     prepoint = [
-        float(first_point[0]) + (ux * lead_in_mm),
-        float(first_point[1]) + (uy * lead_in_mm),
+        (float(first_point[0]) + float(second_point[0])) / 2.0,
+        (float(first_point[1]) + float(second_point[1])) / 2.0,
         float(first_point[2]),
         float(first_point[3]),
         float(first_point[4]),
