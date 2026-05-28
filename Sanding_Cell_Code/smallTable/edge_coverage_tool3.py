@@ -10,6 +10,7 @@ from Server_Better_V2 import (
 from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
 import math
+import os
 import time
 import yaml
 
@@ -404,7 +405,8 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     robot_speed = _resolve_robot_speed(config)
     if isinstance(config, dict) and config.get("logger"):
         config["logger"].info(
-            "[Edge Coverage] door=%s seventh_target=%.3f door_station=%.3f inner_ref_x=%.3f",
+            "[Edge Coverage] runtime=%s door=%s seventh_target=%.3f door_station=%.3f inner_ref_x=%.3f",
+            os.path.abspath(__file__),
             door_num,
             float(seventh_pos),
             float(door_station),

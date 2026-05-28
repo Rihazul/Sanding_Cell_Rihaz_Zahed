@@ -6505,6 +6505,17 @@ def communicate(
                 cmd_delta = abs(float(position) - float(last_cmd))
             except Exception:
                 cmd_delta = None
+        # Detect "too-early done" motions where J7 reports idle long before
+        # the expected travel time for a meaningful move.
+        min_travel_time_ratio = max(
+            0.1, float(door_cfg.get("seventhAxisMinTravelTimeRatio", 0.55))
+        )
+        min_travel_time_gate_s = max(
+            0.0, float(door_cfg.get("seventhAxisMinTravelTimeGateSec", 0.8))
+        )
+        early_done_retry_count = max(
+            0, int(door_cfg.get("seventhAxisEarlyDoneRetries", 1))
+        )
 
         # Read state first; only reconnect J7 if state read is unavailable.
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
@@ -6557,131 +6568,199 @@ def communicate(
 
         # input("ok?")
 
-        max_move_retries = 8
-        nret = None
-        for move_attempt in range(1, max_move_retries + 1):
+        pluginRes = []
+        post_move_retry_attempt = 0
+        max_post_move_attempts = 1 + int(early_done_retry_count)
+        while True:
+            max_move_retries = 8
+            nret = None
             result = []
-            nret = cps.HRIF_HRApp(
-                0, "HR_Motor", "MotorMovePositionSpeed", ["J7", position, speed], result
-            )
-            if move_ok(nret, result):
-                break
+            for move_attempt in range(1, max_move_retries + 1):
+                result = []
+                nret = cps.HRIF_HRApp(
+                    0, "HR_Motor", "MotorMovePositionSpeed", ["J7", position, speed], result
+                )
+                if move_ok(nret, result):
+                    break
 
-            result_text = " ".join(str(item) for item in result).lower()
-            motor_not_ready = str(result[0]) == "60006" if result else False
-            motor_not_ready = motor_not_ready or ("not ready" in result_text)
-            if not motor_not_ready:
-                break
+                result_text = " ".join(str(item) for item in result).lower()
+                motor_not_ready = str(result[0]) == "60006" if result else False
+                motor_not_ready = motor_not_ready or ("not ready" in result_text)
+                if not motor_not_ready:
+                    break
 
-            # Transient J7 readiness race: brief reconnect/readback and retry.
-            config["logger"].warning(
-                "[7thAxisMove] J7 not ready on move attempt %s/%s (ret=%s, res=%s). Retrying...",
-                move_attempt,
-                max_move_retries,
-                nret,
-                result,
-            )
-            cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
-            time.sleep(0.08 * move_attempt)
+                # Transient J7 readiness race: brief reconnect/readback and retry.
+                config["logger"].warning(
+                    "[7thAxisMove] J7 not ready on move attempt %s/%s (ret=%s, res=%s). Retrying...",
+                    move_attempt,
+                    max_move_retries,
+                    nret,
+                    result,
+                )
+                cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
+                time.sleep(0.08 * move_attempt)
 
-        if not move_ok(nret, result):
-            config["logger"].error(
-                f"[7thAxisMove] MotorMovePositionSpeed failed (ret={nret}, res={result})."
-            )
-            msg_to_frontend(
-                api_url=config["server"]["frontEnd_messaging_url"],
-                message="7th axis move failed. Please verify J7 and try again.",
-            )
-            return False
-        config["logger"].info(
-            f"[7thAxisMove] Going to position: {position}mm with speed: {speed}mm/s"
-        )
-        time.sleep(0.0001)
-
-        wait_start = time.time()
-        consecutive_state_errors = 0
-        saw_running = False
-        while wait:
-            if stop_requested():
-                try:
-                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
-                except Exception:
-                    pass
+            if not move_ok(nret, result):
+                config["logger"].error(
+                    f"[7thAxisMove] MotorMovePositionSpeed failed (ret={nret}, res={result})."
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message="7th axis move failed. Please verify J7 and try again.",
+                )
                 return False
-            pluginRes = []
-            nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-            if (nret not in (0, None)) or not state_readable(pluginRes):
-                consecutive_state_errors += 1
-                if consecutive_state_errors >= 5:
+            config["logger"].info(
+                f"[7thAxisMove] Going to position: {position}mm with speed: {speed}mm/s"
+            )
+            time.sleep(0.0001)
+
+            wait_start = time.time()
+            consecutive_state_errors = 0
+            saw_running = False
+            while wait:
+                if stop_requested():
+                    try:
+                        cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                    except Exception:
+                        pass
+                    if isinstance(config, dict) and config.get("logger"):
+                        config["logger"].warning(
+                            "[7thAxisMove] Stop requested while waiting for J7 move. diag=%s",
+                            _stop_diagnostics(),
+                        )
+                    return False
+                pluginRes = []
+                nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
+                if (nret not in (0, None)) or not state_readable(pluginRes):
+                    consecutive_state_errors += 1
+                    if consecutive_state_errors >= 5:
+                        try:
+                            cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                        except Exception:
+                            pass
+                        config["logger"].error(
+                            f"[7thAxisMove] MotorGetState failed during move (ret={nret}, res={pluginRes})."
+                        )
+                        msg_to_frontend(
+                            api_url=config["server"]["frontEnd_messaging_url"],
+                            message="7th axis state read failed during move. Movement stopped for safety.",
+                        )
+                        return False
+                else:
+                    consecutive_state_errors = 0
+                    motion_state = read_motion_state(pluginRes)
+                    if motion_state in ("1", "true", "running"):
+                        saw_running = True
+
+                    if state_done(pluginRes):
+                        # Motor reports idle/done.
+                        if require_run_transition:
+                            meaningful_move = True
+                            if cmd_delta is not None:
+                                meaningful_move = cmd_delta >= float(min_delta_for_transition_mm)
+
+                            if meaningful_move and (not saw_running):
+                                elapsed = time.time() - wait_start
+                                if elapsed < run_transition_grace_s:
+                                    time.sleep(move_poll_s)
+                                    continue
+                                try:
+                                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                                except Exception:
+                                    pass
+                                config["logger"].error(
+                                    "[7thAxisMove] Move finished without RUNNING transition "
+                                    "(target=%.3f, last_cmd=%s, delta_mm=%s, state=%s).",
+                                    float(position),
+                                    "None" if last_cmd is None else f"{float(last_cmd):.3f}",
+                                    "None" if cmd_delta is None else f"{float(cmd_delta):.3f}",
+                                    pluginRes,
+                                )
+                                msg_to_frontend(
+                                    api_url=config["server"]["frontEnd_messaging_url"],
+                                    message=(
+                                        "7th axis did not report a running state during move. "
+                                        "Movement stopped for safety."
+                                    ),
+                                )
+                                return False
+                        break
+
+                if (time.time() - wait_start) >= move_wait_timeout_s:
                     try:
                         cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
                     except Exception:
                         pass
                     config["logger"].error(
-                        f"[7thAxisMove] MotorGetState failed during move (ret={nret}, res={pluginRes})."
+                        f"[7thAxisMove] Timeout waiting for J7 move to complete after "
+                        f"{move_wait_timeout_s:.1f}s (target={position}, last_state={pluginRes})."
                     )
                     msg_to_frontend(
                         api_url=config["server"]["frontEnd_messaging_url"],
-                        message="7th axis state read failed during move. Movement stopped for safety.",
+                        message="7th axis move timeout. Movement stopped for safety.",
                     )
                     return False
-            else:
-                consecutive_state_errors = 0
-                motion_state = read_motion_state(pluginRes)
-                if motion_state in ("1", "true", "running"):
-                    saw_running = True
 
-                if state_done(pluginRes):
-                    # Motor reports idle/done.
-                    if require_run_transition:
-                        meaningful_move = True
-                        if cmd_delta is not None:
-                            meaningful_move = cmd_delta >= float(min_delta_for_transition_mm)
+                # Faster state polling reduces visible handoff latency.
+                time.sleep(move_poll_s)
 
-                        if meaningful_move and (not saw_running):
-                            elapsed = time.time() - wait_start
-                            if elapsed < run_transition_grace_s:
-                                time.sleep(move_poll_s)
-                                continue
-                            try:
-                                cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
-                            except Exception:
-                                pass
-                            config["logger"].error(
-                                "[7thAxisMove] Move finished without RUNNING transition "
-                                "(target=%.3f, last_cmd=%s, delta_mm=%s, state=%s).",
-                                float(position),
-                                "None" if last_cmd is None else f"{float(last_cmd):.3f}",
-                                "None" if cmd_delta is None else f"{float(cmd_delta):.3f}",
-                                pluginRes,
-                            )
-                            msg_to_frontend(
-                                api_url=config["server"]["frontEnd_messaging_url"],
-                                message=(
-                                    "7th axis did not report a running state during move. "
-                                    "Movement stopped for safety."
-                                ),
-                            )
-                            return False
-                    break
+            # Guard against false "done" when elapsed travel time is too short.
+            meaningful_move = True
+            if cmd_delta is not None:
+                meaningful_move = cmd_delta >= float(min_delta_for_transition_mm)
+            elapsed_move_s = max(0.0, time.time() - wait_start)
+            expected_move_s = None
+            try:
+                if meaningful_move:
+                    expected_move_s = abs(float(cmd_delta if cmd_delta is not None else 0.0)) / max(
+                        1.0, abs(float(speed))
+                    )
+            except Exception:
+                expected_move_s = None
 
-            if (time.time() - wait_start) >= move_wait_timeout_s:
-                try:
-                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
-                except Exception:
-                    pass
+            early_done = False
+            if meaningful_move and expected_move_s is not None and expected_move_s >= min_travel_time_gate_s:
+                early_done = elapsed_move_s < (expected_move_s * min_travel_time_ratio)
+
+            if early_done:
+                post_move_retry_attempt += 1
+                if post_move_retry_attempt < max_post_move_attempts:
+                    config["logger"].warning(
+                        "[7thAxisMove] Early completion detected (elapsed=%.3fs expected>=%.3fs). "
+                        "Retrying J7 command attempt %s/%s.",
+                        float(elapsed_move_s),
+                        float(expected_move_s * min_travel_time_ratio),
+                        post_move_retry_attempt + 1,
+                        max_post_move_attempts,
+                    )
+                    try:
+                        cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                    except Exception:
+                        pass
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
+                    time.sleep(0.12 * post_move_retry_attempt)
+                    continue
+
                 config["logger"].error(
-                    f"[7thAxisMove] Timeout waiting for J7 move to complete after "
-                    f"{move_wait_timeout_s:.1f}s (target={position}, last_state={pluginRes})."
+                    "[7thAxisMove] Early completion persisted: target=%.3f last_cmd=%s "
+                    "delta_mm=%s elapsed=%.3fs expected=%.3fs state=%s",
+                    float(position),
+                    "None" if last_cmd is None else f"{float(last_cmd):.3f}",
+                    "None" if cmd_delta is None else f"{float(cmd_delta):.3f}",
+                    float(elapsed_move_s),
+                    float(expected_move_s),
+                    pluginRes,
                 )
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
-                    message="7th axis move timeout. Movement stopped for safety.",
+                    message=(
+                        "7th axis reported motion done too early for the requested travel. "
+                        "Movement stopped for safety."
+                    ),
                 )
                 return False
 
-            # Faster state polling reduces visible handoff latency.
-            time.sleep(move_poll_s)
+            break
         # Optional post-move position verification if controller reports a
         # usable position value in MotorGetState payload.
         verify_cfg = config.get("door", {}) if isinstance(config, dict) else {}
