@@ -6447,6 +6447,30 @@ def communicate(
             except (TypeError, ValueError):
                 return False
 
+        def _safe_float(value):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
+        def _extract_pos_from_state(state):
+            """
+            Best-effort J7 position extraction from MotorGetState payload.
+            Different firmware variants return position in different slots.
+            """
+            if not isinstance(state, (list, tuple)) or len(state) < 4:
+                return None
+            # Most observed payloads keep motion-state at index 2.
+            # Try index 3 first, then fall back to right-most numeric slot.
+            candidates = [state[3]]
+            if len(state) > 4:
+                candidates.extend(reversed(state[4:]))
+            for candidate in candidates:
+                pos = _safe_float(candidate)
+                if pos is not None:
+                    return pos
+            return None
+
         pluginRes = []
         result = []
         door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
@@ -6596,8 +6620,54 @@ def communicate(
 
             # Faster state polling reduces visible handoff latency.
             time.sleep(move_poll_s)
+        # Optional post-move position verification if controller reports a
+        # usable position value in MotorGetState payload.
+        verify_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+        verify_tol_mm = _safe_float(verify_cfg.get("seventhAxisPosToleranceMm"))
+        if verify_tol_mm is None or verify_tol_mm <= 0.0:
+            verify_tol_mm = 8.0
+        verify_enabled = bool(verify_cfg.get("seventhAxisVerifyPosition", True))
 
-        config["logger"].info(f"[7thAxisMove] Reached position: {position}mm")
+        actual_pos = _extract_pos_from_state(pluginRes)
+        if verify_enabled and actual_pos is not None:
+            pos_err = abs(float(actual_pos) - float(position))
+            if pos_err > float(verify_tol_mm):
+                config["logger"].error(
+                    "[7thAxisMove] Target reached-state but position mismatch: "
+                    "target=%.3fmm actual=%.3fmm err=%.3fmm tol=%.3fmm state=%s",
+                    float(position),
+                    float(actual_pos),
+                    float(pos_err),
+                    float(verify_tol_mm),
+                    pluginRes,
+                )
+                msg_to_frontend(
+                    api_url=config["server"]["frontEnd_messaging_url"],
+                    message=(
+                        "7th axis reported done but position mismatch was detected. "
+                        "Movement stopped for safety."
+                    ),
+                )
+                try:
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+                except Exception:
+                    pass
+                return False
+            config["logger"].info(
+                "[7thAxisMove] Reached position: target=%.3fmm actual=%.3fmm "
+                "(err=%.3fmm, tol=%.3fmm)",
+                float(position),
+                float(actual_pos),
+                float(pos_err),
+                float(verify_tol_mm),
+            )
+        else:
+            config["logger"].info(
+                "[7thAxisMove] Reached position command: target=%.3fmm "
+                "(actual unavailable; state=%s)",
+                float(position),
+                pluginRes,
+            )
         return True
 
     time.sleep(0.0001)
@@ -6962,11 +7032,25 @@ def keepTool11(
     )
 
     if not waitForBlending(cps=cps, config=config):
-        msg_to_frontend(
-            api_url=config["server"]["frontEnd_messaging_url"],
-            message="Aborting drop: robot blending did not complete before touch move.",
+        # Same safety pattern used later in this drop flow:
+        # if blending status is stale but robot is already idle, proceed.
+        robot_state = []
+        nret_state = cps.HRIF_ReadRobotState(0, 0, robot_state)
+        robot_idle = (
+            nret_state == 0
+            and isinstance(robot_state, (list, tuple))
+            and len(robot_state) > 11
+            and str(robot_state[11]).strip() == "1"
         )
-        raise RuntimeError("Blending timeout/error before tool drop touch move.")
+        if not robot_idle:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Aborting drop: robot blending did not complete before touch move.",
+            )
+            raise RuntimeError("Blending timeout/error before tool drop touch move.")
+        config["logger"].warning(
+            "[toolMotion][manualDrop] Blending timeout before touch move, but robot is idle; proceeding."
+        )
 
     config["logger"].info(
         "[toolMotion][manualDrop] phase=touch profile=sanding ratio=%.3f",
