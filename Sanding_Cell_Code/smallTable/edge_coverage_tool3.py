@@ -435,10 +435,10 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     # 1) optional staged pre-target
     # 2) one or more same-target re-assert commands before arm motion
     j7_stage_offset_mm = max(
-        0.0, float(door_cfg.get("edgeJ7StageOffsetMm", 120.0))
+        0.0, float(door_cfg.get("edgeJ7StageOffsetMm", 0.0))
     )
     j7_reassert_count = max(
-        0, int(door_cfg.get("edgeJ7ReassertCount", 1))
+        0, int(door_cfg.get("edgeJ7ReassertCount", 0))
     )
     j7_reassert_pause_s = max(
         0.0, float(door_cfg.get("edgeJ7ReassertPauseSec", 0.2))
