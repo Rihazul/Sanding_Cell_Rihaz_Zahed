@@ -6521,7 +6521,7 @@ def communicate(
             0.0, float(door_cfg.get("seventhAxisMinTravelTimeGateSec", 0.8))
         )
         early_done_retry_count = max(
-            0, int(door_cfg.get("seventhAxisEarlyDoneRetries", 1))
+            0, int(door_cfg.get("seventhAxisEarlyDoneRetries", 0))
         )
 
         # Read state first; only reconnect J7 if state read is unavailable.

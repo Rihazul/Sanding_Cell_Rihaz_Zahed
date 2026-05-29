@@ -110,6 +110,11 @@ door:
   edgeJ7StageOffsetMm: 0.0
   edgeJ7ReassertCount: 0
   edgeJ7ReassertPauseSec: 0.2
+  edgeJ7HoldDuringPrepoint: false
+  edgeJ7HoldDuringEdgePath: false
+  seventhAxisEarlyDoneRetries: 0
+  seventhAxisSettleWindowSec: 0.8
+  seventhAxisSettleStableSamples: 6
   # homingSpeed: 1.0
 
 point:

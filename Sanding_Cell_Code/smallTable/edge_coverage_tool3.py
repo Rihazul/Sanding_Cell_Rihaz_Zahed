@@ -443,6 +443,14 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     j7_reassert_pause_s = max(
         0.0, float(door_cfg.get("edgeJ7ReassertPauseSec", 0.2))
     )
+    # By default do NOT re-command J7 during prepoint/edge path; this avoids
+    # repeated same-target J7 commands that can look like stop-go motion.
+    hold_j7_during_prepoint = bool(
+        door_cfg.get("edgeJ7HoldDuringPrepoint", False)
+    )
+    hold_j7_during_edge_path = bool(
+        door_cfg.get("edgeJ7HoldDuringEdgePath", False)
+    )
     if isinstance(config, dict) and config.get("logger"):
         config["logger"].info(
             "[Edge Coverage] runtime=%s door=%s seventh_target=%.3f door_station=%.3f inner_ref_x=%.3f",
@@ -461,6 +469,11 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
             float(j7_stage_offset_mm),
             int(j7_reassert_count),
             float(j7_reassert_pause_s),
+        )
+        config["logger"].info(
+            "[Edge Coverage] J7 hold strategy: prepoint=%s edge_path=%s",
+            hold_j7_during_prepoint,
+            hold_j7_during_edge_path,
         )
 
     if j7_stage_offset_mm > 0.0:
@@ -525,11 +538,11 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         point=prepoint,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
-        seventh=seventh_pos,
+        seventh=seventh_pos if hold_j7_during_prepoint else -1,
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
-        require_seventh_ok=True,
+        require_seventh_ok=hold_j7_during_prepoint,
     )
     execute_edge_coverage(
         cps=cps,
@@ -537,7 +550,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         edge_points=edge_points,
         force=force,
         split=False,
-        seventh_hold=seventh_pos,
+        seventh_hold=seventh_pos if hold_j7_during_edge_path else None,
     )
     communicate(
         cps=cps,
