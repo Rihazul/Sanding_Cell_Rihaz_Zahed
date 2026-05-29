@@ -6491,6 +6491,13 @@ def communicate(
         min_delta_for_transition_mm = max(
             0.0, float(door_cfg.get("seventhAxisTransitionDeltaMm", 20.0))
         )
+        # Require a stable stopped-state window before accepting move completion.
+        settle_window_s = max(
+            0.05, float(door_cfg.get("seventhAxisSettleWindowSec", 0.8))
+        )
+        settle_stable_samples = max(
+            2, int(door_cfg.get("seventhAxisSettleStableSamples", 6))
+        )
 
         # Track last commanded J7 target as a heuristic for "meaningful move".
         last_cmd = None
@@ -6684,7 +6691,38 @@ def communicate(
                                     ),
                                 )
                                 return False
-                        break
+                        # Do not accept the first STOPPED snapshot immediately.
+                        # J7 can transiently report done, then resume creeping.
+                        stable_done = True
+                        stable_samples = 0
+                        settle_deadline = time.time() + settle_window_s
+                        while time.time() < settle_deadline:
+                            probe = []
+                            nret_probe = cps.HRIF_HRApp(
+                                0, "HR_Motor", "MotorGetState", ["J7"], probe
+                            )
+                            if (nret_probe not in (0, None)) or not state_readable(probe):
+                                # Treat unreadable state as unstable and keep waiting.
+                                stable_done = False
+                                break
+                            probe_motion = read_motion_state(probe)
+                            if probe_motion in ("1", "true", "running"):
+                                stable_done = False
+                                if isinstance(config, dict) and config.get("logger"):
+                                    config["logger"].warning(
+                                        "[7thAxisMove] J7 left STOPPED state during settle window; continuing wait. probe=%s",
+                                        probe,
+                                    )
+                                break
+                            if state_done(probe):
+                                stable_samples += 1
+                                if stable_samples >= settle_stable_samples:
+                                    break
+                            time.sleep(move_poll_s)
+                        if stable_done and stable_samples >= settle_stable_samples:
+                            break
+                        # Not stably stopped yet; keep main wait loop running.
+                        continue
 
                 if (time.time() - wait_start) >= move_wait_timeout_s:
                     try:

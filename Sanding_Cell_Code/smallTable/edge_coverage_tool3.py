@@ -430,6 +430,19 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     prehoming = [0, 200, 50, 0, 0, 0]
 
     robot_speed = _resolve_robot_speed(config)
+    door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+    # J7 settle strategy for drift-prone motion:
+    # 1) optional staged pre-target
+    # 2) one or more same-target re-assert commands before arm motion
+    j7_stage_offset_mm = max(
+        0.0, float(door_cfg.get("edgeJ7StageOffsetMm", 120.0))
+    )
+    j7_reassert_count = max(
+        0, int(door_cfg.get("edgeJ7ReassertCount", 1))
+    )
+    j7_reassert_pause_s = max(
+        0.0, float(door_cfg.get("edgeJ7ReassertPauseSec", 0.2))
+    )
     if isinstance(config, dict) and config.get("logger"):
         config["logger"].info(
             "[Edge Coverage] runtime=%s door=%s seventh_target=%.3f door_station=%.3f inner_ref_x=%.3f",
@@ -443,6 +456,35 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
             "[Edge Coverage] prepoint from pocket (+5mm): %s",
             prepoint,
         )
+        config["logger"].info(
+            "[Edge Coverage] J7 settle strategy: stage_offset=%.1fmm reassert_count=%s pause=%.2fs",
+            float(j7_stage_offset_mm),
+            int(j7_reassert_count),
+            float(j7_reassert_pause_s),
+        )
+
+    if j7_stage_offset_mm > 0.0:
+        stage_target = float(seventh_pos)
+        if float(seventh_pos) > 0.0:
+            stage_target = max(0.0, float(seventh_pos) - float(j7_stage_offset_mm))
+        elif float(seventh_pos) < 0.0:
+            stage_target = min(0.0, float(seventh_pos) + float(j7_stage_offset_mm))
+        if abs(stage_target - float(seventh_pos)) > 1e-3:
+            stage_result = communicate(
+                cps=cps,
+                config=config,
+                seventh=stage_target,
+                tcp=config["coords"]["tcptool3plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                speed=robot_speed,
+                velocity_profile="robot",
+                wait=True,
+                require_seventh_ok=True,
+            )
+            if stage_result is None:
+                raise RuntimeError(
+                    f"[Edge Coverage] Failed staged 7th-axis move for door {door_num} target {stage_target}."
+                )
 
     seventh_result = communicate(
         cps=cps,
@@ -459,6 +501,24 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         raise RuntimeError(
             f"[Edge Coverage] Failed to move 7th axis to door {door_num} target {seventh_pos}."
         )
+    for idx in range(int(j7_reassert_count)):
+        hold_result = communicate(
+            cps=cps,
+            config=config,
+            seventh=seventh_pos,
+            tcp=config["coords"]["tcptool3plane1"],
+            ucs=config["coords"]["ucsTable1"],
+            speed=robot_speed,
+            velocity_profile="robot",
+            wait=True,
+            require_seventh_ok=True,
+        )
+        if hold_result is None:
+            raise RuntimeError(
+                f"[Edge Coverage] J7 reassert failed before prepoint (door {door_num}, target {seventh_pos}, pass {idx + 1})."
+            )
+        if j7_reassert_pause_s > 0.0:
+            time.sleep(j7_reassert_pause_s)
     communicate(
         cps=cps,
         config=config,
