@@ -7,7 +7,8 @@ import yaml
 from modules.CPS import CPSClient
 
 
-def load_cps_endpoint(config_path):
+def load_endpoint():
+    config_path = os.path.join(os.path.dirname(__file__), "configs", "config.yaml")
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f) or {}
     server = cfg.get("server", {})
@@ -16,12 +17,12 @@ def load_cps_endpoint(config_path):
 
 def hr_motor(cps, cmd, params):
     out = []
-    ret = cps.HRIF_HRApp(0, "HR_Motor", cmd, params, out)
+    ret = cps.HRIF_HRAppCmd(0, "HR_Motor", cmd, params, out)
     print(f"{cmd}({params}) -> ret={ret}, out={out}")
     return ret, out
 
 
-def hr_ok(ret, out):
+def ok(ret, out):
     if ret not in (0, None):
         return False
     if not isinstance(out, list) or not out:
@@ -29,61 +30,47 @@ def hr_ok(ret, out):
     return str(out[0]).strip() == "0"
 
 
-def is_done(state_out):
-    # Accept done only when the payload itself is valid and motion field is 0.
-    if not isinstance(state_out, list) or len(state_out) < 3:
+def state_is_stopped(out):
+    if not ok(0, out):
         return False
-    if str(state_out[0]).strip() != "0":
+    if len(out) < 3:
         return False
-    return str(state_out[2]).strip() == "0"
+    return str(out[2]).strip() == "0"
 
 
-def wait_done(cps, motor, timeout_s=60.0, poll_s=0.05):
+def wait_stopped(cps, motor, timeout):
     start = time.time()
-    while True:
+    while (time.time() - start) < timeout:
         ret, out = hr_motor(cps, "MotorGetState", [motor])
-        if hr_ok(ret, out) and is_done(out):
+        if ok(ret, out) and state_is_stopped(out):
+            print("Motor is stopped.")
             return True
-        if (time.time() - start) >= timeout_s:
-            return False
-        time.sleep(poll_s)
-
-
-def parse_targets(target_text, target_value):
-    targets = []
-    if target_text:
-        for p in target_text.split(","):
-            p = p.strip()
-            if p:
-                targets.append(float(p))
-    if target_value is not None:
-        targets.append(float(target_value))
-    return targets
+        time.sleep(0.05)
+    print(f"Timeout after {timeout:.1f}s waiting for stop.")
+    return False
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Simple J7 MotoApp test")
-    parser.add_argument("--motor", default="J7", help="Motor name (default: J7)")
-    parser.add_argument(
-        "--cmd",
-        choices=("position", "position_speed"),
-        default="position",
-        help="MotoApp move command to test (default: position)",
-    )
-    parser.add_argument("--speed", type=float, default=200.0, help="mm/s")
-    parser.add_argument("--target", type=float, default=None, help="Single target mm")
-    parser.add_argument("--targets", default="", help="Comma list, e.g. 0,250,700,0")
-    parser.add_argument("--state-only", action="store_true", help="Only read motor state")
-    parser.add_argument("--timeout", type=float, default=60.0, help="Wait timeout per move (s)")
+    parser = argparse.ArgumentParser(description="Manual-style J7 MotoApp test")
+    parser.add_argument("--motor", default="J7", help="Motor name, default J7")
+    parser.add_argument("--target", type=float, help="Target position in mm")
+    parser.add_argument("--speed", type=float, default=200.0, help="Speed in mm/s")
+    parser.add_argument("--wait", action="store_true", help="Wait until MotorGetState shows stopped")
+    parser.add_argument("--timeout", type=float, default=60.0, help="Wait timeout in seconds")
+
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("connect", help="Run MotorConnect")
+    sub.add_parser("state", help="Run MotorGetState")
+    sub.add_parser("stop", help="Run MotorStop")
+    sub.add_parser("move-position", help="Run MotorMovePosition")
+    sub.add_parser("move-position-speed", help="Run MotorMovePositionSpeed")
+
     args = parser.parse_args()
 
-    config_path = os.path.join(os.path.dirname(__file__), "configs", "config.yaml")
-    host, port = load_cps_endpoint(config_path)
+    host, port = load_endpoint()
     if not host or not port:
         print("Invalid CPS endpoint in config.yaml")
         return 2
-
-    targets = parse_targets(args.targets, args.target)
 
     cps = CPSClient()
     ret = cps.HRIF_Connect(0, host, port)
@@ -92,34 +79,42 @@ def main():
         return 1
 
     try:
+        if args.command == "connect":
+            ret, out = hr_motor(cps, "MotorConnect", [args.motor])
+            return 0 if ok(ret, out) else 1
+
+        if args.command == "state":
+            ret, out = hr_motor(cps, "MotorGetState", [args.motor])
+            return 0 if ok(ret, out) else 1
+
+        if args.command == "stop":
+            ret, out = hr_motor(cps, "MotorStop", [args.motor])
+            return 0 if ok(ret, out) else 1
+
         ret, out = hr_motor(cps, "MotorConnect", [args.motor])
-        if not hr_ok(ret, out):
+        if not ok(ret, out):
             print("MotorConnect failed.")
             return 1
 
-        if args.state_only:
-            hr_motor(cps, "MotorGetState", [args.motor])
-            return 0
+        if args.target is None:
+            print("--target is required for move commands.")
+            return 2
 
-        if not targets:
-            print("No target provided. Use --target or --targets.")
-            return 0
+        if args.command == "move-position":
+            ret, out = hr_motor(cps, "MotorMovePosition", [args.motor, args.target])
+        else:
+            ret, out = hr_motor(
+                cps,
+                "MotorMovePositionSpeed",
+                [args.motor, args.target, args.speed],
+            )
 
-        for i, target in enumerate(targets, start=1):
-            if args.cmd == "position":
-                print(f"\nMove {i}/{len(targets)}: {args.motor} -> {target} mm")
-                ret, out = hr_motor(cps, "MotorMovePosition", [args.motor, target])
-            else:
-                print(f"\nMove {i}/{len(targets)}: {args.motor} -> {target} mm @ {args.speed} mm/s")
-                ret, out = hr_motor(cps, "MotorMovePositionSpeed", [args.motor, target, args.speed])
-            if not hr_ok(ret, out):
-                print("Move command failed.")
-                return 1
-            if not wait_done(cps, args.motor, timeout_s=args.timeout):
-                print("Timed out waiting for done state.")
-                return 1
-            print("Done.")
+        if not ok(ret, out):
+            print("Move command failed.")
+            return 1
 
+        if args.wait:
+            return 0 if wait_stopped(cps, args.motor, args.timeout) else 1
         return 0
     finally:
         cps.HRIF_DisConnect(0)
