@@ -21,10 +21,19 @@ def hr_motor(cps, cmd, params):
     return ret, out
 
 
+def hr_ok(ret, out):
+    if ret not in (0, None):
+        return False
+    if not isinstance(out, list) or not out:
+        return False
+    return str(out[0]).strip() == "0"
+
+
 def is_done(state_out):
-    # MotorGetState docs: state = -1 unknown, 0 stopped, 1 running
-    # Current payload style in this project: ['0', 'OK', '<state>', ...]
+    # Accept done only when the payload itself is valid and motion field is 0.
     if not isinstance(state_out, list) or len(state_out) < 3:
+        return False
+    if str(state_out[0]).strip() != "0":
         return False
     return str(state_out[2]).strip() == "0"
 
@@ -33,7 +42,7 @@ def wait_done(cps, motor, timeout_s=60.0, poll_s=0.05):
     start = time.time()
     while True:
         ret, out = hr_motor(cps, "MotorGetState", [motor])
-        if ret in (0, None) and is_done(out):
+        if hr_ok(ret, out) and is_done(out):
             return True
         if (time.time() - start) >= timeout_s:
             return False
@@ -55,6 +64,12 @@ def parse_targets(target_text, target_value):
 def main():
     parser = argparse.ArgumentParser(description="Simple J7 MotoApp test")
     parser.add_argument("--motor", default="J7", help="Motor name (default: J7)")
+    parser.add_argument(
+        "--cmd",
+        choices=("position", "position_speed"),
+        default="position",
+        help="MotoApp move command to test (default: position)",
+    )
     parser.add_argument("--speed", type=float, default=200.0, help="mm/s")
     parser.add_argument("--target", type=float, default=None, help="Single target mm")
     parser.add_argument("--targets", default="", help="Comma list, e.g. 0,250,700,0")
@@ -77,7 +92,10 @@ def main():
         return 1
 
     try:
-        hr_motor(cps, "MotorConnect", [args.motor])
+        ret, out = hr_motor(cps, "MotorConnect", [args.motor])
+        if not hr_ok(ret, out):
+            print("MotorConnect failed.")
+            return 1
 
         if args.state_only:
             hr_motor(cps, "MotorGetState", [args.motor])
@@ -88,9 +106,13 @@ def main():
             return 0
 
         for i, target in enumerate(targets, start=1):
-            print(f"\nMove {i}/{len(targets)}: {args.motor} -> {target} mm @ {args.speed} mm/s")
-            ret, _ = hr_motor(cps, "MotorMovePositionSpeed", [args.motor, target, args.speed])
-            if ret not in (0, None):
+            if args.cmd == "position":
+                print(f"\nMove {i}/{len(targets)}: {args.motor} -> {target} mm")
+                ret, out = hr_motor(cps, "MotorMovePosition", [args.motor, target])
+            else:
+                print(f"\nMove {i}/{len(targets)}: {args.motor} -> {target} mm @ {args.speed} mm/s")
+                ret, out = hr_motor(cps, "MotorMovePositionSpeed", [args.motor, target, args.speed])
+            if not hr_ok(ret, out):
                 print("Move command failed.")
                 return 1
             if not wait_done(cps, args.motor, timeout_s=args.timeout):
@@ -106,4 +128,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
