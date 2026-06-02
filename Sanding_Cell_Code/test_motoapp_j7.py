@@ -53,8 +53,6 @@ def wait_stopped(cps, motor, timeout):
 def main():
     parser = argparse.ArgumentParser(description="Manual-style J7 MotoApp test")
     parser.add_argument("--motor", default="J7", help="Motor name, default J7")
-    parser.add_argument("--target", type=float, help="Target position in mm")
-    parser.add_argument("--speed", type=float, default=200.0, help="Speed in mm/s")
     parser.add_argument("--wait", action="store_true", help="Wait until MotorGetState shows stopped")
     parser.add_argument("--timeout", type=float, default=60.0, help="Wait timeout in seconds")
 
@@ -62,8 +60,11 @@ def main():
     sub.add_parser("connect", help="Run MotorConnect")
     sub.add_parser("state", help="Run MotorGetState")
     sub.add_parser("stop", help="Run MotorStop")
-    sub.add_parser("move-position", help="Run MotorMovePosition")
-    sub.add_parser("move-position-speed", help="Run MotorMovePositionSpeed")
+    move_position = sub.add_parser("move-position", help="Run MotorMovePosition")
+    move_position.add_argument("--target", type=float, required=True, help="Target position in mm")
+    move_position_speed = sub.add_parser("move-position-speed", help="Run MotorMovePositionSpeed")
+    move_position_speed.add_argument("--target", type=float, required=True, help="Target position in mm")
+    move_position_speed.add_argument("--speed", type=float, default=200.0, help="Speed in mm/s")
 
     args = parser.parse_args()
 
@@ -95,10 +96,6 @@ def main():
         if not ok(ret, out):
             print("MotorConnect failed.")
             return 1
-
-        if args.target is None:
-            print("--target is required for move commands.")
-            return 2
 
         if args.command == "move-position":
             ret, out = hr_motor(cps, "MotorMovePosition", [args.motor, args.target])
