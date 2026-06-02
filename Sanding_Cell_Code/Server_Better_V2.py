@@ -194,6 +194,30 @@ def stop_requested() -> bool:
         return STOP_REQUESTED
 
 
+def _stop_diagnostics():
+    """
+    Debug helper for stop-related behavior.
+    Returns current stop flag states and runtime file path.
+    """
+    exists = False
+    mtime = None
+    try:
+        exists = os.path.exists(STOP_FLAG_PATH)
+        if exists:
+            mtime = os.path.getmtime(STOP_FLAG_PATH)
+    except Exception:
+        exists = False
+        mtime = None
+
+    return {
+        "stop_requested_mem": bool(STOP_REQUESTED),
+        "stop_flag_path": STOP_FLAG_PATH,
+        "stop_flag_exists": bool(exists),
+        "stop_flag_mtime": mtime,
+        "runtime_file": os.path.abspath(__file__),
+    }
+
+
 def _read_box_bit(cps, reader, bit_index):
     result = []
     nRet = reader(0, bit_index, result)
