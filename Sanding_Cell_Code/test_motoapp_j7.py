@@ -15,7 +15,7 @@ def load_endpoint():
 
 def hr_motor(cps, cmd, params):
     out = []
-    ret = cps.HRIF_HRAppCmd(0, "HR_Motor", cmd, params, out)
+    ret = cps.HRIF_HRApp(0, "HR_Motor", cmd, params, out)
     print(f"{cmd}({params}) -> ret={ret}, out={out}")
     return ret, out
 
@@ -34,7 +34,9 @@ def main():
 
     try:
         hr_motor(cps, "MotorConnect", ["J7"])
+        hr_motor(cps, "MotorMoveOrigin", ["J7"])
         hr_motor(cps, "MotorMovePosition", ["J7", 700])
+        hr_motor(cps, "MotorDisconnect", ["J7"])
         return 0
     finally:
         cps.HRIF_DisConnect(0)
