@@ -3488,15 +3488,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         Returns:
         - stable_regions (list of dicts): Each dict contains the start and end distances of a stable region.
         """
-        raw_chunks = list(chunks)
-        if not raw_chunks:
-            raise ValueError("No scan points available to classify depth profile.")
-
-        original_start_dist = float(raw_chunks[0]["dist"])
-        original_end_dist = float(raw_chunks[-1]["dist"])
-
         # Filter out NaN values in height data
-        chunks = [item for item in raw_chunks if not math.isnan(item["height"])]
+        chunks = [item for item in chunks if not math.isnan(item["height"])]
         compensation = 0
         if len(chunks) < 2:
             raise ValueError(
@@ -3561,17 +3554,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if len(stable_regions) < 2:
             return uniform_depth_result("stable_regions_lt_2")
 
-        first_valid_dist = float(chunks[0]["dist"])
-        last_valid_dist = float(chunks[-1]["dist"])
-        leading_nan_gap = max(0.0, first_valid_dist - original_start_dist)
-        trailing_nan_gap = max(0.0, original_end_dist - last_valid_dist)
-
-        frame1_point1 = original_start_dist
+        frame1_point1 = float(chunks[0]["dist"])
         frame1_point2 = stable_regions[0]["end_distance"]
         pocket_point1 = stable_regions[0]["end_distance"]
         pocket_point2 = stable_regions[-1]["start_distance"]
         frame2_point1 = stable_regions[-1]["start_distance"]
-        frame2_point2 = original_end_dist
+        frame2_point2 = float(chunks[-1]["dist"])
 
         config["logger"].info("values: %s, %s, %s, %s, %s, %s",
             frame1_point1,
@@ -3604,18 +3592,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             "heightRange": height_range,
             "reason": "stable_regions_detected",
         }
-
-        if leading_nan_gap > 0.0 or trailing_nan_gap > 0.0:
-            config["logger"].info(
-                "[scan-classify] Restored NaN gap(s): leading=%.3fmm trailing=%.3fmm "
-                "(first_valid=%.3f, last_valid=%.3f, original_start=%.3f, original_end=%.3f)",
-                float(leading_nan_gap),
-                float(trailing_nan_gap),
-                float(first_valid_dist),
-                float(last_valid_dist),
-                float(original_start_dist),
-                float(original_end_dist),
-            )
 
         return result
 
@@ -6355,7 +6331,8 @@ def communicate(
         nan_tail_travel_mm = float(scan_stop_cfg.get("scanStopNanTailMm", 10.0))
         startStopNan = False
         valid_sample_count = 0
-        last_valid_dist = None
+        last_valid_raw_dist = None
+        first_valid_raw_dist = None
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Scanning Door Using the Laser Sensor...⚙️",
@@ -6398,16 +6375,21 @@ def communicate(
                 if not math.isnan(height):
                     startStopNan = True
                     valid_sample_count += 1
+                raw_dist = euclidean_distance(point1=initPos, point2=pos)
+                if not math.isnan(height) and first_valid_raw_dist is None:
+                    first_valid_raw_dist = float(raw_dist)
                 # Calculate the distance from initial position
-                dist = euclidean_distance(point1=initPos, point2=pos)
+                dist = raw_dist
 
                 # Append measurement
-                measurements.append({"height": scale_value(height), "dist": dist})
+                measurements.append(
+                    {"height": scale_value(height), "dist": dist, "raw_dist": raw_dist}
+                )
 
                 nan_stop_gate_ok = True
                 if stopWhenNanMinDist is not None:
                     try:
-                        nan_stop_gate_ok = float(dist) >= float(stopWhenNanMinDist)
+                        nan_stop_gate_ok = float(raw_dist) >= float(stopWhenNanMinDist)
                     except (TypeError, ValueError):
                         nan_stop_gate_ok = True
 
@@ -6417,15 +6399,15 @@ def communicate(
                         nan_count += 1  # Increment the NaN counter
                     else:
                         nan_count = 0  # Reset the NaN counter if height is valid
-                        last_valid_dist = float(dist)
+                        last_valid_raw_dist = float(raw_dist)
 
                     # Check if NaN count reaches the threshold
                     enough_valid_samples = (
                         valid_sample_count >= min_valid_samples_before_nan_stop
                     )
                     nan_tail_ok = False
-                    if last_valid_dist is not None:
-                        nan_tail_ok = (float(dist) - float(last_valid_dist)) >= float(
+                    if last_valid_raw_dist is not None:
+                        nan_tail_ok = (float(raw_dist) - float(last_valid_raw_dist)) >= float(
                             nan_tail_travel_mm
                         )
                     if nan_count >= consecutive_nan_threshold and enough_valid_samples and nan_tail_ok:
@@ -6433,8 +6415,8 @@ def communicate(
                             "[scan-stop] stopWhenNan triggered after valid data tail (valid_samples=%s, nan_count=%s, tail_mm=%.2f)",
                             valid_sample_count,
                             nan_count,
-                            float(dist) - float(last_valid_dist)
-                            if last_valid_dist is not None
+                            float(raw_dist) - float(last_valid_raw_dist)
+                            if last_valid_raw_dist is not None
                             else 0.0,
                         )
                         keepgoing = False
@@ -6455,6 +6437,16 @@ def communicate(
                     instrument.serial.close()
             except Exception:
                 pass
+
+        if first_valid_raw_dist is not None:
+            for measurement in measurements:
+                raw_dist = float(measurement.get("raw_dist", measurement.get("dist", 0.0)))
+                measurement["dist"] = raw_dist - float(first_valid_raw_dist)
+            config["logger"].info(
+                "[scan-data] Normalized scan distances to first valid surface hit: origin_raw_dist=%.3fmm samples=%s",
+                float(first_valid_raw_dist),
+                len(measurements),
+            )
 
         # config['logger'].info("\n\n")
 
