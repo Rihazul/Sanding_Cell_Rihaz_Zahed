@@ -3208,9 +3208,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         return point_str
 
     def saveAsCSV(fileName, measurements):
-        # Specify the order of fieldnames
-        ## here ct means 'current time'
-        fieldnames = ["dist", "height"]
+        # Keep the historical columns first, but tolerate extra diagnostic fields.
+        base_fieldnames = ["dist", "height"]
+        extra_fieldnames = []
+        for measurement in measurements or []:
+            if not isinstance(measurement, dict):
+                continue
+            for key in measurement.keys():
+                if key not in base_fieldnames and key not in extra_fieldnames:
+                    extra_fieldnames.append(key)
+        fieldnames = base_fieldnames + extra_fieldnames
 
         # Writing to CSV
         with open(fileName, mode="w", newline="") as file:
