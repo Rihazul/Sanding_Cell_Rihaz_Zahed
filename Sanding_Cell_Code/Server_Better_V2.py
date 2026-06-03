@@ -3508,6 +3508,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         heights = [item["height"] for item in chunks]
         stable_start_idx = None  # Track start of stable region
         stable_regions = []
+        scan_settings = config.get("settings", {}) if isinstance(config, dict) else {}
+        min_frame_region_mm = float(
+            scan_settings.get("scanMinFrameRegionMm", max(30.0, float(min_stable_distance)))
+        )
 
         for i in range(1, len(heights)):
             # Calculate change in height from the previous point
@@ -3538,7 +3542,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 stable_regions.append(
                     {"start_distance": start_dist, "end_distance": end_dist}
                 )
-        config["logger"].info("Debug: %s", stable_regions)
+        config["logger"].info("[scan-classify] raw stable regions: %s", stable_regions)
 
         total_length = max(float(chunks[-1]["dist"]) - float(chunks[0]["dist"]), 0.0)
         height_range = max(heights) - min(heights)
@@ -3561,11 +3565,31 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if len(stable_regions) < 2:
             return uniform_depth_result("stable_regions_lt_2")
 
+        filtered_stable_regions = [
+            region
+            for region in stable_regions
+            if (float(region["end_distance"]) - float(region["start_distance"]))
+            >= float(min_frame_region_mm)
+        ]
+        if len(filtered_stable_regions) >= 2:
+            selected_stable_regions = filtered_stable_regions
+            selection_reason = "filtered_stable_regions"
+        else:
+            selected_stable_regions = stable_regions
+            selection_reason = "raw_stable_regions_fallback"
+
+        config["logger"].info(
+            "[scan-classify] selected stable regions (%s, min_frame_region_mm=%.3f): %s",
+            selection_reason,
+            float(min_frame_region_mm),
+            selected_stable_regions,
+        )
+
         frame1_point1 = float(chunks[0]["dist"])
-        frame1_point2 = stable_regions[0]["end_distance"]
-        pocket_point1 = stable_regions[0]["end_distance"]
-        pocket_point2 = stable_regions[-1]["start_distance"]
-        frame2_point1 = stable_regions[-1]["start_distance"]
+        frame1_point2 = selected_stable_regions[0]["end_distance"]
+        pocket_point1 = selected_stable_regions[0]["end_distance"]
+        pocket_point2 = selected_stable_regions[-1]["start_distance"]
+        frame2_point1 = selected_stable_regions[-1]["start_distance"]
         frame2_point2 = float(chunks[-1]["dist"])
 
         config["logger"].info("values: %s, %s, %s, %s, %s, %s",
@@ -3596,8 +3620,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             "profileType": "frame_and_pocket",
             "pocketDetected": True,
             "stableRegionCount": len(stable_regions),
+            "selectedStableRegionCount": len(selected_stable_regions),
             "heightRange": height_range,
-            "reason": "stable_regions_detected",
+            "reason": selection_reason,
         }
 
         return result
@@ -3927,7 +3952,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].info(
                     f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
                 )
-                x_prestart_offset_mm = 6.0
+                x_prestart_offset_mm = 11.0
                 xLeadIn = addXVal(xStart, -x_prestart_offset_mm)
                 config["logger"].info(
                     f"[scan-x] lead-in point: {xLeadIn} (offset {x_prestart_offset_mm}mm before start)"
@@ -4222,7 +4247,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 yStart = addYVal(
                     addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
-                    -config["offset"]["scannerOffsetInBottom"],
+                    -config["offset"]["scannerOffsetInBottom"] - 5.0,
                 )
                 yEnd = addYVal(
                     addYVal(
@@ -4360,7 +4385,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             results = identify_gradient_change_points_dynamic(
                 ymeasurements,
                 threshold=scan_threshold,
-                min_stable_distance=0,
+                min_stable_distance=scan_min_stable_distance,
                 three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
