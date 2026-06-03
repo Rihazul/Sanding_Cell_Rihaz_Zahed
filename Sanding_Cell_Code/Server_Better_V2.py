@@ -3488,8 +3488,15 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         Returns:
         - stable_regions (list of dicts): Each dict contains the start and end distances of a stable region.
         """
+        raw_chunks = list(chunks)
+        if not raw_chunks:
+            raise ValueError("No scan points available to classify depth profile.")
+
+        original_start_dist = float(raw_chunks[0]["dist"])
+        original_end_dist = float(raw_chunks[-1]["dist"])
+
         # Filter out NaN values in height data
-        chunks = [item for item in chunks if not math.isnan(item["height"])]
+        chunks = [item for item in raw_chunks if not math.isnan(item["height"])]
         compensation = 0
         if len(chunks) < 2:
             raise ValueError(
@@ -3554,12 +3561,17 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if len(stable_regions) < 2:
             return uniform_depth_result("stable_regions_lt_2")
 
-        frame1_point1 = float(chunks[0]["dist"])
+        first_valid_dist = float(chunks[0]["dist"])
+        last_valid_dist = float(chunks[-1]["dist"])
+        leading_nan_gap = max(0.0, first_valid_dist - original_start_dist)
+        trailing_nan_gap = max(0.0, original_end_dist - last_valid_dist)
+
+        frame1_point1 = original_start_dist
         frame1_point2 = stable_regions[0]["end_distance"]
         pocket_point1 = stable_regions[0]["end_distance"]
         pocket_point2 = stable_regions[-1]["start_distance"]
         frame2_point1 = stable_regions[-1]["start_distance"]
-        frame2_point2 = float(chunks[-1]["dist"])
+        frame2_point2 = original_end_dist
 
         config["logger"].info("values: %s, %s, %s, %s, %s, %s",
             frame1_point1,
@@ -3592,6 +3604,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             "heightRange": height_range,
             "reason": "stable_regions_detected",
         }
+
+        if leading_nan_gap > 0.0 or trailing_nan_gap > 0.0:
+            config["logger"].info(
+                "[scan-classify] Restored NaN gap(s): leading=%.3fmm trailing=%.3fmm "
+                "(first_valid=%.3f, last_valid=%.3f, original_start=%.3f, original_end=%.3f)",
+                float(leading_nan_gap),
+                float(trailing_nan_gap),
+                float(first_valid_dist),
+                float(last_valid_dist),
+                float(original_start_dist),
+                float(original_end_dist),
+            )
 
         return result
 
