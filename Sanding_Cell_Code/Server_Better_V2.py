@@ -3547,6 +3547,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         total_length = max(float(chunks[-1]["dist"]) - float(chunks[0]["dist"]), 0.0)
         height_range = max(heights) - min(heights)
 
+        def _samples_in_region(start_dist, end_dist):
+            return [
+                float(item["height"])
+                for item in chunks
+                if float(start_dist) <= float(item["dist"]) <= float(end_dist)
+            ]
+
+        def _mean_or_nan(values):
+            return float(np.mean(values)) if values else float("nan")
+
         def uniform_depth_result(reason):
             return {
                 "frame_1": 0.0,
@@ -3558,6 +3568,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 "pocketDetected": False,
                 "stableRegionCount": len(stable_regions),
                 "heightRange": height_range,
+                "depthMm": 0.0,
+                "frameAvgHeight": float("nan"),
+                "pocketAvgHeight": float("nan"),
                 "reason": reason,
             }
 
@@ -3585,7 +3598,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             selected_stable_regions,
         )
 
-        frame1_point1 = float(chunks[0]["dist"])
+        if selection_reason == "filtered_stable_regions":
+            frame1_point1 = float(selected_stable_regions[0]["start_distance"])
+        else:
+            frame1_point1 = float(chunks[0]["dist"])
         frame1_point2 = selected_stable_regions[0]["end_distance"]
         pocket_point1 = selected_stable_regions[0]["end_distance"]
         pocket_point2 = selected_stable_regions[-1]["start_distance"]
@@ -3611,6 +3627,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         if frame1 < 0 or frame2 < 0 or pocket <= 0:
             return uniform_depth_result("non_positive_segment")
 
+        frame1_heights = _samples_in_region(frame1_point1, frame1_point2)
+        frame2_heights = _samples_in_region(frame2_point1, frame2_point2)
+        if len(selected_stable_regions) > 2:
+            pocket_heights = []
+            for region in selected_stable_regions[1:-1]:
+                pocket_heights.extend(
+                    _samples_in_region(region["start_distance"], region["end_distance"])
+                )
+        else:
+            pocket_heights = _samples_in_region(pocket_point1, pocket_point2)
+
+        frame_avg_height = _mean_or_nan(frame1_heights + frame2_heights)
+        pocket_avg_height = _mean_or_nan(pocket_heights)
+        if math.isnan(frame_avg_height) or math.isnan(pocket_avg_height):
+            depth_mm = 0.0
+        else:
+            depth_mm = abs(frame_avg_height - pocket_avg_height)
+
         result = {
             "frame_1": frame1,
             "threeD_1": three_d_compensation,
@@ -3622,6 +3656,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             "stableRegionCount": len(stable_regions),
             "selectedStableRegionCount": len(selected_stable_regions),
             "heightRange": height_range,
+            "depthMm": depth_mm,
+            "frameAvgHeight": frame_avg_height,
+            "pocketAvgHeight": pocket_avg_height,
             "reason": selection_reason,
         }
 
@@ -3799,6 +3836,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config.get("scanThresholdMinD", {}).get("T1", 0),
             )
         )
+        if scan_min_stable_distance <= 0.0:
+            scan_min_stable_distance = 5.0
+            config["logger"].warning(
+                "[scan] scan_min_stable_distance was <= 0. Using fallback %.1fmm.",
+                scan_min_stable_distance,
+            )
         scan_three_d_compensation = float(
             config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
         )
@@ -4227,6 +4270,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "xlen": xlen,
                     "xframe_1": xframe_1,
                     "xframe_2": xframe_2,
+                    "xDepthMm": results.get("depthMm", 0),
                     "xProfileType": x_profile_type,
                     "xPocketDetected": x_pocket_detected,
                     "xHeightRange": results.get("heightRange", 0),
@@ -4453,6 +4497,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "ylen": ylen,
                     "yframe_1": yframe_1,
                     "yframe_2": yframe_2,
+                    "yDepthMm": results.get("depthMm", 0),
                     "yProfileType": y_profile_type,
                     "yPocketDetected": y_pocket_detected,
                     "yHeightRange": results.get("heightRange", 0),
@@ -4461,10 +4506,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 }
             )
             config["logger"].info(
-                f"[scan] x stuffs: <total length>: {xlen} mm, <left frame>: {xframe_1} mm, <right frame>: {xframe_2} mm"
+                f"[scan] x stuffs: <total length>: {xlen} mm, <left frame>: {xframe_1} mm, <right frame>: {xframe_2} mm, <depth>: {xVals[-1]['xDepthMm']} mm"
             )
             config["logger"].info(
-                f"[scan] y stuffs: <total length>: {ylen} mm, <left frame>: {yframe_1} mm, <right frame>: {yframe_2} mm"
+                f"[scan] y stuffs: <total length>: {ylen} mm, <left frame>: {yframe_1} mm, <right frame>: {yframe_2} mm, <depth>: {yVals[-1]['yDepthMm']} mm"
             )
 
             # framePoints: points that connect the center of the frames
