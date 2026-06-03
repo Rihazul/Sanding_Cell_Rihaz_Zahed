@@ -364,7 +364,7 @@ def sandingModelATableA():
     tool2side_cycle_doors = doors_with_cycles(tool2side_by_door)
     tl3sideedge_door = doors_with_cycles(tool3_by_door)
 
-    z, z1, z2 = 0, 0, -10
+    z, z1, z2 = 10, 0, 10
     # Speed
     speeed = float(json_config["robotSpeed"])
     # Keep the mounted tool after the final completed task unless explicitly disabled.

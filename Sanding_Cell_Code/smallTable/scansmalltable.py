@@ -54,16 +54,66 @@ def save_scan_results_to_json(data, output_dir=None):
                 normalized.append({})
         return normalized
 
+    def _safe_float(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _map_detected_positions_to_slots(detected_positions, expected_slots):
+        detected = []
+        for idx, pos in enumerate(_ensure_list(detected_positions)):
+            pos_val = _safe_float(pos)
+            if pos_val is None:
+                continue
+            detected.append((idx, pos_val))
+
+        slots = []
+        for slot_idx, slot in enumerate(_ensure_list(expected_slots)):
+            slot_val = _safe_float(slot)
+            if slot_val is None:
+                continue
+            slots.append((slot_idx, slot_val))
+
+        physical_numbers = [None] * len(_ensure_list(detected_positions))
+        remaining_slots = slots[:]
+        for det_idx, det_pos in detected:
+            if not remaining_slots:
+                break
+            nearest_slot = min(
+                remaining_slots,
+                key=lambda slot_item: abs(float(slot_item[1]) - float(det_pos)),
+            )
+            physical_numbers[det_idx] = int(nearest_slot[0]) + 1
+            remaining_slots = [
+                slot_item
+                for slot_item in remaining_slots
+                if slot_item[0] != nearest_slot[0]
+            ]
+
+        for idx in range(len(physical_numbers)):
+            if physical_numbers[idx] is None:
+                physical_numbers[idx] = idx + 1
+
+        return physical_numbers
+
     x_vals = _ensure_list(data.get('xVals'))
     y_vals = _ensure_list(data.get('yVals'))
+    robo7th_pos = _ensure_list(data.get('robo7thPos'))
+    expected_slots = _ensure_list(data.get('expectedDoorSlots'))
+    physical_door_numbers = _map_detected_positions_to_slots(robo7th_pos, expected_slots)
     door_profiles = []
     total_doors = max(len(x_vals), len(y_vals))
     for idx in range(total_doors):
         x_entry = x_vals[idx] if idx < len(x_vals) and isinstance(x_vals[idx], dict) else {}
         y_entry = y_vals[idx] if idx < len(y_vals) and isinstance(y_vals[idx], dict) else {}
+        if idx < len(physical_door_numbers):
+            door_number = physical_door_numbers[idx]
+        else:
+            door_number = idx + 1
         door_profiles.append(
             {
-                'doorNumber': idx + 1,
+                'doorNumber': door_number,
                 'profile': y_entry.get('doorProfile')
                 or x_entry.get('doorProfile')
                 or 'unknown',
@@ -77,7 +127,9 @@ def save_scan_results_to_json(data, output_dir=None):
     # Convert data to a format suitable for JSON serialization
     json_data = {
         'timestamp': timestamp,
-        'robo7thPos': _ensure_list(data.get('robo7thPos')),
+        'robo7thPos': robo7th_pos,
+        'expectedDoorSlots': expected_slots,
+        'physicalDoorNumbers': physical_door_numbers,
         'framePoints': _normalize_points_list(data.get('framePoints')),
         'pocketPoints': _normalize_points_list(data.get('pocketPoints')),
         'outerCornerPoints': _normalize_points_list(data.get('outerCornerPoints')),
@@ -156,6 +208,11 @@ def scanTableA(cps=None, config=None):
     # Save scan results to JSON file
     scan_data = {
         'robo7thPos': own7thpos,
+        'expectedDoorSlots': [
+            config['table'][f'lengthx{i}']
+            for i in range(int(config['table']['count']))
+            if f'lengthx{i}' in config['table']
+        ],
         'framePoints': framePoints,
         'pocketPoints': pocketPoints,
         'outerCornerPoints': outerCornerPoints, 

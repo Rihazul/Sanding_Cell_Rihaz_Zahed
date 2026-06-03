@@ -7,10 +7,9 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
-from smallTable.scancord import get_door_position, get_inner_corner_point, get_pocket_point
+from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
 import math
-import os
 import time
 import yaml
 
@@ -219,7 +218,6 @@ def execute_edge_coverage(
     split=False,
     tcp_key="tcptool3plane1",
     ucs_key="ucsTable1",
-    seventh_hold=None,
 ):
     """Execute edge coverage path with force and vibration control."""
     if not edge_points:
@@ -291,7 +289,7 @@ def execute_edge_coverage(
                 point=point,
                 tcp=config["coords"][tcp_key],
                 ucs=config["coords"][ucs_key],
-                seventh=seventh_hold if seventh_hold is not None else -1,
+                seventh=-1,
                 speed=edge_speed,
                 velocity_profile="sanding",
                 speed_mode="linear",
@@ -367,56 +365,15 @@ def _build_pocket_xy_for_door(door_num, z):
     x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
     y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
     z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
-    # Required pocket anchoring convention:
-    # J7 target must be p8 local X + door station for every door.
-    try:
-        door_station = float(get_door_position(door_num))
-    except (TypeError, ValueError):
-        raise RuntimeError(
-            f"Invalid 7th-axis door position for door {door_num}: {get_door_position(door_num)}"
-        )
-    seventh_pos = float(p8[0]) + door_station
-    return x_coords, y_coords, z_coords, seventh_pos, float(p8[0]), door_station
-
-
-def _build_pocket_prepoint(door_num, orientation, edge_start_point):
-    """
-    Build approach point from scanned pocket corner with +5mm Z height.
-    Corner selection follows edge start corner:
-    - horizontal edge path starts near pocket corner 2 (upper-right)
-    - vertical edge path starts near pocket corner 0 (lower-left)
-    """
-    orientation_mode = (orientation or "horizontal").lower()
-    pocket_corner = 2 if orientation_mode == "horizontal" else 0
-    pocket_pt = get_pocket_point(door_num, pocket_corner)
-    if isinstance(pocket_pt, (list, tuple)) and len(pocket_pt) >= 3:
-        try:
-            return [
-                float(pocket_pt[0]),
-                float(pocket_pt[1]),
-                float(pocket_pt[2]) + 5.0,
-                edge_start_point[3],
-                edge_start_point[4],
-                edge_start_point[5],
-            ]
-        except (TypeError, ValueError):
-            pass
-    # Fallback to previous prepoint behavior if pocket scan data is invalid.
-    return [
-        edge_start_point[0] + 0.5,
-        edge_start_point[1],
-        edge_start_point[2] + 5.0,
-        edge_start_point[3],
-        edge_start_point[4],
-        edge_start_point[5],
-    ]
+    seventh_pos = p8[0] + get_door_position(door_num)
+    return x_coords, y_coords, z_coords, seventh_pos
 
 
 def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     config = _load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
-    x_coords, y_coords, z_coords, seventh_pos, inner_ref_x, door_station = _build_pocket_xy_for_door(door_num, z)
+    x_coords, y_coords, z_coords, seventh_pos = _build_pocket_xy_for_door(door_num, z)
     edge_points = build_edge_coverage_path(
         x_coords=x_coords,
         y_coords=y_coords,
@@ -426,80 +383,19 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
     if not edge_points:
         return
 
-    prepoint = _build_pocket_prepoint(door_num, orientation, edge_points[0])
+    prepoint = [
+        edge_points[0][0] + 0.5,
+        edge_points[0][1],
+        edge_points[0][2],
+        edge_points[0][3],
+        edge_points[0][4],
+        edge_points[0][5],
+    ]
     prehoming = [0, 200, 50, 0, 0, 0]
 
     robot_speed = _resolve_robot_speed(config)
-    door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
-    # J7 settle strategy for drift-prone motion:
-    # 1) optional staged pre-target
-    # 2) one or more same-target re-assert commands before arm motion
-    j7_stage_offset_mm = max(
-        0.0, float(door_cfg.get("edgeJ7StageOffsetMm", 0.0))
-    )
-    j7_reassert_count = max(
-        0, int(door_cfg.get("edgeJ7ReassertCount", 0))
-    )
-    j7_reassert_pause_s = max(
-        0.0, float(door_cfg.get("edgeJ7ReassertPauseSec", 0.2))
-    )
-    # By default do NOT re-command J7 during prepoint/edge path; this avoids
-    # repeated same-target J7 commands that can look like stop-go motion.
-    hold_j7_during_prepoint = bool(
-        door_cfg.get("edgeJ7HoldDuringPrepoint", False)
-    )
-    hold_j7_during_edge_path = bool(
-        door_cfg.get("edgeJ7HoldDuringEdgePath", False)
-    )
-    if isinstance(config, dict) and config.get("logger"):
-        config["logger"].info(
-            "[Edge Coverage] runtime=%s door=%s seventh_target=%.3f door_station=%.3f inner_ref_x=%.3f",
-            os.path.abspath(__file__),
-            door_num,
-            float(seventh_pos),
-            float(door_station),
-            float(inner_ref_x),
-        )
-        config["logger"].info(
-            "[Edge Coverage] prepoint from pocket (+5mm): %s",
-            prepoint,
-        )
-        config["logger"].info(
-            "[Edge Coverage] J7 settle strategy: stage_offset=%.1fmm reassert_count=%s pause=%.2fs",
-            float(j7_stage_offset_mm),
-            int(j7_reassert_count),
-            float(j7_reassert_pause_s),
-        )
-        config["logger"].info(
-            "[Edge Coverage] J7 hold strategy: prepoint=%s edge_path=%s",
-            hold_j7_during_prepoint,
-            hold_j7_during_edge_path,
-        )
 
-    if j7_stage_offset_mm > 0.0:
-        stage_target = float(seventh_pos)
-        if float(seventh_pos) > 0.0:
-            stage_target = max(0.0, float(seventh_pos) - float(j7_stage_offset_mm))
-        elif float(seventh_pos) < 0.0:
-            stage_target = min(0.0, float(seventh_pos) + float(j7_stage_offset_mm))
-        if abs(stage_target - float(seventh_pos)) > 1e-3:
-            stage_result = communicate(
-                cps=cps,
-                config=config,
-                seventh=stage_target,
-                tcp=config["coords"]["tcptool3plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                speed=robot_speed,
-                velocity_profile="robot",
-                wait=True,
-                require_seventh_ok=True,
-            )
-            if stage_result is None:
-                raise RuntimeError(
-                    f"[Edge Coverage] Failed staged 7th-axis move for door {door_num} target {stage_target}."
-                )
-
-    seventh_result = communicate(
+    communicate(
         cps=cps,
         config=config,
         seventh=seventh_pos,
@@ -508,41 +404,17 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
-        require_seventh_ok=True,
     )
-    if seventh_result is None:
-        raise RuntimeError(
-            f"[Edge Coverage] Failed to move 7th axis to door {door_num} target {seventh_pos}."
-        )
-    for idx in range(int(j7_reassert_count)):
-        hold_result = communicate(
-            cps=cps,
-            config=config,
-            seventh=seventh_pos,
-            tcp=config["coords"]["tcptool3plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            speed=robot_speed,
-            velocity_profile="robot",
-            wait=True,
-            require_seventh_ok=True,
-        )
-        if hold_result is None:
-            raise RuntimeError(
-                f"[Edge Coverage] J7 reassert failed before prepoint (door {door_num}, target {seventh_pos}, pass {idx + 1})."
-            )
-        if j7_reassert_pause_s > 0.0:
-            time.sleep(j7_reassert_pause_s)
     communicate(
         cps=cps,
         config=config,
         point=prepoint,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
-        seventh=seventh_pos if hold_j7_during_prepoint else -1,
+        seventh=-1,
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
-        require_seventh_ok=hold_j7_during_prepoint,
     )
     execute_edge_coverage(
         cps=cps,
@@ -550,7 +422,6 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         edge_points=edge_points,
         force=force,
         split=False,
-        seventh_hold=seventh_pos if hold_j7_during_edge_path else None,
     )
     communicate(
         cps=cps,
