@@ -404,6 +404,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         speed=robot_speed,
         velocity_profile="robot",
         wait=True,
+        require_seventh_ok=True,
     )
     communicate(
         cps=cps,

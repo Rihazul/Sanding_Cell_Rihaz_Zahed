@@ -962,6 +962,7 @@ def _run_small_door_zigzag(
                 ucs=config["coords"]["ucsTable1"],
                 speed=0.8,
                 wait=True,
+                require_seventh_ok=True,
             )
             if not split:
                 communicate(
@@ -1057,6 +1058,7 @@ if __name__ == "__main__":
     smalldoor2zizag(force=5, z=-6.5)
     smalldoor3zizag(force=5, z=-6.5)
     # smalldoor4zizag(force=5,z=-6.5)# Uncommented to call smalldoor4zizag
+
 
 
 

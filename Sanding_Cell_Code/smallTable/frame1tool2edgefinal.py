@@ -155,7 +155,7 @@ def door1frametool2sideedge(force,cps):
         print("x1:", x1)
 
         #7th axis position for the top
-        x2=x1+(p4[0]-p1[0])/2
+        x2=x1+(p4[0]-p1[0])
         print("x2:", x2)
 
         #prehoming
@@ -449,7 +449,7 @@ def door1frametool2sideedge(force,cps):
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=extraleft0,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -463,7 +463,7 @@ def door1frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         if not _wait_for_j7_idle(cps):
             raise RuntimeError(f"J7 did not become idle after async move to {x2}")
@@ -652,7 +652,7 @@ def door1frametool2sideedge(force,cps):
                 stop_vibration=True,
             )
         # #Right Cycle
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=rightpoints,force=force)
         communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -720,7 +720,7 @@ def door2frametool2sideedge(force,cps):
         print("x1:", x1)
 
         #7th axis position for the top
-        x2=x1+(p4[0]-p1[0])/2
+        x2=x1+(p4[0]-p1[0])
         print("x2:", x2)
 
         #prehoming
@@ -1014,7 +1014,7 @@ def door2frametool2sideedge(force,cps):
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=extraleft0,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -1028,7 +1028,7 @@ def door2frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         if not _wait_for_j7_idle(cps):
             raise RuntimeError(f"J7 did not become idle after async move to {x2}")
@@ -1217,7 +1217,7 @@ def door2frametool2sideedge(force,cps):
                 stop_vibration=True,
             )
         # #Right Cycle
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=rightpoints,force=force)
         communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -1285,7 +1285,7 @@ def door3frametool2sideedge(force,cps):
         print("x1:", x1)
 
         #7th axis position for the top
-        x2=x1+(p4[0]-p1[0])/2
+        x2=x1+(p4[0]-p1[0])
         print("x2:", x2)
 
         #prehoming
@@ -1579,7 +1579,7 @@ def door3frametool2sideedge(force,cps):
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=extraleft0,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -1593,7 +1593,7 @@ def door3frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         if not _wait_for_j7_idle(cps):
             raise RuntimeError(f"J7 did not become idle after async move to {x2}")
@@ -1782,7 +1782,7 @@ def door3frametool2sideedge(force,cps):
                 stop_vibration=True,
             )
         # #Right Cycle
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=rightpoints,force=force)
         communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -1850,7 +1850,7 @@ def door4frametool2sideedge(force,cps):
         print("x1:", x1)
 
         #7th axis position for the top
-        x2=x1+(p4[0]-p1[0])/2
+        x2=x1+(p4[0]-p1[0])
         print("x2:", x2)
 
         #prehoming
@@ -2144,7 +2144,7 @@ def door4frametool2sideedge(force,cps):
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_left(cps, config, points1=lefthalfpointsdown,force=force)
         communicate(cps=cps,config=config,point=extraleft0,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -2158,7 +2158,7 @@ def door4frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         if not _wait_for_j7_idle(cps):
             raise RuntimeError(f"J7 did not become idle after async move to {x2}")
@@ -2347,7 +2347,7 @@ def door4frametool2sideedge(force,cps):
                 stop_vibration=True,
             )
         # #Right Cycle
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_right(cps, config, points1=rightpoints,force=force)
         communicate(cps=cps,config=config,point=extraright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
