@@ -70,6 +70,8 @@ from cycle_data_utils import (
 )
 
 INTER_PASS_DELAY_SECONDS = 0.0
+J7_IDLE_TIMEOUT_S = 45.0
+J7_IDLE_POLL_S = 0.02
 
 
 def load_config():
@@ -77,6 +79,20 @@ def load_config():
     with open("./configs/config.yaml", "r") as file:
         config = yaml.safe_load(file)
     return config
+
+
+def wait_for_j7_idle(cps: CPSClient, timeout_s: float = J7_IDLE_TIMEOUT_S, poll_s: float = J7_IDLE_POLL_S) -> bool:
+    start_time = time.time()
+    result = []
+    while True:
+        result.clear()
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+        if (nret == 0 or nret is None) and len(result) > 2 and str(result[2]).strip() == "0":
+            return True
+        if (time.time() - start_time) >= float(timeout_s):
+            print(f"[J7] Timeout waiting for idle after {timeout_s:.1f}s. Last state={result}")
+            return False
+        time.sleep(max(0.005, float(poll_s)))
 
 
 # def run_side_cycles(count,force):
@@ -542,6 +558,10 @@ def sandingModelATableA():
         # Arm goes safe first, then rail returns to home station.
         move_to_safe_point()
         move_seventh_to_tool_station()
+        if not wait_for_j7_idle(cps):
+            raise RuntimeError(
+                "J7 did not become idle after final move to tool station."
+            )
         # Re-assert safe arm pose after rail move.
         move_to_safe_point()
 

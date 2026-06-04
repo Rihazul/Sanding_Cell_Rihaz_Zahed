@@ -54,10 +54,26 @@ def compute_timeout(
 DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
 SANDING_Z_THRESHOLD = 5.0
+J7_IDLE_TIMEOUT_S = 45.0
+J7_IDLE_POLL_S = 0.02
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
+
+
+def _wait_for_j7_idle(cps: CPSClient, timeout_s: float = J7_IDLE_TIMEOUT_S, poll_s: float = J7_IDLE_POLL_S) -> bool:
+    start_time = time.time()
+    result = []
+    while True:
+        result.clear()
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+        if (nret == 0 or nret is None) and len(result) > 2 and str(result[2]).strip() == "0":
+            return True
+        if (time.time() - start_time) >= float(timeout_s):
+            print(f"[J7] Timeout waiting for idle after {timeout_s:.1f}s. Last state={result}")
+            return False
+        time.sleep(max(0.005, float(poll_s)))
 
 
 def apply_spiral_settings(settings: Optional[dict]) -> None:
@@ -788,6 +804,10 @@ def smalldoor1side(force,cps):
                 velocity_profile="robot",
                 wait=True,
             )
+            if not _wait_for_j7_idle(cps):
+                raise RuntimeError(
+                    f"J7 did not become idle after async move to {seventh_axis_point}"
+                )
         
         communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
@@ -1036,6 +1056,10 @@ def smalldoor2side(force,cps):
                 velocity_profile="robot",
                 wait=True,
             )
+            if not _wait_for_j7_idle(cps):
+                raise RuntimeError(
+                    f"J7 did not become idle after async move to {seventh_axis_point}"
+                )
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
@@ -1284,6 +1308,10 @@ def smalldoor3side(force,cps):
                 velocity_profile="robot",
                 wait=True,
             )
+            if not _wait_for_j7_idle(cps):
+                raise RuntimeError(
+                    f"J7 did not become idle after async move to {seventh_axis_point}"
+                )
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
@@ -1531,6 +1559,10 @@ def smalldoor4side(force,cps):
                 velocity_profile="robot",
                 wait=True,
             )
+            if not _wait_for_j7_idle(cps):
+                raise RuntimeError(
+                    f"J7 did not become idle after async move to {seventh_axis_point}"
+                )
         
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
