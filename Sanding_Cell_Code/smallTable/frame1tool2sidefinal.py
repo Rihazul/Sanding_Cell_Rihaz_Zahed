@@ -22,6 +22,9 @@ from smallTable.scancord import (
     get_y_values
 )
 
+J7_IDLE_TIMEOUT_S = 45.0
+J7_IDLE_POLL_S = 0.02
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -32,6 +35,20 @@ def load_json_config():
     """Loads runtime UI cycle data from cycleData.json."""
     with open('./configs/cycleData.json', 'r') as file:
         return json.load(file)
+
+
+def _wait_for_j7_idle(cps: CPSClient, timeout_s: float = J7_IDLE_TIMEOUT_S, poll_s: float = J7_IDLE_POLL_S) -> bool:
+    start_time = time.time()
+    result = []
+    while True:
+        result.clear()
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+        if (nret == 0 or nret is None) and len(result) > 2 and str(result[2]).strip() == "0":
+            return True
+        if (time.time() - start_time) >= float(timeout_s):
+            print(f"[J7] Timeout waiting for idle after {timeout_s:.1f}s. Last state={result}")
+            return False
+        time.sleep(max(0.005, float(poll_s)))
 
 def _run_tool2_side_process(
     cps,
@@ -427,6 +444,8 @@ def door1frametool2side(force,cps):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        if not _wait_for_j7_idle(cps):
+            raise RuntimeError(f"J7 did not become idle after async move to {x2}")
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
