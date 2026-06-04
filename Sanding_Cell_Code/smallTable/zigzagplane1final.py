@@ -26,12 +26,7 @@ from Server_Better_V2 import (
     putForceZplus,
     putForceZminus,
 )
-from smallTable.waypoint2 import (
-    Waypoint2Config,
-    execute_waypoint2_path,
-    generate_spiral_points_between,
-    generate_arc_line_segments_between,
-)
+
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from cycle_data_utils import get_inverse_overlap_step
 from smallTable.scancord import (
