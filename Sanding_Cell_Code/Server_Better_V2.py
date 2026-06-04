@@ -579,31 +579,6 @@ def adjust_heights(data):
     return adjusted_data
 
 
-# def setSpeed(cps, speed, config):
-#         """Sets the speed of the cobot
-
-#         Args:
-#             cps (cps): cps
-#             speed (float): expects speed to be in [0,1] range
-#         """
-#         if speed is None: return
-#         currSpeed = [ ] # Read the maximum joint speed
-#         nRet = cps.HRIF_ReadOverride(0,0, currSpeed)
-#         if float(currSpeed[0]) != speed:
-#             if speed is not None:
-#                 waitForBlending(cps=cps, config=config)
-#                 nRet = cps.HRIF_SetOverride(0,0, speed)
-#                 # time.sleep(0.2)
-
-#                 if nRet == 0:
-#                     config['logger'].info(f'[setSpeed] Could set speed to {speed * 100}%')
-#                 else:
-#                     config['logger'].error(f"[setSpeed] Couldn't set speed to {speed * 100}%, ret: {nRet}")
-#                     msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message="Error With Robot Settings. Please Verify The Robot Settings and Try Again. Terminating Process...")
-#                     exit(-1)
-#         return
-
-
 def setSpeed(cps, speed, config, wait_for_blending=False):
     """
     Sets the speed of the cobot.
@@ -714,16 +689,6 @@ def toggle_stopper_status(cps, digital_number=2):
     else:
         nRet = cps.HRIF_SetBoxDO(0, digital_number, 1)
 
-
-# def control_table_status(cps):
-#     openTableStatus = []
-#     nRet = cps.HRIF_ReadBoxDO(0, 1, openTableStatus)
-#     if openTableStatus[0] == '1':
-#         nRet = cps.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
-#         nRet = cps.HRIF_SetBoxDO(0, 0, 1)
-#     else:
-#         nRet = cps.HRIF_SetBoxDO(0, 0, 0)
-#         nRet = cps.HRIF_SetBoxDO(0, 1, 1)
 
 
 def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
@@ -2726,77 +2691,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             message="Homing Completed Successfully!",
         )
 
-    def homingFunction_old(cps, config):
-        def check_return_value(val):
-            if val != 0:
-                config["logger"].info("error code: ", val)
-
-        # config['logger'].info(config)
-        result = []
-        app_name = "MT_Kinco"
-        setUCS_TCP(
-            cps=cps,
-            tcp=config["coords"]["tcpDefault"],
-            ucs=config["coords"]["ucsDefault"],
-            config=config,
-        )
-        config["logger"].info("[homing] Going back to safe positions for J1-J6...")
-        #### check if it is behind the 0 line or not (so, the position will be X position of the tool Center), if yes, then only do safePointTool
-        result = []  # Read the current actual location information
-        nRet = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
-        dX = float(result[6])
-        # config['logger'].info(f"[homing] current position: {result}")
-        if dX > config["point"]["safePointTool"][0]:
-            communicate(
-                cps=cps,
-                point=config["point"]["safePointTool"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=config["UI"]["robotSpeed"],
-            )
-        communicate(
-            cps=cps,
-            point=config["point"]["safePoint"],
-            tcp=config["coords"]["tcpDefault"],
-            ucs=config["coords"]["ucsDefault"],
-            seventh=-1,
-            config=config,
-            speed=config["UI"]["robotSpeed"],
-        )
-
-        #### Perform homing #####
-        power_on = "MotorPowerOn"
-        find_origin_params = ["6"]  # aims to 'Find Origin'
-        ret = cps.HRIF_HRApp(
-            0, app_name, power_on, find_origin_params, result
-        )  # start to find origin
-        check_return_value(ret)
-
-        config["logger"].info("start to find origin")
-        while True:  # wait for motor move done
-            time.sleep(1)
-            ret = cps.HRIF_HRApp(
-                0, app_name, "MotorReadCurFSM", [], result
-            )  # start to find origin
-            # config['logger'].info(f"Homing thing: {result}")
-            # robotRes = []
-            # nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
-            # config['logger'].info(f"Robot thing: {robotRes}")
-            time.sleep(0.2)
-            check_return_value(ret)
-            if stop_requested():
-                msg_to_frontend(
-                    api_url=config["server"]["frontEnd_messaging_url"],
-                    message="Homing stopped by user.",
-                )
-                return
-            if result[0] == "5" or result[0] == "6":
-                config["logger"].info(result)
-                break
-
-        config["logger"].info("[homing] Success to find origin!")
 
     def mm_to_inches(mm):
         inches = mm / 25.4
@@ -3125,25 +3019,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 wait=False,
             )
 
-    def control_table(cps, tableState):
-        config["logger"].info("[controlTable] Reached! Table State: %s", tableState)
-        if tableState == "close":
-            config["logger"].info("[controlTable] table closed")
-            nRet = cps.HRIF_SetBoxDO(0, 1, 0)  # (0, digital output number, states)
-            time.sleep(1)
-            nRet = cps.HRIF_SetBoxDO(0, 0, 1)
-            time.sleep(1)
-        elif tableState == "open":
-            config["logger"].info("[controlTable] table opened")
-            nRet = cps.HRIF_SetBoxDO(0, 0, 0)
-            time.sleep(1)
-            nRet = cps.HRIF_SetBoxDO(0, 1, 1)
-            time.sleep(1)
-        msg_to_frontend(
-            api_url=config["server"]["frontEnd_messaging_url"],
-            message=f"Table Set To {tableState} (⚠️Please wait till the table fully opens/closes)...",
-        )
-
         time.sleep(2)
 
     def toolValve(cps, valveState: str, config):
@@ -3195,18 +3070,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         )
         time.sleep(post_delay)
 
-    def formattedInstruction(point, seventhAxis=-1, debug=False):
-        do7th = 0
-        if seventhAxis != -1:
-            do7th = 1
-        all = point + [do7th, seventhAxis]
-        # input(f"points: {all}, {type(all)}")
-        # input(f"th: {seventhAxis}")
-        point_str = ",".join(str(x) for x in all)
-        if debug:
-            config["logger"].info(f"Points_str: {point_str}")
-        return point_str
-
     def saveAsCSV(fileName, measurements):
         # Keep the historical columns first, but tolerate extra diagnostic fields.
         base_fieldnames = ["dist", "height"]
@@ -3246,240 +3109,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             ]
 
     # Step 2: Function to calculate frames and pockets for each chunk using different thresholds
-    def calculate_for_each_chunk(chunks, thresholds, default_threshold=(5, 5)):
-        """
-        Apply the frames and pocket calculation for each chunk with user-defined thresholds.
-        If a chunk doesn't have a corresponding threshold, use the default threshold.
-        Returns a list of dictionaries containing chunk index and results.
-        """
-
-        # Step 3: Function to calculate frames and pockets (the one you provided)
-        # def calculate_frames_and_pockets(df, threshold_increase=5, threshold_decrease=5):
-        def calculate_frames_and_pockets(
-            data, threshold_increase=5, threshold_decrease=5
-        ):
-            """
-            Identify the significant increase (initial point) and significant decrease (second point)
-            and return the frames and pocket based on the thresholds.
-
-            Args:
-                data (list): List of dictionaries with 'dist' and 'height' as keys.
-                threshold_increase (int): The height increase threshold to identify the start of the pocket.
-                threshold_decrease (int): The height decrease threshold to identify the end of the pocket.
-
-            Returns:
-                dict: A dictionary containing information about 'frame_1', 'pocket', and 'frame_2' or None.
-            """
-
-            # Filter out NaN values from the 'height' key
-            data = [item for item in data if not math.isnan(item["height"])]
-
-            # Ensure there's enough data to proceed
-            if len(data) == 0:
-                config["logger"].error("No valid data after removing NaN values.")
-                msg_to_frontend(
-                    api_url=config["server"]["frontEnd_messaging_url"],
-                    message="Error With Laser! Please Verify it is Working and Try Again. Terminating Process...",
-                )
-                exit(-1)
-
-            # Get the first and last points in the dataset
-            first_point = data[0]
-            last_point = data[-1]
-
-            # Find the first point where the height increases by 'threshold_increase' units from the first point
-            pocket_start_idx = None
-            for i in range(1, len(data)):
-                if (data[i]["height"] - first_point["height"]) >= threshold_increase:
-                    pocket_start_idx = i
-                    pocket_start = data[pocket_start_idx]
-                    break
-
-            if pocket_start_idx is None:
-                config["logger"].info("No significant increase found.")
-                return None
-
-            # Find the first point after the pocket start where the height decreases by 'threshold_decrease' units
-            pocket_end_idx = None
-            for i in range(pocket_start_idx + 1, len(data)):
-                if (pocket_start["height"] - data[i]["height"]) >= threshold_decrease:
-                    pocket_end_idx = i
-                    pocket_end = data[pocket_end_idx]
-                    break
-
-            if pocket_end_idx is None:
-                config["logger"].info(
-                    "No significant decrease found after the initial increase."
-                )
-                return None
-
-            # Calculate the 3 sets:
-            # Frame 1: From the first point to the initial point (pocket start)
-            distance_frame1 = pocket_start["dist"] - first_point["dist"]
-
-            # Pocket: From the initial point (pocket start) to the second point (pocket end)
-            distance_pocket = pocket_end["dist"] - pocket_start["dist"]
-
-            # Frame 2: From the second point (pocket end) to the last point
-            distance_frame2 = last_point["dist"] - pocket_end["dist"]
-
-            # Store the results in a dictionary
-            result = {
-                "frame_1": {
-                    "first_point": first_point["dist"],
-                    "second_point": pocket_start["dist"],
-                    "distance": distance_frame1,
-                },
-                "pocket": {
-                    "first_point": pocket_start["dist"],
-                    "second_point": pocket_end["dist"],
-                    "distance": distance_pocket,
-                },
-                "frame_2": {
-                    "first_point": pocket_end["dist"],
-                    "second_point": last_point["dist"],
-                    "distance": distance_frame2,
-                },
-            }
-
-            return result
-
-        results = []
-
-        for i, chunk in enumerate(chunks):
-            # Use provided thresholds if available, otherwise fallback to the default
-            if i < len(thresholds):
-                threshold_increase, threshold_decrease = thresholds[i]
-            else:
-                threshold_increase, threshold_decrease = default_threshold
-                config["logger"].info(
-                    f"\nChunk {i + 1}: No specific threshold provided. Using default thresholds: (increase={threshold_increase}, decrease={threshold_decrease})"
-                )
-
-            # Apply the calculation function for each chunk
-            config["logger"].info(
-                f"\nProcessing chunk {i + 1} with threshold (increase={threshold_increase}, decrease={threshold_decrease})"
-            )
-            # chunk_df = pd.Dataframe.from_dict(chunk)
-            result = calculate_frames_and_pockets(
-                chunk,
-                threshold_increase=threshold_increase,
-                threshold_decrease=threshold_decrease,
-            )
-
-            if result:
-                # Store the result with the chunk number
-                chunk_result = {
-                    "chunk_index": i + 1,
-                    "frame_1": result["frame_1"]["distance"],
-                    "pocket": result["pocket"]["distance"],
-                    "frame_2": result["frame_2"]["distance"],
-                }
-                results.append(chunk_result)
-            else:
-                config["logger"].info(f"No valid results for chunk {i + 1}")
-
-        return results
-
-    def identify_gradient_change_points_dynamic_old(chunks, thresholds):
-        """
-        Identifies the exact points where the gradient starts and stops using start and stop thresholds.
-
-        Args:
-        - distances (list): List of distances.
-        - heights (list): List of corresponding heights.
-        - threshold (float): The threshold for detecting the start and stop of a gradient.
-        - min_distance (float): Minimum distance after which to detect the first gradient change.
-
-        Returns:
-        - gradient_changes (list of dicts): List of points where gradients start and stop with the distance.
-        """
-        chunks = [item for item in chunks if not math.isnan(item["height"])]
-
-        distances = [item["dist"] for item in chunks]
-        heights = [item["height"] for item in chunks]
-        start_threshold = thresholds[
-            0
-        ]  # Threshold for detecting the start and stop of a gradient
-        stop_threshold = thresholds[1]
-        min_distance = 15
-
-        gradient_changes = []
-        gradients = np.diff(heights) / np.diff(distances)
-
-        positive_start_idx = None
-        negative_start_idx = None
-
-        # Loop through gradients, starting only after the specified minimum distance
-        for i in range(1, len(gradients)):
-            if distances[i] < min_distance:
-                continue  # Skip points until the distance is at least 10mm
-
-            # Detect start of positive gradient
-            if abs(gradients[i]) >= start_threshold and positive_start_idx is None:
-                positive_start_idx = i
-
-            # Detect end of positive gradient
-            elif positive_start_idx is not None and abs(gradients[i]) < stop_threshold:
-                gradient_changes.append(
-                    {
-                        "type": "positive_start",
-                        "distance": distances[positive_start_idx],
-                        "gradient": gradients[positive_start_idx],
-                    }
-                )
-                gradient_changes.append(
-                    {
-                        "type": "positive_stop",
-                        "distance": distances[i],
-                        "gradient": gradients[i],
-                    }
-                )
-                positive_start_idx = None  # Reset
-
-            # Detect start of negative gradient
-            # if gradients[i] <= -start_threshold and negative_start_idx is None:
-            #     negative_start_idx = i
-
-            # # Detect end of negative gradient
-            # elif negative_start_idx is not None and gradients[i] > -stop_threshold:
-            #     gradient_changes.append({
-            #         'type': 'negative_start',
-            #         'distance': distances[negative_start_idx],
-            #         'gradient': gradients[negative_start_idx]
-            #     })
-            #     gradient_changes.append({
-            #         'type': 'negative_stop',
-            #         'distance': distances[i],
-            #         'gradient': gradients[i]
-            #     })
-            #     negative_start_idx = None  # Reset
-
-        frame1_point1 = float(chunks[0]["dist"])
-        frame1_point2 = gradient_changes[0]["distance"]
-        pocket_point1 = gradient_changes[1]["distance"]
-        pocket_point2 = gradient_changes[2]["distance"]
-        frame2_point1 = gradient_changes[3]["distance"]
-        frame2_point2 = float(chunks[-1]["dist"])
-        # config['logger'].info("frame2_point2: ", frame2_point2)
-        # config['logger'].info("frame2_point1: ", frame2_point1)
-
-        frame1 = frame1_point2 - frame1_point1
-        pocket = pocket_point2 - pocket_point1
-        threeD1 = pocket_point1 - frame1_point2
-        threeD2 = frame2_point1 - pocket_point2
-        frame2 = frame2_point2 - frame2_point1
-
-        result = {
-            "frame_1": frame1,
-            "threeD_1": threeD1,
-            "pocket": pocket,
-            "threeD_2": threeD2,
-            "frame_2": frame2,
-        }
-        # config['logger'].info ("Result: ", result)
-        return result
-
     def identify_gradient_change_points_dynamic(
         chunks, threshold, min_stable_distance, three_d_compensation, config
     ):
@@ -3663,65 +3292,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         }
 
         return result
-
-    def find_constant_height_periods(measurements, threshold):
-        def entireFrame(measurements):
-            """Find total frame dist."""
-            res = 0
-            for i, entry in enumerate((measurements)):
-                if entry["height"] > 100:
-                    break
-                res += entry["length"]
-            return res
-
-        def flatFrame(measurements):
-            """Find total frame dist."""
-            res = 0
-            for i, entry in enumerate(reversed(measurements)):
-                if entry["height"] > 92.5:
-                    break
-                res += entry["length"]
-            return res
-
-        periods = []
-        current_height = None
-        start_dist = None
-
-        # Iterate through the dictionary and remove entries with NaN height
-        # measurements_filtered = [measurement for measurement in measurements if not  math.isnan(measurement.get("height", float('inf')))]
-        measureNonNan = []
-        for item in measurements:
-            if math.isnan(item["height"]):
-                continue
-            measureNonNan.append(item)
-
-        for idx, measurement in enumerate(measureNonNan):
-            dist = measurement["dist"]
-            height = measurement["height"]
-            if math.isnan(height):
-                continue
-            if current_height is None:
-                # Initialize for the first valid measurement
-                current_height = height
-                start_dist = dist
-            elif abs(height - current_height) > threshold:
-                # Height changed
-                length = dist - start_dist
-                periods.append({"height": current_height, "length": length})
-                # Reset for new height
-                current_height = height
-                start_dist = dist
-
-            # Handle the last period
-            elif idx + 1 == len(measureNonNan):
-                length = dist - start_dist
-                periods.append({"height": current_height, "length": length})
-
-        sumLen = sum(entry["length"] for entry in periods)
-        frameFlat = flatFrame(periods)
-        frameTot = entireFrame(periods)
-
-        return sumLen, frameFlat, frameTot
 
     # Paste this function in Server_Better_V2.py files
 

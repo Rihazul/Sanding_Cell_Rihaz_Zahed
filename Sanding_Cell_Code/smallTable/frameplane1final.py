@@ -486,6 +486,74 @@ def load_json_config():
         config = json.load(file)
     return config
 
+def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tcp, ucs):
+    sanding_points = []
+    for point in points:
+        try:
+            if float(point[2]) <= SANDING_Z_THRESHOLD:
+                sanding_points.append(point)
+        except (TypeError, ValueError, IndexError):
+            pass
+
+    if len(sanding_points) < 2:
+        return
+
+    communicate(
+        cps=cps,
+        config=config,
+        point=sanding_points[0],
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=sanding_speed,
+        velocity_profile="sanding",
+        wait=True,
+    )
+
+    putForceZminus(cps=cps, force=force, tcp=tcp, ucs=ucs, config=config)
+    turn_vibration_on(cps)
+
+    for end_pose in sanding_points[1:]:
+        communicate(
+            cps=cps,
+            config=config,
+            point=end_pose,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=sanding_speed,
+            velocity_profile="sanding",
+            wait=True,
+        )
+
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    releaseForce(cps=cps, config=config, wait_for_blending=False)
+
+
+def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner):
+    ylen_data = get_y_values(door_num, default_on_error=True)
+    ylen = ylen_data['ylen']
+    print("ylen:", ylen)
+
+    json_config = load_json_config()
+    speed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config.get('sandingSpeed', json_config['robotSpeed']))
+
+    if ylen == "null":
+        print("No door data available - skipping operations")
+        return
+
+    if not isinstance(ylen, (int, float)):
+        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        return
+
+    if ylen > 600:
+        big_runner(force, cps, speed, sanding_speed)
+    else:
+        small_runner(force, cps, speed, sanding_speed)
+
+
 def smalldoor1side(force,cps):
     def smalldoor1sidesmall(force,cps,speed,sanding_speed):
         # Load configuration from YAML
@@ -494,7 +562,6 @@ def smalldoor1side(force,cps):
         #Set up logger
         config['logger'] = setup_logger(config['settings']['debug'])
 
-        json_config = load_json_config()
 
         #Establish connection with robot
         # cps = CPSClient()
@@ -523,9 +590,9 @@ def smalldoor1side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0] - bottom_axis_offset,b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2 - bottom_axis_offset,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -533,123 +600,22 @@ def smalldoor1side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0] - bottom_axis_offset,b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
 
         bottompoints=[bottom0pre,bottom0,bottom03,bottom3,bottom2,bottom1,bottom0,bottom0pre]
         print("bottompoints:", bottompoints)
 
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab1"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            enable_force = True
-
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-
-            if len(sanding_points) < 2:
-                return
-            
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-            )   
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-
-                start_pose = [
-                    start_pose[0],
-                    start_pose[1],
-                    start_pose[2],
-                    start_pose[3],
-                    start_pose[4],
-                    start_pose[5],
-                ]
-                end_pose = [
-                    end_pose[0],
-                    end_pose[1],
-                    end_pose[2],
-                    end_pose[3],
-                    end_pose[4],
-                    end_pose[5],
-                ]
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
+            )
         communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
@@ -690,9 +656,9 @@ def smalldoor1side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0] - bottom_axis_offset ,b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2 ,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -700,7 +666,7 @@ def smalldoor1side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0] ,b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
         bottom4=[b1[0] - bottom_axis_offset ,b1[1]/2,1,b1[3],b1[4],0]
         print("bottom4:", bottom4)
@@ -708,11 +674,11 @@ def smalldoor1side(force,cps):
         print("bottom4down:", bottom4down)
         bottom4up= [b1[0] ,b1[1]/2+2,1,b1[3],b1[4],0]
         print("bottom4up:", bottom4up)
-        bottom4pre= [b1[0],b1[1]/2,10,b1[3],b1[4],0]
+        bottom4pre= [b1[0],b1[1]/2,15,b1[3],b1[4],0]
         print("bottom4pre:", bottom4pre)
         bottom5=[b2[0] - bottom_axis_offset,b2[1]/2,1,b2[3],b2[4],0]
         print("bottom5:", bottom5)
-        bottom5pre=[b2[0],b2[1]/2,10,b2[3],b2[4],0]
+        bottom5pre=[b2[0],b2[1]/2,15,b2[3],b2[4],0]
         print("bottom5pre:", bottom5pre)
 
         #Mid Homing
@@ -728,7 +694,7 @@ def smalldoor1side(force,cps):
         print("toppoint5:", toppoint5)
         toppoint5top=[(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint5top:", toppoint5top)
-        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint5pre:", toppoint5pre)
         toppoint1=[-(b2[0]-b1[0])/2,b2[1],1,b2[3],b2[4],0]
         print("toppoint1:", toppoint1)
@@ -736,7 +702,7 @@ def smalldoor1side(force,cps):
         print("toppoint4:", toppoint4)
         toppoint4top=[-(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint4top:", toppoint4top)
-        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2 + 95.6,10,b2[3],b2[4],0]
+        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2 + 95.6,15,b2[3],b2[4],0]
         print("toppoint4pre:", toppoint4pre)
 
         #COnveyer
@@ -757,255 +723,25 @@ def smalldoor1side(force,cps):
         print("upperdoorpoints:", upperdoorpoints)
         
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door1bottomtab1"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=[
-                    sanding_points[0][0],
-                    sanding_points[0][1],
-                    sanding_points[0][2],
-                    sanding_points[0][3],
-                    sanding_points[0][4],
-                    sanding_points[0][5],
-                ],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            
-            enable_force = False
-            enable_vibration = False
-            
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in sanding_points
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                start_pose = [
-                    start_pose[0],
-                    start_pose[1],
-                    start_pose[2],
-                    start_pose[3],
-                    start_pose[4],
-                    start_pose[5],
-                ]
-                end_pose = [
-                    end_pose[0],
-                    end_pose[1],
-                    end_pose[2],
-                    end_pose[3],
-                    end_pose[4],
-                    end_pose[5],
-                ]
-                
-                if point == bottom4down:
-                    enable_force = True
-                if point == bottom0:
-                    enable_vibration = True
-                    
-                # Ensure numeric 6‑DOF
-                try:
-                    start_pose = [float(v) for v in start_pose[:6]]
-                    end_pose = [float(v) for v in end_pose[:6]]
-                except (TypeError, ValueError):
-                    continue
-
-
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         def perform_process_top(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door1toptab1"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            
-            enable_force = False
-            enable_vibration = False
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == toppoint5top:
-                    enable_force = True
-                if point == toppoint2:
-                    enable_vibration = True
-                    
-                # Ensure numeric 6‑DOF
-                try:
-                    start_pose = [float(v) for v in start_pose[:6]]
-                    end_pose = [float(v) for v in end_pose[:6]]
-                except (TypeError, ValueError):
-                    continue
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
             Transition safely between passes:
@@ -1062,31 +798,13 @@ def smalldoor1side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    #Main Function Execution
-    # ylen = get_y_values(1)['ylen']
-    # print("ylen:",ylen)
-    # smalldoor1sidebig(force)
-    # smalldoor1sidesmall(force)
-    # Get ylen value (with default handling)
-    ylen_data = get_y_values(1, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    json_config = load_json_config()
-    speed = float(json_config['robotSpeed'])
-    sanding_speed = float(json_config.get('sandingSpeed', json_config['robotSpeed']))
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            smalldoor1sidebig(force,cps,speed,sanding_speed)
-        else:
-            smalldoor1sidesmall(force,cps,speed,sanding_speed)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_smalldoor_side_by_ylen(
+        1,
+        force,
+        cps,
+        smalldoor1sidesmall,
+        smalldoor1sidebig,
+    )
 
 
 def smalldoor2side(force,cps):
@@ -1123,9 +841,9 @@ def smalldoor2side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -1133,119 +851,22 @@ def smalldoor2side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
 
         bottompoints=[bottom0pre,bottom0,bottom03,bottom3,bottom2,bottom1,bottom0,bottom0pre]
         print("bottompoints:", bottompoints)
 
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab2"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-            )   
-            
-            enable_force = False
-            enable_vibration = False
-            
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in sanding_points
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == bottom03:
-                    enable_force = True
-                if point == bottom3:
-                    enable_vibration = True
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-                    
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
+            )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
@@ -1284,9 +905,9 @@ def smalldoor2side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -1294,7 +915,7 @@ def smalldoor2side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
         bottom4=[b1[0],b1[1]/2,1,b1[3],b1[4],0]
         print("bottom4:", bottom4)
@@ -1302,11 +923,11 @@ def smalldoor2side(force,cps):
         print("bottom4down:", bottom4down)
         bottom4up= [b1[0],b1[1]/2+2,1,b1[3],b1[4],0]
         print("bottom4up:", bottom4up)
-        bottom4pre= [b1[0],b1[1]/2,10,b1[3],b1[4],0]
+        bottom4pre= [b1[0],b1[1]/2,15,b1[3],b1[4],0]
         print("bottom4pre:", bottom4pre)
         bottom5=[b2[0],b2[1]/2,1,b2[3],b2[4],0]
         print("bottom5:", bottom5)
-        bottom5pre=[b2[0],b2[1]/2,10,b2[3],b2[4],0]
+        bottom5pre=[b2[0],b2[1]/2,15,b2[3],b2[4],0]
         print("bottom5pre:", bottom5pre)
 
         #Mid Homing
@@ -1321,7 +942,7 @@ def smalldoor2side(force,cps):
         print("toppoint5:", toppoint5)
         toppoint5top=[(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint5top:", toppoint5top)
-        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint5pre:", toppoint5pre)
         toppoint1=[-(b2[0]-b1[0])/2,b2[1],1,b2[3],b2[4],0]
         print("toppoint1:", toppoint1)
@@ -1329,7 +950,7 @@ def smalldoor2side(force,cps):
         print("toppoint4:", toppoint4)
         toppoint4top=[-(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint4top:", toppoint4top)
-        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint4pre:", toppoint4pre)
 
         #COnveyer
@@ -1350,219 +971,25 @@ def smalldoor2side(force,cps):
         print("upperdoorpoints:", upperdoorpoints)
         
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door2bottomtab2"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            enable_force = False
-            enable_vibration = False
-
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == bottom4down:
-                    enable_force = True
-                if point == bottom0:
-                    enable_vibration = True
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         def perform_process_top(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door2toptab2"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-            
-            if len(sanding_points) < 2:
-                return
-            
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            enable_force = False
-            enable_vibration = False
-            
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == toppoint5top:
-                    enable_force = True
-                if point == toppoint2:
-                    enable_vibration = True
-                    
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-                
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-            
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
             Transition safely between passes:
@@ -1618,31 +1045,13 @@ def smalldoor2side(force,cps):
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
 
-    #Main Function Execution
-    # ylen = get_y_values(1)['ylen']
-    # print("ylen:",ylen)
-    # smalldoor1sidebig(force)
-    # smalldoor1sidesmall(force)
-    # Get ylen value (with default handling)
-    ylen_data = get_y_values(2, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    json_config = load_json_config()
-    speed = float(json_config['robotSpeed'])
-    sanding_speed = float(json_config.get('sandingSpeed', json_config['robotSpeed']))
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            smalldoor2sidebig(force,cps,speed,sanding_speed)
-        else:
-            smalldoor2sidesmall(force,cps,speed,sanding_speed)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_smalldoor_side_by_ylen(
+        2,
+        force,
+        cps,
+        smalldoor2sidesmall,
+        smalldoor2sidebig,
+    )
 
 
 def smalldoor3side(force,cps):
@@ -1679,9 +1088,9 @@ def smalldoor3side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -1689,118 +1098,22 @@ def smalldoor3side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
 
         bottompoints=[bottom0pre,bottom0,bottom03,bottom3,bottom2,bottom1,bottom0,bottom0pre]
         print("bottompoints:", bottompoints)
 
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab3"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-
-            enable_force = False
-            enable_vibration = False
-            
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == bottom03:
-                    enable_force = True
-                if point == bottom3:
-                    enable_vibration = True
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-                
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
@@ -1839,9 +1152,9 @@ def smalldoor3side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -1849,7 +1162,7 @@ def smalldoor3side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
         bottom4=[b1[0],b1[1]/2,1,b1[3],b1[4],0]
         print("bottom4:", bottom4)
@@ -1857,11 +1170,11 @@ def smalldoor3side(force,cps):
         print("bottom4down:", bottom4down)
         bottom4up= [b1[0],b1[1]/2+2,1,b1[3],b1[4],0]
         print("bottom4up:", bottom4up)
-        bottom4pre= [b1[0],b1[1]/2,10,b1[3],b1[4],0]
+        bottom4pre= [b1[0],b1[1]/2,15,b1[3],b1[4],0]
         print("bottom4pre:", bottom4pre)
         bottom5=[b2[0],b2[1]/2,1,b2[3],b2[4],0]
         print("bottom5:", bottom5)
-        bottom5pre=[b2[0],b2[1]/2,10,b2[3],b2[4],0]
+        bottom5pre=[b2[0],b2[1]/2,15,b2[3],b2[4],0]
         print("bottom5pre:", bottom5pre)
 
         #Mid Homing
@@ -1877,7 +1190,7 @@ def smalldoor3side(force,cps):
         print("toppoint5:", toppoint5)
         toppoint5top=[(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint5top:", toppoint5top)
-        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint5pre:", toppoint5pre)
         toppoint1=[-(b2[0]-b1[0])/2,b2[1],1,b2[3],b2[4],0]
         print("toppoint1:", toppoint1)
@@ -1885,7 +1198,7 @@ def smalldoor3side(force,cps):
         print("toppoint4:", toppoint4)
         toppoint4top=[-(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint4top:", toppoint4top)
-        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint4pre:", toppoint4pre)
 
         #COnveyer
@@ -1906,215 +1219,25 @@ def smalldoor3side(force,cps):
         print("upperdoorpoints:", upperdoorpoints)
         
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door3bottomtab3"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            
-            enable_force = False
-            enable_vibration = False
-            
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points)-1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == bottom4down:
-                    enable_force = True
-                if point == bottom0:
-                    enable_vibration = True
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-                    
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         def perform_process_top(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door3toptab3"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-            if len(sanding_points) < 2:
-                return
-
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            
-            enable_force = False
-            enable_vibration = False
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == toppoint5top:
-                    enable_force = True
-                if point == toppoint2:
-                    enable_vibration = True
-                    
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-            
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
             Transition safely between passes:
@@ -2169,31 +1292,13 @@ def smalldoor3side(force,cps):
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
-    #Main Function Execution
-    # ylen = get_y_values(1)['ylen']
-    # print("ylen:",ylen)
-    # smalldoor1sidebig(force)
-    # smalldoor1sidesmall(force)
-    # Get ylen value (with default handling)
-    ylen_data = get_y_values(3, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    json_config = load_json_config()
-    speed = float(json_config['robotSpeed'])
-    sanding_speed = float(json_config.get('sandingSpeed', json_config['robotSpeed']))
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            smalldoor3sidebig(force,cps,speed,sanding_speed)
-        else:
-            smalldoor3sidesmall(force,cps,speed,sanding_speed)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_smalldoor_side_by_ylen(
+        3,
+        force,
+        cps,
+        smalldoor3sidesmall,
+        smalldoor3sidebig,
+    )
 
 
 def smalldoor4side(force,cps):
@@ -2230,9 +1335,9 @@ def smalldoor4side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -2240,117 +1345,22 @@ def smalldoor4side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
 
         bottompoints=[bottom0pre,bottom0,bottom03,bottom3,bottom2,bottom1,bottom0,bottom0pre]
         print("bottompoints:", bottompoints)
 
         def perform_process_bottom(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "small_door_tab4"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            # Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-            if len(sanding_points) < 2:
-                return
-            
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            
-            enable_force = False
-            enable_vibration = False
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == bottom03:
-                    enable_force = True
-                if point == bottom3:
-                    enable_vibration = True
-                
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
@@ -2389,9 +1399,9 @@ def smalldoor4side(force,cps):
         print("bottom0:", bottom0)
         bottom3=[b3[0],b3[1],1,b3[3],b3[4],0]
         print("bottom3:", bottom3)
-        bottom0pre=[b0[0],b0[1],10,b0[3],b0[4],0]
+        bottom0pre=[b0[0],b0[1],15,b0[3],b0[4],0]
         print("bottom0pre:", bottom0pre)
-        bottom3pre=[b3[0],b3[1],10,b3[3],b3[4],0]
+        bottom3pre=[b3[0],b3[1],15,b3[3],b3[4],0]
         print("bottom3pre:", bottom3pre)
         bottom03=[b0[0]+2,b0[1],1,b0[3],b0[4],0]
         print("bottom03:", bottom03)
@@ -2399,7 +1409,7 @@ def smalldoor4side(force,cps):
         print("bottom2:", bottom2)
         bottom1= [b1[0],b1[1],1,b1[3],b1[4],0]
         print("bottom1:", bottom1)
-        bottom1pre= [b1[0],b1[1],10,b1[3],b1[4],0]
+        bottom1pre= [b1[0],b1[1],15,b1[3],b1[4],0]
         print("bottom1pre:", bottom1pre)
         bottom4=[b1[0],b1[1]/2,1,b1[3],b1[4],0]
         print("bottom4:", bottom4)
@@ -2407,11 +1417,11 @@ def smalldoor4side(force,cps):
         print("bottom4down:", bottom4down)
         bottom4up= [b1[0],b1[1]/2+2,1,b1[3],b1[4],0]
         print("bottom4up:", bottom4up)
-        bottom4pre= [b1[0],b1[1]/2,10,b1[3],b1[4],0]
+        bottom4pre= [b1[0],b1[1]/2,15,b1[3],b1[4],0]
         print("bottom4pre:", bottom4pre)
         bottom5=[b2[0],b2[1]/2,1,b2[3],b2[4],0]
         print("bottom5:", bottom5)
-        bottom5pre=[b2[0],b2[1]/2,10,b2[3],b2[4],0]
+        bottom5pre=[b2[0],b2[1]/2,15,b2[3],b2[4],0]
         print("bottom5pre:", bottom5pre)
 
         #Mid Homing
@@ -2427,7 +1437,7 @@ def smalldoor4side(force,cps):
         print("toppoint5:", toppoint5)
         toppoint5top=[(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint5top:", toppoint5top)
-        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint5pre=[(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint5pre:", toppoint5pre)
         toppoint1=[-(b2[0]-b1[0])/2,b2[1],1,b2[3],b2[4],0]
         print("toppoint1:", toppoint1)
@@ -2435,7 +1445,7 @@ def smalldoor4side(force,cps):
         print("toppoint4:", toppoint4)
         toppoint4top=[-(b2[0]-b1[0])/2,b2[1]/2+2,1,b2[3],b2[4],0]
         print("toppoint4top:", toppoint4top)
-        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,10,b2[3],b2[4],0]
+        toppoint4pre=[-(b2[0]-b1[0])/2,b2[1]/2,15,b2[3],b2[4],0]
         print("toppoint4pre:", toppoint4pre)
 
         #COnveyer
@@ -2456,215 +1466,25 @@ def smalldoor4side(force,cps):
         print("upperdoorpoints:", upperdoorpoints)
         
         def perform_process_bottom(cps, config, points1, force):
-             # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door4bottomtab4"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            #Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-            if len(sanding_points) < 2:
-                return
-            
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            enable_force = False
-            enable_vibration = False
-            
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == bottom4down:
-                    enable_force = True
-                if point == bottom0:
-                    enable_vibration = True
-            
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-
         def perform_process_top(cps, config, points1, force):
-            # Step 2: Zigzag/Spiral motion
-            spiral_track_name = "door4toptab4"
-            path_initialized = False
-            push_failed = False
-            total_count = 0
-            
-            #Filter only sanding points (skip prepoints like Z=10)
-            sanding_points = []
-            for p in points1:
-                try:
-                    if float(p[2]) <= SANDING_Z_THRESHOLD:
-                        sanding_points.append(p)
-                except (TypeError, ValueError, IndexError):
-                    pass
-            if len(sanding_points) < 2:
-                return
-            # Move to first sanding point before pushing spiral
-            communicate(
-                cps=cps,
-                config=config,
-                point=sanding_points[0],
+            return _run_linear_sanding_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
             )
-            
-            enable_force = False
-            enable_vibration = False
-
-            # Start linear sanding mode (MoveL point-to-point)
-            putForceZminus(cps=cps, force=force, tcp=config["coords"]["tcptool4plane1"], ucs=config["coords"]["ucsTable1"], config=config)
-            turn_vibration_on(cps)
-            # Communicate to each point in points1
-            for i in range(len(sanding_points) - 1):
-                point = sanding_points[i]
-                start_pose = sanding_points[i]
-                end_pose   = sanding_points[i + 1]
-                
-                if point == toppoint5top:
-                    enable_force = True
-                if point == toppoint2:
-                    enable_vibration = True
-                    
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=end_pose,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                velocity_profile="sanding",
-                wait=True,
-                )
-
-            #     success, count = run_spiral_between_points(
-            #         cps=cps,
-            #         config=config,
-            #         start_pose=start_pose,
-            #         end_pose=end_pose,
-            #         radius=12.0,
-            #         angle_step_deg=45.0,
-            #         track_name=spiral_track_name,
-            #         velocity=150.0,
-            #         accel=300.0,
-            #         jerk=3000.0,
-            #         init_path=not path_initialized,
-            #     )
-            #     if not success:
-            #         push_failed = True
-            #         break
-            #     path_initialized = True
-            #     total_count += count
-            
-            # if path_initialized and not push_failed:
-            #     if enable_force:
-            #         pass  # force handled in finalize
-            #     if enable_vibration:
-            #         pass  # vibration handled in finalize
-                    
-            #     timeout = compute_timeout(
-            #         total_points=total_count, velocity=150.0
-            #     )
-            #     finalize_spiral_path(
-            #         cps,
-            #         spiral_track_name,
-            #         box_id=0,
-            #         robot_id=0,
-            #         completion_timeout=timeout,
-            #         force=force,
-            #         force_func=putForceZminus,
-            #         config=config,
-            #     )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config, wait_for_blending=False)
-        
         def run_single_movement(lift_point, seventh_axis_point, reentry_point, cps, config):
             """
             Transition safely between passes:
@@ -2719,31 +1539,13 @@ def smalldoor4side(force,cps):
         communicate(cps=cps,config=config,point=midhoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         #communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=0.2,wait=True)
         # cps.HRIF_DisConnect(0)
-    #Main Function Execution
-    # ylen = get_y_values(1)['ylen']
-    # print("ylen:",ylen)
-    # smalldoor1sidebig(force)
-    # smalldoor1sidesmall(force)
-    # Get ylen value (with default handling)
-    ylen_data = get_y_values(4, default_on_error=True)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    json_config = load_json_config()
-    speed = float(json_config['robotSpeed'])
-    sanding_speed = float(json_config.get('sandingSpeed', json_config['robotSpeed']))
-
-    # Check conditions
-    if ylen == "null":
-        print("No door data available - skipping operations")
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            smalldoor4sidebig(force,cps,speed,sanding_speed)
-        else:
-            smalldoor4sidesmall(force,cps,speed,sanding_speed)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_smalldoor_side_by_ylen(
+        4,
+        force,
+        cps,
+        smalldoor4sidesmall,
+        smalldoor4sidebig,
+    )
 
 
 if __name__ == "__main__":

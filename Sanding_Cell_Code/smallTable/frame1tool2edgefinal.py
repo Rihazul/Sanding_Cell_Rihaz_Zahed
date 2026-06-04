@@ -33,6 +33,75 @@ def load_json_config():
     with open('./configs/cycleData.json', 'r') as file:
         return json.load(file)
 
+def _run_tool2_edge_process(
+    cps,
+    config,
+    points,
+    force,
+    sanding_speed,
+    *,
+    tcp,
+    ucs,
+    force_point=None,
+    force_func=None,
+    vibration_point=None,
+    start_vibration=False,
+    stop_vibration=True,
+):
+    if start_vibration:
+        turn_vibration_on(cps)
+
+    for point in points:
+        if force_func is not None and force_point is not None and point == force_point:
+            force_func(
+                cps=cps,
+                force=force,
+                tcp=tcp,
+                ucs=ucs,
+                config=config,
+            )
+        if vibration_point is not None and point == vibration_point:
+            turn_vibration_on(cps)
+        communicate(
+            cps=cps,
+            config=config,
+            point=point,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=sanding_speed,
+            velocity_profile="sandingspeed",
+            wait=True,
+        )
+
+    waitForBlending(cps=cps, config=config)
+    if stop_vibration:
+        turn_vibration_off(cps)
+    releaseForce(cps=cps, config=config)
+
+
+def _run_tool2_edge_by_ylen(door_num, force, cps, small_runner, big_runner):
+    ylen_data = get_y_values(door_num, default_on_error=False)
+    ylen = ylen_data['ylen']
+    print("ylen:", ylen)
+
+    if ylen == "null":
+        print(
+            f"Door {door_num} scan dimensions are unavailable (ylen=null). "
+            "Skipping tool2 edge operations."
+        )
+        return
+
+    if not isinstance(ylen, (int, float)):
+        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        return
+
+    if ylen > 600:
+        big_runner(force, cps)
+    else:
+        small_runner(force, cps)
+
+
 def door1frametool2sideedge(force,cps):
     def door1frametool2sidebigedge(force,cps):
         # Load configuration
@@ -256,252 +325,110 @@ def door1frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint14:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==rightpoint4:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint14,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upright(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uprightpoint4up:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uprightpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uprightpoint4up,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==toppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=False,
+                stop_vibration=False,
+            )
         def perform_process_topup(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uptoppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uptoppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uptoppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upleft(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==upleftpoint3down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==upleftpoint5:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=upleftpoint3down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint5down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==leftpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint5down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint12:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==bottompoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint12,
+                force_func=putForceYplus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
@@ -646,173 +573,65 @@ def door1frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint1:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==rightpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint1,
+                force_func=putForceXplus,
+                vibration_point=rightpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint1:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==toppoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint1,
+                force_func=putForceYminus1,
+                vibration_point=toppoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint1:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==leftpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint1,
+                force_func=putForceXminus,
+                vibration_point=leftpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint1:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==bottompoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint1,
+                force_func=putForceYplus1,
+                vibration_point=bottompoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -837,24 +656,13 @@ def door1frametool2sideedge(force,cps):
         # # #Joint 6 movement 
         # moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(1, default_on_error=False)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        raise RuntimeError(
-            "Door 1 scan dimensions are unavailable (ylen=null). "
-            "Run scan first; edgeOutside requires scanned door lengths."
-        )
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            door1frametool2sidebigedge(force,cps)
-        else:
-            door1frametool2edgesmalledge(force,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_tool2_edge_by_ylen(
+        1,
+        force,
+        cps,
+        door1frametool2edgesmalledge,
+        door1frametool2sidebigedge,
+    )
 
 
 def door2frametool2sideedge(force,cps):
@@ -1080,254 +888,110 @@ def door2frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint14:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==rightpoint4:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint14,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upright(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uprightpoint4up:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uprightpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uprightpoint4up,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==toppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=False,
+                stop_vibration=False,
+            )
         def perform_process_topup(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uptoppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uptoppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uptoppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upleft(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==upleftpoint3down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==upleftpoint5:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=upleftpoint3down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint5down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==leftpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint5down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint12:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==bottompoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint12,
+                force_func=putForceYplus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
@@ -1472,173 +1136,65 @@ def door2frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint1:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==rightpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint1,
+                force_func=putForceXplus,
+                vibration_point=rightpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint1:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==toppoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint1,
+                force_func=putForceYminus1,
+                vibration_point=toppoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint1:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==leftpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint1,
+                force_func=putForceXminus,
+                vibration_point=leftpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint1:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==bottompoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint1,
+                force_func=putForceYplus1,
+                vibration_point=bottompoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -1663,24 +1219,13 @@ def door2frametool2sideedge(force,cps):
         # # #Joint 6 movement 
         # moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(2, default_on_error=False)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        raise RuntimeError(
-            "Door 2 scan dimensions are unavailable (ylen=null). "
-            "Run scan first; edgeOutside requires scanned door lengths."
-        )
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            door2frametool2sidebigedge(force,cps)
-        else:
-            door2frametool2edgesmalledge(force,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_tool2_edge_by_ylen(
+        2,
+        force,
+        cps,
+        door2frametool2edgesmalledge,
+        door2frametool2sidebigedge,
+    )
 
 
 def door3frametool2sideedge(force,cps):
@@ -1906,302 +1451,110 @@ def door3frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint14:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==rightpoint4:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint14,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upright(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uprightpoint4up:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uprightpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uprightpoint4up,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==toppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=False,
+                stop_vibration=False,
+            )
         def perform_process_topup(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uptoppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uptoppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uptoppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upleft(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==upleftpoint3down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==upleftpoint5:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=upleftpoint3down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint5down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==leftpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint5down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint12:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==bottompoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint12,
+                force_func=putForceYplus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
@@ -2346,173 +1699,65 @@ def door3frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint1:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==rightpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint1,
+                force_func=putForceXplus,
+                vibration_point=rightpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint1:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==toppoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint1,
+                force_func=putForceYminus1,
+                vibration_point=toppoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint1:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==leftpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint1,
+                force_func=putForceXminus,
+                vibration_point=leftpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint1:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==bottompoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint1,
+                force_func=putForceYplus1,
+                vibration_point=bottompoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -2537,24 +1782,13 @@ def door3frametool2sideedge(force,cps):
         # # #Joint 6 movement 
         # moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(3, default_on_error=False)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        raise RuntimeError(
-            "Door 3 scan dimensions are unavailable (ylen=null). "
-            "Run scan first; edgeOutside requires scanned door lengths."
-        )
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            door3frametool2sidebigedge(force,cps)
-        else:
-            door3frametool2edgesmalledge(force,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+    _run_tool2_edge_by_ylen(
+        3,
+        force,
+        cps,
+        door3frametool2edgesmalledge,
+        door3frametool2sidebigedge,
+    )
 
 
 def door4frametool2sideedge(force,cps):
@@ -2780,302 +2014,110 @@ def door4frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint14:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==rightpoint4:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint14,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upright(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uprightpoint4up:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uprightpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uprightpoint4up,
+                force_func=putForceXplus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==toppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            # turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=False,
+                stop_vibration=False,
+            )
         def perform_process_topup(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==uptoppoint12:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==uptoppoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=uptoppoint12,
+                force_func=putForceYminus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_upleft(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==upleftpoint3down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==upleftpoint5:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=upleftpoint3down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint5down:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==leftpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint5down,
+                force_func=putForceXminus,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint12:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                # if point==bottompoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint12,
+                force_func=putForceYplus1,
+                vibration_point=None,
+                start_vibration=True,
+                stop_vibration=True,
+            )
         #Cycles for Big Door
         # #Bottom Cycles
         # moveOnlyJ6r(cps, 90, config)
@@ -3220,173 +2262,65 @@ def door4frametool2sideedge(force,cps):
 
 
         def perform_process_right(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==rightpoint1:putForceXplus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==rightpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=rightpoint1,
+                force_func=putForceXplus,
+                vibration_point=rightpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_top(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable1'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==toppoint1:putForceYminus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==toppoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=toppoint1,
+                force_func=putForceYminus1,
+                vibration_point=toppoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_left(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==leftpoint1:putForceXminus(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==leftpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=leftpoint1,
+                force_func=putForceXminus,
+                vibration_point=leftpoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         def perform_process_bottom(cps, config, points1,force):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcpReal'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==bottompoint1:putForceYplus1(
-                cps=cps,
-                force=force,
-                tcp=config['coords']['tcptool2plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==bottompoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool2plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+            return _run_tool2_edge_process(
+                cps,
+                config,
+                points1,
+                force,
+                sanding_speed,
+                tcp=config["coords"]["tcptool2plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                force_point=bottompoint1,
+                force_func=putForceYplus1,
+                vibration_point=bottompoint1,
+                start_vibration=False,
+                stop_vibration=True,
+            )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -3411,25 +2345,11 @@ def door4frametool2sideedge(force,cps):
         # # #Joint 6 movement 
         # moveOnlyJ6r(cps, -326, config)
         # cps.HRIF_DisConnect(0)
-    ylen_data = get_y_values(4, default_on_error=False)
-    ylen = ylen_data['ylen']
-
-    print("ylen:", ylen)
-
-    # Check conditions
-    if ylen == "null":
-        raise RuntimeError(
-            "Door 4 scan dimensions are unavailable (ylen=null). "
-            "Run scan first; edgeOutside requires scanned door lengths."
-        )
-    elif isinstance(ylen, (int, float)):  # Ensure it's numeric
-        if ylen > 600:
-            door4frametool2sidebigedge(force,cps)
-        else:
-            door4frametool2edgesmalledge(force,cps)
-    else:
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
-
-
-
+    _run_tool2_edge_by_ylen(
+        4,
+        force,
+        cps,
+        door4frametool2edgesmalledge,
+        door4frametool2sidebigedge,
+    )
 
