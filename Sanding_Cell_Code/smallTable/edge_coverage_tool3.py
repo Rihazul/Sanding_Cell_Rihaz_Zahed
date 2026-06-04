@@ -152,10 +152,10 @@ def build_edge_coverage_path(
     orientation="horizontal",
     tool3x=38.1,
     tool3y=50.8,
-    edge_margin=2,
-    rx=-0.034,
-    ry=0.556,
-    rz=0.251,
+    edge_margin=3,
+    rx=0.0,
+    ry=0.0,
+    rz=0.0,
 ):
     """Return rectangular edge-coverage points that end at zigzag start point."""
     if not x_coords or not y_coords or not z_coords:
@@ -165,12 +165,12 @@ def build_edge_coverage_path(
     orientation_mode = (orientation or "horizontal").lower()
 
     edge_point1 = [
-        x_coords[0] + tool3x + edge_margin + 4,
+        x_coords[0] + tool3x + edge_margin ,
         y_coords[0] + tool3y + edge_margin,
         z_level,
     ]
     edge_point2 = [
-        x_coords[1] + tool3x + edge_margin + 4, 
+        x_coords[1] + tool3x + edge_margin , 
         y_coords[1] - tool3y - edge_margin,
         z_level,
     ]
