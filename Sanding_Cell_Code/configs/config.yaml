@@ -122,7 +122,7 @@ point:
   # tableOrigin: [-280.122, -270.601, 52.402, -180, 40.163, 90]
   
   # The point for the leftmost corner of table 1 (UCS: Plane_1, TCP: TCP_Laser)
-  table1Origin: [0, -5, 0, 0, 0, -180]
+  table1Origin: [0, 0, 0, 0, 0, -180]
   # table1Origin: [50, -11.725, 41.991, -0.164, -0.574, 0.020]
   # table1Origin: [50.826, -11.977, 41.991, -0.163, -0.573, 0.020]
 
