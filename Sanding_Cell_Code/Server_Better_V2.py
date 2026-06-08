@@ -6564,6 +6564,29 @@ def communicate(
     if seventh != -1:
         if stop_requested():
             return measurements
+        if isinstance(config, dict) and config.get("logger"):
+            try:
+                config["logger"].info(
+                    "[J7 Target] target=%.3f wait=%s require_ok=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    float(seventh),
+                    wait if wait is not None else bool(1 - doMeasure),
+                    bool(require_seventh_ok),
+                    selected_profile,
+                    speed,
+                    tcp,
+                    ucs,
+                )
+            except Exception:
+                config["logger"].info(
+                    "[J7 Target] target=%s wait=%s require_ok=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    seventh,
+                    wait if wait is not None else bool(1 - doMeasure),
+                    bool(require_seventh_ok),
+                    selected_profile,
+                    speed,
+                    tcp,
+                    ucs,
+                )
         ok = seventhGoToPos(
             cps=cps,
             position=seventh,
