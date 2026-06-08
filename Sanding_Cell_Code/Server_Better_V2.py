@@ -7613,18 +7613,9 @@ def set_table_state(CPS, table_id, desired_state):
 
     if table_id == "tableAOpenClose":
         if desired_state == "Open":
-            already_confirmed, current_value = _read_table_a_di()
-            if already_confirmed and current_value == ("1", "0"):
-                return {
-                    "success": True,
-                    "newState": "Open",
-                    "unchanged": True,
-                    "message": "Table A already in horizontal position",
-                }
-
             # Set Table A to Open position (horizontal)
-            nRet = CPS.HRIF_SetBoxDO(0, 1, 0)
-            nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
+            nRet_release = CPS.HRIF_SetBoxDO(0, 1, 0)
+            nRet_drive = CPS.HRIF_SetBoxDO(0, 0, 1)
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("1", "0")
             )
@@ -7642,18 +7633,9 @@ def set_table_state(CPS, table_id, desired_state):
                 }
 
         elif desired_state == "Close":
-            already_confirmed, current_value = _read_table_a_di()
-            if already_confirmed and current_value == ("0", "1"):
-                return {
-                    "success": True,
-                    "newState": "Close",
-                    "unchanged": True,
-                    "message": "Table A already in 45 degree position",
-                }
-
             # Set Table A to Close position (45 degrees)
-            nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
-            nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
+            nRet_release = CPS.HRIF_SetBoxDO(0, 0, 0)
+            nRet_drive = CPS.HRIF_SetBoxDO(0, 1, 1)
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("0", "1")
             )
