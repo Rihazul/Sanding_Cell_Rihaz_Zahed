@@ -6648,6 +6648,7 @@ def communicate(
             speed=seventh_speed,
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
+            run_transition_grace_override_s=3.0 if zero_first_seventh else None,
         )
         if not ok:
             return None if require_seventh_ok else measurements

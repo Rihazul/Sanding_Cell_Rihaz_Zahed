@@ -531,15 +531,16 @@ def _probe_j7_state():
     - "1": moving
     - "-1": unknown/uninitialized (treat as needs homing)
     """
+    # Never send J7 plugin commands from the Flask parent while a child
+    # operation owns the robot. MotorConnect/GetState from this process can
+    # interfere with an active MotorMovePositionSpeed command in the child.
+    if process_state.get("status") == "in_progress":
+        return None
+
     with robot_lock:
         ret = ensure_cps_connected(force=False)
         if ret != 0:
             return None
-        try:
-            # Best-effort connect/read; do not hard-fail if plugin transport lags.
-            CPS.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
-        except Exception:
-            pass
         result = []
         nret = CPS.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
         if (nret not in (0, None)) or not isinstance(result, (list, tuple)) or len(result) < 3:
