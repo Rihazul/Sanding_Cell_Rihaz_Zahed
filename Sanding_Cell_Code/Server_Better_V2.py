@@ -3776,10 +3776,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             config["_scan_last_error"] = "Scan aborted: no valid doors detected from horizontal scan."
             return ([], [], [], [], [], [], [])
 
-        # reversing to start from the last to first (to save time)
-        beginning_non_nan = next(
-            item for item in allXMeasurements[0] if not np.isnan(item["height"])
-        )
+        # Reverse to start from the last detected door and save J7 travel time.
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message=f"Horizontal Scan Completed! Doors found: {len(allXMeasurements)}...",
@@ -3804,10 +3801,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
             config["logger"].info("First non nan: ", first_non_nan)
 
-            # xpos = mm_to_inches(first_non_nan['dist'] - config['offset']['scannerOffsetInLeft'] / 2) # this is position of 7th axis
-            xpos = (
-                first_non_nan["dist"] - beginning_non_nan["dist"]
-            )  # this is position of 7th axis
+            # X measurements contain the physical J7 section position because
+            # roboPos was added after each section scan. Map the detected group
+            # back to its nearest configured J7 slot instead of making it
+            # relative to the first detected door.
+            group_first_dist = float(first_non_nan["dist"])
+            physical_slot_index = min(
+                range(len(robo7thPos)),
+                key=lambda idx: abs(float(robo7thPos[idx]) - group_first_dist),
+            )
+            xpos = float(robo7thPos[physical_slot_index])
+            door_number = physical_slot_index + 1
+            config["logger"].info(
+                "[scan-map] group_first_dist=%.3f mapped_door=%s mapped_j7=%.3f error=%.3f",
+                group_first_dist,
+                door_number,
+                xpos,
+                abs(xpos - group_first_dist),
+            )
 
             # xlen, xframe_1, xframe_2 = find_constant_height_periods(xmeasurements, threshold=2)
             # results = calculate_for_each_chunk([xmeasurements], thresholds=[xthresholds[xcnt]])
@@ -3859,7 +3870,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         message="Scan stopped by user.",
                     )
                     return ([], [], [], [], [], [], [])
-                door_number = total_doors - xcnt
                 is_final_scan_iteration = xcnt == (total_doors - 1)
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
@@ -5725,7 +5735,6 @@ def communicate(
     speed_mode="override",
     require_seventh_ok=False,
     velocity_profile=None,
-    zero_first_seventh=False,
     require_seventh_run_transition=False,
 ):
     if stop_requested():
@@ -6604,11 +6613,10 @@ def communicate(
         if isinstance(config, dict) and config.get("logger"):
             try:
                 config["logger"].info(
-                    "[J7 Target] target=%.3f wait=%s require_ok=%s zero_first=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    "[J7 Target] target=%.3f wait=%s require_ok=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     float(seventh),
                     wait if wait is not None else bool(1 - doMeasure),
                     bool(require_seventh_ok),
-                    bool(zero_first_seventh),
                     bool(require_seventh_run_transition),
                     selected_profile,
                     speed,
@@ -6617,51 +6625,15 @@ def communicate(
                 )
             except Exception:
                 config["logger"].info(
-                    "[J7 Target] target=%s wait=%s require_ok=%s zero_first=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    "[J7 Target] target=%s wait=%s require_ok=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     seventh,
                     wait if wait is not None else bool(1 - doMeasure),
                     bool(require_seventh_ok),
-                    bool(zero_first_seventh),
                     bool(require_seventh_run_transition),
                     selected_profile,
                     speed,
                     tcp,
                     ucs,
-                )
-        if zero_first_seventh and float(seventh) != 0.0:
-            if isinstance(config, dict) and config.get("logger"):
-                config["logger"].info(
-                    "[J7 Zero-First] Moving to 0.000mm before target %.3fmm",
-                    float(seventh),
-                )
-            # Cancel any earlier J7 command before issuing the zero-first move.
-            # The J7 controller can otherwise accept the new command while still
-            # reporting STOPPED briefly, causing the target move to overwrite it.
-            zero_stop_result = []
-            zero_stop_nret = cps.HRIF_HRApp(
-                0, "HR_Motor", "MotorStop", ["J7"], zero_stop_result
-            )
-            if isinstance(config, dict) and config.get("logger"):
-                config["logger"].info(
-                    "[J7 Zero-First] MotorStop ret=%s result=%s",
-                    zero_stop_nret,
-                    zero_stop_result,
-                )
-            time.sleep(0.25)
-            zero_ok = seventhGoToPos(
-                cps=cps,
-                position=0.0,
-                speed=seventh_speed,
-                config=config,
-                wait=True,
-                run_transition_grace_override_s=3.0,
-            )
-            if not zero_ok:
-                return None if require_seventh_ok else measurements
-            if isinstance(config, dict) and config.get("logger"):
-                config["logger"].info(
-                    "[J7 Zero-First] Zero stage completed; sending target %.3fmm",
-                    float(seventh),
                 )
         ok = seventhGoToPos(
             cps=cps,
@@ -6669,7 +6641,6 @@ def communicate(
             speed=seventh_speed,
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
-            run_transition_grace_override_s=3.0 if zero_first_seventh else None,
             strict_run_transition=bool(require_seventh_run_transition),
         )
         if not ok:
