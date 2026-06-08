@@ -1771,31 +1771,33 @@ def toggle_state(table_id):
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
         if table_id == "tableAOpenClose": 
-            #nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
-            nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
-            nRet = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
-            if di_state_0[0] == '1' and di_state_1[0] == '0':
-                new_state = "Close"
-                nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
-                nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
-                socketio.emit('flash_message', {"message": f"Alert !!! Table A is in 45 degree working position so be carefull at the time of manually moving robot"})
-            elif di_state_0[0] == '0' and di_state_1[0] == '1':
-                new_state = "Open"
-                nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
-                nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-                # socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
-            else:
-                socketio.emit('flash_message', {"message": f"Warning !! Table is not working .Check your proximity Sensor and physical Wire Connectivity", "type":"warning"})
+            nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+            nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+            sensors_ok = nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1
+            if not sensors_ok:
+                msg = "Unable to read Table A position sensors."
+                socketio.emit('flash_message', {"message": msg, "type": "warning"})
+                return jsonify({"error": msg, "newState": "Unknown"}), 500
 
-            #if robot_state[0] == '1':
-            
-                #new_state = "Open"
-                #nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
-                #nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-            #else:
-                #new_state = "Close"
-                #nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
-                #nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
+            sensor_state = (str(di_state_0[0]), str(di_state_1[0]))
+            if sensor_state == ("1", "0"):
+                # Currently 45 degrees; move to horizontal.
+                result = set_table_state(CPS, "tableAOpenClose", "Open")
+            elif sensor_state == ("0", "1"):
+                # Currently horizontal; move to 45 degrees.
+                result = set_table_state(CPS, "tableAOpenClose", "Close")
+            else:
+                msg = f"Table A sensor state is invalid: {sensor_state}"
+                socketio.emit('flash_message', {"message": msg, "type": "warning"})
+                return jsonify({"error": msg, "newState": "Unknown"}), 500
+
+            if not result.get("success", False):
+                socketio.emit(
+                    'flash_message',
+                    {"message": result.get("message", "Table A movement failed."), "type": "warning"},
+                )
+                return jsonify(result), 500
+            new_state = result["newState"]
 
         elif table_id == "tableBOpenClose":
             nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
@@ -1837,12 +1839,19 @@ def get_state(table_id):
             return jsonify({'newState': 'Busy'}), 200
 
         if table_id == "tableAOpenClose":
-            nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
-            socketio.emit('flash_message', {"message": f"Table A is Set To {'Open' if robot_state[0] == '1' else 'Close'}. Please Wait Till The Process Finishes..."})
-            if robot_state[0] == '1':
+            di_state_0 = []
+            di_state_1 = []
+            nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+            nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+            if nRet0 != 0 or nRet1 != 0 or not di_state_0 or not di_state_1:
+                return jsonify({'newState': 'Unknown'}), 200
+            sensor_state = (str(di_state_0[0]), str(di_state_1[0]))
+            if sensor_state == ("1", "0"):
                 new_state = "Close"
-            else:
+            elif sensor_state == ("0", "1"):
                 new_state = "Open"
+            else:
+                new_state = "Unknown"
 
         elif table_id == "tableBOpenClose": 
             nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)

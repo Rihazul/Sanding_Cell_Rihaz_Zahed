@@ -120,11 +120,13 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
       if (tableAResult.status === 'fulfilled') {
         const state = tableAResult.value?.state;
         if (state === 'Open' || state === 'Close') {
-          setTableAOpen(state === 'Open');
-          if (state === 'Open') {
+          // Table A backend state: Close = physical 45 degrees, Open = horizontal.
+          // tableAOpen is retained as the existing UI "45 degrees active" flag.
+          setTableAOpen(state === 'Close');
+          if (state === 'Close') {
             setTableAPending(prev => (prev === 'opening' ? null : prev));
           }
-          if (state === 'Close') {
+          if (state === 'Open') {
             setTableAPending(prev => (prev === 'closing' ? null : prev));
           }
         }
@@ -216,7 +218,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     };
 
     refreshHardwareStatus();
-    const intervalId = window.setInterval(refreshHardwareStatus, 3000);
+    const intervalId = window.setInterval(refreshHardwareStatus, 1000);
 
     return () => {
       cancelled = true;
