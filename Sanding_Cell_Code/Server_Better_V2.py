@@ -5725,6 +5725,7 @@ def communicate(
     speed_mode="override",
     require_seventh_ok=False,
     velocity_profile=None,
+    zero_first_seventh=False,
 ):
     if stop_requested():
         return []
@@ -6564,13 +6565,19 @@ def communicate(
     if seventh != -1:
         if stop_requested():
             return measurements
+        seventh_speed = (
+            config["UI"]["seventhAxisSpeed"]
+            / 100
+            * config["seventhAxis"]["maxSpeed"]
+        )
         if isinstance(config, dict) and config.get("logger"):
             try:
                 config["logger"].info(
-                    "[J7 Target] target=%.3f wait=%s require_ok=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    "[J7 Target] target=%.3f wait=%s require_ok=%s zero_first=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     float(seventh),
                     wait if wait is not None else bool(1 - doMeasure),
                     bool(require_seventh_ok),
+                    bool(zero_first_seventh),
                     selected_profile,
                     speed,
                     tcp,
@@ -6578,21 +6585,35 @@ def communicate(
                 )
             except Exception:
                 config["logger"].info(
-                    "[J7 Target] target=%s wait=%s require_ok=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    "[J7 Target] target=%s wait=%s require_ok=%s zero_first=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     seventh,
                     wait if wait is not None else bool(1 - doMeasure),
                     bool(require_seventh_ok),
+                    bool(zero_first_seventh),
                     selected_profile,
                     speed,
                     tcp,
                     ucs,
                 )
+        if zero_first_seventh and float(seventh) != 0.0:
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].info(
+                    "[J7 Zero-First] Moving to 0.000mm before target %.3fmm",
+                    float(seventh),
+                )
+            zero_ok = seventhGoToPos(
+                cps=cps,
+                position=0.0,
+                speed=seventh_speed,
+                config=config,
+                wait=True,
+            )
+            if not zero_ok:
+                return None if require_seventh_ok else measurements
         ok = seventhGoToPos(
             cps=cps,
             position=seventh,
-            speed=config["UI"]["seventhAxisSpeed"]
-            / 100
-            * config["seventhAxis"]["maxSpeed"],
+            speed=seventh_speed,
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
         )
