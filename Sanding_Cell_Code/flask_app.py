@@ -1775,15 +1775,15 @@ def toggle_state(table_id):
             nRet = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
             nRet = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
             if di_state_0[0] == '1' and di_state_1[0] == '0':
-                new_state = "Open"
-                nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
-                nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
-                # socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
-            elif di_state_0[0] == '0' and di_state_1[0] == '1':
                 new_state = "Close"
                 nRet = CPS.HRIF_SetBoxDO(0, 0, 0)
                 nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
                 socketio.emit('flash_message', {"message": f"Alert !!! Table A is in 45 degree working position so be carefull at the time of manually moving robot"})
+            elif di_state_0[0] == '0' and di_state_1[0] == '1':
+                new_state = "Open"
+                nRet = CPS.HRIF_SetBoxDO(0, 1, 0) # (0, digital output number, states)
+                nRet = CPS.HRIF_SetBoxDO(0, 0, 1)
+                # socketio.emit('flash_message', {"message": f"Table A is in horizontal position Status confirmed by sensor"})
             else:
                 socketio.emit('flash_message', {"message": f"Warning !! Table is not working .Check your proximity Sensor and physical Wire Connectivity", "type":"warning"})
 
@@ -1871,9 +1871,9 @@ def table_state(table_id):
             nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
             if nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1:
                 if di_state_0[0] == '1' and di_state_1[0] == '0':
-                    return jsonify({'state': 'Open'})
-                if di_state_0[0] == '0' and di_state_1[0] == '1':
                     return jsonify({'state': 'Close'})
+                if di_state_0[0] == '0' and di_state_1[0] == '1':
+                    return jsonify({'state': 'Open'})
             return jsonify({'state': 'Unknown'})
 
         if table_id == "tableBOpenClose":
