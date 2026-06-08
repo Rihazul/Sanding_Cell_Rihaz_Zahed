@@ -6197,9 +6197,33 @@ def communicate(
             except Exception:
                 pass
 
+        j7_trace = []
+        j7_last_logged_motion = None
+        j7_trace_enabled = bool(
+            isinstance(config, dict)
+            and (
+                config.get("settings", {}).get("debug", False)
+                or config.get("door", {}).get("traceSeventhAxis", False)
+            )
+        )
+
+        def trace_event(label, state=None, **extra):
+            if not j7_trace_enabled:
+                return
+            entry = {"t": round(time.time(), 3), "label": label}
+            if state is not None:
+                entry["state"] = list(state) if isinstance(state, (list, tuple)) else state
+            for key, value in extra.items():
+                entry[key] = value
+            if len(j7_trace) >= 120:
+                j7_trace.pop(0)
+            j7_trace.append(entry)
+
         def fail(log_message, frontend_message, stop_motor=False):
             if stop_motor:
                 stop_j7()
+            if j7_trace_enabled:
+                log_message = f"{log_message} trace={j7_trace}"
             config["logger"].error(log_message)
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -6235,6 +6259,7 @@ def communicate(
 
         # Read state first; only reconnect J7 if state read is unavailable.
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
+        trace_event("initial_state_read", pluginRes, nret=nret, target=position, wait=wait)
         if (nret not in (0, None)) or not state_readable(pluginRes):
             result = []
             nret_conn = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
@@ -6300,6 +6325,7 @@ def communicate(
         config["logger"].info(
             f"[7thAxisMove] Going to position: {position}mm with speed: {speed}mm/s"
         )
+        trace_event("move_command_accepted", result, target=position, speed=speed)
         if isinstance(config, dict):
             # Track the last accepted command target. This is not a proof of arrival.
             config["_last_j7_command"] = float(position)
@@ -6328,6 +6354,12 @@ def communicate(
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
             if (nret not in (0, None)) or not state_readable(pluginRes):
                 consecutive_state_errors += 1
+                trace_event(
+                    "state_read_error",
+                    pluginRes,
+                    nret=nret,
+                    consecutive_errors=consecutive_state_errors,
+                )
                 if consecutive_state_errors >= 5:
                     return fail(
                         f"[7thAxisMove] MotorGetState failed during move (ret={nret}, res={pluginRes}).",
@@ -6337,10 +6369,24 @@ def communicate(
             else:
                 consecutive_state_errors = 0
                 motion_state = read_motion_state(pluginRes)
+                if motion_state != j7_last_logged_motion:
+                    trace_event(
+                        "motion_state_change",
+                        pluginRes,
+                        motion_state=motion_state,
+                        elapsed=round(time.time() - wait_start, 3),
+                    )
+                    j7_last_logged_motion = motion_state
                 if motion_state in ("1", "true", "running"):
                     saw_running = True
 
                 if state_done(pluginRes):
+                    trace_event(
+                        "state_done_seen",
+                        pluginRes,
+                        elapsed=round(time.time() - wait_start, 3),
+                        saw_running=saw_running,
+                    )
                     if require_run_transition and (not saw_running):
                         elapsed = time.time() - wait_start
                         if elapsed < run_transition_grace_s:
@@ -6356,6 +6402,12 @@ def communicate(
                     stable_done = True
                     stable_samples = 0
                     settle_deadline = time.time() + settle_window_s
+                    trace_event(
+                        "settle_window_enter",
+                        pluginRes,
+                        settle_window_s=settle_window_s,
+                        settle_stable_samples=settle_stable_samples,
+                    )
                     while time.time() < settle_deadline:
                         probe = []
                         nret_probe = cps.HRIF_HRApp(
@@ -6363,11 +6415,22 @@ def communicate(
                         )
                         if (nret_probe not in (0, None)) or not state_readable(probe):
                             stable_done = False
+                            trace_event(
+                                "settle_probe_error",
+                                probe,
+                                nret=nret_probe,
+                                stable_samples=stable_samples,
+                            )
                             break
 
                         probe_motion = read_motion_state(probe)
                         if probe_motion in ("1", "true", "running"):
                             stable_done = False
+                            trace_event(
+                                "settle_probe_running",
+                                probe,
+                                stable_samples=stable_samples,
+                            )
                             config["logger"].warning(
                                 "[7thAxisMove] J7 left STOPPED state during settle window; continuing wait. probe=%s",
                                 probe,
@@ -6376,11 +6439,22 @@ def communicate(
 
                         if state_done(probe):
                             stable_samples += 1
+                            trace_event(
+                                "settle_probe_done",
+                                probe,
+                                stable_samples=stable_samples,
+                            )
                             if stable_samples >= settle_stable_samples:
                                 break
                         time.sleep(move_poll_s)
 
                     if stable_done and stable_samples >= settle_stable_samples:
+                        trace_event(
+                            "settle_accept_done",
+                            pluginRes,
+                            stable_samples=stable_samples,
+                            elapsed=round(time.time() - wait_start, 3),
+                        )
                         break
 
             if (time.time() - wait_start) >= move_wait_timeout_s:
@@ -6429,6 +6503,13 @@ def communicate(
                 "(actual unavailable; state=%s)",
                 float(position),
                 pluginRes,
+            )
+        if j7_trace_enabled:
+            config["logger"].info(
+                "[7thAxisMove] completion trace target=%.3f wait=%s trace=%s",
+                float(position),
+                wait,
+                j7_trace,
             )
         return True
 
