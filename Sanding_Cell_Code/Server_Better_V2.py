@@ -5726,6 +5726,7 @@ def communicate(
     require_seventh_ok=False,
     velocity_profile=None,
     zero_first_seventh=False,
+    require_seventh_run_transition=False,
 ):
     if stop_requested():
         return []
@@ -6148,6 +6149,7 @@ def communicate(
         config,
         wait=True,
         run_transition_grace_override_s=None,
+        strict_run_transition=False,
     ):
         def move_ok(nret, result):
             if nret is None:
@@ -6405,6 +6407,14 @@ def communicate(
                         if elapsed < run_transition_grace_s:
                             time.sleep(move_poll_s)
                             continue
+                        if strict_run_transition:
+                            return fail(
+                                "[7thAxisMove] J7 never reported RUNNING after command: "
+                                f"target={float(position):.3f} state={pluginRes}.",
+                                "7th axis did not begin the commanded move. "
+                                "Six-axis robot movement was blocked.",
+                                stop_motor=True,
+                            )
                         config["logger"].warning(
                             "[7thAxisMove] Move reported done without RUNNING transition; "
                             "accepting stopped state after grace window (target=%.3f, state=%s).",
@@ -6488,7 +6498,10 @@ def communicate(
             verify_tol_mm = 8.0
         # Default OFF: many firmwares do not expose J7 physical position in
         # MotorGetState, which can cause false mismatches.
-        verify_enabled = bool(verify_cfg.get("seventhAxisVerifyPosition", False))
+        verify_enabled = bool(
+            verify_cfg.get("seventhAxisVerifyPosition", False)
+            or strict_run_transition
+        )
 
         actual_pos = _extract_pos_from_state(pluginRes)
         if verify_enabled and actual_pos is not None:
@@ -6511,6 +6524,12 @@ def communicate(
                 float(verify_tol_mm),
             )
         else:
+            if strict_run_transition and actual_pos is None:
+                config["logger"].warning(
+                    "[7thAxisMove] Strict sequence verified RUNNING -> stable STOPPED, "
+                    "but J7 position feedback is unavailable for target %.3fmm.",
+                    float(position),
+                )
             config["logger"].info(
                 "[7thAxisMove] Reached position command: target=%.3fmm "
                 "(actual unavailable; state=%s)",
@@ -6585,11 +6604,12 @@ def communicate(
         if isinstance(config, dict) and config.get("logger"):
             try:
                 config["logger"].info(
-                    "[J7 Target] target=%.3f wait=%s require_ok=%s zero_first=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    "[J7 Target] target=%.3f wait=%s require_ok=%s zero_first=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     float(seventh),
                     wait if wait is not None else bool(1 - doMeasure),
                     bool(require_seventh_ok),
                     bool(zero_first_seventh),
+                    bool(require_seventh_run_transition),
                     selected_profile,
                     speed,
                     tcp,
@@ -6597,11 +6617,12 @@ def communicate(
                 )
             except Exception:
                 config["logger"].info(
-                    "[J7 Target] target=%s wait=%s require_ok=%s zero_first=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
+                    "[J7 Target] target=%s wait=%s require_ok=%s zero_first=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     seventh,
                     wait if wait is not None else bool(1 - doMeasure),
                     bool(require_seventh_ok),
                     bool(zero_first_seventh),
+                    bool(require_seventh_run_transition),
                     selected_profile,
                     speed,
                     tcp,
@@ -6649,6 +6670,7 @@ def communicate(
             config=config,
             wait=wait if wait is not None else bool(1 - doMeasure),
             run_transition_grace_override_s=3.0 if zero_first_seventh else None,
+            strict_run_transition=bool(require_seventh_run_transition),
         )
         if not ok:
             return None if require_seventh_ok else measurements

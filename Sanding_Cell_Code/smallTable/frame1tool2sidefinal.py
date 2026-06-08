@@ -6,11 +6,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 import math
-import time
 import json
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus
-from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
-import threading
 from smallTable.scancord import (
     read_scan_results,
     get_door_position,
@@ -21,9 +18,6 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values
 )
-
-J7_IDLE_TIMEOUT_S = 45.0
-J7_IDLE_POLL_S = 0.02
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -36,19 +30,6 @@ def load_json_config():
     with open('./configs/cycleData.json', 'r') as file:
         return json.load(file)
 
-
-def _wait_for_j7_idle(cps: CPSClient, timeout_s: float = J7_IDLE_TIMEOUT_S, poll_s: float = J7_IDLE_POLL_S) -> bool:
-    start_time = time.time()
-    result = []
-    while True:
-        result.clear()
-        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
-        if (nret == 0 or nret is None) and len(result) > 2 and str(result[2]).strip() == "0":
-            return True
-        if (time.time() - start_time) >= float(timeout_s):
-            print(f"[J7] Timeout waiting for idle after {timeout_s:.1f}s. Last state={result}")
-            return False
-        time.sleep(max(0.005, float(poll_s)))
 
 def _run_tool2_side_process(
     cps,
@@ -442,10 +423,8 @@ def door1frametool2side(force,cps):
         # moveOnlyJ6r(cps, -270, config)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False, require_seventh_ok=True,zero_first_seventh=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True,require_seventh_run_transition=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        if not _wait_for_j7_idle(cps):
-            raise RuntimeError(f"J7 did not become idle after async move to {x2}")
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
@@ -992,7 +971,7 @@ def door2frametool2side(force,cps):
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True,require_seventh_run_transition=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -1534,7 +1513,7 @@ def door3frametool2side(force,cps):
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True,require_seventh_run_transition=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
@@ -2076,7 +2055,7 @@ def door4frametool2side(force,cps):
         communicate(cps=cps,config=config,point=rightpositionhoming,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         #Top cycles
-        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True)
+        communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True,zero_first_seventh=True,require_seventh_run_transition=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
