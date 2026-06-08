@@ -2296,16 +2296,10 @@ def handle_action():
                             {"message": f"Scan runtime: using {runtime_count} configured door(s) for Table A."},
                         )
 
-                    # Scan is for small-door Table A.
-                    # Legacy non-blocking behavior:
-                    # drive only Table A down (45°), leave Table B unchanged, then proceed.
-                    active_table_result = set_table_state(cps, "tableAOpenClose", "Close")
-                    parked_table_result = {"success": True, "newState": "Unchanged", "message": "Table B left unchanged for scan"}
+                    # scan_table owns the Table A 45-degree interlock. Do not
+                    # issue the same table command twice from this route.
                     config["logger"].info(
-                        "[scan][INTERLOCK_LEGACY] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->unchanged)=%s",
-                        os.path.abspath(__file__),
-                        active_table_result,
-                        parked_table_result,
+                        "[scan] Delegating Table A 45-degree interlock to scan_table."
                     )
                     socketio.emit(
                         'flash_message',
