@@ -6141,7 +6141,14 @@ def communicate(
             if result[11] == "1":
                 keepgoing = False
 
-    def seventhGoToPos(cps, position, speed, config, wait=True):
+    def seventhGoToPos(
+        cps,
+        position,
+        speed,
+        config,
+        wait=True,
+        run_transition_grace_override_s=None,
+    ):
         def move_ok(nret, result):
             if nret is None:
                 return bool(result) and str(result[0]) == "0"
@@ -6247,6 +6254,11 @@ def communicate(
         run_transition_grace_s = max(
             0.05, float(door_cfg.get("seventhAxisRunTransitionGraceSec", 0.35))
         )
+        if run_transition_grace_override_s is not None:
+            run_transition_grace_s = max(
+                run_transition_grace_s,
+                float(run_transition_grace_override_s),
+            )
         min_delta_for_transition_mm = max(
             0.0, float(door_cfg.get("seventhAxisTransitionDeltaMm", 20.0))
         )
@@ -6601,15 +6613,35 @@ def communicate(
                     "[J7 Zero-First] Moving to 0.000mm before target %.3fmm",
                     float(seventh),
                 )
+            # Cancel any earlier J7 command before issuing the zero-first move.
+            # The J7 controller can otherwise accept the new command while still
+            # reporting STOPPED briefly, causing the target move to overwrite it.
+            zero_stop_result = []
+            zero_stop_nret = cps.HRIF_HRApp(
+                0, "HR_Motor", "MotorStop", ["J7"], zero_stop_result
+            )
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].info(
+                    "[J7 Zero-First] MotorStop ret=%s result=%s",
+                    zero_stop_nret,
+                    zero_stop_result,
+                )
+            time.sleep(0.25)
             zero_ok = seventhGoToPos(
                 cps=cps,
                 position=0.0,
                 speed=seventh_speed,
                 config=config,
                 wait=True,
+                run_transition_grace_override_s=3.0,
             )
             if not zero_ok:
                 return None if require_seventh_ok else measurements
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].info(
+                    "[J7 Zero-First] Zero stage completed; sending target %.3fmm",
+                    float(seventh),
+                )
         ok = seventhGoToPos(
             cps=cps,
             position=seventh,
