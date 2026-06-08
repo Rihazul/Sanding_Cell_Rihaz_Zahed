@@ -78,17 +78,18 @@ def _run_tool2_side_by_ylen(door_num, force, cps, small_runner, big_runner):
     print("ylen:", ylen)
 
     if ylen == "null":
-        print("No door data available - skipping operations")
-        return
+        raise RuntimeError(
+            f"Tool 2 side cannot run Door {door_num}: no scanned Y-length data is available."
+        )
 
     if not isinstance(ylen, (int, float)):
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
-        return
+        raise RuntimeError(
+            f"Tool 2 side cannot run Door {door_num}: invalid ylen value {ylen!r}."
+        )
 
     if ylen > 600:
-        big_runner(force, cps)
-    else:
-        small_runner(force, cps)
+        return big_runner(force, cps)
+    return small_runner(force, cps)
 
 
 def door1frametool2side(force,cps):
@@ -632,7 +633,7 @@ def door1frametool2side(force,cps):
 
 
 
-    _run_tool2_side_by_ylen(
+    return _run_tool2_side_by_ylen(
         1,
         force,
         cps,
@@ -1174,7 +1175,7 @@ def door2frametool2side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    _run_tool2_side_by_ylen(
+    return _run_tool2_side_by_ylen(
         2,
         force,
         cps,
@@ -1716,7 +1717,7 @@ def door3frametool2side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    _run_tool2_side_by_ylen(
+    return _run_tool2_side_by_ylen(
         3,
         force,
         cps,
@@ -2258,7 +2259,7 @@ def door4frametool2side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    _run_tool2_side_by_ylen(
+    return _run_tool2_side_by_ylen(
         4,
         force,
         cps,

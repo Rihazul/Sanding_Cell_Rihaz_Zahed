@@ -50,6 +50,46 @@ def read_scan_results(default_on_error=False):
         def _ensure_dict(value):
             return value if isinstance(value, dict) else {}
 
+        # Scan results store only detected doors, while operation modules address
+        # doors by their physical table slot. Expand compact detected arrays into
+        # the four physical slots before extracting individual door values.
+        physical_door_numbers = _ensure_list(data.get("physicalDoorNumbers"))
+
+        def _align_to_physical_slots(values, empty_value):
+            values = _ensure_list(values)
+            if not physical_door_numbers:
+                return values
+
+            aligned = [empty_value() for _ in range(4)]
+            mapped_any = False
+            for detected_index, value in enumerate(values):
+                if detected_index >= len(physical_door_numbers):
+                    break
+                try:
+                    door_number = int(physical_door_numbers[detected_index])
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= door_number <= len(aligned):
+                    aligned[door_number - 1] = value
+                    mapped_any = True
+            return aligned if mapped_any else values
+
+        data["robo7thPos"] = _align_to_physical_slots(
+            data.get("robo7thPos"), lambda: "null"
+        )
+        for field_name in (
+            "framePoints",
+            "innerCornerPoints",
+            "outerCornerPoints",
+            "pocketPoints",
+            "xVals",
+            "yVals",
+            "doorProfiles",
+        ):
+            data[field_name] = _align_to_physical_slots(
+                data.get(field_name), dict
+            )
+
         # Extract 7th axis positions for each door
         robo7thPos = _ensure_list(data.get("robo7thPos"))
         door_positions = {
