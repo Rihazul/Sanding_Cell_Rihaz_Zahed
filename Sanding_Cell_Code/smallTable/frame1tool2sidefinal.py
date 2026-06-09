@@ -134,7 +134,7 @@ def door1frametool2side(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -191,7 +191,7 @@ def door1frametool2side(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,0,0,0]
+        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,120,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
         extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,-90]
@@ -684,7 +684,7 @@ def door2frametool2side(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -741,7 +741,7 @@ def door2frametool2side(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,0,0,0]
+        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,120,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
         extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,-90]
@@ -1226,7 +1226,7 @@ def door3frametool2side(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -1283,7 +1283,7 @@ def door3frametool2side(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,0,0,0]
+        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,120,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
         extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,-90]
@@ -1768,7 +1768,7 @@ def door4frametool2side(force,cps):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -1825,7 +1825,7 @@ def door4frametool2side(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,0,0,0]
+        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,120,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
         extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,-90]
