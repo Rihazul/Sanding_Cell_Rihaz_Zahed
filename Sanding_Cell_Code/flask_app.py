@@ -529,7 +529,7 @@ def _probe_j7_state():
     Common values:
     - "0": idle
     - "1": moving
-    - "-1": unknown/uninitialized (treat as needs homing)
+    - "-1": disconnected/uninitialized
     """
     # Never send J7 plugin commands from the Flask parent while a child
     # operation owns the robot. MotorConnect/GetState from this process can
@@ -2056,9 +2056,11 @@ def _compute_homing_requirement():
         # Do not clear homing on transient read failures (None), otherwise
         # users can get re-blocked right after a valid homing.
         if j7_state == "-1":
-            _set_j7_home_confirmed(False)
-            required = True
-            reason = "j7_state_unknown"
+            # Homing intentionally disconnects J7 after reaching its configured
+            # home position to release holding torque. Keep the software homing
+            # confirmation; the next J7 movement reconnects the motor.
+            required = False
+            reason = "j7_disconnected_keep_homed"
         elif j7_state is None:
             required = False
             reason = "j7_probe_unavailable_keep_homed"

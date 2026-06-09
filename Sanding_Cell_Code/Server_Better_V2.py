@@ -2747,6 +2747,43 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 message="Homing failed: could not move J7 to home position.",
             )
             return False
+
+        # MotorStop ends motion, but MotorDisconnect releases the motor after
+        # homing so it does not remain energized and produce holding noise.
+        stop_result = []
+        stop_nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], stop_result)
+        config["logger"].info(
+            "[HomingFunc] Post-home MotorStop ret=%s result=%s",
+            stop_nret,
+            stop_result,
+        )
+        time.sleep(motor_stop_settle_s)
+
+        disconnect_ok = False
+        disconnect_result = []
+        for disconnect_attempt in range(1, 3):
+            disconnect_result = []
+            disconnect_nret = cps.HRIF_HRApp(
+                0, "HR_Motor", "MotorDisconnect", ["J7"], disconnect_result
+            )
+            if motor_cmd_ok(disconnect_nret, disconnect_result):
+                disconnect_ok = True
+                break
+            config["logger"].warning(
+                "[HomingFunc] MotorDisconnect attempt %s/2 failed ret=%s result=%s",
+                disconnect_attempt,
+                disconnect_nret,
+                disconnect_result,
+            )
+            time.sleep(motor_connect_settle_s)
+
+        if not disconnect_ok:
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message="Homing reached position, but J7 motor could not be disconnected.",
+            )
+            return False
+
         config["logger"].info("[HomingFunc] DONE! Success to reach J7 home position")
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
@@ -6425,7 +6462,12 @@ def communicate(
         # Read state first; only reconnect J7 if state read is unavailable.
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
         trace_event("initial_state_read", pluginRes, nret=nret, target=position, wait=wait)
-        if (nret not in (0, None)) or not state_readable(pluginRes):
+        disconnected_states = ("-1", "unknown", "uninitialized")
+        if (
+            (nret not in (0, None))
+            or not state_readable(pluginRes)
+            or read_motion_state(pluginRes) in disconnected_states
+        ):
             result = []
             nret_conn = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
             if not move_ok(nret_conn, result):
@@ -6438,7 +6480,11 @@ def communicate(
             for _ in range(8):
                 pluginRes = []
                 nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], pluginRes)
-                if (nret in (0, None)) and state_readable(pluginRes):
+                if (
+                    (nret in (0, None))
+                    and state_readable(pluginRes)
+                    and read_motion_state(pluginRes) not in disconnected_states
+                ):
                     ready = True
                     break
                 time.sleep(0.02)
