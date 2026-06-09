@@ -291,7 +291,7 @@ def door1frametool2sideedge(force,cps):
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[distance+10,p3[1]-20,80,0,0,-180]
+        upextratop=[0,p3[1]-20,80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
