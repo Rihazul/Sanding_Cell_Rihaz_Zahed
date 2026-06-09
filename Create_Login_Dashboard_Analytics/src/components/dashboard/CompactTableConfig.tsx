@@ -99,6 +99,7 @@ export function CompactTableConfig({
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
   const [lastScanSignature, setLastScanSignature] = React.useState<string | null>(null);
   const [lastScannedAt, setLastScannedAt] = React.useState<string | null>(null);
+  const [detectedDoorNumbers, setDetectedDoorNumbers] = React.useState<number[] | null>(null);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   const [previewAttemptIndexA, setPreviewAttemptIndexA] = React.useState<number>(0);
@@ -240,6 +241,40 @@ export function CompactTableConfig({
     return `${baseModel}::${doorModelSig}`;
   };
 
+  const applyDetectedDoorsFromScanStatus = (status: any) => {
+    if (!status?.hasScan || !status?.doorDetectionAvailable) {
+      setDetectedDoorNumbers(null);
+      return;
+    }
+
+    const detected = Array.from(
+      new Set(
+        (Array.isArray(status.detectedDoorNumbers) ? status.detectedDoorNumbers : [])
+          .map((value: unknown) => Number(value))
+          .filter((value: number) => Number.isInteger(value) && value >= 1 && value <= 4)
+      )
+    ).sort((a, b) => a - b);
+
+    setDetectedDoorNumbers(detected);
+    setRowDoorSelections(prev =>
+      Object.fromEntries(
+        Object.entries(prev).map(([label, doors]) => [
+          label,
+          doors.filter(doorNumber => detected.includes(doorNumber)),
+        ])
+      )
+    );
+    setRowActiveDoor(prev => {
+      const fallbackDoor = detected[0] ?? 1;
+      return Object.fromEntries(
+        Object.entries(prev).map(([label, doorNumber]) => [
+          label,
+          detected.includes(doorNumber) ? doorNumber : fallbackDoor,
+        ])
+      );
+    });
+  };
+
   React.useEffect(() => {
     let cancelled = false;
     if (tableName !== 'A') return;
@@ -253,6 +288,7 @@ export function CompactTableConfig({
         setLastScannedAt(status?.scannedAt || null);
         const signature = (status?.signature || '').trim();
         setLastScanSignature(signature || null);
+        applyDetectedDoorsFromScanStatus(status);
       } catch {
         // Non-blocking; fallback to in-memory scan status.
       }
@@ -366,10 +402,11 @@ export function CompactTableConfig({
         tableAModel: model || '',
         tableADoorModels: getTableADoorModels(),
       });
-      setScanCompleted(true);
-      const signature = getTableAScanSignature();
-      setLastScanSignature(signature);
-      setLastScannedAt(new Date().toISOString());
+      const status = await getScanStatus();
+      setScanCompleted(!!status?.hasScan);
+      setLastScanSignature((status?.signature || getTableAScanSignature()).trim());
+      setLastScannedAt(status?.scannedAt || new Date().toISOString());
+      applyDetectedDoorsFromScanStatus(status);
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
       showCompletionPopup('Scan Completed', 'Table A scan completed');
     } catch (error) {
@@ -407,6 +444,7 @@ export function CompactTableConfig({
         }
         effectiveScanCompleted = true;
         setScanCompleted(true);
+        applyDetectedDoorsFromScanStatus(status);
         if (status?.signature) {
           effectiveLastSignature = String(status.signature);
           setLastScanSignature(effectiveLastSignature);
@@ -421,8 +459,7 @@ export function CompactTableConfig({
       const scanSignatureNow = getTableAScanSignature();
       const scanInvalid =
         !effectiveScanCompleted ||
-        !effectiveLastSignature ||
-        scanSignatureNow !== effectiveLastSignature;
+        (!!effectiveLastSignature && scanSignatureNow !== effectiveLastSignature);
       if (scanInvalid) {
         const swal = getSwal();
         const warningText = 'Model/configuration changed or scan missing. Please run Scan first before Start Task.';
@@ -726,14 +763,18 @@ export function CompactTableConfig({
       .filter(({ row }) => !isModelF || isModelFAllowedRow(row.label));
   const currentDisplayRows = buildDisplayRows(currentRows);
   const tableBDisplayRows = buildDisplayRows(rows);
+  const scanConfigMismatch =
+    tableName === 'A' &&
+    scanCompleted &&
+    !!lastScanSignature &&
+    getTableAScanSignature() !== lastScanSignature;
 
   const handleModelChange = (newModel: string) => {
-    if (tableName === 'A' && newModel !== model) {
-      if (scanCompleted) {
-        addActivity(`Table ${tableName}: Model changed. Previous scan is now invalid; run Scan again.`, 'warning');
-      }
-      setScanCompleted(false);
-      setLastScanSignature(null);
+    if (tableName === 'A' && newModel !== model && scanCompleted) {
+      addActivity(
+        `Table ${tableName}: Model changed. Saved scan remains on record and will be validated before the task starts.`,
+        'warning'
+      );
     }
     setModel(newModel);
 
@@ -766,6 +807,9 @@ export function CompactTableConfig({
   };
 
   const toggleRowDoor = (label: string, doorNumber: number) => {
+    if (detectedDoorNumbers !== null && !detectedDoorNumbers.includes(doorNumber)) {
+      return;
+    }
     const rowIndex = rows.findIndex(r => r.label === label);
     const sourceDoorNumber = rowActiveDoor[label] ?? selectedDoor;
     const currentSelection = rowDoorSelections[label] || [];
@@ -959,9 +1003,13 @@ export function CompactTableConfig({
                   </div>
                 )}
                 <div className="mt-2 text-xs">
-                  {scanCompleted ? (
+                  {scanCompleted && scanConfigMismatch ? (
+                    <span className="text-amber-700">
+                      Saved scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}, but it does not match the current model/door setup. Re-scan before starting.
+                    </span>
+                  ) : scanCompleted ? (
                     <span className="text-green-700">
-                      Scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}. Re-scan if model/door setup changed.
+                      Scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''} and available for the selected model/door setup.
                     </span>
                   ) : (
                     <span className="text-amber-700">No scan on record yet.</span>
@@ -970,6 +1018,14 @@ export function CompactTableConfig({
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                {detectedDoorNumbers !== null && (
+                  <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                    Available from latest scan: {detectedDoorNumbers.length
+                      ? detectedDoorNumbers.map(doorNumber => `Door ${doorNumber}`).join(', ')
+                      : 'No doors detected'}
+                    . Undetected doors are locked.
+                  </div>
+                )}
                 <div className="mt-2 space-y-3">
                   {currentDisplayRows.map(({ row, idx }) => (
                     <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
@@ -989,6 +1045,7 @@ export function CompactTableConfig({
                               const doorConfig = doorConfigs.find(d => d.doorNumber === doorNum);
                               const hasModel = doorConfig?.model && doorConfig.model !== '';
                               const isSelected = (rowDoorSelections[row.label] || []).includes(doorNum);
+                              const isLocked = detectedDoorNumbers !== null && !detectedDoorNumbers.includes(doorNum);
                               return (
                                 <button
                                   key={doorNum}
@@ -997,22 +1054,25 @@ export function CompactTableConfig({
                                     e.preventDefault();
                                     toggleRowDoor(row.label, doorNum);
                                   }}
-                                  disabled={isOperating}
+                                  disabled={isOperating || isLocked}
+                                  title={isLocked ? `Door ${doorNum} was not detected in the latest scan` : undefined}
                                   className={`min-w-[78px] px-3 py-1 text-xs font-semibold text-center transition-colors relative disabled:cursor-not-allowed disabled:opacity-100 rounded-md border ${
-                                    isSelected
+                                    isLocked
+                                      ? 'text-gray-400 bg-gray-200 border-gray-300 cursor-not-allowed'
+                                      : isSelected
                                       ? 'text-white bg-blue-600 border-blue-600 hover:bg-blue-700'
                                       : 'text-gray-900 bg-white border-gray-500 hover:bg-gray-50'
                                   }`}
                                   style={{
                                     opacity: 1,
-                                    color: isSelected ? '#ffffff' : '#111827',
-                                    backgroundColor: isSelected ? '#2563eb' : '#ffffff',
-                                    borderColor: isSelected ? '#2563eb' : '#6b7280',
+                                    color: isLocked ? '#9ca3af' : isSelected ? '#ffffff' : '#111827',
+                                    backgroundColor: isLocked ? '#e5e7eb' : isSelected ? '#2563eb' : '#ffffff',
+                                    borderColor: isLocked ? '#d1d5db' : isSelected ? '#2563eb' : '#6b7280',
                                     fontWeight: 600,
                                   }}
                                 >
-                                  Door {doorNum}
-                                  {hasModel && (
+                                  {isLocked ? 'Locked ' : ''}Door {doorNum}
+                                  {hasModel && !isLocked && (
                                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full ring-2 ring-white"></span>
                                   )}
                                 </button>

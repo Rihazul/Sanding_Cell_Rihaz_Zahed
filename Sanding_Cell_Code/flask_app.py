@@ -366,24 +366,108 @@ def _set_tablea_scan_meta(signature=None, model=None, door_models=None):
     _save_tablea_scan_meta(payload)
 
 
+def _get_detected_tablea_door_numbers():
+    """Return physical door slots explicitly reported by the latest scan."""
+    try:
+        with open(TABLEA_SCAN_RESULTS_PATH, "r", encoding="utf-8") as f:
+            scan_data = json.load(f)
+    except Exception:
+        return None
+
+    physical_numbers = scan_data.get("physicalDoorNumbers")
+    if isinstance(physical_numbers, list):
+        detected = []
+        for value in physical_numbers:
+            try:
+                door_number = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= door_number <= 4:
+                detected.append(door_number)
+        if detected:
+            return sorted(set(detected))
+
+    door_profiles = scan_data.get("doorProfiles")
+    if isinstance(door_profiles, list):
+        detected = []
+        for profile in door_profiles:
+            if not isinstance(profile, dict):
+                continue
+            try:
+                door_number = int(profile.get("doorNumber"))
+            except (TypeError, ValueError):
+                continue
+            if 1 <= door_number <= 4:
+                detected.append(door_number)
+        if detected:
+            return sorted(set(detected))
+
+    if isinstance(physical_numbers, list):
+        return []
+
+    return None
+
+
+def _get_requested_tablea_task_doors(table_data):
+    """Return door slots with at least one requested task cycle."""
+    requested = set()
+    doors = table_data.get("doors") if isinstance(table_data, dict) else None
+    if not isinstance(doors, list):
+        return requested
+
+    for door_entry in doors:
+        if not isinstance(door_entry, dict):
+            continue
+        try:
+            door_number = int(door_entry.get("doorNumber"))
+        except (TypeError, ValueError):
+            continue
+        tasks = door_entry.get("tasks")
+        if not isinstance(tasks, dict):
+            continue
+        for task in tasks.values():
+            if not isinstance(task, dict):
+                continue
+            try:
+                cycle = int(task.get("cycle", 0) or 0)
+            except (TypeError, ValueError):
+                cycle = 0
+            if cycle > 0:
+                requested.add(door_number)
+                break
+
+    return requested
+
+
 def _get_tablea_scan_status():
     meta = _load_tablea_scan_meta()
     has_scan_file = os.path.exists(TABLEA_SCAN_RESULTS_PATH)
     has_scan = bool(has_scan_file or meta.get("hasScan"))
     if not has_scan:
-        return {"hasScan": False, "scannedAt": None, "signature": "", "model": "", "doorModels": []}
+        return {
+            "hasScan": False,
+            "scannedAt": None,
+            "signature": "",
+            "model": "",
+            "doorModels": [],
+            "detectedDoorNumbers": [],
+            "doorDetectionAvailable": False,
+        }
     if not meta.get("scannedAt"):
         try:
             ts = os.path.getmtime(TABLEA_SCAN_RESULTS_PATH)
             meta["scannedAt"] = datetime.fromtimestamp(ts).isoformat(timespec="seconds")
         except Exception:
             meta["scannedAt"] = None
+    detected_door_numbers = _get_detected_tablea_door_numbers()
     return {
         "hasScan": True,
         "scannedAt": meta.get("scannedAt"),
         "signature": meta.get("signature", ""),
         "model": meta.get("model", ""),
         "doorModels": meta.get("doorModels", []),
+        "detectedDoorNumbers": detected_door_numbers or [],
+        "doorDetectionAvailable": detected_door_numbers is not None,
     }
 
 
@@ -903,6 +987,23 @@ def start_TableA_process():
                 "code": "scan_required",
             }
         ), 409
+
+    if scan_status.get("doorDetectionAvailable"):
+        detected_doors = set(scan_status.get("detectedDoorNumbers") or [])
+        requested_doors = _get_requested_tablea_task_doors(tableData)
+        unavailable_doors = sorted(requested_doors - detected_doors)
+        if unavailable_doors:
+            return jsonify(
+                {
+                    "error": (
+                        "Task includes doors not detected in the latest scan: "
+                        + ", ".join(str(door) for door in unavailable_doors)
+                    ),
+                    "code": "undetected_doors_selected",
+                    "detectedDoorNumbers": sorted(detected_doors),
+                    "invalidDoorNumbers": unavailable_doors,
+                }
+            ), 409
 
     # Support both payload formats:
     # 1) Legacy: TableA.model + task objects
