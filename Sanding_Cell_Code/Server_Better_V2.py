@@ -7614,8 +7614,25 @@ def set_table_state(CPS, table_id, desired_state):
     if table_id == "tableAOpenClose":
         if desired_state == "Open":
             # Set Table A to Open position (horizontal)
+            state_ok, current_state = _read_table_a_di()
+            if state_ok and current_state == ("0", "1"):
+                return {
+                    "success": True,
+                    "newState": "Open",
+                    "alreadyInState": True,
+                    "message": "Table A already confirmed at horizontal position",
+                }
             nRet_release = CPS.HRIF_SetBoxDO(0, 1, 0)
             nRet_drive = CPS.HRIF_SetBoxDO(0, 0, 1)
+            if nRet_release not in (0, None) or nRet_drive not in (0, None):
+                return {
+                    "success": False,
+                    "newState": "Error",
+                    "message": (
+                        "Failed to command Table A open position "
+                        f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
+                    ),
+                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("0", "1")
             )
@@ -7634,8 +7651,25 @@ def set_table_state(CPS, table_id, desired_state):
 
         elif desired_state == "Close":
             # Set Table A to Close position (45 degrees)
+            state_ok, current_state = _read_table_a_di()
+            if state_ok and current_state == ("1", "0"):
+                return {
+                    "success": True,
+                    "newState": "Close",
+                    "alreadyInState": True,
+                    "message": "Table A already confirmed at 45 degree position",
+                }
             nRet_release = CPS.HRIF_SetBoxDO(0, 0, 0)
             nRet_drive = CPS.HRIF_SetBoxDO(0, 1, 1)
+            if nRet_release not in (0, None) or nRet_drive not in (0, None):
+                return {
+                    "success": False,
+                    "newState": "Error",
+                    "message": (
+                        "Failed to command Table A close position "
+                        f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
+                    ),
+                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("1", "0")
             )
@@ -7661,8 +7695,25 @@ def set_table_state(CPS, table_id, desired_state):
     elif table_id == "tableBOpenClose":
         if desired_state == "Open":
             # Set Table B to Open position (horizontal)
-            nRet = CPS.HRIF_SetBoxCO(0, 1, 0)
-            nRet = CPS.HRIF_SetBoxCO(0, 0, 1)
+            state_ok, current_state = _read_table_b_co()
+            if state_ok and current_state == "0":
+                return {
+                    "success": True,
+                    "newState": "Open",
+                    "alreadyInState": True,
+                    "message": "Table B already confirmed at horizontal position",
+                }
+            nRet_release = CPS.HRIF_SetBoxCO(0, 1, 0)
+            nRet_drive = CPS.HRIF_SetBoxCO(0, 0, 1)
+            if nRet_release not in (0, None) or nRet_drive not in (0, None):
+                return {
+                    "success": False,
+                    "newState": "Error",
+                    "message": (
+                        "Failed to command Table B open position "
+                        f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
+                    ),
+                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_b_co, lambda v: v == "0"
             )
@@ -7681,8 +7732,25 @@ def set_table_state(CPS, table_id, desired_state):
 
         elif desired_state == "Close":
             # Set Table B to Close position (45 degrees)
-            nRet = CPS.HRIF_SetBoxCO(0, 0, 0)
-            nRet = CPS.HRIF_SetBoxCO(0, 1, 1)
+            state_ok, current_state = _read_table_b_co()
+            if state_ok and current_state == "1":
+                return {
+                    "success": True,
+                    "newState": "Close",
+                    "alreadyInState": True,
+                    "message": "Table B already confirmed at 45 degree position",
+                }
+            nRet_release = CPS.HRIF_SetBoxCO(0, 0, 0)
+            nRet_drive = CPS.HRIF_SetBoxCO(0, 1, 1)
+            if nRet_release not in (0, None) or nRet_drive not in (0, None):
+                return {
+                    "success": False,
+                    "newState": "Error",
+                    "message": (
+                        "Failed to command Table B close position "
+                        f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
+                    ),
+                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_b_co, lambda v: v == "1"
             )

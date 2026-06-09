@@ -940,22 +940,78 @@ def start_TableA_process():
         json.dump(data, f)
 
     clear_stop()
+    preparation_start = time.monotonic()
     with robot_lock:
+        connect_start = time.monotonic()
         conn_ret = ensure_cps_connected(force=True)
+        connect_elapsed = time.monotonic() - connect_start
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
         # Operation routing uses swapped IO table IDs on this cell:
-        # selecting Table A task should physically open Table A and close Table B.
-        set_table_state(CPS, "tableBOpenClose", "Open")
-        set_table_state(CPS, "tableAOpenClose", "Close")
-        socketio.emit('flash_message', {"message": "Operation table mode: Table A Open, Table B Close"})
+        # selecting Table A task requires Table A at 45 degrees and Table B horizontal.
+        table_b_start = time.monotonic()
+        table_b_result = set_table_state(CPS, "tableBOpenClose", "Open")
+        table_b_elapsed = time.monotonic() - table_b_start
+        if not table_b_result.get("success", False):
+            app.logger.error(
+                "[TableA Start] Table B preparation failed after %.3fs: %s",
+                table_b_elapsed,
+                table_b_result,
+            )
+            return jsonify(
+                {
+                    "error": table_b_result.get("message", "Failed to prepare Table B."),
+                    "code": "table_b_preparation_failed",
+                }
+            ), 500
+
+        table_a_start = time.monotonic()
+        table_a_result = set_table_state(CPS, "tableAOpenClose", "Close")
+        table_a_elapsed = time.monotonic() - table_a_start
+        if not table_a_result.get("success", False):
+            app.logger.error(
+                "[TableA Start] Table A preparation failed after %.3fs: %s",
+                table_a_elapsed,
+                table_a_result,
+            )
+            return jsonify(
+                {
+                    "error": table_a_result.get("message", "Failed to prepare Table A."),
+                    "code": "table_a_preparation_failed",
+                }
+            ), 500
+
+        socketio.emit(
+            'flash_message',
+            {"message": "Operation table mode confirmed: Table A 45°, Table B horizontal"},
+        )
         stopper_statusmod(CPS, state="up")
+        app.logger.info(
+            "[TableA Start] preparation complete in %.3fs "
+            "(connect=%.3fs, tableB=%.3fs already=%s, tableA=%.3fs already=%s)",
+            time.monotonic() - preparation_start,
+            connect_elapsed,
+            table_b_elapsed,
+            bool(table_b_result.get("alreadyInState", False)),
+            table_a_elapsed,
+            bool(table_a_result.get("alreadyInState", False)),
+        )
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
+    disconnect_start = time.monotonic()
     _disconnect_global_cps_for_child_start()
+    disconnect_elapsed = time.monotonic() - disconnect_start
+    child_start = time.monotonic()
     client_process = Process(target=modelMethodMapTableA[tableData['model']], args=())
     process_state['status'] = 'in_progress'
     client_process.start()
+    app.logger.info(
+        "[TableA Start] child process started in %.3fs "
+        "(parent disconnect=%.3fs); total request preparation %.3fs",
+        time.monotonic() - child_start,
+        disconnect_elapsed,
+        time.monotonic() - preparation_start,
+    )
     Thread(target=_track_process, args=(client_process,), daemon=True).start()
     
     return jsonify({
