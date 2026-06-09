@@ -3193,6 +3193,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 "pocket": total_length,
                 "threeD_2": 0.0,
                 "frame_2": 0.0,
+                "totalLength": total_length,
                 "profileType": "uniform_depth_no_pocket",
                 "pocketDetected": False,
                 "stableRegionCount": len(stable_regions),
@@ -3280,6 +3281,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             "pocket": pocket,
             "threeD_2": three_d_compensation,
             "frame_2": frame2,
+            "totalLength": total_length,
             "profileType": "frame_and_pocket",
             "pocketDetected": True,
             "stableRegionCount": len(stable_regions),
@@ -3415,6 +3417,60 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_three_d_compensation = float(
             config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
         )
+        fixed_pocket_frame_mm = 57.0
+
+        def apply_frame_sizing_policy(results, axis_label, door_number):
+            measured_frame_1 = float(results["frame_1"]) + float(results["threeD_1"])
+            measured_frame_2 = float(results["frame_2"]) + float(results["threeD_2"])
+            measured_total = float(
+                results.get(
+                    "totalLength",
+                    float(results["frame_1"])
+                    + float(results["pocket"])
+                    + float(results["frame_2"]),
+                )
+            )
+            pocket_detected = bool(results.get("pocketDetected", False))
+
+            if pocket_detected and measured_total > (2.0 * fixed_pocket_frame_mm):
+                frame_1 = fixed_pocket_frame_mm
+                frame_2 = fixed_pocket_frame_mm
+                sizing_policy = "fixed_57mm_pocket_frames"
+            else:
+                frame_1 = measured_frame_1
+                frame_2 = measured_frame_2
+                sizing_policy = "laser_measured_frames"
+                if pocket_detected:
+                    config["logger"].warning(
+                        "[scan-%s] Door %s detected a pocket but total length %.3fmm "
+                        "is too short for two %.1fmm frames. Keeping measured frames.",
+                        axis_label,
+                        door_number,
+                        measured_total,
+                        fixed_pocket_frame_mm,
+                    )
+
+            config["logger"].info(
+                "[scan-%s] Door %s frame sizing policy=%s total=%.3fmm "
+                "measured_frames=(%.3f, %.3f) output_frames=(%.3f, %.3f)",
+                axis_label,
+                door_number,
+                sizing_policy,
+                measured_total,
+                measured_frame_1,
+                measured_frame_2,
+                frame_1,
+                frame_2,
+            )
+            return (
+                measured_total,
+                frame_1,
+                frame_2,
+                measured_frame_1,
+                measured_frame_2,
+                sizing_policy,
+            )
+
         scan_robot_speed = _resolve_ui_ratio(
             config, "robotSpeed", config.get("UI", {}).get("robotSpeed")
         )
@@ -3846,16 +3902,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             config["logger"].info("[scan] calculated x values for door: ", results)
 
             # appropriate x values that we shall use
-            xframe_1, x_td1, x_pocket, x_td2, xframe_2 = (
-                results["frame_1"],
-                results["threeD_1"],
-                results["pocket"],
-                results["threeD_2"],
-                results["frame_2"],
+            (
+                xlen,
+                xframe_1,
+                xframe_2,
+                x_measured_frame_1,
+                x_measured_frame_2,
+                x_frame_sizing_policy,
+            ) = apply_frame_sizing_policy(
+                results,
+                axis_label="x",
+                door_number=door_number,
             )
-            xlen = xframe_1 + x_pocket + xframe_2
-            xframe_1 = xframe_1 + x_td1
-            xframe_2 = xframe_2 + x_td2
             x_profile_type = results.get("profileType", "unknown")
             x_pocket_detected = bool(results.get("pocketDetected", False))
             xVals.append(
@@ -3863,6 +3921,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "xlen": xlen,
                     "xframe_1": xframe_1,
                     "xframe_2": xframe_2,
+                    "xMeasuredFrame_1": x_measured_frame_1,
+                    "xMeasuredFrame_2": x_measured_frame_2,
+                    "xFrameSizingPolicy": x_frame_sizing_policy,
                     "xDepthMm": results.get("depthMm", 0),
                     "xProfileType": x_profile_type,
                     "xPocketDetected": x_pocket_detected,
@@ -4058,16 +4119,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
             # results = identify_gradient_change_points_dynamic(ymeasurements, thresholds=[0.2, 0.1])
             config["logger"].info("[scan] calculated y values for door: ", results)
-            yframe_1, y_td1, y_pocket, y_td2, yframe_2 = (
-                results["frame_1"],
-                results["threeD_1"],
-                results["pocket"],
-                results["threeD_2"],
-                results["frame_2"],
+            (
+                ylen,
+                yframe_1,
+                yframe_2,
+                y_measured_frame_1,
+                y_measured_frame_2,
+                y_frame_sizing_policy,
+            ) = apply_frame_sizing_policy(
+                results,
+                axis_label="y",
+                door_number=door_number,
             )
-            ylen = yframe_1 + y_pocket + yframe_2
-            yframe_1 = yframe_1 + y_td1
-            yframe_2 = yframe_2 + y_td2
             y_profile_type = results.get("profileType", "unknown")
             y_pocket_detected = bool(results.get("pocketDetected", False))
             if (
@@ -4089,6 +4152,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "ylen": ylen,
                     "yframe_1": yframe_1,
                     "yframe_2": yframe_2,
+                    "yMeasuredFrame_1": y_measured_frame_1,
+                    "yMeasuredFrame_2": y_measured_frame_2,
+                    "yFrameSizingPolicy": y_frame_sizing_policy,
                     "yDepthMm": results.get("depthMm", 0),
                     "yProfileType": y_profile_type,
                     "yPocketDetected": y_pocket_detected,
