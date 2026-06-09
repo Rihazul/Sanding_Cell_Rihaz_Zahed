@@ -264,25 +264,25 @@ def door1frametool2sideedge(force,cps):
         print("extratop:", extratop)
 
         #LeftPoints
-        leftpoint1=[p3[0]+2-40,p3[1],10,0,22,-180]
+        leftpoint1=[p3[0]+2,p3[1],10,0,22,-180]
         print("leftpoint1:", leftpoint1)
-        preleftpoint1=[p3[0]+1+10-40,p3[1],10,0,22,-180]
+        preleftpoint1=[p3[0]+1+10,p3[1],10,0,22,-180]
         print("preleftpoint1:", preleftpoint1)
-        leftpoint2=[p4[0]+2-40,p4[1],10,0,22,-180]
+        leftpoint2=[p4[0]+2,p4[1],10,0,22,-180]
         print("leftpoint2:", leftpoint2)
-        preleftpoint2=[p4[0]+1+10-40,p4[1],10,0,22,-180]
+        preleftpoint2=[p4[0]+1+10,p4[1],10,0,22,-180]
         print("preleftpoint2:", preleftpoint2)
-        leftpoint12=[p3[0]+2-40,p3[1]-2,10,0,22,-180]
+        leftpoint12=[p3[0]+2,p3[1]-2,10,0,22,-180]
         print("leftpoint12:", leftpoint12)
 
         #Lelft Points for Big Door
-        leftpoint5=[p3[0]+2-40,p3[1]/2,10,0,22,-180]
+        leftpoint5=[p3[0]+2,p3[1]/2,10,0,22,-180]
         print("leftpoint5:", leftpoint5)
-        leftpoint5down=[p3[0]+2-40,p3[1]/2-2,10,0,22,-180]
+        leftpoint5down=[p3[0]+2,p3[1]/2-2,10,0,22,-180]
         print("leftpoint5down:", leftpoint5down)
-        leftpoint5up=[p3[0]+2-40,p3[1]/2+2,10,0,22,-180]
+        leftpoint5up=[p3[0]+2,p3[1]/2+2,10,0,22,-180]
         print("leftpoint5up:", leftpoint5up)
-        leftpoint5pre=[p3[0]+10-40,p3[1]/2,10,0,22,-180]
+        leftpoint5pre=[p3[0]+10,p3[1]/2,10,0,22,-180]
         print("leftpoint5pre:", leftpoint5pre)
 
         #Left Points for Bigdoor

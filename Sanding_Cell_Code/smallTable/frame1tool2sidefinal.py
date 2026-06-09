@@ -298,7 +298,7 @@ def door1frametool2side(force,cps):
         print("bottompoint1:", bottompoint1)
         prebottompoint1=[p4[0],p4[1]-12,10,0,0,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-4,12,10,0,90]
+        bottompoint2=[p1[0],p1[1]-12,10,0,0,90]
         print("bottompoint2:", bottompoint2)
         prebottompoint2=[p1[0],p1[1]-12,10,0,0,90]
         print("prebottompoint2:", prebottompoint2)
@@ -848,7 +848,7 @@ def door2frametool2side(force,cps):
         print("bottompoint1:", bottompoint1)
         prebottompoint1=[p4[0],p4[1]-12,10,0,0,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-2,12,0,0,90]
+        bottompoint2=[p1[0],p1[1]-12,10,0,0,90]
         print("bottompoint2:", bottompoint2)
         prebottompoint2=[p1[0],p1[1]-12,10,0,0,90]
         print("prebottompoint2:", prebottompoint2)
