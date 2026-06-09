@@ -676,7 +676,7 @@ def door2frametool2side(force,cps):
         print("p4:", p4)
 
         #7th axis postion
-        x1=get_door_position(2) + 45
+        x1=get_door_position(2) + 35
         print("x1:", x1)
 
         #7th axis position for the top
