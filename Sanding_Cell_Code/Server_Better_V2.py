@@ -7421,6 +7421,10 @@ def turn_vibration_on(cps, debug=False):
     """
     Turns the vibration on by setting nBit=4 to nVal=0.
     """
+    if stop_requested():
+        print("Vibration ON blocked: emergency stop is active.")
+        return False
+
     boxID = 0  # Default box ID
     nBit = 4  # Bit controlling vibration
     nVal = 1  # 0 = On (as per your request)
@@ -7430,8 +7434,10 @@ def turn_vibration_on(cps, debug=False):
 
     if nRet == 0:
         print("Vibration turned ON successfully.")
+        return True
     else:
         print(f"Error turning ON vibration. Error code: {nRet}")
+        return False
 
 
 def turn_vibration_off(cps, debug=False):

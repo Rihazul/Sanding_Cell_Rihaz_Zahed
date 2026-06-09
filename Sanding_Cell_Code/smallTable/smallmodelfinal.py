@@ -219,8 +219,12 @@ def run_tool2side_cycles(count, force, door_num, cps):
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
     for i in range(count):
+        if stop_requested():
+            raise RuntimeError("[Tool 2 Side] Stop requested.")
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(force=force, cps=cps)
+        if stop_requested():
+            raise RuntimeError("[Tool 2 Side] Stop requested.")
         if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)
@@ -244,8 +248,12 @@ def run_tool2side_edgecycles(count, force, door_num, cps):
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
     for i in range(count):
+        if stop_requested():
+            raise RuntimeError("[Tool 2 Edge] Stop requested.")
         print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
         door_func(force=force, cps=cps)
+        if stop_requested():
+            raise RuntimeError("[Tool 2 Edge] Stop requested.")
         if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)

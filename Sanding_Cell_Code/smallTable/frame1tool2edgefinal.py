@@ -8,7 +8,7 @@ import yaml
 import math
 import time
 import json
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
 from smallTable.scancord import (
@@ -65,36 +65,71 @@ def _run_tool2_edge_process(
     start_vibration=False,
     stop_vibration=True,
 ):
+    def abort_if_stopped():
+        if not stop_requested():
+            return
+        try:
+            turn_vibration_off(cps)
+        except Exception:
+            pass
+        try:
+            cps.HRIF_SetForceControlState(0, 0, 0)
+        except Exception:
+            pass
+        config["logger"].warning(
+            "[tool2-edge] Emergency stop requested; aborting remaining Tool 2 edge sequence."
+        )
+        raise RuntimeError("Tool 2 edge operation stopped by emergency stop")
+
+    abort_if_stopped()
     if start_vibration:
         turn_vibration_on(cps)
+        abort_if_stopped()
 
-    for point in points:
-        if force_func is not None and force_point is not None and point == force_point:
-            force_func(
+    try:
+        for point in points:
+            abort_if_stopped()
+            if force_func is not None and force_point is not None and point == force_point:
+                force_func(
+                    cps=cps,
+                    force=force,
+                    tcp=tcp,
+                    ucs=ucs,
+                    config=config,
+                )
+                abort_if_stopped()
+            if vibration_point is not None and point == vibration_point:
+                abort_if_stopped()
+                turn_vibration_on(cps)
+                abort_if_stopped()
+            communicate(
                 cps=cps,
-                force=force,
+                config=config,
+                point=point,
                 tcp=tcp,
                 ucs=ucs,
-                config=config,
+                seventh=-1,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
+                wait=True,
             )
-        if vibration_point is not None and point == vibration_point:
-            turn_vibration_on(cps)
-        communicate(
-            cps=cps,
-            config=config,
-            point=point,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=sanding_speed,
-            velocity_profile="sandingspeed",
-            wait=True,
-        )
+            abort_if_stopped()
 
-    waitForBlending(cps=cps, config=config)
-    if stop_vibration:
-        turn_vibration_off(cps)
-    releaseForce(cps=cps, config=config)
+        waitForBlending(cps=cps, config=config)
+        abort_if_stopped()
+    finally:
+        if stop_vibration or stop_requested():
+            try:
+                turn_vibration_off(cps)
+            except Exception:
+                pass
+        if stop_requested():
+            try:
+                cps.HRIF_SetForceControlState(0, 0, 0)
+            except Exception:
+                pass
+        else:
+            releaseForce(cps=cps, config=config)
 
 
 def _run_tool2_edge_by_ylen(door_num, force, cps, small_runner, big_runner):
