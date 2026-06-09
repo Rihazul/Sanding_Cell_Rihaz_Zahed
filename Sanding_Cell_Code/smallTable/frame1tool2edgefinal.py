@@ -251,10 +251,10 @@ def door1frametool2sideedge(force,cps):
 
         
         #prehome Up right point
-        prehomeuprightpoint=[-distance-10,p2[1]/2,100,0,0,0]
+        prehomeuprightpoint=[-distance*2-10,p2[1]/2,100,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
-        extraupright=[-distance-10,p2[1]+10,80,0,0,-90]
+        extraupright=[-distance*2-10,p2[1]+10,80,0,0,-90]
         print("extraupright:",extraupright)
 
         #Extraright
