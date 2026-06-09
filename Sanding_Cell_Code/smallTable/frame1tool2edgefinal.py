@@ -354,15 +354,15 @@ def door1frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-2,10,0,22,90]
         print("bottompoint1:", bottompoint1)
         prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-2,10,0,22,90]
         print("bottompoint2:", bottompoint2)
         prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0],p4[1]-10,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-2,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
