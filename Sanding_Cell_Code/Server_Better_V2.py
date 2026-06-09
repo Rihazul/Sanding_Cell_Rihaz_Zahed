@@ -2450,6 +2450,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         origin_wait_timeout_s = max(
             5.0, float(door_cfg.get("homingOriginWaitTimeoutSec", 60.0))
         )
+        origin_ready_timeout_s = max(
+            0.5, float(door_cfg.get("homingOriginReadyTimeoutSec", 3.0))
+        )
 
         def origin_done(state):
             """Robust completion check for MotorGetState response."""
@@ -2468,6 +2471,48 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             if nret is None:
                 return bool(state) and str(state[0]) == "0"
             return nret == 0 or (bool(state) and str(state[0]) == "0")
+
+        def motor_state_value(state):
+            if not isinstance(state, (list, tuple)) or len(state) < 3:
+                return None
+            return str(state[2]).strip().lower()
+
+        def wait_for_origin_ready():
+            """Wait for a readable idle J7 state without repeatedly stopping it."""
+            deadline = time.time() + origin_ready_timeout_s
+            stop_sent = False
+            last_state = []
+
+            while time.time() < deadline:
+                last_state = []
+                nret_state = cps.HRIF_HRApp(
+                    0, "HR_Motor", "MotorGetState", ["J7"], last_state
+                )
+                state_value = motor_state_value(last_state)
+
+                if nret_state in (0, None) and state_value in (
+                    "-1",
+                    "unknown",
+                    "uninitialized",
+                    "0",
+                    "idle",
+                    "done",
+                    "false",
+                    "stop",
+                    "stopped",
+                ):
+                    return True, last_state
+
+                if state_value in ("1", "true", "running") and not stop_sent:
+                    stop_result = []
+                    cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], stop_result)
+                    stop_sent = True
+                    time.sleep(motor_stop_settle_s)
+                    continue
+
+                time.sleep(origin_poll_s)
+
+            return False, last_state
 
         if not setUCS_TCP(
             cps,
@@ -2559,11 +2604,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
             return False
         # connect the 7th axis motor
+        result = []
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
         time.sleep(motor_connect_settle_s)
-        if result[1] != "OK":
+        if not motor_cmd_ok(nret, result):
             config["logger"].error(
-                "[HomingFunc] Could not connect to the motor. Exiting..."
+                "[HomingFunc] Could not connect to the motor. ret=%s result=%s",
+                nret,
+                result,
             )
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
@@ -2578,15 +2626,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             max_origin_cmd_retries = 1
         origin_started = False
         for attempt in range(1, max_origin_cmd_retries + 1):
-            result = []
-            nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], result)
-            time.sleep(motor_stop_settle_s)
-            print(f"****** motor stop nret: {nret}; result: {result}")
+            ready, ready_state = wait_for_origin_ready()
+            if not ready:
+                config["logger"].warning(
+                    "[HomingFunc] J7 was not ready for origin attempt %s/%s. "
+                    "Last state=%s",
+                    attempt,
+                    max_origin_cmd_retries,
+                    ready_state,
+                )
+                connect_result = []
+                cps.HRIF_HRApp(
+                    0, "HR_Motor", "MotorConnect", ["J7"], connect_result
+                )
+                time.sleep(motor_connect_settle_s)
+                continue
 
             result = []
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorMoveOrigin", ["J7"], result)
-            # nret = cps.HRIF_HRApp(0, 'HR_Motor','MotorMovePosition', ["J7", "-22.0"], result)
-            # seventhGoToPos(cpsclient, position=0, speed=config['7thAxis']['speed'] * config['cobot']['speed'], config=config)
             time.sleep(origin_command_settle_s)
             print(f"****** move origin nret: {nret}; result: {result}")
 
@@ -2598,8 +2655,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 f"[HomingFunc] MotorMoveOrigin not accepted on attempt "
                 f"{attempt}/{max_origin_cmd_retries} (ret={nret}, res={result}). Retrying..."
             )
-            cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], [])
-            time.sleep(0.05 * attempt)
+            connect_result = []
+            cps.HRIF_HRApp(
+                0, "HR_Motor", "MotorConnect", ["J7"], connect_result
+            )
+            time.sleep(max(motor_connect_settle_s, 0.1 * attempt))
 
         if not origin_started:
             config["logger"].error(
@@ -2678,9 +2738,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=config["door"]["homingSpeed"],
             wait=True,
             require_seventh_ok=True,
-            require_seventh_run_transition=True,
         )
-        if not ok:
+        # A successful J7-only communicate() call returns an empty measurements
+        # list. Only None indicates failure when require_seventh_ok=True.
+        if ok is None:
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: could not move J7 to home position.",
