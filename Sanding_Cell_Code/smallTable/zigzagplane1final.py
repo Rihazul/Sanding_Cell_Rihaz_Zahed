@@ -123,11 +123,27 @@ DEFAULT_SPIRAL_RADIUS = 12.0
 DEFAULT_MOVEJS_JERK_RATIO = 100
 DEFAULT_MOVEJS_TRANSITION_DEG = 25
 MOVEJS_MAX_POINTS = 50
+TOOL4_DIAMETER_MM = 146.0
+TOOL4_RADIUS_MM = TOOL4_DIAMETER_MM / 2.0
+POCKET_MAX_OVERLAP_MM = 100.0
 
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
+
+
+def _calculate_zigzag_pass_spacing(span_mm: float, requested_step_mm: float):
+    """
+    Return the interval count and evenly distributed step for a pocket span.
+
+    Using ceil ensures the actual step never exceeds the requested step, so
+    increasing UI overlap always increases or preserves the number of passes.
+    """
+    span = max(0.0, float(span_mm))
+    requested_step = max(1.0, float(requested_step_mm))
+    intervals = max(1, math.ceil(span / requested_step))
+    return intervals, span / intervals
 
 
 def _linear_speed_to_turns(speed_mm_s: float) -> int:
@@ -569,7 +585,7 @@ def generate_zigzag_path(
     zigzag_coords = []
     # Circular Tool 4: use one radius only; ignore rectangular inner offsets.
     del innerOffset, innerOffsetX
-    tool_radius = 73
+    tool_radius = TOOL4_RADIUS_MM
 
     boundary_coords = []
     for i in range(len(x_coords)):
@@ -649,10 +665,14 @@ def generate_zigzag_path(
         elif orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
             if yinner > 0:
-                num_steps = math.floor(yinner / step_mm)
-                if num_steps == 0:
-                    num_steps = 1
-                adjusted_step = yinner / num_steps
+                num_steps, adjusted_step = _calculate_zigzag_pass_spacing(
+                    yinner, step_mm
+                )
+                print(
+                    f"[Horizontal] yinner={yinner}, requested_step={step_mm}, "
+                    f"num_steps={num_steps}, passes={num_steps + 1}, "
+                    f"adjusted_step={adjusted_step}"
+                )
 
                 offset = 0.0
                 toggle = 0
@@ -678,12 +698,13 @@ def generate_zigzag_path(
                 )
         else:
             if xinner > 0:
-                num_steps = math.ceil(xinner / step_mm)
-                if num_steps == 0:
-                    num_steps = 1
-                adjusted_step = xinner / num_steps
+                num_steps, adjusted_step = _calculate_zigzag_pass_spacing(
+                    xinner, step_mm
+                )
                 print(
-                    f"[Vertical] xinner={xinner}, num_steps={num_steps}, adjusted_step={adjusted_step}"
+                    f"[Vertical] xinner={xinner}, requested_step={step_mm}, "
+                    f"num_steps={num_steps}, passes={num_steps + 1}, "
+                    f"adjusted_step={adjusted_step}"
                 )
 
                 offset = 0.0
@@ -757,15 +778,15 @@ def load_json_config():
 def _resolve_inner_sanding_offset(cycle_cfg, default=67.5):
     """
     Convert UI overlap (mm) to sanding step (mm) safely.
-    UI range is overlap=0..110; step must never be 0.
+    UI range is overlap=0..100; step must never be 0.
     """
     try:
         return float(
             get_inverse_overlap_step(
                 cycle_cfg or {},
                 key="inverseOverlapping",
-                tool_diameter_mm=146.0,
-                max_overlap_mm=110.0,
+                tool_diameter_mm=TOOL4_DIAMETER_MM,
+                max_overlap_mm=POCKET_MAX_OVERLAP_MM,
                 min_step_mm=1.0,
             )
         )
