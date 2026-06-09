@@ -325,22 +325,22 @@ def door1frametool2sideedge(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[p3[0]-20,p3[1],10,0,22,-180]
+        upleftpoint3=[0,p3[1],10,0,22,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[p3[0]-20,p3[1],10,0,22,-180]
+        upleftpoint3pre=[0,p3[1],10,0,22,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[p3[0]-20,p3[1]-2,10,0,22,-180]
+        upleftpoint3down=[0,p3[1]-2,10,0,22,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[p3[0]-20,p3[1]/2,10,0,22,-180]
+        upleftpoint5=[0,p3[1]/2,10,0,22,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[p3[0]-20,p3[1]/2,10,0,22,-180]
+        upleftpoint5pre=[0,p3[1]/2,10,0,22,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[distance+10,p3[1]/2,100,0,0,-180]
+        upleftextrahome=[0,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 
