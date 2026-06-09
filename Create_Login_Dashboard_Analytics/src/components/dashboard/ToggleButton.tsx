@@ -58,7 +58,7 @@ export function ToggleButton({
           {showCheckmarkPosition === 'left' && (
             <span className="font-bold text-lg leading-none">{isActive ? '✓' : '✗'}</span>
           )}
-          <span className="text-xs min-w-[80px] inline-block text-center">
+          <span className="text-xs min-w-[110px] inline-block text-center">
             {isPending ? (pendingLabel || activeLabel) : isActive ? activeLabel : inactiveLabel}
           </span>
           {showCheckmarkPosition === 'right' && (

@@ -118,8 +118,8 @@ export function RobotControlPanel({
                 );
               }
             }}
-            activeLabel="ENABLED"
-            inactiveLabel="DISABLED"
+            activeLabel="DISABLE ROBOT"
+            inactiveLabel="ENABLE ROBOT"
             disabled={isOperating}
             showCheckmarkPosition="left"
           />
@@ -149,7 +149,7 @@ export function RobotControlPanel({
               } catch (error) {
                 addActivity(`Stopper A action failed: ${error}`, 'error');
               }
-            }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
+            }} activeLabel="PUT DOWN" inactiveLabel="PUT UP" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="Stopper B" isActive={stopperBUp} onToggle={async () => { 
               try {
                 if (tableBOpen) {
@@ -162,7 +162,7 @@ export function RobotControlPanel({
               } catch (error) {
                 addActivity(`Stopper B action failed: ${error}`, 'error');
               }
-            }} activeLabel="UP" inactiveLabel="DOWN" disabled={isOperating || !robotEnabled} />
+            }} activeLabel="PUT DOWN" inactiveLabel="PUT UP" disabled={isOperating || !robotEnabled} />
           </div>
 
           {/* Table Controls */}
@@ -190,8 +190,8 @@ export function RobotControlPanel({
                   addActivity(`Table A action failed: ${error}`, 'error');
                 }
               }}
-                activeLabel="45°"
-                inactiveLabel="HORIZONTAL"
+                activeLabel="PUT HORIZONTAL"
+                inactiveLabel="PUT 45°"
                 disabled={isOperating || !robotEnabled}
               />
             </div>
@@ -200,7 +200,7 @@ export function RobotControlPanel({
                 label="Table B"
                 isActive={tableBOpen}
                 isPending={!!tableBPending}
-                pendingLabel={tableBPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
+                pendingLabel={tableBPending === 'opening' ? 'TO HORIZONTAL' : 'TO 45°'}
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableBOpen;
@@ -211,14 +211,14 @@ export function RobotControlPanel({
                     addActivity(response?.error || 'Table B action blocked. Please try again.', 'warning');
                     return;
                   }
-                  addActivity(`Table B moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning'); 
+                  addActivity(`Table B moving ${willOpen ? 'to Horizontal' : 'to 45°'}`, willOpen ? 'info' : 'warning');
                 } catch (error) {
                   setTableBPending(null);
                   addActivity(`Table B action failed: ${error}`, 'error');
                 }
               }}
-                activeLabel="45°"
-                inactiveLabel="HORIZONTAL"
+                activeLabel="PUT 45°"
+                inactiveLabel="PUT HORIZONTAL"
                 disabled={isOperating || !robotEnabled}
               />
             </div>
@@ -257,7 +257,7 @@ export function RobotControlPanel({
                 setT1Pending(null);
                 addActivity(`Tool 1 action failed: ${error}`, 'error');
               }
-            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="T2" isActive={t2Picked} isPending={!!t2Pending} pendingLabel={t2Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
               try {
                 const willPick = !t2Picked;
@@ -286,7 +286,7 @@ export function RobotControlPanel({
                 setT2Pending(null);
                 addActivity(`Tool 2 action failed: ${error}`, 'error');
               }
-            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="T3" isActive={t3Picked} isPending={!!t3Pending} pendingLabel={t3Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
               try {
                 const willPick = !t3Picked;
@@ -315,7 +315,7 @@ export function RobotControlPanel({
                 setT3Pending(null);
                 addActivity(`Tool 3 action failed: ${error}`, 'error');
               }
-            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="T4" isActive={t4Picked} isPending={!!t4Pending} pendingLabel={t4Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
               try {
                 const willPick = !t4Picked;
@@ -344,7 +344,7 @@ export function RobotControlPanel({
                 setT4Pending(null);
                 addActivity(`Tool 4 action failed: ${error}`, 'error');
               }
-            }} activeLabel="PICKED" inactiveLabel="DROPPED" disabled={isOperating || !robotEnabled} />
+            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
           </div>
         </div>
 
