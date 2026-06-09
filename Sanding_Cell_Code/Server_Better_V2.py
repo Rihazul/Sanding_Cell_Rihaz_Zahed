@@ -2479,13 +2479,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: unable to set UCS/TCP.",
             )
-            return
+            return False
         if stop_requested():
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing stopped by user.",
             )
-            return
+            return False
         # result = [ ] # Read the current actual location information
         nRet = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
 
@@ -2496,7 +2496,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: controller returned invalid position data.",
             )
-            return
+            return False
         if nRet != 0 or len(result) < 7:
             config["logger"].error(
                 f"[HomingFunc] HRIF_ReadActPos failed ret={nRet}, len={len(result)} data={result}"
@@ -2516,7 +2516,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message="Homing failed: controller did not return full position data.",
                 )
-                return
+                return False
         
         dX = float(result[6])
         # config['logger'].info(f"[homing] current position: {result}")
@@ -2540,7 +2540,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing stopped by user.",
             )
-            return
+            return False
         communicate(
             cps=cps,
             point=config["point"]["safePoint"],
@@ -2557,7 +2557,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing stopped by user.",
             )
-            return
+            return False
         # connect the 7th axis motor
         nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorConnect", ["J7"], result)
         time.sleep(motor_connect_settle_s)
@@ -2569,7 +2569,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="7th Axis Connection Error. Please Check if It's Working and Try Again! Terminating Cycle...",
             )
-            exit(-1)
+            return False
         # Step 2: go to your homing position (for 7th axis)
         config["logger"].info("[HomingFunc] step 2: Go to the homing switch")
         # communicate(cps=cps, tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=0, config=config, speed=config['door']['homingSpeed'])
@@ -2609,7 +2609,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: J7 origin command was not accepted.",
             )
-            return
+            return False
 
         result = [-1, -1, "-1"]
         origin_wait_start = time.time()
@@ -2624,7 +2624,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message="Homing stopped by user.",
                 )
-                return
+                return False
             nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
             if nret not in (0, None):
                 config["logger"].warning(
@@ -2644,7 +2644,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message="Homing failed: timeout while waiting for J7 origin.",
                 )
-                return
+                return False
             time.sleep(origin_poll_s)
         # Move to the configured J7 home position after origin.
         if stop_requested():
@@ -2652,7 +2652,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing stopped by user.",
             )
-            return
+            return False
         home_default = float(config.get("seventhAxis", {}).get("homePosition", -65))
         home_j7 = float(config.get("UI", {}).get("seventhAxisHome", home_default))
         home_abs_limit = float(config.get("seventhAxis", {}).get("homeAbsLimit", 2000.0))
@@ -2665,7 +2665,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: invalid J7 home target value in settings.",
             )
-            return
+            return False
         config["logger"].info(
             f"[HomingFunc] Reached J7 origin; moving to home position {home_j7}mm"
         )
@@ -2678,18 +2678,20 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             speed=config["door"]["homingSpeed"],
             wait=True,
             require_seventh_ok=True,
+            require_seventh_run_transition=True,
         )
-        if ok is None:
+        if not ok:
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
                 message="Homing failed: could not move J7 to home position.",
             )
-            return
+            return False
         config["logger"].info("[HomingFunc] DONE! Success to reach J7 home position")
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
             message="Homing Completed Successfully!",
         )
+        return True
 
 
     def mm_to_inches(mm):
@@ -5761,7 +5763,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
     ##########################################
     scan_results = ()
     if homingState:
-        homingFunction(cps=cps, config=config)
+        return homingFunction(cps=cps, config=config)
     if scan:
         scan_results = scan_table(cps=cps, config=config)
     if startSanding:

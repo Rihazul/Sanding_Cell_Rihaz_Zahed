@@ -566,7 +566,7 @@ def _track_process(proc: Process) -> None:
         if client_process is proc:
             exit_code = proc.exitcode
             process_state['status'] = 'completed' if exit_code == 0 else 'failed'
-            if process_state.get('last_action') == 'homing':
+            if exit_code == 0 and process_state.get('last_action') == 'homing':
                 _set_j7_home_confirmed(True)
             process_state['last_action'] = None
             client_process = None
@@ -590,8 +590,10 @@ def _run_homing_child(config_data_UI):
         ret = cps.HRIF_Connect(0, config_data_UI["server"]["cpip"], config_data_UI["server"]["cps"])
         if ret != 0:
             config_data_UI["logger"].error(f"[homing child] HRIF_Connect failed (ret={ret})")
-            return
-        handle_client(config_data_UI, homingState=True, startSanding=False, cps=cps)
+            raise RuntimeError(f"Homing connection failed (ret={ret})")
+        homing_ok = handle_client(config_data_UI, homingState=True, startSanding=False, cps=cps)
+        if not homing_ok:
+            raise RuntimeError("Homing sequence did not complete successfully")
         # Optional legacy follow-up; disabled by default because handle_client(homingState=True)
         # already performs homing, and the extra move can cause unsafe transitions.
         if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
@@ -601,6 +603,7 @@ def _run_homing_child(config_data_UI):
             config_data_UI["logger"].error(f"[homing child] Exception: {e}")
         except Exception:
             print(f"[homing child] Exception: {e}")
+        raise
     finally:
         if cps is not None:
             try:
@@ -612,6 +615,7 @@ def _run_homing_child(config_data_UI):
 def _run_homing_inline(config_data_UI):
     """Run homing in-process on the parent CPS connection (fast path)."""
     global client_thread, j7_home_confirmed
+    homing_ok = False
     try:
         if "logger" not in config_data_UI:
             config_data_UI["logger"] = setup_logger(config_data_UI["settings"]["debug"])
@@ -621,7 +625,11 @@ def _run_homing_inline(config_data_UI):
             if ret != 0:
                 config_data_UI["logger"].error(f"[homing inline] CPS not ready (ret={ret})")
                 return
-            handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
+            homing_ok = bool(
+                handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
+            )
+            if not homing_ok:
+                raise RuntimeError("Homing sequence did not complete successfully")
 
             # Optional legacy follow-up; preserve behavior parity with child path.
             if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
@@ -632,12 +640,15 @@ def _run_homing_inline(config_data_UI):
         except Exception:
             print(f"[homing inline] Exception: {e}")
     finally:
-        if process_state.get("last_action") == "homing":
+        if homing_ok and process_state.get("last_action") == "homing":
             _set_j7_home_confirmed(True)
-        process_state["status"] = "completed"
+        process_state["status"] = "completed" if homing_ok else "failed"
         process_state["last_action"] = None
         client_thread = None
-        socketio.emit('flash_message', {"message": "Process finished"})
+        socketio.emit(
+            'flash_message',
+            {"message": "Homing completed" if homing_ok else "Homing failed"},
+        )
 
 
 def _parent_cps_healthy_for_homing():

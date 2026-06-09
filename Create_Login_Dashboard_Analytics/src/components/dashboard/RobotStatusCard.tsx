@@ -52,9 +52,15 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
       while (true) {
         const status = await getProcessStatus();
         if (status?.status === 'completed') {
+          if (status?.homingRequired !== false) {
+            throw new Error(`Homing ended without confirmation (${status?.homingReason || 'not_homed'})`);
+          }
           addActivity('Homing completed successfully', 'success');
           onHomingCompleted?.();
           break;
+        }
+        if (status?.status === 'failed') {
+          throw new Error(`Homing process failed (${status?.homingReason || 'not_homed'})`);
         }
         if (Date.now() - start > timeoutMs) {
           throw new Error('Homing timed out');
