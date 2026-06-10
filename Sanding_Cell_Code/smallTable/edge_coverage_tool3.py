@@ -201,6 +201,10 @@ def build_edge_coverage_path(
             [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
             [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
         ]
+        
+    for point in path:
+        point[0] = abs(point[0])
+        point[1] = abs(point[1])
 
     return path
 
@@ -345,17 +349,22 @@ def _load_json_config():
 
 
 def _build_pocket_xy_for_door(door_num, z):
-    p1 = get_inner_corner_point(door_num, 0)
-    p2 = get_inner_corner_point(door_num, 1)
-    p3 = get_inner_corner_point(door_num, 2)
-    p4 = get_inner_corner_point(door_num, 3)
-    if not all((p1, p2, p3, p4)):
+    p8 = get_inner_corner_point(door_num, 0)
+    p7 = get_inner_corner_point(door_num, 1)
+    p6 = get_inner_corner_point(door_num, 2)
+    p5 = get_inner_corner_point(door_num, 3)
+    if not all((p5, p6, p7, p8)):
         raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
 
-    x_coords = [p1[0], p2[0], p3[0], p4[0]]
-    y_coords = [p1[1], p2[1], p3[1], p4[1]]
-    z_coords = [p1[2], p2[2], p3[2], p4[2]]
-    seventh_pos = p1[0] + get_door_position(door_num)
+    point5u = [-p6[0], p5[1], z]
+    point6u = [-p6[0], p6[1], z]
+    point7u = [p8[0], p7[1], z]
+    point8u = [p8[0], p8[1], z]
+
+    x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
+    y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
+    z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
+    seventh_pos = p8[0] + get_door_position(door_num)
     return x_coords, y_coords, z_coords, seventh_pos
 
 
