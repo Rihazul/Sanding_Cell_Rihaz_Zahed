@@ -443,6 +443,12 @@ def _get_tablea_scan_status():
     meta = _load_tablea_scan_meta()
     has_scan_file = os.path.exists(TABLEA_SCAN_RESULTS_PATH)
     has_scan = bool(has_scan_file or meta.get("hasScan"))
+    scan_revision = None
+    if has_scan_file:
+        try:
+            scan_revision = os.path.getmtime(TABLEA_SCAN_RESULTS_PATH)
+        except Exception:
+            scan_revision = None
     if not has_scan:
         return {
             "hasScan": False,
@@ -452,11 +458,12 @@ def _get_tablea_scan_status():
             "doorModels": [],
             "detectedDoorNumbers": [],
             "doorDetectionAvailable": False,
+            "isScanning": _inline_scan_active.is_set(),
+            "scanRevision": scan_revision,
         }
     if not meta.get("scannedAt"):
         try:
-            ts = os.path.getmtime(TABLEA_SCAN_RESULTS_PATH)
-            meta["scannedAt"] = datetime.fromtimestamp(ts).isoformat(timespec="seconds")
+            meta["scannedAt"] = datetime.fromtimestamp(scan_revision).isoformat(timespec="seconds")
         except Exception:
             meta["scannedAt"] = None
     detected_door_numbers = _get_detected_tablea_door_numbers()
@@ -468,6 +475,8 @@ def _get_tablea_scan_status():
         "doorModels": meta.get("doorModels", []),
         "detectedDoorNumbers": detected_door_numbers or [],
         "doorDetectionAvailable": detected_door_numbers is not None,
+        "isScanning": _inline_scan_active.is_set(),
+        "scanRevision": scan_revision,
     }
 
 

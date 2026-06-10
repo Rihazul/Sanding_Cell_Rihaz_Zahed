@@ -275,6 +275,48 @@ export function CompactTableConfig({
     });
   };
 
+  const waitForUpdatedScanStatus = async (
+    baselineRevision: number | null,
+    scanRequest: Promise<{ ok: boolean; error?: unknown }>,
+    timeoutMs = 3 * 60 * 60 * 1000,
+    pollMs = 1000
+  ) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const status = await getScanStatus();
+        const revision = Number(status?.scanRevision);
+        const hasNewResult =
+          baselineRevision !== null &&
+          Number.isFinite(revision) &&
+          revision !== baselineRevision &&
+          !!status?.hasScan &&
+          !!status?.doorDetectionAvailable;
+        if (hasNewResult) {
+          return status;
+        }
+      } catch {
+        // The scan request remains authoritative if status polling briefly fails.
+      }
+
+      const outcome = await Promise.race([
+        scanRequest,
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), pollMs)),
+      ]);
+      if (outcome) {
+        if (!outcome.ok) {
+          throw outcome.error;
+        }
+        const status = await getScanStatus();
+        if (!status?.hasScan) {
+          throw new Error('Scan action completed, but no scan result was found.');
+        }
+        return status;
+      }
+    }
+    throw new Error('Timed out waiting for the scan result to update.');
+  };
+
   React.useEffect(() => {
     let cancelled = false;
     if (tableName !== 'A') return;
@@ -393,19 +435,29 @@ export function CompactTableConfig({
       addActivity(`Table ${tableName}: Scan cancelled by user for safety check`, 'warning');
       return;
     }
+    let baselineRevision: number | null = null;
+    try {
+      const previousStatus = await getScanStatus();
+      const revision = Number(previousStatus?.scanRevision);
+      baselineRevision = Number.isFinite(revision) ? revision : 0;
+    } catch {
+      // If status is temporarily unavailable, completion falls back to the scan request.
+    }
     setIsOperating(true);
     setIsScanning(true);
-      addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
+    addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
     try {
-      await performAction('scan', {
-        tableAScanSignature: getTableAScanSignature(),
-        tableAModel: model || '',
-        tableADoorModels: getTableADoorModels(),
-      });
-      const status = await getScanStatus();
+      const scanRequest = performAction('scan', {
+          tableAScanSignature: getTableAScanSignature(),
+          tableAModel: model || '',
+          tableADoorModels: getTableADoorModels(),
+        })
+        .then(() => ({ ok: true }))
+        .catch((error) => ({ ok: false, error }));
+      const status = await waitForUpdatedScanStatus(baselineRevision, scanRequest);
       setScanCompleted(!!status?.hasScan);
-      setLastScanSignature((status?.signature || getTableAScanSignature()).trim());
-      setLastScannedAt(status?.scannedAt || new Date().toISOString());
+      setLastScanSignature(getTableAScanSignature());
+      setLastScannedAt(new Date().toISOString());
       applyDetectedDoorsFromScanStatus(status);
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
       showCompletionPopup('Scan Completed', 'Table A scan completed');
