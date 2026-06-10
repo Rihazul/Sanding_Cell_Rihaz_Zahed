@@ -30,8 +30,7 @@ def save_scan_results_to_json(data, output_dir=None):
     print("Entered ....")
     """Save scan results to a fixed JSON file, overriding previous results."""
     if output_dir is None:
-        # output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-        output_dir = './smallTable/static'
+        output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
     
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)

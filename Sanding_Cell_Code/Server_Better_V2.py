@@ -3173,6 +3173,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         )
         time.sleep(post_delay)
 
+    scan_static_dir = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "smallTable", "static"
+    )
+
+    def scan_csv_path(file_name):
+        os.makedirs(scan_static_dir, exist_ok=True)
+        return os.path.join(scan_static_dir, file_name)
+
     def saveAsCSV(fileName, measurements):
         # Keep the historical columns first, but tolerate extra diagnostic fields.
         # Keep scan and visualization fields in a predictable order.
@@ -3194,6 +3202,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             writer.writeheader()
             # Write the data
             writer.writerows(measurements)
+        config["logger"].info(
+            "[scan-csv] saved path=%s rows=%s columns=%s",
+            os.path.abspath(fileName),
+            len(measurements or []),
+            fieldnames,
+        )
 
     def csv_to_dict_list(file_path):
         with open(file_path, mode="r") as file:
@@ -3863,30 +3877,42 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 # makes station-wide dist values easier to interpret in the CSV.
                 for xmeasurement in xmeasurements:
                     xmeasurement["j7_position"] = float(roboPos)
+                    raw_dist = float(
+                        xmeasurement.get("raw_dist", xmeasurement.get("dist", 0.0))
+                    )
+                    x_from_reference = max(
+                        0.0,
+                        raw_dist - float(config["offset"]["scannerOffsetInLeft"]),
+                    )
+                    xmeasurement["x_from_reference"] = x_from_reference
+                    xmeasurement["station_x"] = float(roboPos) + x_from_reference
 
                 # saving the initial values (raw scan data)
-                saveAsCSV(f"./static/prev_xm{tblCnt}.csv", xmeasurements)
+                saveAsCSV(scan_csv_path(f"prev_xm{tblCnt}.csv"), xmeasurements)
                 # add sufficient x distance to the points
                 for xmeasurement in xmeasurements:
                     xmeasurement["dist"] += roboPos
                 # performing an height adjustment here for better results
                 xmeasurements = adjust_heights(xmeasurements)
-                saveAsCSV(f"./static/xm{tblCnt}.csv", xmeasurements)
+                saveAsCSV(scan_csv_path(f"xm{tblCnt}.csv"), xmeasurements)
                 allXMeasurements += xmeasurements
                 config["logger"].info(
                     "[scan-x] X-start return is disabled; staying at xEnd after section scan."
                 )
 
                 # Saves the x scan values first
-                saveAsCSV("./static/xmeasures.csv", allXMeasurements)
-                config["logger"].info("[scan] x scan values saved in xmeasures.csv")
+                xmeasures_path = scan_csv_path("xmeasures.csv")
+                saveAsCSV(xmeasures_path, allXMeasurements)
+                config["logger"].info(
+                    "[scan] x scan values saved in %s", xmeasures_path
+                )
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
                     message=f"Section {tblCnt + 1}'s Horizontal Scan Completed!",
                 )
         else:
             # load from the saved value
-            allXMeasurements = csv_to_dict_list("./static/xmeasures.csv")
+            allXMeasurements = csv_to_dict_list(scan_csv_path("xmeasures.csv"))
             # config['logger'].info("Line 902 AllXMeasurements: ", allXMeasurements)
 
         ###############################
@@ -3981,6 +4007,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             # J7 stays at its configured slot. Only robot-coordinate points are
             # translated by the measured door placement relative to xStart.
             x_origin_offset = 0.0
+            signed_x_origin_offset = 0.0
             first_valid_raw_dist = first_non_nan.get("raw_dist")
             if first_valid_raw_dist is None:
                 config["logger"].warning(
@@ -3992,11 +4019,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     first_valid_raw_dist = float(first_valid_raw_dist)
                     if not math.isfinite(first_valid_raw_dist):
                         raise ValueError("raw_dist is not finite")
-                    x_origin_offset = first_valid_raw_dist - float(
+                    signed_x_origin_offset = first_valid_raw_dist - float(
                         config["offset"]["scannerOffsetInLeft"]
                     )
+                    # The configured reference is the earliest accepted door
+                    # origin. Surface detected during the negative lead-in must
+                    # not move generated robot points left of that reference.
+                    x_origin_offset = max(0.0, signed_x_origin_offset)
                 except (TypeError, ValueError):
                     first_valid_raw_dist = None
+                    signed_x_origin_offset = 0.0
                     x_origin_offset = 0.0
                     config["logger"].warning(
                         "[scan-x] Invalid raw_dist; using 0mm X placement offset."
@@ -4014,9 +4046,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             xpos = float(robo7thPos[physical_slot_index])
             door_number = physical_slot_index + 1
             config["logger"].info(
-                "[scan-x-origin] door=%s raw_first_hit=%smm local_x_offset=%.3fmm",
+                "[scan-x-origin] door=%s raw_first_hit=%smm signed_offset=%.3fmm applied_offset=%.3fmm",
                 door_number,
                 first_valid_raw_dist,
+                signed_x_origin_offset,
                 x_origin_offset,
             )
             config["logger"].info(
@@ -4201,9 +4234,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 for ymeasurement in ymeasurements:
                     ymeasurement["j7_position"] = float(xpos)
 
-                saveAsCSV(f"./static/prev_ym{xcnt}.csv", ymeasurements)
+                saveAsCSV(scan_csv_path(f"prev_ym{xcnt}.csv"), ymeasurements)
                 ymeasurements = adjust_heights(ymeasurements)
-                saveAsCSV(f"./static/ym{xcnt}.csv", ymeasurements)
+                saveAsCSV(scan_csv_path(f"ym{xcnt}.csv"), ymeasurements)
 
                 # communicate(
                 #     cps=cps,
@@ -4242,7 +4275,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     )
                     stop_scan_after_this_door = True
             else:
-                ymeasurements = csv_to_dict_list(f"./static/ym{xcnt}.csv")
+                ymeasurements = csv_to_dict_list(scan_csv_path(f"ym{xcnt}.csv"))
 
             ###############################
             ####### point calcu y     #####
