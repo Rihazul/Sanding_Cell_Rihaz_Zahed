@@ -3752,11 +3752,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config["logger"].info(
                     f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
                 )
-                x_prestart_offset_mm = 11.0
-                xLeadIn = addXVal(xStart, -x_prestart_offset_mm)
-                config["logger"].info(
-                    f"[scan-x] lead-in point: {xLeadIn} (offset {x_prestart_offset_mm}mm before start)"
-                )
 
                 msg_to_frontend(
                     api_url=config["server"]["frontEnd_messaging_url"],
@@ -3786,7 +3781,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         return ([], [], [], [], [], [], [])
                     communicate(
                         cps=cps,
-                        point=xLeadIn,
+                        point=xStart,
                         tcp=config["coords"]["tcpLaserPlane1"],
                         ucs=config["coords"]["ucsTable1"],
                         config=config,
@@ -3803,16 +3798,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                             f"Scan aborted: J7 timeout while moving to section {tblCnt + 1}."
                         )
                         return ([], [], [], [], [], [], [])
-                    communicate(
-                        cps=cps,
-                        point=xStart,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        wait=True,
-                    )
                 else:
                     move_ok = communicate(
                         cps=cps,
@@ -3833,16 +3818,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                             f"Scan aborted: failed to move J7 to table section {tblCnt + 1}."
                         )
                         return ([], [], [], [], [], [], [])
-                    communicate(
-                        cps=cps,
-                        point=xLeadIn,
-                        tcp=config["coords"]["tcpLaserPlane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        config=config,
-                        speed=scan_robot_speed,
-                        velocity_profile="robotspeed",
-                        wait=True,
-                    )
                     communicate(
                         cps=cps,
                         point=xStart,
@@ -4138,7 +4113,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
                     -config["offset"]["scannerOffsetInBottom"],
                 )
-                yLeadIn = addYVal(yStart, -5.0)
                 yEnd = addYVal(
                     addYVal(
                         addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
@@ -4178,7 +4152,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     return ([], [], [], [], [], [], [])
                 communicate(
                     cps=cps,
-                    point=yLeadIn,
+                    point=yStart,
                     tcp=config["coords"]["tcpLaserPlane1"],
                     ucs=config["coords"]["ucsTable1"],
                     config=config,
@@ -4192,16 +4166,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         message=f"Scan aborted: J7 timeout while moving to Door {door_number}.",
                     )
                     return ([], [], [], [], [], [], [])
-                communicate(
-                    cps=cps,
-                    point=yStart,
-                    tcp=config["coords"]["tcpLaserPlane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    config=config,
-                    speed=scan_robot_speed,
-                    velocity_profile="robotspeed",
-                    wait=True,
-                )
 
                 config["logger"].info(
                     f"[scan-y] success to move 7th to go to door position {door_number}, seventh: {xpos}"

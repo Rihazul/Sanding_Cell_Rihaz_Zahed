@@ -2386,12 +2386,12 @@ def handle_action():
             return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409
         _inline_scan_active.set()
         config['logger'].info(
-            "[scan] Runtime source=%s | enforced scan behavior: xLeadIn=2mm, no X-start return, home after Door1 Y-end",
+            "[scan] Runtime source=%s | enforced scan behavior: X/Y start=-1mm, no extra lead-in, no X-start return, home after Door1 Y-end",
             os.path.abspath(__file__),
         )
         socketio.emit(
             'flash_message',
-            {"message": "Scan mode active: 2mm X lead-in, no X-start return, direct home after Door 1 Y-end."},
+            {"message": "Scan mode active: X/Y start 1mm before reference, no extra lead-in, direct home after Door 1 Y-end."},
         )
         with robot_lock:
             ret = ensure_cps_connected()

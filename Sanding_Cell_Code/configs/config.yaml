@@ -73,9 +73,8 @@ offset:
   tool3x: 75
   tool3y: 100
   toolin: 0
-  scannerOffsetInLeft   : 5 # add this much offset in left while scanning x axis.
-  scanXPreStartOffsetMm : 2 # move this much before xStart before starting x scan motion
-  scannerOffsetInBottom : 10 # add this much offset in bottom while scanning y axis.
+  scannerOffsetInLeft   : 1 # Start X scan 1mm before the expected door reference.
+  scannerOffsetInBottom : 1 # Start Y scan 1mm before the expected door reference.
   scanLiftZMm: 0
   doorYOffset: 150 #Initial 50
   innerSandingOffset: 60
