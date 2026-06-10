@@ -3514,49 +3514,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             dists = [float(item.get("dist", 0.0)) for item in samples]
             return max(dists) - min(dists)
 
-        def _measurements_from_reference(measurements, start_offset_mm, axis_label):
-            """
-            Exclude the negative scan-start section from geometry calculations.
-            Raw measurements remain unchanged so CSV diagnostics still show it.
-            """
-            referenced = []
-            discarded = 0
-            missing_raw_dist = 0
-            start_offset_mm = float(start_offset_mm)
-
-            for measurement in measurements:
-                raw_dist = measurement.get("raw_dist")
-                if raw_dist is None:
-                    missing_raw_dist += 1
-                    referenced.append(dict(measurement))
-                    continue
-
-                try:
-                    raw_dist = float(raw_dist)
-                except (TypeError, ValueError):
-                    missing_raw_dist += 1
-                    referenced.append(dict(measurement))
-                    continue
-
-                if raw_dist < start_offset_mm:
-                    discarded += 1
-                    continue
-
-                referenced_measurement = dict(measurement)
-                referenced_measurement["dist"] = raw_dist - start_offset_mm
-                referenced.append(referenced_measurement)
-
-            config["logger"].info(
-                "[scan-%s-reference] start_offset=%.3fmm discarded_pre_reference=%s "
-                "analysis_samples=%s missing_raw_dist=%s",
-                axis_label,
-                start_offset_mm,
-                discarded,
-                len(referenced),
-                missing_raw_dist,
-            )
-            return referenced
-
         def connect_j7():
             result = []
             cps.HRIF_HRApp(0, "HR_Motor", "GetMotorList", [], result)
@@ -4307,9 +4264,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     raw_dist = float(
                         ymeasurement.get("raw_dist", ymeasurement.get("dist", 0.0))
                     )
+                    # Keep Y dist in the table-reference coordinate system:
+                    # a 10mm start offset produces dist=-10 at scan start and
+                    # dist=0 at the expected Y reference. Geometry analysis
+                    # still includes valid surface detected at negative dist.
+                    signed_reference_dist = raw_dist - scan_y_start_offset_mm
+                    ymeasurement["dist"] = signed_reference_dist
                     ymeasurement["y_from_reference"] = max(
-                        0.0,
-                        raw_dist - scan_y_start_offset_mm,
+                        0.0, signed_reference_dist
                     )
 
                 saveAsCSV(scan_csv_path(f"prev_ym{xcnt}.csv"), ymeasurements)
@@ -4364,13 +4326,24 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
 
             # ylen, yframe_1, yframe_2 = find_constant_height_periods(ymeasurements, threshold=2)
-            y_analysis_measurements = _measurements_from_reference(
-                ymeasurements,
-                scan_y_start_offset_mm,
-                axis_label="y",
+            y_first_valid = next(
+                (
+                    item
+                    for item in ymeasurements
+                    if not math.isnan(float(item.get("height", float("nan"))))
+                ),
+                None,
             )
+            if y_first_valid is not None:
+                config["logger"].info(
+                    "[scan-y-origin] first_valid_raw_dist=%.3fmm "
+                    "first_valid_signed_dist=%.3fmm y_from_reference=%.3fmm",
+                    float(y_first_valid.get("raw_dist", 0.0)),
+                    float(y_first_valid.get("dist", 0.0)),
+                    float(y_first_valid.get("y_from_reference", 0.0)),
+                )
             results = identify_gradient_change_points_dynamic(
-                y_analysis_measurements,
+                ymeasurements,
                 threshold=scan_threshold,
                 min_stable_distance=scan_min_stable_distance,
                 three_d_compensation=scan_three_d_compensation,
