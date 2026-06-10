@@ -202,10 +202,6 @@ def build_edge_coverage_path(
             [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
         ]
 
-    for point in path:
-        point[0] = abs(point[0])
-        point[1] = abs(point[1])
-
     return path
 
 
@@ -356,7 +352,7 @@ def _build_pocket_xy_for_door(door_num, z):
     if not all((p5, p6, p7, p8)):
         raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
 
-    distance = p8[0] - p6[0]
+    distance = p6[0] - p8[0]
     point5u = [distance, p5[1], z]
     point6u = [distance, p6[1], z]
     point7u = [0, p7[1], z]

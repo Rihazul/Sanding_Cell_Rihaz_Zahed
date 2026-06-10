@@ -3830,8 +3830,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         config["point"]["table1Origin"],
                         config["door"]["frame"] + config["offset"]["doorYOffset"],
                     ),
-                    config["table"][f"length{tblCnt}"]
-                    - config["offset"]["scannerOffsetInLeft"],
+                    config["table"][f"length{tblCnt}"],
                 )
                 xStart = addZVal(xStart, scan_lift_z_mm)
                 xEnd = addZVal(xEnd, scan_lift_z_mm)
@@ -4200,11 +4199,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     -config["offset"]["scannerOffsetInBottom"],
                 )
                 yEnd = addYVal(
-                    addYVal(
-                        addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
-                        config["table"]["width"],
-                    ),
-                    -config["offset"]["scannerOffsetInBottom"],
+                    addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
+                    config["table"]["width"],
                 )
                 yStart = addZVal(yStart, scan_lift_z_mm)
                 yEnd = addZVal(yEnd, scan_lift_z_mm)
