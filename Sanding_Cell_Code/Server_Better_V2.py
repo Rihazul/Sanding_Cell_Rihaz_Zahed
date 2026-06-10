@@ -3202,9 +3202,52 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             writer.writeheader()
             # Write the data
             writer.writerows(measurements)
+
+        # Keep the CSV machine-readable and create an aligned companion for
+        # inspecting scan values directly in a text editor.
+        def display_value(value):
+            if isinstance(value, float):
+                if math.isnan(value):
+                    return "nan"
+                return f"{value:.6f}"
+            return str(value)
+
+        display_rows = [
+            [display_value(measurement.get(field, "")) for field in fieldnames]
+            for measurement in measurements or []
+        ]
+        column_widths = [
+            max(
+                len(field),
+                max((len(row[index]) for row in display_rows), default=0),
+            )
+            for index, field in enumerate(fieldnames)
+        ]
+        readable_path = os.path.splitext(fileName)[0] + "_readable.txt"
+        with open(readable_path, mode="w", encoding="utf-8", newline="\n") as file:
+            file.write(
+                " | ".join(
+                    field.ljust(column_widths[index])
+                    for index, field in enumerate(fieldnames)
+                )
+                + "\n"
+            )
+            file.write(
+                "-+-".join("-" * width for width in column_widths) + "\n"
+            )
+            for row in display_rows:
+                file.write(
+                    " | ".join(
+                        value.rjust(column_widths[index])
+                        for index, value in enumerate(row)
+                    )
+                    + "\n"
+                )
+
         config["logger"].info(
-            "[scan-csv] saved path=%s rows=%s columns=%s",
+            "[scan-csv] saved path=%s readable_path=%s rows=%s columns=%s",
             os.path.abspath(fileName),
+            os.path.abspath(readable_path),
             len(measurements or []),
             fieldnames,
         )
