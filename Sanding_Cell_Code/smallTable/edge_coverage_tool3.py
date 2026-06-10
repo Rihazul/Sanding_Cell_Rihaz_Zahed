@@ -152,7 +152,7 @@ def build_edge_coverage_path(
     orientation="horizontal",
     tool3x=38.1,
     tool3y=50.8,
-    edge_margin=3,
+    edge_margin=4,
     rx=0.0,
     ry=0.0,
     rz=0.0,
@@ -165,22 +165,22 @@ def build_edge_coverage_path(
     orientation_mode = (orientation or "horizontal").lower()
 
     edge_point1 = [
-        x_coords[0] + tool3x + edge_margin + 2,
+        x_coords[0] + tool3x + edge_margin ,
         y_coords[0] + tool3y + edge_margin,
         z_level,
     ]
     edge_point2 = [
-        x_coords[1] + tool3x + edge_margin + 2, 
+        x_coords[1] + tool3x + edge_margin , 
         y_coords[1] - tool3y - edge_margin,
         z_level,
     ]
     edge_point3 = [
-        x_coords[2] - tool3x - edge_margin -2 ,
+        x_coords[2] - tool3x - edge_margin ,
         y_coords[2] - tool3y - edge_margin,
         z_level,
     ]
     edge_point4 = [
-        x_coords[3] - tool3x - edge_margin -2 ,
+        x_coords[3] - tool3x - edge_margin ,
         y_coords[3] + tool3y + edge_margin,
         z_level,
     ]
@@ -356,9 +356,9 @@ def _build_pocket_xy_for_door(door_num, z):
     if not all((p5, p6, p7, p8)):
         raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
 
-    distance = p6[0] - p8[0]
-    point5u = [-distance, p5[1], z]
-    point6u = [-distance, p6[1], z]
+    distance = p8[0] - p6[0]
+    point5u = [distance, p5[1], z]
+    point6u = [distance, p6[1], z]
     point7u = [0, p7[1], z]
     point8u = [0, p8[1], z]
 
