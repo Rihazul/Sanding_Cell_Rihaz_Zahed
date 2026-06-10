@@ -74,7 +74,7 @@ offset:
   tool3y: 100
   toolin: 0
   scannerOffsetInLeft   : 6 # Start X scan 6mm before the expected door reference.
-  scannerOffsetInBottom : 6 # Start Y scan 6mm before the expected door reference.
+  scannerOffsetInBottom : 10 # Start Y scan 6mm before the expected door reference.
   scanLiftZMm: 0
   doorYOffset: 150 #Initial 50
   innerSandingOffset: 60
