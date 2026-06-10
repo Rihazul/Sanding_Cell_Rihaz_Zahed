@@ -3471,6 +3471,49 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             dists = [float(item.get("dist", 0.0)) for item in samples]
             return max(dists) - min(dists)
 
+        def _measurements_from_reference(measurements, start_offset_mm, axis_label):
+            """
+            Exclude the negative scan-start section from geometry calculations.
+            Raw measurements remain unchanged so CSV diagnostics still show it.
+            """
+            referenced = []
+            discarded = 0
+            missing_raw_dist = 0
+            start_offset_mm = float(start_offset_mm)
+
+            for measurement in measurements:
+                raw_dist = measurement.get("raw_dist")
+                if raw_dist is None:
+                    missing_raw_dist += 1
+                    referenced.append(dict(measurement))
+                    continue
+
+                try:
+                    raw_dist = float(raw_dist)
+                except (TypeError, ValueError):
+                    missing_raw_dist += 1
+                    referenced.append(dict(measurement))
+                    continue
+
+                if raw_dist < start_offset_mm:
+                    discarded += 1
+                    continue
+
+                referenced_measurement = dict(measurement)
+                referenced_measurement["dist"] = raw_dist - start_offset_mm
+                referenced.append(referenced_measurement)
+
+            config["logger"].info(
+                "[scan-%s-reference] start_offset=%.3fmm discarded_pre_reference=%s "
+                "analysis_samples=%s missing_raw_dist=%s",
+                axis_label,
+                start_offset_mm,
+                discarded,
+                len(referenced),
+                missing_raw_dist,
+            )
+            return referenced
+
         def connect_j7():
             result = []
             cps.HRIF_HRApp(0, "HR_Motor", "GetMotorList", [], result)
@@ -4197,6 +4240,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 # Record which fixed door-slot/J7 position produced this Y scan.
                 for ymeasurement in ymeasurements:
                     ymeasurement["j7_position"] = float(xpos)
+                    raw_dist = float(
+                        ymeasurement.get("raw_dist", ymeasurement.get("dist", 0.0))
+                    )
+                    ymeasurement["y_from_reference"] = max(
+                        0.0,
+                        raw_dist - float(config["offset"]["scannerOffsetInBottom"]),
+                    )
 
                 saveAsCSV(scan_csv_path(f"prev_ym{xcnt}.csv"), ymeasurements)
                 ymeasurements = adjust_heights(ymeasurements)
@@ -4250,8 +4300,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
 
             # ylen, yframe_1, yframe_2 = find_constant_height_periods(ymeasurements, threshold=2)
-            results = identify_gradient_change_points_dynamic(
+            y_analysis_measurements = _measurements_from_reference(
                 ymeasurements,
+                config["offset"]["scannerOffsetInBottom"],
+                axis_label="y",
+            )
+            results = identify_gradient_change_points_dynamic(
+                y_analysis_measurements,
                 threshold=scan_threshold,
                 min_stable_distance=scan_min_stable_distance,
                 three_d_compensation=scan_three_d_compensation,
