@@ -345,23 +345,17 @@ def _load_json_config():
 
 
 def _build_pocket_xy_for_door(door_num, z):
-    p8 = get_inner_corner_point(door_num, 0)
-    p7 = get_inner_corner_point(door_num, 1)
-    p6 = get_inner_corner_point(door_num, 2)
-    p5 = get_inner_corner_point(door_num, 3)
-    if not all((p5, p6, p7, p8)):
+    p1 = get_inner_corner_point(door_num, 0)
+    p2 = get_inner_corner_point(door_num, 1)
+    p3 = get_inner_corner_point(door_num, 2)
+    p4 = get_inner_corner_point(door_num, 3)
+    if not all((p1, p2, p3, p4)):
         raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
 
-    distance = p6[0] - p8[0]
-    point5u = [distance, p5[1], z]
-    point6u = [distance, p6[1], z]
-    point7u = [0, p7[1], z]
-    point8u = [0, p8[1], z]
-
-    x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
-    y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
-    z_coords = [point5u[2], point6u[2], point7u[2], point8u[2]]
-    seventh_pos = p8[0] + get_door_position(door_num)
+    x_coords = [p1[0], p2[0], p3[0], p4[0]]
+    y_coords = [p1[1], p2[1], p3[1], p4[1]]
+    z_coords = [p1[2], p2[2], p3[2], p4[2]]
+    seventh_pos = p1[0] + get_door_position(door_num)
     return x_coords, y_coords, z_coords, seventh_pos
 
 
