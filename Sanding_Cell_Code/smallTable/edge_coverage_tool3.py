@@ -356,10 +356,14 @@ def _build_pocket_xy_for_door(door_num, z):
     if not all((p5, p6, p7, p8)):
         raise RuntimeError(f"Missing pocket corner points for door {door_num}.")
 
-    point5u = [-p6[0], p5[1], z]
-    point6u = [-p6[0], p6[1], z]
-    point7u = [p8[0], p7[1], z]
-    point8u = [p8[0], p8[1], z]
+    # J7 is anchored at the pocket's X- inner corner (p8). Build the robot
+    # path relative to that anchor so the scanned p8 X value is not counted
+    # again in the robot coordinates.
+    pocket_width = p6[0] - p8[0]
+    point5u = [0, p5[1], z]
+    point6u = [0, p6[1], z]
+    point7u = [pocket_width, p7[1], z]
+    point8u = [pocket_width, p8[1], z]
 
     x_coords = [point5u[0], point6u[0], point7u[0], point8u[0]]
     y_coords = [point5u[1], point6u[1], point7u[1], point8u[1]]
