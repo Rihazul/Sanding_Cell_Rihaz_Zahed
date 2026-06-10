@@ -60,7 +60,7 @@ table:
   lengthx0: 0
   lengthx1: 647
   lengthx2: 1286
-  lengthx3: 1933
+  lengthx3: 1928
   width: 880 # 675 to 870 mm
   sevenbtest: 0 #Test for the 7 axis in for Table B limitation 2200 for the software
   # angle: 42.5
