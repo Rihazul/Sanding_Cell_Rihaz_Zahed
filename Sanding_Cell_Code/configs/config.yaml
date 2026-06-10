@@ -58,7 +58,7 @@ table:
   length3: 660
   # These are the 7th Axis Values used when scanning the table
   lengthx0: 0
-  lengthx1: 616
+  lengthx1: 654
   lengthx2: 1264
   lengthx3: 1904
   width: 880 # 675 to 870 mm
