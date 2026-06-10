@@ -2385,13 +2385,22 @@ def handle_action():
         if _inline_scan_active.is_set():
             return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409
         _inline_scan_active.set()
+        scan_x_start_offset = float(config.get("offset", {}).get("scannerOffsetInLeft", 0.0))
+        scan_y_start_offset = float(config.get("offset", {}).get("scannerOffsetInBottom", 0.0))
         config['logger'].info(
-            "[scan] Runtime source=%s | enforced scan behavior: X/Y start=-3mm, normal endpoints, no X-start return, home after Door1 Y-end",
+            "[scan] Runtime source=%s | scan start offsets: X=-%.3fmm Y=-%.3fmm, normal endpoints, no X-start return, home after Door1 Y-end",
             os.path.abspath(__file__),
+            scan_x_start_offset,
+            scan_y_start_offset,
         )
         socketio.emit(
             'flash_message',
-            {"message": "Scan mode active: X/Y start 3mm before reference, normal endpoints, direct home after Door 1 Y-end."},
+            {
+                "message": (
+                    f"Scan mode active: X starts {scan_x_start_offset:g}mm and "
+                    f"Y starts {scan_y_start_offset:g}mm before reference."
+                )
+            },
         )
         with robot_lock:
             ret = ensure_cps_connected()

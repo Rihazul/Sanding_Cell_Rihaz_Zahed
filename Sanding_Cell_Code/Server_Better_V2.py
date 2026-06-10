@@ -3682,6 +3682,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_lift_z_mm = float(
             config.get("offset", {}).get("scanLiftZMm", 15.0)
         )
+        scan_x_start_offset_mm = float(
+            config.get("offset", {}).get("scannerOffsetInLeft", 0.0)
+        )
+        scan_y_start_offset_mm = float(
+            config.get("offset", {}).get("scannerOffsetInBottom", 0.0)
+        )
         scan_min_group_points = int(
             config.get("settings", {}).get("scanMinGroupPoints", 20)
         )
@@ -3701,6 +3707,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             scan_lift_z_mm,
             scan_min_group_points,
             scan_min_group_span_mm,
+        )
+        config["logger"].info(
+            "[scan-reference] table1Origin=%s x_start_offset=%.3fmm y_start_offset=%.3fmm",
+            config["point"]["table1Origin"],
+            scan_x_start_offset_mm,
+            scan_y_start_offset_mm,
         )
 
         msg_to_frontend(
@@ -3823,7 +3835,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         config["point"]["table1Origin"],
                         config["door"]["frame"] + config["offset"]["doorYOffset"],
                     ),
-                    -config["offset"]["scannerOffsetInLeft"],
+                    -scan_x_start_offset_mm,
                 )
                 xEnd = addXVal(
                     addYVal(
@@ -3835,7 +3847,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 xStart = addZVal(xStart, scan_lift_z_mm)
                 xEnd = addZVal(xEnd, scan_lift_z_mm)
                 config["logger"].info(
-                    f"[scan-x] points to move: <start>: {xStart} >>> <end>:{xEnd}"
+                    "[scan-x] section=%s reference_x=%.3fmm start_offset=-%.3fmm "
+                    "start=%s end=%s",
+                    tblCnt + 1,
+                    float(config["point"]["table1Origin"][0]),
+                    scan_x_start_offset_mm,
+                    xStart,
+                    xEnd,
                 )
 
                 msg_to_frontend(
@@ -3942,7 +3960,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     )
                     x_from_reference = max(
                         0.0,
-                        raw_dist - float(config["offset"]["scannerOffsetInLeft"]),
+                        raw_dist - scan_x_start_offset_mm,
                     )
                     xmeasurement["x_from_reference"] = x_from_reference
                     xmeasurement["station_x"] = float(roboPos) + x_from_reference
@@ -4080,7 +4098,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     if not math.isfinite(first_valid_raw_dist):
                         raise ValueError("raw_dist is not finite")
                     signed_x_origin_offset = first_valid_raw_dist - float(
-                        config["offset"]["scannerOffsetInLeft"]
+                        scan_x_start_offset_mm
                     )
                     # The configured reference is the earliest accepted door
                     # origin. Surface detected during the negative lead-in must
@@ -4196,7 +4214,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 yStart = addYVal(
                     addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
-                    -config["offset"]["scannerOffsetInBottom"],
+                    -scan_y_start_offset_mm,
                 )
                 yEnd = addYVal(
                     addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
@@ -4205,7 +4223,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 yStart = addZVal(yStart, scan_lift_z_mm)
                 yEnd = addZVal(yEnd, scan_lift_z_mm)
                 config["logger"].info(
-                    f"[scan-y] points to move: <start>: {yStart} >>> <end>:{yEnd}"
+                    "[scan-y] door=%s reference_y=%.3fmm start_offset=-%.3fmm "
+                    "anchor_x=%.3fmm start=%s end=%s",
+                    door_number,
+                    float(config["point"]["table1Origin"][1]),
+                    scan_y_start_offset_mm,
+                    y_scan_anchor_x,
+                    yStart,
+                    yEnd,
                 )
                 config["logger"].info(
                     "[scan-y] iteration=%s/%s door_label=%s seventh=%.3f",
@@ -4284,7 +4309,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     )
                     ymeasurement["y_from_reference"] = max(
                         0.0,
-                        raw_dist - float(config["offset"]["scannerOffsetInBottom"]),
+                        raw_dist - scan_y_start_offset_mm,
                     )
 
                 saveAsCSV(scan_csv_path(f"prev_ym{xcnt}.csv"), ymeasurements)
@@ -4341,7 +4366,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             # ylen, yframe_1, yframe_2 = find_constant_height_periods(ymeasurements, threshold=2)
             y_analysis_measurements = _measurements_from_reference(
                 ymeasurements,
-                config["offset"]["scannerOffsetInBottom"],
+                scan_y_start_offset_mm,
                 axis_label="y",
             )
             results = identify_gradient_change_points_dynamic(
