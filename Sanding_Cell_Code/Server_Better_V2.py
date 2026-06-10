@@ -574,7 +574,10 @@ def adjust_heights(data):
             adjusted_height = d["height"] - factor * avg_diff
         else:
             adjusted_height = d["height"]  # Keep NaN as is
-        adjusted_data.append({"dist": d["dist"], "height": adjusted_height})
+        # Keep raw_dist so point generation can recover the door's X placement.
+        adjusted_item = dict(d)
+        adjusted_item["height"] = adjusted_height
+        adjusted_data.append(adjusted_item)
 
     return adjusted_data
 
@@ -3172,7 +3175,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
     def saveAsCSV(fileName, measurements):
         # Keep the historical columns first, but tolerate extra diagnostic fields.
-        base_fieldnames = ["dist", "height"]
+        # Keep scan and visualization fields in a predictable order.
+        # j7_position is diagnostic; raw_dist supports X-placement correction.
+        base_fieldnames = ["dist", "height", "j7_position", "raw_dist"]
         extra_fieldnames = []
         for measurement in measurements or []:
             if not isinstance(measurement, dict):
@@ -3854,6 +3859,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
                 config["logger"].info(f"[scan-x] end point reached: {xEnd}")
 
+                # J7 remains fixed while this X section is scanned. Recording it
+                # makes station-wide dist values easier to interpret in the CSV.
+                for xmeasurement in xmeasurements:
+                    xmeasurement["j7_position"] = float(roboPos)
+
                 # saving the initial values (raw scan data)
                 saveAsCSV(f"./static/prev_xm{tblCnt}.csv", xmeasurements)
                 # add sufficient x distance to the points
@@ -3968,6 +3978,29 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 item for item in xmeasurements if not np.isnan(item["height"])
             )
             config["logger"].info("First non nan: ", first_non_nan)
+            # J7 stays at its configured slot. Only robot-coordinate points are
+            # translated by the measured door placement relative to xStart.
+            x_origin_offset = 0.0
+            first_valid_raw_dist = first_non_nan.get("raw_dist")
+            if first_valid_raw_dist is None:
+                config["logger"].warning(
+                    "[scan-x] Door group has no raw_dist; using 0mm X placement offset. "
+                    "Run a new actual scan to generate placement-corrected points."
+                )
+            else:
+                try:
+                    first_valid_raw_dist = float(first_valid_raw_dist)
+                    if not math.isfinite(first_valid_raw_dist):
+                        raise ValueError("raw_dist is not finite")
+                    x_origin_offset = first_valid_raw_dist - float(
+                        config["offset"]["scannerOffsetInLeft"]
+                    )
+                except (TypeError, ValueError):
+                    first_valid_raw_dist = None
+                    x_origin_offset = 0.0
+                    config["logger"].warning(
+                        "[scan-x] Invalid raw_dist; using 0mm X placement offset."
+                    )
 
             # X measurements contain the physical J7 section position because
             # roboPos was added after each section scan. Map the detected group
@@ -3980,6 +4013,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
             xpos = float(robo7thPos[physical_slot_index])
             door_number = physical_slot_index + 1
+            config["logger"].info(
+                "[scan-x-origin] door=%s raw_first_hit=%smm local_x_offset=%.3fmm",
+                door_number,
+                first_valid_raw_dist,
+                x_origin_offset,
+            )
             config["logger"].info(
                 "[scan-map] group_first_dist=%.3f mapped_door=%s mapped_j7=%.3f error=%.3f",
                 group_first_dist,
@@ -4060,7 +4099,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 x_min_dist = min(float(item["dist"]) for item in x_non_nan)
                 x_max_dist = max(float(item["dist"]) for item in x_non_nan)
                 x_center_dist = (x_min_dist + x_max_dist) / 2.0
-                y_scan_anchor_x = max(0.0, x_center_dist - float(xpos))
+                y_scan_anchor_x = max(0.0, x_center_dist - float(xpos)) + x_origin_offset
 
                 yStart = addYVal(
                     addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
@@ -4157,6 +4196,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
                 config["logger"].info(f"[scan-y] end point reached: {yEnd}")
                 print(f"scanSpeed: {config['UI']['scanSpeed']}")
+
+                # Record which fixed door-slot/J7 position produced this Y scan.
+                for ymeasurement in ymeasurements:
+                    ymeasurement["j7_position"] = float(xpos)
 
                 saveAsCSV(f"./static/prev_ym{xcnt}.csv", ymeasurements)
                 ymeasurements = adjust_heights(ymeasurements)
@@ -4270,12 +4313,15 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 f"[scan] y stuffs: <total length>: {ylen} mm, <left frame>: {yframe_1} mm, <right frame>: {yframe_2} mm, <depth>: {yVals[-1]['yDepthMm']} mm"
             )
 
+            door_point_origin = addXVal(
+                config["point"]["table1Origin"], x_origin_offset
+            )
             # framePoints: points that connect the center of the frames
             framePoints.append(
                 {
                     0: addZVal(
                         addXVal(
-                            addYVal(config["point"]["table1Origin"], yframe_1 / 2),
+                            addYVal(door_point_origin, yframe_1 / 2),
                             xframe_1 / 2,
                         ),
                         0,
@@ -4283,7 +4329,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     1: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"], ylen - yframe_2 / 2
+                                door_point_origin, ylen - yframe_2 / 2
                             ),
                             xframe_1 / 2,
                         ),
@@ -4292,7 +4338,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     2: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"], ylen - yframe_2 / 2
+                                door_point_origin, ylen - yframe_2 / 2
                             ),
                             xlen - xframe_2 / 2,
                         ),
@@ -4300,7 +4346,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     ),
                     3: addZVal(
                         addXVal(
-                            addYVal(config["point"]["table1Origin"], yframe_1 / 2),
+                            addYVal(door_point_origin, yframe_1 / 2),
                             xlen - xframe_2 / 2,
                         ),
                         0,
@@ -4314,7 +4360,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     0: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 yframe_1 - config["offset"]["toolin"],
                             ),
                             +xframe_1 - config["offset"]["toolin"],
@@ -4324,7 +4370,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     1: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 ylen - yframe_2 + config["offset"]["toolin"],
                             ),
                             +xframe_1 - config["offset"]["toolin"],
@@ -4334,7 +4380,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     2: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 ylen - yframe_2 + config["offset"]["toolin"],
                             ),
                             +xlen - xframe_2 + config["offset"]["toolin"],
@@ -4344,7 +4390,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     3: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 yframe_1 - config["offset"]["toolin"],
                             ),
                             +xlen - xframe_2 + config["offset"]["toolin"],
@@ -4359,7 +4405,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     0: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 -config["offset"]["edgeOffset"],
                             ),
                             -config["offset"]["edgeOffset"],
@@ -4369,7 +4415,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     1: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 +config["offset"]["edgeOffset"] + ylen,
                             ),
                             -config["offset"]["edgeOffset"],
@@ -4379,7 +4425,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     2: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 +config["offset"]["edgeOffset"] + ylen,
                             ),
                             config["offset"]["edgeOffset"] + xlen,
@@ -4389,7 +4435,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     3: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 -config["offset"]["edgeOffset"],
                             ),
                             config["offset"]["edgeOffset"] + xlen,
@@ -4404,7 +4450,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     0: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 +config["offset"]["innerOffset"]
                                 + yframe_1
                                 + config["offset"]["tool3y"] / 2,
@@ -4418,7 +4464,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     1: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 -config["offset"]["innerOffset"]
                                 + ylen
                                 - yframe_2
@@ -4433,7 +4479,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     2: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 -config["offset"]["innerOffset"]
                                 + ylen
                                 - yframe_2
@@ -4449,7 +4495,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     3: addZVal(
                         addXVal(
                             addYVal(
-                                config["point"]["table1Origin"],
+                                door_point_origin,
                                 +config["offset"]["innerOffset"]
                                 + yframe_1
                                 + config["offset"]["tool3y"] / 2,
