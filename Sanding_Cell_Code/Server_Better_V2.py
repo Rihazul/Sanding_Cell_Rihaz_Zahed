@@ -4164,13 +4164,16 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 ####### y axis moving #####
                 ###########################
 
-                # Anchor Y scan on the detected door center so each Y run matches the
-                # actual door found in X-scan and avoids tiny/noise segments.
+                # Anchor Y scan on the detected door center in the table UCS.
+                # X-group distances are door-local because data_collection()
+                # normalizes each scan to its first valid hit. J7 selects the door
+                # slot independently, so subtracting xpos here incorrectly pushes
+                # doors after Door 1 toward the left frame.
                 x_non_nan = _non_nan_samples(xmeasurements)
                 x_min_dist = min(float(item["dist"]) for item in x_non_nan)
                 x_max_dist = max(float(item["dist"]) for item in x_non_nan)
                 x_center_dist = (x_min_dist + x_max_dist) / 2.0
-                y_scan_anchor_x = max(0.0, x_center_dist - float(xpos)) + x_origin_offset
+                y_scan_anchor_x = x_origin_offset + x_center_dist
 
                 yStart = addYVal(
                     addXVal(config["point"]["table1Origin"], y_scan_anchor_x),
@@ -4184,11 +4187,15 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 yEnd = addZVal(yEnd, scan_lift_z_mm)
                 config["logger"].info(
                     "[scan-y] door=%s reference_y=%.3fmm start_offset=-%.3fmm "
-                    "anchor_x=%.3fmm start=%s end=%s",
+                    "local_center_x=%.3fmm origin_offset_x=%.3fmm "
+                    "anchor_x=%.3fmm j7_slot=%.3fmm start=%s end=%s",
                     door_number,
                     float(config["point"]["table1Origin"][1]),
                     scan_y_start_offset_mm,
+                    x_center_dist,
+                    x_origin_offset,
                     y_scan_anchor_x,
+                    float(xpos),
                     yStart,
                     yEnd,
                 )
