@@ -1979,14 +1979,14 @@ def toggle_state(table_id):
         elif table_id == "tableBOpenClose":
             nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
             if robot_state[0] == '1':
+                new_state = "Open"
                 nRet = CPS.HRIF_SetBoxCO(0, 1, 0)  # (0, digital output number, states)
                 nRet = CPS.HRIF_SetBoxCO(0, 0, 1)
-                new_state = "Open"
                 socketio.emit('flash_message', {"message": f"Table B is in horizontal position"})
             else:
+                new_state = "Close"
                 nRet = CPS.HRIF_SetBoxCO(0, 0, 0)
                 nRet = CPS.HRIF_SetBoxCO(0, 1, 1)
-                new_state = "Close"
                 socketio.emit('flash_message', {"message": f"Alert !!! Table B is in 45 degree working position so be carefull at the time of manually moving robot"})
             ######
             #ToDo: The project was not complete, so change the digital number in the CPS functions which can open or close the tableB.
@@ -2066,8 +2066,7 @@ def table_state(table_id):
             robot_state = []
             nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
             if nRet == 0 and robot_state:
-                # Table B CO1=0 is horizontal/Open; CO1=1 is 45 degrees/Close.
-                return jsonify({'state': 'Close' if robot_state[0] == '1' else 'Open'})
+                return jsonify({'state': 'Open' if robot_state[0] == '1' else 'Close'})
             return jsonify({'state': 'Unknown'})
 
         return jsonify({'state': 'Invalid'})

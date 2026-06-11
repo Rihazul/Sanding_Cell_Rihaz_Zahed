@@ -200,7 +200,7 @@ export function RobotControlPanel({
                 label="Table B"
                 isActive={tableBOpen}
                 isPending={!!tableBPending}
-                pendingLabel={tableBPending === 'opening' ? 'TO HORIZONTAL' : 'TO 45°'}
+                pendingLabel={tableBPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableBOpen;
@@ -211,14 +211,14 @@ export function RobotControlPanel({
                     addActivity(response?.error || 'Table B action blocked. Please try again.', 'warning');
                     return;
                   }
-                  addActivity(`Table B moving ${willOpen ? 'to Horizontal' : 'to 45°'}`, willOpen ? 'info' : 'warning');
+                  addActivity(`Table B moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning');
                 } catch (error) {
                   setTableBPending(null);
                   addActivity(`Table B action failed: ${error}`, 'error');
                 }
               }}
-                activeLabel="PUT 45°"
-                inactiveLabel="PUT HORIZONTAL"
+                activeLabel="PUT HORIZONTAL"
+                inactiveLabel="PUT 45°"
                 disabled={isOperating || !robotEnabled}
               />
             </div>
