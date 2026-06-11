@@ -3915,18 +3915,22 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     raw_dist = float(
                         xmeasurement.get("raw_dist", xmeasurement.get("dist", 0.0))
                     )
-                    x_from_reference = max(
-                        0.0,
-                        raw_dist - scan_x_start_offset_mm,
-                    )
+                    signed_reference_dist = raw_dist - scan_x_start_offset_mm
+                    x_from_reference = max(0.0, raw_dist)
+                    # dist remains door-local: data_collection normalizes the
+                    # first valid detected edge to 0. The configured negative
+                    # start is acquisition lead-in only; raw travel is the
+                    # authoritative X placement coordinate for sanding.
                     xmeasurement["x_from_reference"] = x_from_reference
                     xmeasurement["station_x"] = float(roboPos) + x_from_reference
+                    xmeasurement["station_raw_x"] = xmeasurement["station_x"]
+                    # Retain the offset-subtracted interpretation for diagnosis.
+                    xmeasurement["station_reference_x"] = (
+                        float(roboPos) + signed_reference_dist
+                    )
 
                 # saving the initial values (raw scan data)
                 saveAsCSV(scan_csv_path(f"prev_xm{tblCnt}.csv"), xmeasurements)
-                # add sufficient x distance to the points
-                for xmeasurement in xmeasurements:
-                    xmeasurement["dist"] += roboPos
                 # performing an height adjustment here for better results
                 xmeasurements = adjust_heights(xmeasurements)
                 saveAsCSV(scan_csv_path(f"xm{tblCnt}.csv"), xmeasurements)
@@ -4039,8 +4043,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 item for item in xmeasurements if not np.isnan(item["height"])
             )
             config["logger"].info("First non nan: ", first_non_nan)
-            # J7 stays at its configured slot. Only robot-coordinate points are
-            # translated by the measured door placement relative to xStart.
+            # J7 stays at its configured slot. Generated robot-coordinate points
+            # use the raw first-hit travel; the negative scan start is lead-in
+            # only and is not subtracted from sanding placement.
             x_origin_offset = 0.0
             signed_x_origin_offset = 0.0
             first_valid_raw_dist = first_non_nan.get("raw_dist")
@@ -4057,10 +4062,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     signed_x_origin_offset = first_valid_raw_dist - float(
                         scan_x_start_offset_mm
                     )
-                    # The configured reference is the earliest accepted door
-                    # origin. Surface detected during the negative lead-in must
-                    # not move generated robot points left of that reference.
-                    x_origin_offset = max(0.0, signed_x_origin_offset)
+                    x_origin_offset = max(0.0, first_valid_raw_dist)
                 except (TypeError, ValueError):
                     first_valid_raw_dist = None
                     signed_x_origin_offset = 0.0
@@ -4069,14 +4071,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         "[scan-x] Invalid raw_dist; using 0mm X placement offset."
                     )
 
-            # X measurements contain the physical J7 section position because
-            # roboPos was added after each section scan. Map the detected group
-            # back to its nearest configured J7 slot instead of making it
-            # relative to the first detected door.
-            group_first_dist = float(first_non_nan["dist"])
+            # dist is door-local and starts at 0 for each detected surface.
+            # Map the group using its explicitly recorded fixed J7 position.
+            group_j7_position = float(first_non_nan.get("j7_position", 0.0))
             physical_slot_index = min(
                 range(len(robo7thPos)),
-                key=lambda idx: abs(float(robo7thPos[idx]) - group_first_dist),
+                key=lambda idx: abs(float(robo7thPos[idx]) - group_j7_position),
             )
             xpos = float(robo7thPos[physical_slot_index])
             door_number = physical_slot_index + 1
@@ -4088,11 +4088,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 x_origin_offset,
             )
             config["logger"].info(
-                "[scan-map] group_first_dist=%.3f mapped_door=%s mapped_j7=%.3f error=%.3f",
-                group_first_dist,
+                "[scan-map] group_j7_position=%.3f mapped_door=%s mapped_j7=%.3f error=%.3f",
+                group_j7_position,
                 door_number,
                 xpos,
-                abs(xpos - group_first_dist),
+                abs(xpos - group_j7_position),
             )
 
             # xlen, xframe_1, xframe_2 = find_constant_height_periods(xmeasurements, threshold=2)
@@ -4128,6 +4128,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     "xlen": xlen,
                     "xframe_1": xframe_1,
                     "xframe_2": xframe_2,
+                    "xOriginOffset": x_origin_offset,
+                    "xSignedOriginOffset": signed_x_origin_offset,
+                    "xFirstValidRawDist": first_valid_raw_dist,
                     "xMeasuredFrame_1": x_measured_frame_1,
                     "xMeasuredFrame_2": x_measured_frame_2,
                     "xFrameSizingPolicy": x_frame_sizing_policy,
