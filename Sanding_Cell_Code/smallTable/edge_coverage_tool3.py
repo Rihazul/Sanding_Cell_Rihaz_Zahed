@@ -235,6 +235,8 @@ def execute_edge_coverage(
     force_blending_timeout = 0.4 if split else 7.0
     force_seek_timeout = _resolve_force_seek_timeout(edge_speed, fallback=10.0)
 
+    turn_vibration_on(cps)
+    time.sleep(0.5)
     try:
         force_ok = putForceZminus(
             cps=cps,
@@ -271,7 +273,6 @@ def execute_edge_coverage(
         if not force_ok:
             raise RuntimeError("[Edge Coverage] Failed to establish force contact before edge path.")
 
-        turn_vibration_on(cps)
     except Exception:
         turn_vibration_off(cps)
         raise

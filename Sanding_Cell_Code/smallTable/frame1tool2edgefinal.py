@@ -89,6 +89,7 @@ def _run_tool2_edge_process(
                 if not vibration_on:
                     turn_vibration_on(cps)
                     vibration_on = True
+                    time.sleep(0.5)
                     abort_if_stopped()
                 force_func(
                     cps=cps,

@@ -6,6 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 import math
+import time
 import json
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
 from smallTable.scancord import (
@@ -70,6 +71,7 @@ def _run_tool2_side_process(
                 if not vibration_on:
                     turn_vibration_on(cps)
                     vibration_on = True
+                    time.sleep(0.5)
                     abort_if_stopped()
                 force_func(
                     cps=cps,
