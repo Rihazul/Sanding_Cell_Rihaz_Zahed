@@ -80,11 +80,16 @@ def _run_tool2_edge_process(
         raise RuntimeError("Tool 2 edge operation stopped by emergency stop")
 
     robot_speed = float(load_json_config().get("robotSpeed", 0.9))
+    vibration_on = False
     abort_if_stopped()
     try:
         for point_index, point in enumerate(points):
             abort_if_stopped()
             if force_func is not None and force_point is not None and point == force_point:
+                if not vibration_on:
+                    turn_vibration_on(cps)
+                    vibration_on = True
+                    abort_if_stopped()
                 force_func(
                     cps=cps,
                     force=force,
@@ -93,9 +98,10 @@ def _run_tool2_edge_process(
                     config=config,
                 )
                 abort_if_stopped()
-            if vibration_point is not None and point == vibration_point:
+            if vibration_point is not None and point == vibration_point and not vibration_on:
                 abort_if_stopped()
                 turn_vibration_on(cps)
+                vibration_on = True
                 abort_if_stopped()
             communicate(
                 cps=cps,

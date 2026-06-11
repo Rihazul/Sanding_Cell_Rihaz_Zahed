@@ -285,7 +285,10 @@ def finalize_spiral_path(
         time.sleep(0.02)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
 
-    pass  # vibration handled in finalize
+    vibration_on = False
+    if vibration:
+        turn_vibration_on(cps)
+        vibration_on = True
 
     force_active = False
     if force is not None and force_func is not None:
@@ -313,7 +316,7 @@ def finalize_spiral_path(
         return False
     move_start = time.time()
 
-    # Wait briefly for motion to start, then turn vibration on.
+    # Wait briefly for motion to start.
     motion_started = False
     motion_wait_start = time.time()
     while time.time() - motion_wait_start < 1.0:
@@ -322,9 +325,6 @@ def finalize_spiral_path(
                 motion_started = True
                 break
         time.sleep(0.02)
-
-    if vibration:
-        turn_vibration_on(cps)
 
     # Wait for completion (track path state + robot flags)
     ok = True
@@ -526,8 +526,8 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         wait=True,
     )
 
-    putForceZminus(cps=cps, force=force, tcp=tcp, ucs=ucs, config=config)
     turn_vibration_on(cps)
+    putForceZminus(cps=cps, force=force, tcp=tcp, ucs=ucs, config=config)
 
     for end_pose in sanding_points[1:]:
         communicate(
