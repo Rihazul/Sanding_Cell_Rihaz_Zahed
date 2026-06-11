@@ -714,6 +714,8 @@ def sandingModelATableA():
         if tool2_doors:
             print("\n=== TOOL 2 BATCH START ===")
             ensure_tool_in_hand(2)
+            # Stabilize the arm orientation before entering the first Tool 2 door path.
+            move_to_safe_point()
 
             for door_number in tool2_doors:
                 side_cfg = tool2side_by_door.get(door_number, {})
