@@ -1357,7 +1357,7 @@ def door3frametool2side(force,cps):
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[0+25,p3[1],80,0,0,-180]
+        upextratop=[0+10,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
@@ -1899,7 +1899,7 @@ def door4frametool2side(force,cps):
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[0+25,p3[1],80,0,0,-180]
+        upextratop=[0+10,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
