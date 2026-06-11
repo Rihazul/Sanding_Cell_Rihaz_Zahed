@@ -256,16 +256,16 @@ def door1frametool2side(force,cps):
         print("preuptoppoint1:", preuptoppoint1)
         uptoppoint12=[-distance*2+2,p2[1]+4,10,0,0,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[0,p3[1]+4,10,0,0,-90]
+        uptoppoint2=[p1[0],p3[1]+4,10,0,0,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[0,p3[1]+10,10,0,0,-90]
+        preuptoppoint2=[p1[0],p3[1]+10,10,0,0,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[0+10,p3[1]+20,80,0,0,-180]
+        upextratop=[p1[0]+10,p3[1]+20,80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
@@ -299,22 +299,22 @@ def door1frametool2side(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[0+5,p3[1],10,0,0,-180]
+        upleftpoint3=[p1[0]+3,p3[1],10,0,0,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[0+10,p3[1],10,0,0,-180]
+        upleftpoint3pre=[p1[0]+10,p3[1],10,0,0,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[0+5,p3[1]-2,10,0,0,-180]
+        upleftpoint3down=[p1[0]+3,p3[1]-2,10,0,0,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[0+5,p3[1]/2,10,0,0,-180]
+        upleftpoint5=[p1[0]+3,p3[1]/2,10,0,0,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[0+10,p3[1]/2,10,0,0,-180]
+        upleftpoint5pre=[p1[0]+10,p3[1]/2,10,0,0,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[0+10,p3[1]/2,100,0,0,-180]
+        upleftextrahome=[p1[0]+10,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 
@@ -710,7 +710,7 @@ def door2frametool2side(force,cps):
         print("p4:", p4)
 
         #7th axis postion
-        x1=get_door_position(2) + 4 
+        x1=get_door_position(2) 
         print("x1:", x1)
 
         #7th axis position for the top
@@ -806,16 +806,16 @@ def door2frametool2side(force,cps):
         print("preuptoppoint1:", preuptoppoint1)
         uptoppoint12=[-distance*2+2,p2[1]+4,10,0,0,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[0,p3[1]+4,10,0,0,-90]
+        uptoppoint2=[p1[0],p3[1]+4,10,0,0,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[0,p3[1]+10,10,0,0,-90]
+        preuptoppoint2=[p1[0],p3[1]+10,10,0,0,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[0+10,p3[1],80,0,0,-180]
+        upextratop=[p1[0]+10,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
@@ -849,22 +849,22 @@ def door2frametool2side(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[0+3,p3[1],10,0,0,-180]
+        upleftpoint3=[p1[0]+3,p3[1],10,0,0,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[0+10,p3[1],10,0,0,-180]
+        upleftpoint3pre=[p1[0]+10,p3[1],10,0,0,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[0+3,p3[1]-2,10,0,0,-180]
+        upleftpoint3down=[p1[0]+3,p3[1]-2,10,0,0,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[0+3,p3[1]/2,10,0,0,-180]
+        upleftpoint5=[p1[0]+3,p3[1]/2,10,0,0,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[0+10,p3[1]/2,10,0,0,-180]
+        upleftpoint5pre=[p1[0]+10,p3[1]/2,10,0,0,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[0+10,p3[1]/2,100,0,0,-180]
+        upleftextrahome=[p1[0]+10,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 
@@ -1252,7 +1252,7 @@ def door3frametool2side(force,cps):
         print("p4:", p4)
 
         #7th axis postion
-        x1=get_door_position(3) + 4 
+        x1=get_door_position(3) 
         print("x1:", x1)
 
         #7th axis position for the top
@@ -1794,7 +1794,7 @@ def door4frametool2side(force,cps):
         print("p4:", p4)
 
         #7th axis postion
-        x1=get_door_position(4) + 4
+        x1=get_door_position(4) 
         print("x1:", x1)
 
         #7th axis position for the top
@@ -1890,23 +1890,23 @@ def door4frametool2side(force,cps):
         print("preuptoppoint1:", preuptoppoint1)
         uptoppoint12=[-distance*2+2,p2[1]+4,10,0,0,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[-p1[0],p3[1]+4,10,0,0,-90]
+        uptoppoint2=[p1[0],p3[1]+4,10,0,0,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[-p1[0],p3[1]+10,10,0,0,-90]
+        preuptoppoint2=[p1[0],p3[1]+10,10,0,0,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[-p1[0]-10,p3[1],80,0,0,-180]
+        upextratop=[p1[0]+10,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
         extratop=[p3[0]+20,p3[1]+30,80,0,0,-180]
         print("extratop:", extratop)
 
-        #LeftPoints
+        #LeftPoints 
         leftpoint1=[p3[0]+2,p3[1],10,0,0,-180]
         print("leftpoint1:", leftpoint1)
         preleftpoint1=[p3[0]+1+10,p3[1],10,0,0,-180]
@@ -1933,22 +1933,22 @@ def door4frametool2side(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[0+3,p3[1],10,0,0,-180]
+        upleftpoint3=[p1[0]+3,p3[1],10,0,0,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[0+10,p3[1],10,0,0,-180]
+        upleftpoint3pre=[p1[0]+10,p3[1],10,0,0,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[0+3,p3[1]-2,10,0,0,-180]
+        upleftpoint3down=[p1[0]+3,p3[1]-2,10,0,0,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[0+3,p3[1]/2,10,0,0,-180]
+        upleftpoint5=[p1[0]+3,p3[1]/2,10,0,0,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[0+10,p3[1]/2,10,0,0,-180]
+        upleftpoint5pre=[p1[0]+10,p3[1]/2,10,0,0,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[0+10,p3[1]/2,100,0,0,-180]
+        upleftextrahome=[p1[0]+10,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 
