@@ -1348,16 +1348,16 @@ def door3frametool2side(force,cps):
         print("preuptoppoint1:", preuptoppoint1)
         uptoppoint12=[-distance*2+2,p2[1]+4,10,0,0,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[-p1[0],p3[1]+4,10,0,0,-90]
+        uptoppoint2=[p1[0],p3[1]+4,10,0,0,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[-p1[0],p3[1]+10,10,0,0,-90]
+        preuptoppoint2=[p1[0],p3[1]+10,10,0,0,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[-p1[0]-10,p3[1],80,0,0,-180]
+        upextratop=[p1[0]+10,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
@@ -1391,22 +1391,22 @@ def door3frametool2side(force,cps):
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
         #Left Points for Bigdoor UP
-        upleftpoint3=[-p1[0]+3,p3[1],10,0,0,-180]
+        upleftpoint3=[p1[0]+3,p3[1],10,0,0,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[-p1[0]-10,p3[1],10,0,0,-180]
+        upleftpoint3pre=[p1[0]+10,p3[1],10,0,0,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[-p1[0]-3,p3[1]-2,10,0,0,-180]
+        upleftpoint3down=[p1[0]+3,p3[1]-2,10,0,0,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[-p1[0]-3,p3[1]/2,10,0,0,-180]
+        upleftpoint5=[p1[0]+3,p3[1]/2,10,0,0,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[-p1[0]-10,p3[1]/2,10,0,0,-180]
+        upleftpoint5pre=[p1[0]+10,p3[1]/2,10,0,0,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
         #Extrea Upleft Points Homing
-        upleftextrahome=[-p1[0]-10,p3[1]/2,100,0,0,-180]
+        upleftextrahome=[p1[0]+10,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 
