@@ -60,9 +60,10 @@ def _run_tool2_side_process(
         )
         raise RuntimeError("Tool 2 side operation stopped by emergency stop")
 
+    robot_speed = float(load_json_config().get("robotSpeed", 0.9))
     abort_if_stopped()
     try:
-        for point in points:
+        for point_index, point in enumerate(points):
             abort_if_stopped()
             if force_func is not None and force_point is not None and point == force_point:
                 force_func(
@@ -84,8 +85,8 @@ def _run_tool2_side_process(
                 tcp=tcp,
                 ucs=ucs,
                 seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
+                speed=robot_speed if point_index == 0 else sanding_speed,
+                velocity_profile="robotspeed" if point_index == 0 else "sandingspeed",
                 wait=True,
             )
             abort_if_stopped()

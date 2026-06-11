@@ -40,10 +40,10 @@ coords:
   ucsDefault: "Base"  # This is the base UCS (used while homing, tool changing etc.)
   ucsTable1: "Plane_1" # This is the UCS for table 1 (left table) (used for scanning and sanding)
   ucsTable2: "Plane_2" # This is the plane for table 2
-  roboVelocity: 500 # Increased from 200 to 300 by rafat
-  roboAcceleration: 2500 # Increased from 250 to 350 by rafat
-  sandingVelocity: 375 # Increased from 150 to 250 by rafat
-  sandingAcceleration: 450 # Increased from 250 to 350 by rafat
+  roboVelocity: 400 # Increased from 200 to 300 by rafat
+  roboAcceleration: 1950 # Increased from 250 to 350 by rafat
+  sandingVelocity: 275 # Increased from 150 to 250 by rafat
+  sandingAcceleration: 350 # Increased from 250 to 350 by rafat
   highSpeedAccelerationScale: 1.0 # Keeps acceleration at base value when speed > 1
   transitionRadius: 20 # Decreased from 10 to 5 by rafat
   # roboVelocity: 200

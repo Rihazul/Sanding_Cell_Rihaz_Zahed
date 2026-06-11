@@ -19,10 +19,10 @@ export function SettingsPanel({
   sandingSpeed,
   setSandingSpeed,
 }: SettingsPanelProps) {
-  const ROBOT_MAX_SPEED = 500;
-  const ROBOT_MAX_ACCEL = 2500;
-  const SANDING_MAX_SPEED = 375;
-  const SANDING_MAX_ACCEL = 450;
+  const ROBOT_MAX_SPEED = 400;
+  const ROBOT_MAX_ACCEL = 1950;
+  const SANDING_MAX_SPEED = 275;
+  const SANDING_MAX_ACCEL = 350;
   const POCKET_MAX_OVERLAP_MM = 100;
   const robotSpeedMmS = Math.round((robotSpeed[0] / 100) * ROBOT_MAX_SPEED);
   const sandingSpeedMmS = Math.round((sandingSpeed[0] / 100) * SANDING_MAX_SPEED);
