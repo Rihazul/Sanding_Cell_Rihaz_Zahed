@@ -15,7 +15,7 @@ from Server_Better_V2 import (
     putForceZminus,
     releaseForce,
 )
-from smallTable.scancord import get_door_position, get_inner_corner_point
+from smallTable.scancord import get_door_position, get_inner_corner_point, get_y_values
 
 
 INTERNAL_OFFSET_MM = 38.0
@@ -52,7 +52,7 @@ def _get_motion_speeds(config):
     return robot_speed, sanding_speed
 
 
-def _build_internal_points(door_number, z):
+def _get_internal_bounds(door_number):
     c0 = get_inner_corner_point(door_number, 0)
     c1 = get_inner_corner_point(door_number, 1)
     c2 = get_inner_corner_point(door_number, 2)
@@ -74,6 +74,12 @@ def _build_internal_points(door_number, z):
             f"for inner corner rectangle."
         )
 
+    return left_x, right_x, bottom_y, top_y
+
+
+def _build_internal_points(door_number, z):
+    left_x, right_x, bottom_y, top_y = _get_internal_bounds(door_number)
+
     p0 = [left_x, bottom_y, z, 0, 0, 0]
     p1 = [left_x, top_y, z, 0, 0, 0]
     p2 = [right_x, top_y, z, 0, 0, 0]
@@ -81,6 +87,46 @@ def _build_internal_points(door_number, z):
     pre_start = [left_x, bottom_y, 20, 0, 0, 0]
 
     return pre_start, [p0, p1, p2, p3, p0]
+
+
+def _build_split_internal_passes(door_number, z):
+    left_x, right_x, bottom_y, top_y = _get_internal_bounds(door_number)
+    middle_x = (left_x + right_x) / 2.0
+    middle_y = (bottom_y + top_y) / 2.0
+
+    bottom_pre = [left_x, middle_y, 20, 0, 0, 0]
+    bottom_path = [
+        [left_x, middle_y, z, 0, 0, 0],
+        [left_x, bottom_y, z, 0, 0, 0],
+        [right_x, bottom_y, z, 0, 0, 0],
+        [right_x, middle_y, z, 0, 0, 0],
+    ]
+
+    # Moving J7 by middle_x requires subtracting middle_x from robot X
+    # coordinates so the tool remains on the same scanned station positions.
+    top_right_x = right_x - middle_x
+    top_left_x = left_x - middle_x
+    top_pre = [top_right_x, middle_y, 20, 0, 0, 0]
+    top_path = [
+        [top_right_x, middle_y, z, 0, 0, 0],
+        [top_right_x, top_y, z, 0, 0, 0],
+        [top_left_x, top_y, z, 0, 0, 0],
+        [top_left_x, middle_y, z, 0, 0, 0],
+    ]
+
+    return middle_x, [(bottom_pre, bottom_path), (top_pre, top_path)]
+
+
+def _requires_split_path(door_number):
+    y_data = get_y_values(door_number, default_on_error=True)
+    ylen = y_data.get("ylen") if isinstance(y_data, dict) else None
+    use_split_path = isinstance(ylen, (int, float)) and ylen > 600
+    print(
+        f"door {door_number} Model D internal path: "
+        f"{'two J7 positions' if use_split_path else 'one J7 position'} "
+        f"(ylen={ylen})"
+    )
+    return use_split_path
 
 
 def _resolve_force(user_force):
@@ -102,101 +148,115 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
 
     seventh = get_door_position(door_number)
     prehoming = [0, 0, 100, 0, 0, 0]
-    pre_start, path_points = _build_internal_points(door_number, z)
-
-    communicate(
-        cps=cps,
-        config=config,
-        seventh=seventh,
-        tcp=tcp,
-        ucs=ucs,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-    communicate(
-        cps=cps,
-        config=config,
-        point=prehoming,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-    communicate(
-        cps=cps,
-        config=config,
-        point=pre_start,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-
     applied_force = _resolve_force(force)
-    force_applied = False
-    vibration_on = False
 
-    try:
-        putForceZminus(
+    if _requires_split_path(door_number):
+        j7_offset, passes = _build_split_internal_passes(door_number, z)
+        pass_targets = [seventh, seventh + j7_offset]
+    else:
+        pre_start, path_points = _build_internal_points(door_number, z)
+        passes = [(pre_start, path_points)]
+        pass_targets = [seventh]
+
+    for pass_number, (j7_target, (pre_start, path_points)) in enumerate(
+        zip(pass_targets, passes), start=1
+    ):
+        print(
+            f"door {door_number} Model D internal pass {pass_number}/{len(passes)}: "
+            f"J7={j7_target}"
+        )
+        communicate(
             cps=cps,
-            force=applied_force,
+            config=config,
+            seventh=j7_target,
             tcp=tcp,
             ucs=ucs,
-            config=config,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=pass_number == 1,
         )
-        force_applied = True
-        turn_vibration_on(cps)
-        vibration_on = True
-
-        for point in path_points:
+        if pass_number == 1:
             communicate(
                 cps=cps,
                 config=config,
-                point=point,
+                point=prehoming,
                 tcp=tcp,
                 ucs=ucs,
                 seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
+                speed=robot_speed,
+                velocity_profile="robotspeed",
                 wait=True,
             )
-    finally:
-        if vibration_on:
-            try:
-                waitForBlending(cps=cps, config=config)
-            except Exception:
-                pass
-            turn_vibration_off(cps)
-        if force_applied:
-            releaseForce(cps=cps, config=config)
+        communicate(
+            cps=cps,
+            config=config,
+            point=pre_start,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
 
-    communicate(
-        cps=cps,
-        config=config,
-        point=pre_start,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-    communicate(
-        cps=cps,
-        config=config,
-        point=prehoming,
-        tcp=tcp,
-        ucs=ucs,
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
-    )
+        force_applied = False
+        vibration_on = False
+        try:
+            putForceZminus(
+                cps=cps,
+                force=applied_force,
+                tcp=tcp,
+                ucs=ucs,
+                config=config,
+            )
+            force_applied = True
+            turn_vibration_on(cps)
+            vibration_on = True
+
+            for point in path_points:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=point,
+                    tcp=tcp,
+                    ucs=ucs,
+                    seventh=-1,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=True,
+                )
+        finally:
+            if vibration_on:
+                try:
+                    waitForBlending(cps=cps, config=config)
+                except Exception:
+                    pass
+                turn_vibration_off(cps)
+            if force_applied:
+                releaseForce(cps=cps, config=config)
+
+        communicate(
+            cps=cps,
+            config=config,
+            point=pre_start,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=prehoming,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
 
 
 def smalldoor1tool3(z, cps, force=None):

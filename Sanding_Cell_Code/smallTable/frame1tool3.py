@@ -72,7 +72,7 @@ def _resolve_force(user_force, default_force=5.0):
 
 
 def _is_big_door(door_number):
-    """Return True when door must run split path: x > 280 and y > 600."""
+    """Return True when the external contour requires two J7 positions."""
     x_data = get_x_values(door_number, default_on_error=True)
     y_data = get_y_values(door_number, default_on_error=True)
     xlen = x_data.get('xlen') if isinstance(x_data, dict) else None
@@ -81,11 +81,16 @@ def _is_big_door(door_number):
     print(f"door {door_number} xlen: {xlen}")
     print(f"door {door_number} ylen: {ylen}")
 
-    if not isinstance(xlen, (int, float)) or not isinstance(ylen, (int, float)):
+    if not isinstance(ylen, (int, float)):
         print("No valid door size data available - using small-door path")
         return False
 
-    return xlen > 280 and ylen > 600
+    use_split_path = ylen > 600
+    print(
+        f"door {door_number} Model C external path: "
+        f"{'two J7 positions' if use_split_path else 'one J7 position'}"
+    )
+    return use_split_path
 
 
 def smalldoor1tool3(z,cps,force=None):

@@ -185,7 +185,7 @@ def run_tool2side_edgecycles(count, force, door_num,cps):
             time.sleep(INTER_PASS_DELAY_SECONDS)
 
 
-def run_tool3_cycles(count,door_num, z,cps):
+def run_tool3_cycles(count, door_num, z, cps, force):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
         return
@@ -203,7 +203,7 @@ def run_tool3_cycles(count,door_num, z,cps):
 
     for i in range(count):
         print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(z=z,cps=cps)
+        door_func(z=z, cps=cps, force=force)
         if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)
@@ -622,7 +622,13 @@ def sandingModelCTableA():
                 cycle_count = int(cfg.get("cycle", 0))
                 if cycle_count <= 0:
                     continue
-                run_tool3_cycles(cycle_count, int(door_number), z2, cps)
+                run_tool3_cycles(
+                    cycle_count,
+                    int(door_number),
+                    z2,
+                    cps,
+                    int(cfg.get("force", 0)),
+                )
                 work_executed = True
 
         if work_executed:

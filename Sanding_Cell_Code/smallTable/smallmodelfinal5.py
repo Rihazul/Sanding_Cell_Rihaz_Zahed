@@ -654,7 +654,7 @@ def sandingModelETableA():
                     run_tool2side_edgecycles(edge_cycle, int(edge_cfg.get("force", 0)), door_number, cps)
                     work_executed = True
 
-        # Tool 1 batch (Model E tool1 internal+external path)
+        # Tool 1 batch (Model E tool1 external+internal path)
         if has_tool1_batch and is_door_available(tool1_doors):
             ensure_tool_in_hand(1)
             for door_number in tool1_doors:
