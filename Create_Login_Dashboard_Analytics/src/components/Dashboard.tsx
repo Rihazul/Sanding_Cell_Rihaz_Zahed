@@ -135,11 +135,12 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
       if (tableBResult.status === 'fulfilled') {
         const state = tableBResult.value?.state;
         if (state === 'Open' || state === 'Close') {
-          setTableBOpen(state === 'Open');
-          if (state === 'Open') {
+          // Match Table A's UI convention: active/green means physical 45 degrees.
+          setTableBOpen(state === 'Close');
+          if (state === 'Close') {
             setTableBPending(prev => (prev === 'opening' ? null : prev));
           }
-          if (state === 'Close') {
+          if (state === 'Open') {
             setTableBPending(prev => (prev === 'closing' ? null : prev));
           }
         }
