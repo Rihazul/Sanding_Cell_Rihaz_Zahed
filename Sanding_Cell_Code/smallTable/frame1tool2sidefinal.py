@@ -65,7 +65,7 @@ def _run_tool2_side_process(
     try:
         for point_index, point in enumerate(points):
             abort_if_stopped()
-            if force_func is not None and force_point is not None and point == force_point:
+            if force_func is not None and force_point is not None and point is force_point:
                 force_func(
                     cps=cps,
                     force=force,
@@ -74,7 +74,7 @@ def _run_tool2_side_process(
                     config=config,
                 )
                 abort_if_stopped()
-            if vibration_point is not None and point == vibration_point:
+            if vibration_point is not None and point is vibration_point:
                 abort_if_stopped()
                 turn_vibration_on(cps)
                 abort_if_stopped()
@@ -563,10 +563,10 @@ def door1frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-30,80,0,0,-180]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
         extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+30,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+30,p4[1]-30,80,0,0,90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -577,7 +577,7 @@ def door1frametool2side(force,cps):
         print("bottompoint2:", bottompoint2)
         prebottompoint2=[p1[0],p1[1]-12,5,0,0,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,5,0,0,90]
+        bottompoint12=[p4[0],p4[1]-12,5,0,0,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -636,9 +636,9 @@ def door1frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
@@ -1108,10 +1108,10 @@ def door2frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+10,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+10,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+10,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -1181,9 +1181,9 @@ def door2frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
@@ -1650,10 +1650,10 @@ def door3frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+10,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+10,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+10,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -1723,9 +1723,9 @@ def door3frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
@@ -2192,10 +2192,10 @@ def door4frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-20,80,0,0,-180]
-        extraleft1=[p4[0]+10,p4[1]-20,80,0,0,-90]
-        extraleft2=[p4[0]+10,p4[1]-20,80,0,0,0]
-        extraleft=[p4[0]+10,p4[1]-20,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -2265,9 +2265,9 @@ def door4frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)

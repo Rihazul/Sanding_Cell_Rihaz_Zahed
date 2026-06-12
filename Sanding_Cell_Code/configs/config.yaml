@@ -219,6 +219,7 @@ UI:
   outedgeSandCount: 0 #outsideEdge
   sideSandCount: 0 #sides
   robotSpeed: 0.7
+  scanEntrySpeed: 0.30 # Slow Door 1 homing-to-X-start transition.
   scanSpeed: 0.13 # Incresed speed from 0.15 to 0.25 by rafat
   sandSpeed: 0.6
   seventhAxisSpeed: 100

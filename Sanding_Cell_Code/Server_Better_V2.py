@@ -3636,6 +3636,9 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_robot_speed = _resolve_ui_ratio(
             config, "robotSpeed", config.get("UI", {}).get("robotSpeed")
         )
+        scan_entry_speed = _resolve_ui_ratio(
+            config, "scanEntrySpeed", min(scan_robot_speed, 0.30)
+        )
         scan_lift_z_mm = float(
             config.get("offset", {}).get("scanLiftZMm", 15.0)
         )
@@ -3664,6 +3667,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             scan_lift_z_mm,
             scan_min_group_points,
             scan_min_group_span_mm,
+        )
+        config["logger"].info(
+            "[scan] Door 1 X-entry speed ratio=%.3f; regular positioning speed ratio=%.3f",
+            scan_entry_speed,
+            scan_robot_speed,
         )
         config["logger"].info(
             "[scan-reference] table1Origin=%s x_start_offset=%.3fmm y_start_offset=%.3fmm",
@@ -3884,7 +3892,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                         tcp=config["coords"]["tcpLaserPlane1"],
                         ucs=config["coords"]["ucsTable1"],
                         config=config,
-                        speed=scan_robot_speed,
+                        speed=scan_entry_speed,
                         velocity_profile="robotspeed",
                         wait=True,
                     )

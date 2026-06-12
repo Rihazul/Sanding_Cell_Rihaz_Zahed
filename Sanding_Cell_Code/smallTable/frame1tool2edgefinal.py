@@ -84,7 +84,7 @@ def _run_tool2_edge_process(
     try:
         for point_index, point in enumerate(points):
             abort_if_stopped()
-            if force_func is not None and force_point is not None and point == force_point:
+            if force_func is not None and force_point is not None and point is force_point:
                 force_func(
                     cps=cps,
                     force=force,
@@ -93,7 +93,7 @@ def _run_tool2_edge_process(
                     config=config,
                 )
                 abort_if_stopped()
-            if vibration_point is not None and point == vibration_point:
+            if vibration_point is not None and point is vibration_point:
                 abort_if_stopped()
                 turn_vibration_on(cps)
                 abort_if_stopped()
@@ -547,15 +547,15 @@ def door1frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]-40+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10-40,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]-40+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10-40,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]-40+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -581,21 +581,21 @@ def door1frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-30,80,0,0,-180]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
         extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+30,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+30,p4[1]-30,80,0,0,90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-2+45,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10+45,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-2+45,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10+45,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-2+45,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -654,9 +654,9 @@ def door1frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
@@ -1090,15 +1090,15 @@ def door2frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]-40+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10-40,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]-40+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10-40,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]-40+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -1124,21 +1124,21 @@ def door2frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-30,80,0,0,-180]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
         extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+30,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+30,p4[1]-30,80,0,0,90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-2+45,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10+45,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-2+45,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10+45,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-2+45,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -1197,9 +1197,9 @@ def door2frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
@@ -1633,15 +1633,15 @@ def door3frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]-40+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10-40,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]-40+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10-40,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]-40+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -1667,21 +1667,21 @@ def door3frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-30,80,0,0,-180]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
         extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+30,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+30,p4[1]-30,80,0,0,90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-2+45,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10+45,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-2+45,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10+45,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-2+45,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -1740,9 +1740,9 @@ def door3frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
@@ -2176,15 +2176,15 @@ def door4frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]-40+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10-40,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]-40+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10-40,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]-40+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -2210,21 +2210,21 @@ def door4frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+10,p4[1]-30,80,0,0,-180]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
         extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+30,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+30,p4[1]-30,80,0,0,90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-2+45,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-10+45,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-2+45,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-10+45,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-2+45,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -2283,9 +2283,9 @@ def door4frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=bottompoint1,
+                force_point=bottompoint12,
                 force_func=putForceYplus1,
-                vibration_point=bottompoint1,
+                vibration_point=bottompoint2,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True,require_seventh_ok=True)
