@@ -831,7 +831,7 @@ def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
+def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1], zero_sensor=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -844,7 +844,8 @@ def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     # waitForBlending(cps, config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
     # msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Turned on Force Control, Searching for Surface To Touch With {force}N")
-    nRet = cps.HRIF_SetForceZero(0, 0)
+    if zero_sensor and not zero_force_sensor(cps, config):
+        return
 
     # Set tool coordinate system mode for force control
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
@@ -938,7 +939,7 @@ def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     # input("Proceed with force?")
 
 
-def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
+def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1], zero_sensor=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -950,9 +951,7 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"Failed to set force zero: {nRet}")
+    if zero_sensor and not zero_force_sensor(cps, config):
         return
 
     # Set tool coordinate system mode for force control
@@ -1143,26 +1142,12 @@ def _wait_for_force_contact_samples(
         time.sleep(0.005)
 
 
-def _enable_force_moving_average_filter(cps, config, force_length=20):
-    """Filter vibration noise before zeroing and enabling force control."""
-    nret = cps.HRIF_SetFTMovingAvgFilterParams(
-        0,
-        0,
-        1,
-        0,
-        max(1, int(force_length)),
-        1,
-    )
-    config["logger"].info(
-        "[forceControl] force moving-average filter result: %s (length=%s)",
-        nret,
-        max(1, int(force_length)),
-    )
-    if nret not in (0, None):
-        config["logger"].warning(
-            "[forceControl] Could not enable force moving-average filter: %s",
-            nret,
-        )
+def zero_force_sensor(cps, config):
+    """Zero the force sensor while the tool is stationary and vibration is off."""
+    nret = cps.HRIF_SetForceZero(0, 0)
+    config["logger"].info(f"[forceControl] force zero result: {nret}")
+    if nret != 0:
+        config["logger"].error(f"Failed to set force zero: {nret}")
         return False
     return True
 
@@ -1179,6 +1164,7 @@ def putForceZminus(
     blending_timeout_s=7.0,
     force_reach_ratio=0.5,
     max_seek_seconds=10.0,
+    zero_sensor=True,
 ):
     # Initialize parameters
     boxID = 0  # Control box ID
@@ -1192,10 +1178,7 @@ def putForceZminus(
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
-    _enable_force_moving_average_filter(cps, config)
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"Failed to set force zero: {nRet}")
+    if zero_sensor and not zero_force_sensor(cps, config):
         return False
 
     # Set tool coordinate system mode for force control
@@ -1653,7 +1636,7 @@ def putForceYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     # input("Proceed with force?")
 
 
-def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
+def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0], zero_sensor=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1665,10 +1648,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
-    _enable_force_moving_average_filter(cps, config)
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"Failed to set force zero: {nRet}")
+    if zero_sensor and not zero_force_sensor(cps, config):
         return
 
     # Set tool coordinate system mode for force control
@@ -1771,7 +1751,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
+def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0], zero_sensor=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1783,10 +1763,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
-    _enable_force_moving_average_filter(cps, config)
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"Failed to set force zero: {nRet}")
+    if zero_sensor and not zero_force_sensor(cps, config):
         return
 
     # Set tool coordinate system mode for force control
@@ -1890,7 +1867,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
+def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0], zero_sensor=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -1902,10 +1879,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
-    _enable_force_moving_average_filter(cps, config)
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"Failed to set force zero: {nRet}")
+    if zero_sensor and not zero_force_sensor(cps, config):
         return
 
     # Set tool coordinate system mode for force control
@@ -2017,7 +1991,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
-def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
+def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0], zero_sensor=True):
     # Initialize parameters
     boxID = 0  # Control box ID
     rbtID = 0  # Robot ID
@@ -2029,10 +2003,7 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
-    _enable_force_moving_average_filter(cps, config)
-    nRet = cps.HRIF_SetForceZero(0, 0)
-    if nRet != 0:
-        config["logger"].error(f"Failed to set force zero: {nRet}")
+    if zero_sensor and not zero_force_sensor(cps, config):
         return
 
     # Set tool coordinate system mode for force control

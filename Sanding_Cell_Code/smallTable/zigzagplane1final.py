@@ -25,6 +25,7 @@ from Server_Better_V2 import (
     releaseForce,
     putForceZplus,
     putForceZminus,
+    zero_force_sensor,
 )
 
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
@@ -376,15 +377,21 @@ def finalize_spiral_path(
 
     try:
         if force is not None and config is not None:
+            if not zero_force_sensor(cps, config):
+                raise RuntimeError("[Zigzag] Failed to zero force sensor before vibration.")
             turn_vibration_on(cps)
             vibration_on = True
-            putForceZminus(
+            force_ok = putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 config=config,
+                zero_sensor=False,
             )
+            if not force_ok:
+                turn_vibration_off(cps)
+                raise RuntimeError("[Zigzag] Failed to establish force contact before path motion.")
             force_applied = True
             time.sleep(force_settle_s)
     
@@ -929,8 +936,10 @@ def _run_small_door_zigzag(
                 velocity_profile="sandingspeed",
                 wait=True,
             )
+            if not zero_force_sensor(cps, config):
+                raise RuntimeError("[Zigzag] Failed to zero force sensor before vibration.")
             turn_vibration_on(cps)
-            putForceZminus(
+            force_ok = putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool4plane1"],
@@ -938,7 +947,11 @@ def _run_small_door_zigzag(
                 config=config,
                 search_linear_velocity=force_seek_linear,
                 blending_timeout_s=force_blending_timeout,
+                zero_sensor=False,
             )
+            if not force_ok:
+                turn_vibration_off(cps)
+                raise RuntimeError("[Zigzag] Failed to establish force contact before path motion.")
             for index, point_A in enumerate(zigzag_points):
                 if index + 1 >= len(zigzag_points):
                     break

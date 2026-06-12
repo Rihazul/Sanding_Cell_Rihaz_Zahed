@@ -6,6 +6,7 @@ from Server_Better_V2 import (
     turn_vibration_off,
     turn_vibration_on,
     waitForBlending,
+    zero_force_sensor,
 )
 from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
@@ -235,8 +236,10 @@ def execute_edge_coverage(
     force_blending_timeout = 0.4 if split else 7.0
     force_seek_timeout = _resolve_force_seek_timeout(edge_speed, fallback=10.0)
 
-    turn_vibration_on(cps)
     try:
+        if not zero_force_sensor(cps, config):
+            raise RuntimeError("[Edge Coverage] Failed to zero force sensor before vibration.")
+        turn_vibration_on(cps)
         force_ok = putForceZminus(
             cps=cps,
             force=force,
@@ -246,6 +249,7 @@ def execute_edge_coverage(
             search_linear_velocity=force_seek_linear,
             blending_timeout_s=force_blending_timeout,
             max_seek_seconds=force_seek_timeout,
+            zero_sensor=False,
         )
 
         if not force_ok:

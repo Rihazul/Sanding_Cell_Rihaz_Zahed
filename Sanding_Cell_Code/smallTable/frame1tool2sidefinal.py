@@ -8,7 +8,7 @@ import yaml
 import math
 import time
 import json
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested,zero_force_sensor
 from smallTable.scancord import (
     read_scan_results,
     get_door_position,
@@ -69,6 +69,8 @@ def _run_tool2_side_process(
             abort_if_stopped()
             if force_func is not None and force_point is not None and point == force_point:
                 if not vibration_on:
+                    if not zero_force_sensor(cps, config):
+                        raise RuntimeError("[tool2-side] Failed to zero force sensor before vibration.")
                     turn_vibration_on(cps)
                     vibration_on = True
                     abort_if_stopped()
@@ -78,10 +80,13 @@ def _run_tool2_side_process(
                     tcp=tcp,
                     ucs=ucs,
                     config=config,
+                    zero_sensor=False,
                 )
                 abort_if_stopped()
             if vibration_point is not None and point == vibration_point and not vibration_on:
                 abort_if_stopped()
+                if force_func is not None and not zero_force_sensor(cps, config):
+                    raise RuntimeError("[tool2-side] Failed to zero force sensor before vibration.")
                 turn_vibration_on(cps)
                 vibration_on = True
                 abort_if_stopped()

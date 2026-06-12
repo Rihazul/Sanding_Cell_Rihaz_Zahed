@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Components.RobotState import RobotState
 import yaml
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,zero_force_sensor
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -287,6 +287,9 @@ def finalize_spiral_path(
 
     vibration_on = False
     if vibration:
+        if force is not None and force_func is not None and config is not None:
+            if not zero_force_sensor(cps, config):
+                raise RuntimeError("[Frame Plane] Failed to zero force sensor before vibration.")
         turn_vibration_on(cps)
         vibration_on = True
 
@@ -303,6 +306,7 @@ def finalize_spiral_path(
                 tcp=tcp_name,
                 ucs=ucs_name,
                 config=config,
+                zero_sensor=not vibration_on,
             )
             print(f"Force control ret code: {ret}")
             force_active = True
@@ -526,8 +530,20 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         wait=True,
     )
 
+    if not zero_force_sensor(cps, config):
+        raise RuntimeError("[Frame Plane] Failed to zero force sensor before vibration.")
     turn_vibration_on(cps)
-    putForceZminus(cps=cps, force=force, tcp=tcp, ucs=ucs, config=config)
+    force_ok = putForceZminus(
+        cps=cps,
+        force=force,
+        tcp=tcp,
+        ucs=ucs,
+        config=config,
+        zero_sensor=False,
+    )
+    if not force_ok:
+        turn_vibration_off(cps)
+        raise RuntimeError("[Frame Plane] Failed to establish force contact before path motion.")
 
     for end_pose in sanding_points[1:]:
         communicate(
