@@ -1143,6 +1143,30 @@ def _wait_for_force_contact_samples(
         time.sleep(0.005)
 
 
+def _enable_force_moving_average_filter(cps, config, force_length=20):
+    """Filter vibration noise before zeroing and enabling force control."""
+    nret = cps.HRIF_SetFTMovingAvgFilterParams(
+        0,
+        0,
+        1,
+        0,
+        max(1, int(force_length)),
+        1,
+    )
+    config["logger"].info(
+        "[forceControl] force moving-average filter result: %s (length=%s)",
+        nret,
+        max(1, int(force_length)),
+    )
+    if nret not in (0, None):
+        config["logger"].warning(
+            "[forceControl] Could not enable force moving-average filter: %s",
+            nret,
+        )
+        return False
+    return True
+
+
 def putForceZminus(
     cps,
     force,
@@ -1168,6 +1192,7 @@ def putForceZminus(
     json_config = load_json_config()
     setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
 
+    _enable_force_moving_average_filter(cps, config)
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
@@ -1640,6 +1665,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
+    _enable_force_moving_average_filter(cps, config)
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
@@ -1757,6 +1783,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
+    _enable_force_moving_average_filter(cps, config)
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
@@ -1875,6 +1902,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
+    _enable_force_moving_average_filter(cps, config)
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
@@ -2001,6 +2029,7 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
+    _enable_force_moving_average_filter(cps, config)
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
