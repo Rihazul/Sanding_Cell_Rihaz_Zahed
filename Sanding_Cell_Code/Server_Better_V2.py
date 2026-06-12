@@ -1075,6 +1075,62 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     config["logger"].info(f"[forceControl] Turned on vibration")
 
 
+def _wait_for_force_contact_samples(
+    cps,
+    force,
+    goal,
+    config,
+    *,
+    reach_ratio=0.9,
+    consecutive_samples=3,
+    minimum_seek_seconds=0.2,
+    timeout_seconds=None,
+):
+    """Reject vibration spikes without releasing force control after contact."""
+    required_force = abs(float(force)) * max(0.1, min(1.0, float(reach_ratio)))
+    started_at = time.time()
+    consecutive_hits = 0
+
+    while True:
+        if stop_requested():
+            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
+            return False
+        if timeout_seconds is not None and (time.time() - started_at) >= float(timeout_seconds):
+            config["logger"].error(
+                "[forceControl] Timeout during force seek after %.2fs (required=%.3fN).",
+                float(timeout_seconds),
+                required_force,
+            )
+            return False
+
+        result = []
+        nret = cps.HRIF_ReadFTCabData(0, 0, result)
+        if nret != 0 or len(result) < 3:
+            consecutive_hits = 0
+            time.sleep(0.005)
+            continue
+
+        reached = any(
+            enabled and abs(float(result[axis])) >= required_force
+            for axis, enabled in enumerate(goal)
+        )
+        if (time.time() - started_at) < float(minimum_seek_seconds):
+            consecutive_hits = 0
+        elif reached:
+            consecutive_hits += 1
+            if consecutive_hits >= max(1, int(consecutive_samples)):
+                config["logger"].info(
+                    "[forceControl] Contact confirmed with %d consecutive samples at >= %.3fN.",
+                    consecutive_hits,
+                    required_force,
+                )
+                return True
+        else:
+            consecutive_hits = 0
+
+        time.sleep(0.005)
+
+
 def putForceZminus(
     cps,
     force,
@@ -1198,37 +1254,16 @@ def putForceZminus(
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
-    target_force = abs(float(force))
-    reach_ratio = max(0.1, min(1.0, float(force_reach_ratio)))
-    required_force = target_force * reach_ratio
-    seek_start_t = time.time()
-
-    while True:
-        if stop_requested():
-            cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return False
-        if (time.time() - seek_start_t) >= float(max_seek_seconds):
-            cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            config["logger"].error(
-                "[forceControl] Timeout during force seek after %.2fs (required=%.3fN).",
-                float(max_seek_seconds),
-                required_force,
-            )
-            return False
-
-        result = []
-        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        if nRet != 0 or len(result) < 3:
-            time.sleep(0.001)
-            continue
-
-        if any(
-            enabled and abs(float(result[axis])) >= required_force
-            for axis, enabled in enumerate(goal)
-        ):
-            break
-        time.sleep(0.001)
+    if not _wait_for_force_contact_samples(
+        cps,
+        force,
+        goal,
+        config,
+        reach_ratio=force_reach_ratio,
+        timeout_seconds=max_seek_seconds,
+    ):
+        cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+        return False
 
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
@@ -1685,19 +1720,9 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
-    while True:
-        if stop_requested():
-            cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return
-        result = []
-        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        if nRet == 0 and any(
-            enabled and abs(float(result[axis])) > abs(force)
-            for axis, enabled in enumerate(goal)
-        ):
-            break
-        time.sleep(0.001)
+    if not _wait_for_force_contact_samples(cps, force, goal, config):
+        cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+        return
 
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
@@ -1813,19 +1838,9 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
-    while True:
-        if stop_requested():
-            cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return
-        result = []
-        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        if nRet == 0 and any(
-            enabled and abs(float(result[axis])) > abs(force)
-            for axis, enabled in enumerate(goal)
-        ):
-            break
-        time.sleep(0.001)
+    if not _wait_for_force_contact_samples(cps, force, goal, config):
+        cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+        return
 
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
@@ -1949,19 +1964,9 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
-    while True:
-        if stop_requested():
-            cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return
-        result = []
-        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        if nRet == 0 and any(
-            enabled and abs(float(result[axis])) > abs(force)
-            for axis, enabled in enumerate(goal)
-        ):
-            break
-        time.sleep(0.001)
+    if not _wait_for_force_contact_samples(cps, force, goal, config):
+        cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+        return
 
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
@@ -2076,19 +2081,9 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
 
-    while True:
-        if stop_requested():
-            cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return
-        result = []
-        nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        if nRet == 0 and any(
-            enabled and abs(float(result[axis])) > abs(force)
-            for axis, enabled in enumerate(goal)
-        ):
-            break
-        time.sleep(0.001)
+    if not _wait_for_force_contact_samples(cps, force, goal, config):
+        cps.HRIF_SetForceControlState(boxID, rbtID, 0)
+        return
 
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
