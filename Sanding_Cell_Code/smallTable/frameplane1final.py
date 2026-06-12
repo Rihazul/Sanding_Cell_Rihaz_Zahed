@@ -289,7 +289,7 @@ def finalize_spiral_path(
     if vibration:
         turn_vibration_on(cps)
         vibration_on = True
-        time.sleep(0.5)
+        time.sleep(0.2)
 
     force_active = False
     if force is not None and force_func is not None:
@@ -528,7 +528,7 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     )
 
     turn_vibration_on(cps)
-    time.sleep(0.5)
+    time.sleep(0.2)
     putForceZminus(cps=cps, force=force, tcp=tcp, ucs=ucs, config=config)
 
     for end_pose in sanding_points[1:]:

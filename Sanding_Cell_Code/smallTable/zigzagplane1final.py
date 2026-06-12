@@ -378,7 +378,7 @@ def finalize_spiral_path(
         if force is not None and config is not None:
             turn_vibration_on(cps)
             vibration_on = True
-            time.sleep(0.5)
+            time.sleep(0.2)
             putForceZminus(
                 cps=cps,
                 force=force,
@@ -931,7 +931,7 @@ def _run_small_door_zigzag(
                 wait=True,
             )
             turn_vibration_on(cps)
-            time.sleep(0.5)
+            time.sleep(0.2)
             putForceZminus(
                 cps=cps,
                 force=force,

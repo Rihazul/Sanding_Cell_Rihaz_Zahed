@@ -236,7 +236,7 @@ def execute_edge_coverage(
     force_seek_timeout = _resolve_force_seek_timeout(edge_speed, fallback=10.0)
 
     turn_vibration_on(cps)
-    time.sleep(0.5)
+    time.sleep(0.2)
     try:
         force_ok = putForceZminus(
             cps=cps,
