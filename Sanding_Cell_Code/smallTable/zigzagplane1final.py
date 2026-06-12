@@ -376,8 +376,7 @@ def finalize_spiral_path(
 
     try:
         if force is not None and config is not None:
-            turn_vibration_on(cps)
-            vibration_on = True
+            # Apply force *after* path is ready
             putForceZminus(
                 cps=cps,
                 force=force,
@@ -394,7 +393,7 @@ def finalize_spiral_path(
             return False
         move_start = time.time()
     
-        # Wait briefly for motion to start.
+        # Wait briefly for motion to start, then turn vibration on.
         motion_started = False
         motion_wait_start = time.time()
         while time.time() - motion_wait_start < 1.0:
@@ -404,6 +403,9 @@ def finalize_spiral_path(
                     break
             time.sleep(0.02)
         
+        turn_vibration_on(cps)
+        vibration_on = True
+
         # Wait for completion (track path state + robot flags)
         ok = True
         start = time.time()
@@ -929,7 +931,6 @@ def _run_small_door_zigzag(
                 velocity_profile="sandingspeed",
                 wait=True,
             )
-            turn_vibration_on(cps)
             putForceZminus(
                 cps=cps,
                 force=force,
@@ -939,6 +940,8 @@ def _run_small_door_zigzag(
                 search_linear_velocity=force_seek_linear,
                 blending_timeout_s=force_blending_timeout,
             )
+            turn_vibration_on(cps)
+
             for index, point_A in enumerate(zigzag_points):
                 if index + 1 >= len(zigzag_points):
                     break
@@ -1076,14 +1079,3 @@ if __name__ == "__main__":
     smalldoor2zizag(force=5, z=-6.5)
     smalldoor3zizag(force=5, z=-6.5)
     # smalldoor4zizag(force=5,z=-6.5)# Uncommented to call smalldoor4zizag
-
-
-
-
-
-
-
-
-
-
-
