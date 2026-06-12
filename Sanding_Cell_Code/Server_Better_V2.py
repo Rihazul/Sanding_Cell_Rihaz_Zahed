@@ -1090,6 +1090,7 @@ def _wait_for_force_contact_samples(
     started_at = time.time()
     consecutive_hits = 0
     last_log_at = 0.0
+    last_force_state = []
 
     while True:
         if stop_requested():
@@ -1110,14 +1111,25 @@ def _wait_for_force_contact_samples(
             time.sleep(0.005)
             continue
 
+        force_state = []
+        force_state_ret = cps.HRIF_ReadForceControlState(0, 0, force_state)
+        last_force_state = force_state
+        controller_contact_complete = (
+            force_state_ret == 0
+            and force_state
+            and str(force_state[0]) == "2"
+        )
+
         now = time.time()
         if (now - last_log_at) >= 0.25:
             config["logger"].info(
-                "[forceControl] Seeking contact: force=%s required=%.3fN hits=%d/%d",
+                "[forceControl] Seeking contact: force=%s required=%.3fN "
+                "hits=%d/%d state=%s",
                 result[:3],
                 required_force,
                 consecutive_hits,
                 max(1, int(consecutive_samples)),
+                force_state,
             )
             last_log_at = now
 
@@ -1127,11 +1139,13 @@ def _wait_for_force_contact_samples(
         )
         if (time.time() - started_at) < float(minimum_seek_seconds):
             consecutive_hits = 0
-        elif reached:
+        elif reached and controller_contact_complete:
             consecutive_hits += 1
             if consecutive_hits >= max(1, int(consecutive_samples)):
                 config["logger"].info(
-                    "[forceControl] Contact confirmed with %d consecutive samples at >= %.3fN.",
+                    "[forceControl] Contact confirmed with controller state=%s and "
+                    "%d consecutive samples at >= %.3fN.",
+                    last_force_state,
                     consecutive_hits,
                     required_force,
                 )

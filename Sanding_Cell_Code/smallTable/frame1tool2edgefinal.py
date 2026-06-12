@@ -81,6 +81,7 @@ def _run_tool2_edge_process(
 
     robot_speed = float(load_json_config().get("robotSpeed", 0.9))
     vibration_on = False
+    force_hold_active = False
     abort_if_stopped()
     try:
         for point_index, point in enumerate(points):
@@ -101,6 +102,22 @@ def _run_tool2_edge_process(
                     zero_sensor=False,
                 )
                 abort_if_stopped()
+                force_state = []
+                force_state_ret = cps.HRIF_ReadForceControlState(0, 0, force_state)
+                if (
+                    force_state_ret != 0
+                    or not force_state
+                    or str(force_state[0]) != "2"
+                ):
+                    raise RuntimeError(
+                        f"[tool2-edge] Force control is not active after contact "
+                        f"(ret={force_state_ret}, state={force_state})."
+                    )
+                config["logger"].info(
+                    "[tool2-edge] Force contact established; skipping MoveL back to force point."
+                )
+                force_hold_active = True
+                continue
             if vibration_point is not None and point == vibration_point and not vibration_on:
                 abort_if_stopped()
                 if force_func is not None and not zero_force_sensor(cps, config):
@@ -120,6 +137,18 @@ def _run_tool2_edge_process(
                 wait=True,
             )
             abort_if_stopped()
+            if force_hold_active:
+                force_state = []
+                force_state_ret = cps.HRIF_ReadForceControlState(0, 0, force_state)
+                if (
+                    force_state_ret != 0
+                    or not force_state
+                    or str(force_state[0]) != "2"
+                ):
+                    raise RuntimeError(
+                        f"[tool2-edge] Force hold was lost during sanding motion "
+                        f"(ret={force_state_ret}, state={force_state})."
+                    )
 
         waitForBlending(cps=cps, config=config)
         abort_if_stopped()
