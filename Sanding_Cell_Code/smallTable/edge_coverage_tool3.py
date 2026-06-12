@@ -249,27 +249,6 @@ def execute_edge_coverage(
         )
 
         if not force_ok:
-            # One retry with a longer timeout before failing the entire cycle.
-            retry_timeout = min(60.0, force_seek_timeout * 1.5)
-            retry_seek_linear = max(force_seek_linear, 10.0)
-            if isinstance(config, dict) and config.get("logger"):
-                config["logger"].warning(
-                    "[Edge Coverage] Force seek retry (timeout=%.1fs, linear=%.1f).",
-                    retry_timeout,
-                    retry_seek_linear,
-                )
-            force_ok = putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"][tcp_key],
-                ucs=config["coords"][ucs_key],
-                config=config,
-                search_linear_velocity=retry_seek_linear,
-                blending_timeout_s=force_blending_timeout,
-                max_seek_seconds=retry_timeout,
-            )
-
-        if not force_ok:
             raise RuntimeError("[Edge Coverage] Failed to establish force contact before edge path.")
 
     except Exception:

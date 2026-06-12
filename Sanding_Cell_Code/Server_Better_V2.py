@@ -1081,15 +1081,16 @@ def _wait_for_force_contact_samples(
     goal,
     config,
     *,
-    reach_ratio=0.9,
-    consecutive_samples=3,
-    minimum_seek_seconds=0.2,
+    reach_ratio=0.5,
+    consecutive_samples=5,
+    minimum_seek_seconds=0.0,
     timeout_seconds=None,
 ):
     """Reject vibration spikes without releasing force control after contact."""
     required_force = abs(float(force)) * max(0.1, min(1.0, float(reach_ratio)))
     started_at = time.time()
     consecutive_hits = 0
+    last_log_at = 0.0
 
     while True:
         if stop_requested():
@@ -1109,6 +1110,17 @@ def _wait_for_force_contact_samples(
             consecutive_hits = 0
             time.sleep(0.005)
             continue
+
+        now = time.time()
+        if (now - last_log_at) >= 0.25:
+            config["logger"].info(
+                "[forceControl] Seeking contact: force=%s required=%.3fN hits=%d/%d",
+                result[:3],
+                required_force,
+                consecutive_hits,
+                max(1, int(consecutive_samples)),
+            )
+            last_log_at = now
 
         reached = any(
             enabled and abs(float(result[axis])) >= required_force
@@ -1141,7 +1153,7 @@ def putForceZminus(
     search_linear_velocity=5.0,
     search_angular_velocity=1.0,
     blending_timeout_s=7.0,
-    force_reach_ratio=0.9,
+    force_reach_ratio=0.5,
     max_seek_seconds=10.0,
 ):
     # Initialize parameters
@@ -1251,7 +1263,11 @@ def putForceZminus(
         return False
 
     # Enable force control
-    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    nret = cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    config["logger"].info(f"[forceControl] enable state result: {nret}")
+    if nret not in (0, None):
+        config["logger"].error(f"Failed to enable force control: {nret}")
+        return False
     time.sleep(0.0001)
 
     if not _wait_for_force_contact_samples(
