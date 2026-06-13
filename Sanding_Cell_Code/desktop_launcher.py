@@ -1,22 +1,18 @@
 import os
-import signal
 import subprocess
 import sys
 import time
 import urllib.request
 from contextlib import suppress
 
-import webview
-
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACKEND_DIR = os.path.join(ROOT, "Sanding_Cell_Code")
 FRONTEND_DIR = os.path.join(ROOT, "Create_Login_Dashboard_Analytics")
 UI_URL = "http://localhost:3000"
-BACKEND_URL = "http://127.0.0.1:5100"
 
 
-def _is_ready(url: str, timeout_s: float = 2.0) -> bool:
+def _is_ready(url: str, timeout_s: float = 0.5) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=timeout_s) as resp:
             return 200 <= int(resp.status) < 500
@@ -29,7 +25,7 @@ def _wait_ready(url: str, total_timeout_s: float) -> bool:
     while (time.time() - start) < total_timeout_s:
         if _is_ready(url):
             return True
-        time.sleep(0.8)
+        time.sleep(0.2)
     return False
 
 
@@ -108,8 +104,12 @@ def main() -> int:
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
 
-        # Allow startup in background.
-        _wait_ready(BACKEND_URL, total_timeout_s=30.0)
+        # Importing PyWebView can take several seconds. Do it only after both
+        # servers have started so their initialization runs in parallel.
+        import webview
+
+        # The UI can load while Flask and the robot connection continue
+        # initializing. Hardware-status polling will update when Flask is ready.
         if not _wait_ready(UI_URL, total_timeout_s=60.0):
             print("[launcher] Frontend did not become ready in time.")
             return 2
