@@ -107,6 +107,15 @@ export function CompactTableConfig({
   const completionTimerRef = React.useRef<number | null>(null);
   const isModelF = model === 'modelF';
   const isModelFAllowedRow = (label: string) => label === 'Pocket ZigZag';
+  const isTableAOperationAllowed = (selectedModel: string, operationLabel: string) => {
+    if (selectedModel === 'modelA' || selectedModel === 'modelB') {
+      return operationLabel !== '3D';
+    }
+    if (selectedModel === 'modelC' || selectedModel === 'modelE') {
+      return operationLabel !== 'Edge Outside';
+    }
+    return true;
+  };
   const rowDisplayLabel = (label: string) =>
     isModelF && label === 'Pocket ZigZag' ? 'Flat ZigZag' : label;
 
@@ -551,7 +560,15 @@ export function CompactTableConfig({
       
       try {
         const selectedDoorsByRow = Object.fromEntries(
-          Object.entries(rowDoorSelections).map(([label, doors]) => [label, [...new Set(doors)].sort()])
+          Object.entries(rowDoorSelections).map(([label, doors]) => [
+            label,
+            [...new Set(doors)]
+              .filter(doorNumber => {
+                const selectedModel = doorConfigs.find(dc => dc.doorNumber === doorNumber)?.model || model;
+                return !selectedModel || isTableAOperationAllowed(selectedModel, label);
+              })
+              .sort(),
+          ])
         ) as Record<string, number[]>;
 
         const normalizedDoorConfigs = doorConfigs.map(dc => ({
@@ -605,6 +622,16 @@ export function CompactTableConfig({
           ...dc,
           rows: dc.rows.map(r => {
             if (isModelF && !isModelFAllowedRow(r.label)) {
+              return {
+                ...r,
+                force: 0,
+                cycle: 0,
+                verticalSpiral: false,
+                horizontalSpiral: false,
+                edgeCoverage: false,
+              };
+            }
+            if (!isTableAOperationAllowed(dc.model || model, r.label)) {
               return {
                 ...r,
                 force: 0,
@@ -812,7 +839,18 @@ export function CompactTableConfig({
   const buildDisplayRows = (sourceRows: RowConfig[]) =>
     sourceRows
       .map((row, idx) => ({ row, idx }))
-      .filter(({ row }) => !isModelF || isModelFAllowedRow(row.label));
+      .filter(({ row }) => {
+        if (isModelF && !isModelFAllowedRow(row.label)) return false;
+        if (tableName !== 'A') return true;
+
+        const configuredModels = (doorConfigs || [])
+          .map(door => door.model)
+          .filter(selectedModel => !!selectedModel);
+        const candidateModels = configuredModels.length ? configuredModels : [model];
+        return candidateModels.some(selectedModel =>
+          !selectedModel || isTableAOperationAllowed(selectedModel, row.label)
+        );
+      });
   const currentDisplayRows = buildDisplayRows(currentRows);
   const tableBDisplayRows = buildDisplayRows(rows);
   const scanConfigMismatch =
@@ -860,6 +898,10 @@ export function CompactTableConfig({
 
   const toggleRowDoor = (label: string, doorNumber: number) => {
     if (detectedDoorNumbers !== null && !detectedDoorNumbers.includes(doorNumber)) {
+      return;
+    }
+    const selectedDoorModel = doorConfigs?.find(d => d.doorNumber === doorNumber)?.model || model;
+    if (tableName === 'A' && selectedDoorModel && !isTableAOperationAllowed(selectedDoorModel, label)) {
       return;
     }
     const rowIndex = rows.findIndex(r => r.label === label);
@@ -1097,7 +1139,16 @@ export function CompactTableConfig({
                               const doorConfig = doorConfigs.find(d => d.doorNumber === doorNum);
                               const hasModel = doorConfig?.model && doorConfig.model !== '';
                               const isSelected = (rowDoorSelections[row.label] || []).includes(doorNum);
-                              const isLocked = detectedDoorNumbers !== null && !detectedDoorNumbers.includes(doorNum);
+                              const isUndetected = detectedDoorNumbers !== null && !detectedDoorNumbers.includes(doorNum);
+                              const isModelIncompatible =
+                                !!doorConfig?.model &&
+                                !isTableAOperationAllowed(doorConfig.model, row.label);
+                              const isLocked = isUndetected || isModelIncompatible;
+                              const lockReason = isUndetected
+                                ? `Door ${doorNum} was not detected in the latest scan`
+                                : isModelIncompatible
+                                ? `${formatModelName(doorConfig?.model || '')} does not support ${row.label}`
+                                : undefined;
                               return (
                                 <button
                                   key={doorNum}
@@ -1107,7 +1158,7 @@ export function CompactTableConfig({
                                     toggleRowDoor(row.label, doorNum);
                                   }}
                                   disabled={isOperating || isLocked}
-                                  title={isLocked ? `Door ${doorNum} was not detected in the latest scan` : undefined}
+                                  title={lockReason}
                                   className={`min-w-[78px] px-3 py-1 text-xs font-semibold text-center transition-colors relative disabled:cursor-not-allowed disabled:opacity-100 rounded-md border ${
                                     isLocked
                                       ? 'text-gray-400 bg-gray-200 border-gray-300 cursor-not-allowed'
