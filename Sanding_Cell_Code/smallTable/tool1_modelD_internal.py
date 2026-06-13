@@ -20,6 +20,7 @@ from smallTable.scancord import get_door_position, get_inner_corner_point, get_y
 
 INTERNAL_OFFSET_MM = 38.0
 INTERNAL_FORCE_N = 5
+FORCE_APPROACH_Z_MM = 20.0
 
 
 def load_config():
@@ -84,7 +85,7 @@ def _build_internal_points(door_number, z):
     p1 = [left_x, top_y, z, 0, 0, 0]
     p2 = [right_x, top_y, z, 0, 0, 0]
     p3 = [right_x, bottom_y, z, 0, 0, 0]
-    pre_start = [left_x, bottom_y, 20, 0, 0, 0]
+    pre_start = [left_x, bottom_y, FORCE_APPROACH_Z_MM, 0, 0, 0]
 
     return pre_start, [p0, p1, p2, p3, p0]
 
@@ -94,7 +95,7 @@ def _build_split_internal_passes(door_number, z):
     middle_x = (left_x + right_x) / 2.0
     middle_y = (bottom_y + top_y) / 2.0
 
-    bottom_pre = [left_x, middle_y, 20, 0, 0, 0]
+    bottom_pre = [left_x, middle_y, FORCE_APPROACH_Z_MM, 0, 0, 0]
     bottom_path = [
         [left_x, middle_y, z, 0, 0, 0],
         [left_x, bottom_y, z, 0, 0, 0],
@@ -106,7 +107,7 @@ def _build_split_internal_passes(door_number, z):
     # coordinates so the tool remains on the same scanned station positions.
     top_right_x = right_x - middle_x
     top_left_x = left_x - middle_x
-    top_pre = [top_right_x, middle_y, 20, 0, 0, 0]
+    top_pre = [top_right_x, middle_y, FORCE_APPROACH_Z_MM, 0, 0, 0]
     top_path = [
         [top_right_x, middle_y, z, 0, 0, 0],
         [top_right_x, top_y, z, 0, 0, 0],
