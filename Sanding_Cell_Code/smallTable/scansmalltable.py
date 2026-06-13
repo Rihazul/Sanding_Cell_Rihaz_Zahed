@@ -154,7 +154,35 @@ def scanTableA(cps=None, config=None):
     if 'logger' not in config:
         config['logger'] = setup_logger(config['settings']['debug'])
 
-    
+    published_scan_path = None
+
+    def publish_scan_results(scan_results):
+        nonlocal published_scan_path
+        (
+            own7thpos,
+            framePoints,
+            pocketPoints,
+            outerCornerPoints,
+            innerCornerPoints,
+            xVals,
+            yVals,
+        ) = scan_results
+        scan_data = {
+            'robo7thPos': own7thpos,
+            'expectedDoorSlots': [
+                config['table'][f'lengthx{i}']
+                for i in range(int(config['table']['count']))
+                if f'lengthx{i}' in config['table']
+            ],
+            'framePoints': framePoints,
+            'pocketPoints': pocketPoints,
+            'outerCornerPoints': outerCornerPoints,
+            'innerCornerPoints': innerCornerPoints,
+            'xVals': xVals,
+            'yVals': yVals,
+        }
+        published_scan_path = save_scan_results_to_json(scan_data)
+        return published_scan_path
 
     #Scan Table
     print("--- Attempting to perform table scanning via handle_client ---")
@@ -163,13 +191,17 @@ def scanTableA(cps=None, config=None):
         # 1. Internally call scan_table.
         # 2. Return the results from scan_table when startSanding is False.
         # 3. Manage its own CPS connection if needed for scanning.
-    own7thpos, framePoints, pocketPoints, outerCornerPoints, innerCornerPoints, xVals, yVals = handle_client(
-            config=config,
-            homingState=False,      # Set to True if homing is needed before scanning by handle_client
-            startSanding=False ,     # Crucial to ensure only scanning occurs and results are returned
-            scan=True,
-            cps=cps
-        )
+    config["_scan_results_ready_callback"] = publish_scan_results
+    try:
+        own7thpos, framePoints, pocketPoints, outerCornerPoints, innerCornerPoints, xVals, yVals = handle_client(
+                config=config,
+                homingState=False,      # Set to True if homing is needed before scanning by handle_client
+                startSanding=False ,     # Crucial to ensure only scanning occurs and results are returned
+                scan=True,
+                cps=cps
+            )
+    finally:
+        config.pop("_scan_results_ready_callback", None)
 
     scan_failed = not any(
         [
@@ -204,22 +236,19 @@ def scanTableA(cps=None, config=None):
     print(f"Y Vals: {yVals}")
     print("----------------------------------------")
 
-    # Save scan results to JSON file
-    scan_data = {
-        'robo7thPos': own7thpos,
-        'expectedDoorSlots': [
-            config['table'][f'lengthx{i}']
-            for i in range(int(config['table']['count']))
-            if f'lengthx{i}' in config['table']
-        ],
-        'framePoints': framePoints,
-        'pocketPoints': pocketPoints,
-        'outerCornerPoints': outerCornerPoints, 
-        'innerCornerPoints': innerCornerPoints,
-        'xVals': xVals,
-        'yVals': yVals
-    }
-    json_file_path = save_scan_results_to_json(scan_data)
+    # Early publication occurs before the final safe-point return. Retry here
+    # only if that publication failed or was unavailable.
+    json_file_path = published_scan_path or publish_scan_results(
+        (
+            own7thpos,
+            framePoints,
+            pocketPoints,
+            outerCornerPoints,
+            innerCornerPoints,
+            xVals,
+            yVals,
+        )
+    )
     print(f"Scan results saved to JSON file: {json_file_path}")
     return json_file_path
     

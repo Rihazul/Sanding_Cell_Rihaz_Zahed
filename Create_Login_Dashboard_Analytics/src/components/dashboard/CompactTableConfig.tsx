@@ -291,6 +291,8 @@ export function CompactTableConfig({
     pollMs = 250
   ) => {
     const start = Date.now();
+    let latestScanStatus: any = null;
+    let earlyResultApplied = false;
     while (Date.now() - start < timeoutMs) {
       try {
         const status = await getScanStatus();
@@ -301,8 +303,20 @@ export function CompactTableConfig({
           revision !== baselineRevision &&
           !!status?.hasScan &&
           !!status?.doorDetectionAvailable;
-        if (hasNewResult) {
-          return status;
+        if (hasNewResult && !earlyResultApplied) {
+          latestScanStatus = status;
+          earlyResultApplied = true;
+          setScanCompleted(true);
+          setLastScannedAt(status?.scannedAt || new Date().toISOString());
+          applyDetectedDoorsFromScanStatus(status);
+          addActivity(
+            `Table ${tableName}: Scan data captured; returning robot to safe point...`,
+            'success'
+          );
+          showCompletionPopup(
+            'Scan Data Captured',
+            'Detected doors updated. Returning robot to safe point...'
+          );
         }
       } catch {
         // The scan request remains authoritative if status polling briefly fails.
@@ -317,10 +331,11 @@ export function CompactTableConfig({
           throw outcome.error;
         }
         const status = await getScanStatus();
-        if (!status?.hasScan) {
+        const finalStatus = status?.hasScan ? status : latestScanStatus;
+        if (!finalStatus?.hasScan) {
           throw new Error('Scan action completed, but no scan result was found.');
         }
-        return status;
+        return finalStatus;
       }
     }
     throw new Error('Timed out waiting for the scan result to update.');
