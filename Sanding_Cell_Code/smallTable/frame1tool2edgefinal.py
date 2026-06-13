@@ -615,9 +615,9 @@ def door1frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -628,9 +628,9 @@ def door1frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -641,9 +641,9 @@ def door1frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -1158,9 +1158,9 @@ def door2frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -1171,9 +1171,9 @@ def door2frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -1184,9 +1184,9 @@ def door2frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -1701,9 +1701,9 @@ def door3frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -1714,9 +1714,9 @@ def door3frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -1727,9 +1727,9 @@ def door3frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -2244,9 +2244,9 @@ def door4frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -2257,9 +2257,9 @@ def door4frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_edge_process(
@@ -2270,9 +2270,9 @@ def door4frametool2sideedge(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_edge_process(

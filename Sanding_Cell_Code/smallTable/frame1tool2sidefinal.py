@@ -597,9 +597,9 @@ def door1frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -610,9 +610,9 @@ def door1frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -623,9 +623,9 @@ def door1frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -873,10 +873,10 @@ def door2frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -1108,10 +1108,10 @@ def door2frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -1142,9 +1142,9 @@ def door2frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1155,9 +1155,9 @@ def door2frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1168,9 +1168,9 @@ def door2frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1415,10 +1415,10 @@ def door3frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -1650,10 +1650,10 @@ def door3frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -1684,9 +1684,9 @@ def door3frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1697,9 +1697,9 @@ def door3frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1710,9 +1710,9 @@ def door3frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1957,10 +1957,10 @@ def door4frametool2side(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-40,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-40,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-40,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-40,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,5,0,0,90]
@@ -2226,9 +2226,9 @@ def door4frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=rightpoint1,
+                force_point=rightpoint12,
                 force_func=putForceXplus,
-                vibration_point=rightpoint1,
+                vibration_point=rightpoint2,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2239,9 +2239,9 @@ def door4frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=toppoint1,
+                force_point=toppoint12,
                 force_func=putForceYminus1,
-                vibration_point=toppoint1,
+                vibration_point=toppoint2,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2252,9 +2252,9 @@ def door4frametool2side(force,cps):
                 sanding_speed,
                 tcp=config["coords"]["tcptool2plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                force_point=leftpoint1,
+                force_point=leftpoint12,
                 force_func=putForceXminus,
-                vibration_point=leftpoint1,
+                vibration_point=leftpoint2,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
