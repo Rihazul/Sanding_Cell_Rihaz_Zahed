@@ -3561,7 +3561,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         xVals = []
         yVals = []
         allXMeasurements = []
-        return_to_safe_point_after_scan = False
         scan_threshold = float(
             config.get("scanThresholdDefault", config.get("scanThreshold", {}).get("T1", 1))
         )
@@ -4315,13 +4314,23 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
                 if door_number == 1 or is_final_scan_iteration:
                     config["logger"].info(
-                        "[scan-y] Door 1/final Y-scan complete; calculating and publishing results before safe return."
+                        "[scan-y] Door 1/final Y-scan complete; moving directly to safe home point."
                     )
                     msg_to_frontend(
                         api_url=config["server"]["frontEnd_messaging_url"],
-                        message="Door 1 Y scan complete. Publishing scan results before safe return...",
+                        message="Door 1 Y scan complete. Moving directly to homing safe point...",
                     )
-                    return_to_safe_point_after_scan = True
+                    communicate(
+                        cps=cps,
+                        point=config["point"]["safePoint"],
+                        tcp=config["coords"]["tcpDefault"],
+                        ucs=config["coords"]["ucsDefault"],
+                        seventh=-1,
+                        config=config,
+                        speed=scan_robot_speed,
+                        velocity_profile="robotspeed",
+                        wait=True,
+                    )
                     stop_scan_after_this_door = True
             else:
                 ymeasurements = csv_to_dict_list(scan_csv_path(f"ym{xcnt}.csv"))
@@ -4653,7 +4662,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         xVals.reverse()
         yVals.reverse()
 
-        scan_results = (
+        return (
             own7thpos,
             framePoints,
             pocketPoints,
@@ -4662,37 +4671,6 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             xVals,
             yVals,
         )
-
-        results_ready_callback = config.get("_scan_results_ready_callback")
-        if callable(results_ready_callback):
-            try:
-                results_ready_callback(scan_results)
-                config["logger"].info(
-                    "[scan] Published scan results before final safe-point return."
-                )
-            except Exception:
-                config["logger"].exception(
-                    "[scan] Failed to publish early scan results; final save will retry."
-                )
-
-        if return_to_safe_point_after_scan:
-            msg_to_frontend(
-                api_url=config["server"]["frontEnd_messaging_url"],
-                message="Scan data captured. Moving directly to homing safe point...",
-            )
-            communicate(
-                cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
-                config=config,
-                speed=scan_robot_speed,
-                velocity_profile="robotspeed",
-                wait=True,
-            )
-
-        return scan_results
 
     def sand_table(
         cps,

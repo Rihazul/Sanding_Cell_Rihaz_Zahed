@@ -2585,7 +2585,13 @@ def handle_action():
                     model=scan_model,
                     door_models=scan_door_models,
                 )
-                return jsonify({'status': 'success', 'message': 'Table scan completed'})
+                return jsonify(
+                    {
+                        'status': 'success',
+                        'message': 'Table scan completed',
+                        'scanStatus': _get_tablea_scan_status(),
+                    }
+                )
         except Exception as exc:
             if stop_requested():
                 config['logger'].info("[scan] Scan cancelled by stop request: %s", exc)
