@@ -2094,6 +2094,48 @@ def stopper_state(stopper_id):
 
         return jsonify({'state': 'Invalid'})
 
+
+def _ensure_stopper_a_down(cps, timeout_s=2.0, poll_s=0.05):
+    """Command Stopper A down and verify its output state before scanning."""
+    stopper_state = []
+    read_ret = cps.HRIF_ReadBoxDO(0, 2, stopper_state)
+    if read_ret == 0 and stopper_state and stopper_state[0] == '0':
+        return {
+            "success": True,
+            "alreadyInState": True,
+            "message": "Stopper A already confirmed down",
+        }
+
+    set_ret = cps.HRIF_SetBoxDO(0, 2, 0)
+    if set_ret not in (0, None):
+        return {
+            "success": False,
+            "alreadyInState": False,
+            "message": f"Failed to command Stopper A down (ret={set_ret})",
+        }
+
+    deadline = time.monotonic() + max(0.2, float(timeout_s))
+    last_state = None
+    while time.monotonic() < deadline:
+        stopper_state = []
+        read_ret = cps.HRIF_ReadBoxDO(0, 2, stopper_state)
+        if read_ret == 0 and stopper_state:
+            last_state = stopper_state[0]
+            if last_state == '0':
+                return {
+                    "success": True,
+                    "alreadyInState": False,
+                    "message": "Stopper A confirmed down",
+                }
+        time.sleep(poll_s)
+
+    return {
+        "success": False,
+        "alreadyInState": False,
+        "message": f"Stopper A was not confirmed down before scan (state={last_state})",
+    }
+
+
 ############################################################################################
 # Send robot enable/power status to the frontend.
 @app.route('/robot_status', methods=['GET'])
@@ -2453,7 +2495,24 @@ def handle_action():
                 else:
                     return jsonify({'status': 'error', 'message': f'Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}'}), 400
 
-                stopper_statusmod(cps, state="up")
+                stopper_result = _ensure_stopper_a_down(cps)
+                if not stopper_result.get("success", False):
+                    config["logger"].error("[scan] %s", stopper_result["message"])
+                    return jsonify(
+                        {
+                            "status": "error",
+                            "code": "stopper_a_interlock_failed",
+                            "message": stopper_result["message"],
+                        }
+                    ), 500
+                config["logger"].info(
+                    "[scan] Stopper A down interlock confirmed (already=%s).",
+                    bool(stopper_result.get("alreadyInState", False)),
+                )
+                socketio.emit(
+                    'flash_message',
+                    {"message": "Scan interlock confirmed: Stopper A down."},
+                )
                 laser(cps, "on", config=config)
                 try:
                     scan_signature = str(request_data.get("tableAScanSignature") or "").strip()
