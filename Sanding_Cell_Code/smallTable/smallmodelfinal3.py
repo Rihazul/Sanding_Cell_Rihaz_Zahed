@@ -590,6 +590,7 @@ def sandingModelCTableA():
             ensure_tool_in_hand(2)
             # Stabilize the arm orientation before entering the first Tool 2 door path.
             move_to_safe_point()
+            previous_tool2_door = None
 
             for door_number in tool2_doors:
                 side_cfg = tool2side_by_door.get(door_number, {})
@@ -600,6 +601,13 @@ def sandingModelCTableA():
 
                 if side_cycle <= 0 and edge_cycle <= 0:
                     continue
+
+                if previous_tool2_door is not None:
+                    print(
+                        f"\n--- Tool 2 / Door-to-Door Safe Transition / "
+                        f"Door {previous_tool2_door} to Door {door_number} ---"
+                    )
+                    move_to_safe_point()
 
                 if side_cycle > 0:
                     run_tool2side_cycles(side_cycle, int(side_cfg.get("force", 0)), door_number, cps)
@@ -612,6 +620,8 @@ def sandingModelCTableA():
                 if edge_cycle > 0:
                     run_tool2side_edgecycles(edge_cycle, int(edge_cfg.get("force", 0)), door_number, cps)
                     work_executed = True
+
+                previous_tool2_door = door_number
 
         # Tool 1 batch: 3D
         if has_tool1_batch and is_door_available(tool1_doors):
