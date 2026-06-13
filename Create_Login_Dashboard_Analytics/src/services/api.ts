@@ -10,6 +10,7 @@ async function apiCall(endpoint: string, method: 'GET' | 'POST', payload?: any) 
       headers: {
         'Content-Type': 'application/json',
       },
+      cache: method === 'GET' ? 'no-store' : undefined,
     };
 
     if (method === 'POST' && payload) {
@@ -368,7 +369,7 @@ export async function getHomingStatus() {
 }
 
 export async function getScanStatus() {
-  return apiCall('/scan_status', 'GET');
+  return apiCall(`/scan_status?ts=${Date.now()}`, 'GET');
 }
 
 // Tool attachment status checks (returns shouldBlink boolean)

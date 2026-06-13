@@ -288,7 +288,7 @@ export function CompactTableConfig({
     baselineRevision: number | null,
     scanRequest: Promise<{ ok: boolean; error?: unknown }>,
     timeoutMs = 3 * 60 * 60 * 1000,
-    pollMs = 1000
+    pollMs = 250
   ) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {

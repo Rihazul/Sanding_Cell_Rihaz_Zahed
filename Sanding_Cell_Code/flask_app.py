@@ -2146,7 +2146,11 @@ def homing_status():
 
 @app.route('/scan_status', methods=['GET'])
 def scan_status():
-    return jsonify(_get_tablea_scan_status())
+    response = jsonify(_get_tablea_scan_status())
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 def load_config():
     """Loads configuration from config.yaml."""
