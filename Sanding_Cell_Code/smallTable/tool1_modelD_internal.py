@@ -20,7 +20,7 @@ from smallTable.scancord import get_door_position, get_inner_corner_point, get_y
 
 INTERNAL_OFFSET_MM = 38.0
 INTERNAL_FORCE_N = 5
-FORCE_APPROACH_Z_MM = 20.0
+FORCE_APPROACH_Z_MM = 40.0
 
 
 def load_config():
