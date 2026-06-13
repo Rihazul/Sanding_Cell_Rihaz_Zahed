@@ -54,6 +54,7 @@ def compute_timeout(
 DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
 SANDING_Z_THRESHOLD = 5.0
+FORCE_APPROACH_CLEARANCE_MM = 10.0
 J7_IDLE_TIMEOUT_S = 45.0
 J7_IDLE_POLL_S = 0.02
 
@@ -514,10 +515,13 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     if len(sanding_points) < 2:
         return
 
+    force_approach_point = list(sanding_points[0])
+    force_approach_point[2] = float(force_approach_point[2]) + FORCE_APPROACH_CLEARANCE_MM
+
     communicate(
         cps=cps,
         config=config,
-        point=sanding_points[0],
+        point=force_approach_point,
         tcp=tcp,
         ucs=ucs,
         seventh=-1,
