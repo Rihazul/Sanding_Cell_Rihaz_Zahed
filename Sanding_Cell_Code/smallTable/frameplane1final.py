@@ -55,9 +55,6 @@ DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
 SANDING_Z_THRESHOLD = 5.0
 FORCE_APPROACH_Z_MM = 20.0
-FRAME_FORCE_TOUCHDOWN_DEBUG_DELAY_S = 3.0
-FRAME_FORCE_MOVE_SETTLE_TIMEOUT_S = 0.75
-FRAME_FORCE_MOVE_SETTLE_DELAY_S = 0.05
 J7_IDLE_TIMEOUT_S = 45.0
 J7_IDLE_POLL_S = 0.02
 
@@ -581,13 +578,6 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         print("[FrameDebug] putForceZminus FAILED; raising RuntimeError")
         raise RuntimeError("[Frame] Failed to establish stable Z- force contact.")
 
-    print(
-        f"[FrameDebug] touchdown debug delay START "
-        f"{FRAME_FORCE_TOUCHDOWN_DEBUG_DELAY_S:.1f}s before vibration/motion"
-    )
-    time.sleep(FRAME_FORCE_TOUCHDOWN_DEBUG_DELAY_S)
-    print("[FrameDebug] touchdown debug delay DONE")
-
     vibration_on = False
     try:
         print("[FrameDebug] turn_vibration_on START")
@@ -600,27 +590,11 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
             f"move_points={len(sanding_points[1:])}"
         )
         for move_idx, end_pose in enumerate(sanding_points[1:], start=1):
-            if move_idx > 1:
-                print(
-                    f"[FrameDebug] force move settle START before point "
-                    f"{move_idx}/{len(sanding_points[1:])}"
-                )
-                try:
-                    waitForBlending(
-                        cps=cps,
-                        config=config,
-                        timeout_s=FRAME_FORCE_MOVE_SETTLE_TIMEOUT_S,
-                    )
-                except Exception as exc:
-                    print(f"[FrameDebug] force move settle wait exception: {exc}")
-                time.sleep(FRAME_FORCE_MOVE_SETTLE_DELAY_S)
-                print(
-                    f"[FrameDebug] force move settle DONE before point "
-                    f"{move_idx}/{len(sanding_points[1:])}"
-                )
+            is_last_segment = move_idx == len(sanding_points[1:])
             print(
                 f"[FrameDebug] sanding communicate START "
-                f"{move_idx}/{len(sanding_points[1:])}: {end_pose}"
+                f"{move_idx}/{len(sanding_points[1:])}: {end_pose} "
+                f"wait={is_last_segment}"
             )
             communicate(
                 cps=cps,
@@ -631,7 +605,8 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
                 seventh=-1,
                 speed=sanding_speed,
                 velocity_profile="sanding",
-                wait=True,
+                speed_mode="linear",
+                wait=is_last_segment,
             )
             print(
                 f"[FrameDebug] sanding communicate DONE "
