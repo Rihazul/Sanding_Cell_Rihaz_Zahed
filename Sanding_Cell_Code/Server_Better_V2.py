@@ -1216,18 +1216,18 @@ def putForceZminus(
         force_debug("FAILED at HRIF_SetDampParams")
         return False
 
-    # Z- is the commanded operation direction, but the force sensor reports the
-    # surface reaction in the opposite sign. To avoid bounce/retract after
-    # contact, hold the measured reaction force rather than the command sign.
+    # Keep the controller goal signed in the commanded force direction.
+    # For Z-, this must remain negative so the tool searches/presses downward.
+    # Contact detection below can still use the positive measured reaction sign.
     force_goal = [
         force * goal[0],
         force * goal[1],
-        -force * goal[2] if goal[2] < 0 else force * goal[2],
+        force * goal[2],
         0,
         0,
         0,
         0,
-    ]  # Target measured force: [X, Y, Z, Rx, Ry, Rz]
+    ]  # Target commanded force: [X, Y, Z, Rx, Ry, Rz]
     config["logger"].info(
         f"[forceControl] signed force goal vector: {force_goal} "
         f"(direction={goal}, freedom={freedom})"
