@@ -1320,6 +1320,32 @@ def putForceZminus(
 
         time.sleep(0.0001)
 
+    # Z- search uses a negative command so the TCP moves down.  Once contact is
+    # detected, the sensor reaction is positive Fz; switch the target to that
+    # reaction sign so force mode holds contact instead of continuing to seek.
+    if len(goal) > 2 and float(goal[2]) < 0:
+        hold_force = float(force)
+        if hold_force < 0:
+            hold_force = -hold_force
+        hold_force_goal = [0, 0, hold_force, 0, 0, 0, 0]
+        force_debug(
+            "CONTACT HOLD: switching Z- seek goal to measured reaction "
+            f"hold_force_goal={hold_force_goal}"
+        )
+        nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, hold_force_goal)
+        time.sleep(0.0001)
+        config["logger"].info(
+            f"[forceControl] Z- contact hold force goal: {nret}, "
+            f"goal={hold_force_goal}"
+        )
+        force_debug(f"HRIF_SetForceControlGoal contact-hold ret={nret}")
+        if nret != 0:
+            config["logger"].error(
+                f"Failed to set Z- contact hold force goal: {nret}"
+            )
+            force_debug("FAILED at contact-hold HRIF_SetForceControlGoal")
+            return False
+
     config["logger"].info(f"[forceControl] applying force: {force}N")
     # time.sleep(0.1)
     config["logger"].info(f"[forceControl] Turned on vibration")
