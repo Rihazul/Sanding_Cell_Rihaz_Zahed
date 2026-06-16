@@ -1086,176 +1086,102 @@ def putForceZminus(
     tcp,
     ucs,
     config,
-    goal=[0, 0, -1],
+    goal=[0, 0, 1],
     search_linear_velocity=5.0,
     search_angular_velocity=1.0,
     blending_timeout_s=7.0,
 ):
-    # Initialize parameters
-    boxID = 0  # Control box ID
-    rbtID = 0  # Robot ID
+    # Same pattern as X-/Y-: goal is the enabled axis mask, force_goal carries direction.
+    boxID = 0
+    rbtID = 0
 
     result = []
-    nret = 0
 
-    def force_debug(message):
-        print(f"[ForceDebug][Zminus] {message}", flush=True)
-
-    force_debug(
-        f"START force={force} goal={goal} tcp={tcp} ucs={ucs} "
-        f"search_linear_velocity={search_linear_velocity} "
-        f"search_angular_velocity={search_angular_velocity} "
-        f"blending_timeout_s={blending_timeout_s}"
-    )
-
-    force_debug("waitForBlending START")
     waitForBlending(cps, config, timeout_s=blending_timeout_s)
-    force_debug("waitForBlending DONE")
-    force_debug("setUCS_TCP START")
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
-    force_debug("setUCS_TCP DONE")
-    json_config = load_json_config()
-    force_debug(f"setSpeed sandingSpeed START value={json_config.get('sandingSpeed')}")
-    setSpeed(cps, speed=float(json_config["sandingSpeed"]), config=config)
-    force_debug("setSpeed sandingSpeed DONE")
+    setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
     nRet = cps.HRIF_SetForceZero(0, 0)
-    force_debug(f"HRIF_SetForceZero ret={nRet}")
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
-        force_debug("FAILED at HRIF_SetForceZero")
         return False
 
-    # Set tool coordinate system mode for force control
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
-    force_debug(f"HRIF_SetForceToolCoordinateMotion ret={nret} result={result}")
     if nret != 0:
         config["logger"].error(f"Failed to set force tool coordinate motion: {nret}")
-        force_debug("FAILED at HRIF_SetForceToolCoordinateMotion")
         return False
 
-    # Set the force control strategy to constant force mode
     nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"force strategy: {nret}")
-    force_debug(f"HRIF_SetForceControlStrategy ret={nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set force control strategy: {nret}")
-        force_debug("FAILED at HRIF_SetForceControlStrategy")
         return False
 
-    # Control freedom is only an axis enable mask. Keep it 0/1 even when
-    # the force goal direction is signed, e.g. Z- = [0, 0, -1].
-    freedom = [1 if val else 0 for val in goal] + [0, 0, 0]
+    freedom = goal + [0, 0, 0]
     time.sleep(0.0001)
     nret = cps.HRIF_SetControlFreedom(0, 0, freedom)
-    force_debug(f"HRIF_SetControlFreedom freedom={freedom} ret={nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set Z- control freedom: {nret}")
-        force_debug("FAILED at HRIF_SetControlFreedom")
         return False
 
-    # Set maximum search velocities for force control
     linear_velocity = max(1.0, float(search_linear_velocity))
     angular_velocity = max(0.1, float(search_angular_velocity))
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
     )
     time.sleep(0.0001)
-    config["logger"].info(
-        f"search velocities: {nret} (linear={linear_velocity}, angular={angular_velocity})"
-    )
-    force_debug(
-        f"HRIF_SetMaxSearchVelocities linear={linear_velocity} "
-        f"angular={angular_velocity} ret={nret}"
-    )
+    config["logger"].info(f"search velocities: {nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set max search velocities: {nret}")
-        force_debug("FAILED at HRIF_SetMaxSearchVelocities")
         return False
 
-    # Set PID parameters to ensure stability in force control
-    dFp = 0.8
-    dFi = 0.001
-    dFd = 0.02
-    dTp = 0.8
-    dTi = 0.001
-    dTd = 0.02
+    Mass = [80, 80, 80, 10, 10, 10]
+    nRet = cps.HRIF_SetMassParams(0, 0, Mass)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set mass params: {nRet}")
+        return False
 
-    # nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    # time.sleep(0.1)
-    # if nRet != 0:
-    # config['logger'].error(f"Failed to set PID control params: {nRet}")
-    # return
+    Stiff = [1000, 1000, 1000, 100, 100, 100]
+    nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set stiff params: {nRet}")
+        return False
 
-    # # Set the Mass parameter
-    # Mass = [80, 80, 80, 10, 10, 10]
-    # nRet = cps.HRIF_SetMassParams(0, 0, Mass)
-    # time.sleep(0.0001)
-    # #if nRet != 0:
-    #     #config['logger'].error(f"Failed to set mass params: {nRet}")
-    #     #return
-
-    # #Stiffness
-    # Stiff = [1500, 1500, 1500, 100, 100, 100]
-    # nRet = cps.HRIF_SetStiffParams(0,0,Stiff)
-    # time.sleep(0.0001)
-    # if nRet != 0:
-    #     config['logger'].error(f"Failed to set PID control params: {nRet}")
-    #     return
-
-    # Set the damp parameter
     damp = [8000, 8000, 8000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
-    force_debug(f"HRIF_SetDampParams damp={damp} ret={nRet}")
     if nRet != 0:
         config["logger"].error(f"Failed to set damp params: {nRet}")
-        force_debug("FAILED at HRIF_SetDampParams")
         return False
 
-    # Keep the controller goal signed in the commanded force direction.
-    # For Z-, this must remain negative so the tool searches/presses downward.
-    # Contact detection below can still use the positive measured reaction sign.
     force_goal = [
         force * goal[0],
         force * goal[1],
-        force * goal[2],
+        -force * goal[2],
         0,
         0,
         0,
         0,
-    ]  # Target commanded force: [X, Y, Z, Rx, Ry, Rz]
-    config["logger"].info(
-        f"[forceControl] signed force goal vector: {force_goal} "
-        f"(direction={goal}, freedom={freedom})"
-    )
-    force_debug(
-        f"force_goal={force_goal} direction={goal} freedom={freedom}"
-    )
+    ]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[forceControl] force control goal: {nret}")
-    force_debug(f"HRIF_SetForceControlGoal ret={nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set force control goal: {nret}")
-        force_debug("FAILED at HRIF_SetForceControlGoal")
         return False
 
-    # Enable force control
     nret = cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-    force_debug(f"HRIF_SetForceControlState ON ret={nret}")
     if nret != 0:
         config["logger"].error(f"Failed to enable force control: {nret}")
-        force_debug("FAILED at HRIF_SetForceControlState ON")
         return False
 
     notFound = True
-    read_count = 0
-    force_debug("force seek loop START")
     while notFound:
         if stop_requested():
             try:
@@ -1263,95 +1189,29 @@ def putForceZminus(
             except Exception:
                 pass
             config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            force_debug("STOP requested during force seek; force control disabled")
             return False
 
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        read_count += 1
-        if nRet != 0 or len(result) < 3:
-            force_debug(
-                f"read {read_count}: invalid force data ret={nRet} result={result}"
-            )
-            time.sleep(0.001)
+        if nRet != 0 or len(result) < len(goal):
+            time.sleep(0.0001)
             continue
-        config["logger"].info(f"[forceControl] Force that is coming is: {result}")
-        force_debug(f"read {read_count}: raw_force={result}")
 
+        config["logger"].info(f"[forceControl] Force that is coming is: {result}")
         for i, val in enumerate(goal):
-            if not val:
-                continue
-            try:
-                measured = float(result[i])
-            except (TypeError, ValueError, IndexError):
-                continue
-            threshold = float(force)
-            if threshold < 0:
-                threshold = -threshold
-            # For Z- the command direction is negative, but the force sensor
-            # reports the opposite reaction from the surface as positive Fz.
-            # Keep the commanded goal negative; only contact detection uses
-            # the measured reaction sign.
-            if i == 2 and float(val) < 0:
-                direction = 1.0
-            else:
-                direction = 1.0 if float(val) > 0 else -1.0
-            signed_force = measured * direction
-            force_debug(
-                f"read {read_count}: axis={i} measured={measured:.3f} "
-                f"goal_component={val} detection_direction={direction:.1f} "
-                f"signed_force={signed_force:.3f} threshold={threshold:.3f}"
-            )
-            if signed_force > threshold:
+            if val and abs(float(result[i])) > abs(force):
                 config["logger"].info(
-                    "[forceControl] Force condition met: Axis %s, Force %.3f, "
-                    "direction %.1f, signed %.3f",
-                    i,
-                    measured,
-                    direction,
-                    signed_force,
+                    f"[forceControl] Force condition met: Axis {i}, Force {result[i]}"
                 )
-                force_debug(
-                    f"CONTACT MET read={read_count} axis={i} measured={measured:.3f} "
-                    f"signed_force={signed_force:.3f} threshold={threshold:.3f}"
-                )
+                time.sleep(0.0001)
                 notFound = False
                 break
 
         time.sleep(0.0001)
 
-    # Z- search uses a negative command so the TCP moves down.  Once contact is
-    # detected, the sensor reaction is positive Fz; switch the target to that
-    # reaction sign so force mode holds contact instead of continuing to seek.
-    if len(goal) > 2 and float(goal[2]) < 0:
-        hold_force = float(force)
-        if hold_force < 0:
-            hold_force = -hold_force
-        hold_force_goal = [0, 0, hold_force, 0, 0, 0, 0]
-        force_debug(
-            "CONTACT HOLD: switching Z- seek goal to measured reaction "
-            f"hold_force_goal={hold_force_goal}"
-        )
-        nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, hold_force_goal)
-        time.sleep(0.0001)
-        config["logger"].info(
-            f"[forceControl] Z- contact hold force goal: {nret}, "
-            f"goal={hold_force_goal}"
-        )
-        force_debug(f"HRIF_SetForceControlGoal contact-hold ret={nret}")
-        if nret != 0:
-            config["logger"].error(
-                f"Failed to set Z- contact hold force goal: {nret}"
-            )
-            force_debug("FAILED at contact-hold HRIF_SetForceControlGoal")
-            return False
-
     config["logger"].info(f"[forceControl] applying force: {force}N")
-    # time.sleep(0.1)
-    config["logger"].info(f"[forceControl] Turned on vibration")
-    force_debug(f"RETURN True after contact; applying force={force}N")
+    config["logger"].info("[forceControl] Turned on vibration")
     return True
-
 
 def putForce3Direction(cps, force, tcp, ucs, config, goal=[1, 1, 1]):
     # Initialize parameters
