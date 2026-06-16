@@ -504,20 +504,50 @@ def load_json_config():
     return config
 
 def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tcp, ucs):
+    print(
+        f"[FrameDebug] _run_linear_sanding_process START "
+        f"force={force} sanding_speed={sanding_speed} tcp={tcp} ucs={ucs} "
+        f"input_points={len(points) if points is not None else 'None'}"
+    )
     sanding_points = []
-    for point in points:
+    for idx, point in enumerate(points or [], start=1):
+        print(f"[FrameDebug] inspect input point {idx}: {point}")
         try:
             if float(point[2]) <= SANDING_Z_THRESHOLD:
                 sanding_points.append(point)
+                print(
+                    f"[FrameDebug] accepted sanding point {idx}: "
+                    f"z={point[2]} threshold={SANDING_Z_THRESHOLD}"
+                )
+            else:
+                print(
+                    f"[FrameDebug] skipped high-Z point {idx}: "
+                    f"z={point[2]} threshold={SANDING_Z_THRESHOLD}"
+                )
         except (TypeError, ValueError, IndexError):
+            print(f"[FrameDebug] skipped invalid point {idx}: {point}")
             pass
 
+    print(
+        f"[FrameDebug] filtered sanding_points={len(sanding_points)} "
+        f"from input_points={len(points) if points is not None else 'None'}"
+    )
     if len(sanding_points) < 2:
+        print(
+            f"[FrameDebug] EXIT no sanding: need at least 2 sanding points, "
+            f"got {len(sanding_points)}"
+        )
         return
 
     force_approach_point = list(sanding_points[0])
     force_approach_point[2] = FORCE_APPROACH_Z_MM
+    print(
+        f"[FrameDebug] force approach point prepared: "
+        f"original_first={sanding_points[0]} approach={force_approach_point} "
+        f"FORCE_APPROACH_Z_MM={FORCE_APPROACH_Z_MM}"
+    )
 
+    print(f"[FrameDebug] communicate force approach START point={force_approach_point}")
     communicate(
         cps=cps,
         config=config,
@@ -529,7 +559,12 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         velocity_profile="sanding",
         wait=True,
     )
+    print(f"[FrameDebug] communicate force approach DONE point={force_approach_point}")
 
+    print(
+        f"[FrameDebug] putForceZminus START force={force} "
+        "search_linear_velocity=5.0"
+    )
     force_ok = putForceZminus(
         cps=cps,
         force=force,
@@ -538,15 +573,27 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         config=config,
         search_linear_velocity=5.0,
     )
+    print(f"[FrameDebug] putForceZminus RESULT force_ok={force_ok}")
     if not force_ok:
+        print("[FrameDebug] putForceZminus FAILED; raising RuntimeError")
         raise RuntimeError("[Frame] Failed to establish stable Z- force contact.")
 
     vibration_on = False
     try:
+        print("[FrameDebug] turn_vibration_on START")
         turn_vibration_on(cps)
         vibration_on = True
+        print("[FrameDebug] turn_vibration_on DONE")
 
-        for end_pose in sanding_points[1:]:
+        print(
+            f"[FrameDebug] sanding motion START "
+            f"move_points={len(sanding_points[1:])}"
+        )
+        for move_idx, end_pose in enumerate(sanding_points[1:], start=1):
+            print(
+                f"[FrameDebug] sanding communicate START "
+                f"{move_idx}/{len(sanding_points[1:])}: {end_pose}"
+            )
             communicate(
                 cps=cps,
                 config=config,
@@ -558,35 +605,58 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
                 velocity_profile="sanding",
                 wait=True,
             )
+            print(
+                f"[FrameDebug] sanding communicate DONE "
+                f"{move_idx}/{len(sanding_points[1:])}: {end_pose}"
+            )
 
+        print("[FrameDebug] waitForBlending START")
         waitForBlending(cps=cps, config=config)
+        print("[FrameDebug] waitForBlending DONE")
     finally:
+        print(f"[FrameDebug] cleanup START vibration_on={vibration_on}")
         if vibration_on:
+            print("[FrameDebug] turn_vibration_off START")
             turn_vibration_off(cps)
+            print("[FrameDebug] turn_vibration_off DONE")
+        print("[FrameDebug] releaseForce START")
         releaseForce(cps=cps, config=config, wait_for_blending=False)
+        print("[FrameDebug] releaseForce DONE")
+        print("[FrameDebug] _run_linear_sanding_process END")
 
 
 def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner):
+    print(f"[FrameDebug] door dispatch START door={door_num} force={force}")
     ylen_data = get_y_values(door_num, default_on_error=True)
     ylen = ylen_data['ylen']
-    print("ylen:", ylen)
+    print(f"[FrameDebug] door={door_num} ylen_data={ylen_data} ylen={ylen}")
 
     json_config = load_json_config()
     speed = float(json_config['robotSpeed'])
     sanding_speed = float(json_config.get('sandingSpeed', json_config['robotSpeed']))
+    print(
+        f"[FrameDebug] door={door_num} speed={speed} "
+        f"sanding_speed={sanding_speed}"
+    )
 
     if ylen == "null":
-        print("No door data available - skipping operations")
+        print(f"[FrameDebug] door={door_num} no door data; skipping operations")
         return
 
     if not isinstance(ylen, (int, float)):
-        print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
+        print(
+            f"[FrameDebug] door={door_num} invalid ylen type: "
+            f"{type(ylen)} - expected number or 'null'"
+        )
         return
 
     if ylen > 600:
+        print(f"[FrameDebug] door={door_num} selecting BIG runner ylen={ylen}")
         big_runner(force, cps, speed, sanding_speed)
     else:
+        print(f"[FrameDebug] door={door_num} selecting SMALL runner ylen={ylen}")
         small_runner(force, cps, speed, sanding_speed)
+    print(f"[FrameDebug] door dispatch END door={door_num}")
 
 
 def smalldoor1side(force,cps):

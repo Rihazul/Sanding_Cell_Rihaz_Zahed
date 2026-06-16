@@ -140,30 +140,68 @@ def _resolve_force(user_force):
 
 
 def _run_model_d_internal_for_door(door_number, z, cps, force=None):
+    print(f"[ModelD] START door={door_number} z={z} requested_force={force}")
     config = load_config()
+    print(f"[ModelD] config loaded door={door_number}")
     config["logger"] = setup_logger(config["settings"]["debug"])
+    print(
+        f"[ModelD] logger ready door={door_number} "
+        f"debug={config['settings'].get('debug')}"
+    )
     robot_speed, sanding_speed = _get_motion_speeds(config)
+    print(
+        f"[ModelD] speeds door={door_number} "
+        f"robot_speed={robot_speed} sanding_speed={sanding_speed}"
+    )
 
     tcp = config["coords"]["tcptool1plane1"]
     ucs = config["coords"]["ucsTable1"]
+    print(f"[ModelD] coords door={door_number} tcp={tcp} ucs={ucs}")
 
     seventh = get_door_position(door_number)
     applied_force = _resolve_force(force)
+    print(
+        f"[ModelD] resolved door={door_number} "
+        f"base_j7={seventh} applied_force={applied_force}"
+    )
 
-    if _requires_split_path(door_number):
+    split_path = _requires_split_path(door_number)
+    print(f"[ModelD] split_path door={door_number} value={split_path}")
+    if split_path:
+        print(f"[ModelD] building split internal passes door={door_number}")
         j7_offset, passes = _build_split_internal_passes(door_number, z)
         pass_targets = [seventh, seventh + j7_offset]
+        print(
+            f"[ModelD] split passes ready door={door_number} "
+            f"j7_offset={j7_offset} pass_targets={pass_targets} "
+            f"pass_count={len(passes)}"
+        )
     else:
+        print(f"[ModelD] building single internal path door={door_number}")
         pre_start, path_points = _build_internal_points(door_number, z)
         passes = [(pre_start, path_points)]
         pass_targets = [seventh]
+        print(
+            f"[ModelD] single pass ready door={door_number} "
+            f"pre_start={pre_start} path_count={len(path_points)} "
+            f"pass_targets={pass_targets}"
+        )
 
+    print(
+        f"[ModelD] entering pass loop door={door_number} "
+        f"targets={pass_targets} passes={len(passes)}"
+    )
     for pass_number, (j7_target, (pre_start, path_points)) in enumerate(
         zip(pass_targets, passes), start=1
     ):
         print(
-            f"door {door_number} Model D internal pass {pass_number}/{len(passes)}: "
-            f"J7={j7_target}"
+            f"[ModelD] pass start door={door_number} "
+            f"pass={pass_number}/{len(passes)} J7={j7_target} "
+            f"pre_start={pre_start} path_count={len(path_points)}"
+        )
+        print(
+            f"[ModelD] communicate J7 start door={door_number} "
+            f"pass={pass_number} seventh={j7_target} wait={pass_number == 1}"
         )
         communicate(
             cps=cps,
@@ -175,6 +213,14 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             velocity_profile="robotspeed",
             wait=pass_number == 1,
         )
+        print(
+            f"[ModelD] communicate J7 done door={door_number} "
+            f"pass={pass_number} seventh={j7_target}"
+        )
+        print(
+            f"[ModelD] communicate pre_start start door={door_number} "
+            f"pass={pass_number} point={pre_start}"
+        )
         communicate(
             cps=cps,
             config=config,
@@ -186,10 +232,19 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             velocity_profile="robotspeed",
             wait=True,
         )
+        print(
+            f"[ModelD] communicate pre_start done door={door_number} "
+            f"pass={pass_number} point={pre_start}"
+        )
 
         force_applied = False
         vibration_on = False
         try:
+            print(
+                f"[ModelD] force Z- start door={door_number} "
+                f"pass={pass_number} force={applied_force} "
+                "search_linear_velocity=5.0"
+            )
             force_ok = putForceZminus(
                 cps=cps,
                 force=applied_force,
@@ -198,16 +253,41 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
                 config=config,
                 search_linear_velocity=5.0,
             )
+            print(
+                f"[ModelD] force Z- result door={door_number} "
+                f"pass={pass_number} force_ok={force_ok}"
+            )
             if not force_ok:
+                print(
+                    f"[ModelD] force Z- failed door={door_number} "
+                    f"pass={pass_number}; raising RuntimeError"
+                )
                 raise RuntimeError(
                     f"Door {door_number} Model D pass {pass_number}: "
                     "failed to establish stable Z- force contact."
                 )
             force_applied = True
+            print(
+                f"[ModelD] vibration ON start door={door_number} "
+                f"pass={pass_number}"
+            )
             turn_vibration_on(cps)
             vibration_on = True
+            print(
+                f"[ModelD] vibration ON done door={door_number} "
+                f"pass={pass_number}"
+            )
 
-            for point in path_points:
+            print(
+                f"[ModelD] sanding path start door={door_number} "
+                f"pass={pass_number} points={len(path_points)}"
+            )
+            for point_index, point in enumerate(path_points, start=1):
+                print(
+                    f"[ModelD] sanding point start door={door_number} "
+                    f"pass={pass_number} point={point_index}/{len(path_points)} "
+                    f"value={point}"
+                )
                 communicate(
                     cps=cps,
                     config=config,
@@ -219,16 +299,60 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
                     velocity_profile="sandingspeed",
                     wait=True,
                 )
+                print(
+                    f"[ModelD] sanding point done door={door_number} "
+                    f"pass={pass_number} point={point_index}/{len(path_points)}"
+                )
+            print(
+                f"[ModelD] sanding path done door={door_number} "
+                f"pass={pass_number}"
+            )
         finally:
+            print(
+                f"[ModelD] cleanup start door={door_number} pass={pass_number} "
+                f"vibration_on={vibration_on} force_applied={force_applied}"
+            )
             if vibration_on:
                 try:
+                    print(
+                        f"[ModelD] waitForBlending start door={door_number} "
+                        f"pass={pass_number}"
+                    )
                     waitForBlending(cps=cps, config=config)
-                except Exception:
-                    pass
+                    print(
+                        f"[ModelD] waitForBlending done door={door_number} "
+                        f"pass={pass_number}"
+                    )
+                except Exception as exc:
+                    print(
+                        f"[ModelD] waitForBlending exception door={door_number} "
+                        f"pass={pass_number}: {exc}"
+                    )
+                print(
+                    f"[ModelD] vibration OFF start door={door_number} "
+                    f"pass={pass_number}"
+                )
                 turn_vibration_off(cps)
+                print(
+                    f"[ModelD] vibration OFF done door={door_number} "
+                    f"pass={pass_number}"
+                )
             if force_applied:
+                print(
+                    f"[ModelD] releaseForce start door={door_number} "
+                    f"pass={pass_number}"
+                )
                 releaseForce(cps=cps, config=config)
+                print(
+                    f"[ModelD] releaseForce done door={door_number} "
+                    f"pass={pass_number}"
+                )
+            print(f"[ModelD] cleanup done door={door_number} pass={pass_number}")
 
+        print(
+            f"[ModelD] return pre_start start door={door_number} "
+            f"pass={pass_number} point={pre_start}"
+        )
         communicate(
             cps=cps,
             config=config,
@@ -240,6 +364,13 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             velocity_profile="robotspeed",
             wait=True,
         )
+        print(
+            f"[ModelD] return pre_start done door={door_number} "
+            f"pass={pass_number} point={pre_start}"
+        )
+        print(f"[ModelD] pass done door={door_number} pass={pass_number}")
+
+    print(f"[ModelD] END door={door_number}")
 
 
 def smalldoor1tool3(z, cps, force=None):
