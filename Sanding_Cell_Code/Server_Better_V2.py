@@ -1086,7 +1086,7 @@ def putForceZminus(
     tcp,
     ucs,
     config,
-    goal=[0, 0, 1],
+    goal=[0, 0, -1],
     search_linear_velocity=5.0,
     search_angular_velocity=1.0,
     blending_timeout_s=7.0,
@@ -1124,8 +1124,9 @@ def putForceZminus(
         config["logger"].error(f"Failed to set force control strategy: {nret}")
         return False
 
-    # Define the target force control values (e.g., maintain fixed force in y and z axis)
-    freedom = goal + [0, 0, 0]
+    # Control freedom is only an axis enable mask. Keep it 0/1 even when
+    # the force goal direction is signed, e.g. Z- = [0, 0, -1].
+    freedom = [1 if val else 0 for val in goal] + [0, 0, 0]
     time.sleep(0.0001)
     nret = cps.HRIF_SetControlFreedom(0, 0, freedom)
     if nret != 0:
@@ -1187,12 +1188,16 @@ def putForceZminus(
     force_goal = [
         force * goal[0],
         force * goal[1],
-        -force * goal[2],
+        force * goal[2],
         0,
         0,
         0,
         0,
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
+    config["logger"].info(
+        f"[forceControl] signed force goal vector: {force_goal} "
+        f"(direction={goal}, freedom={freedom})"
+    )
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[forceControl] force control goal: {nret}")
@@ -1228,14 +1233,22 @@ def putForceZminus(
             if not val:
                 continue
             try:
-                measured = abs(float(result[i]))
+                measured = float(result[i])
             except (TypeError, ValueError, IndexError):
                 continue
-            if measured > abs(float(force)):
+            threshold = float(force)
+            if threshold < 0:
+                threshold = -threshold
+            direction = 1.0 if float(val) > 0 else -1.0
+            signed_force = measured * direction
+            if signed_force > threshold:
                 config["logger"].info(
-                    "[forceControl] Force condition met: Axis %s, Force %.3f",
+                    "[forceControl] Force condition met: Axis %s, Force %.3f, "
+                    "direction %.1f, signed %.3f",
                     i,
                     measured,
+                    direction,
+                    signed_force,
                 )
                 notFound = False
                 break
