@@ -14,7 +14,6 @@ from smallTable.frame1tool3 import (
 
 def _run_external_then_internal(external_fn, internal_fn, z, cps, force=None):
     # Layer 1: external side (Model C logic).
-    # frame1tool3 returns through raised prehoming points after outer execution.
     external_fn(z=z, cps=cps, force=force)
 
     # Layer 2: internal pocket side (Model D logic).

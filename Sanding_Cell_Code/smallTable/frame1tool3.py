@@ -21,6 +21,9 @@ from smallTable.scancord import (
     get_y_values
 )
 
+FORCE_APPROACH_Z_MM = 35.0
+
+
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
@@ -110,8 +113,6 @@ def smalldoor1tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,100,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -157,7 +158,7 @@ def smalldoor1tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
         #Y length
@@ -170,15 +171,15 @@ def smalldoor1tool3(z,cps,force=None):
         tpoint40=[point0[0]+Tooloffset, ylenth/2+Tooloffset-2, point0[2], 0, 0, 0]
         print("tpoint40:",tpoint40)
 
-        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("tpoint4:",pretpoint4)
 
         tpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint5:",tpoint5)
-        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint5;",pretpoint5)
 
-        tpoints=[pretpoint4,tpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
+        tpoints=[pretpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
         #tpoints=[pretpoint5,tpoint5,tpoint3,tpoint0,tpoint4,pretpoint4]
         
         #Top half cycles
@@ -195,19 +196,16 @@ def smalldoor1tool3(z,cps,force=None):
         print("ttpoint5:", ttpoint5)
         ttpoint52=[xlength-Tooloffset+5, point2[1]/2-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint5:", ttpoint5)
-        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint2:", prettpoint5)
         ttpoint1=[-xlength+Tooloffset, point2[1]-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint1:", ttpoint1)
         ttpoint4=[-xlength+Tooloffset, point2[1]/2-Tooloffset, point2[2]+1, 0, 0, 0]
         print("ttpoint4:", ttpoint4)
-        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint4:", prettpoint4)
 
-        prehomingtop=[xlength/2-Tooloffset+5, point2[1]/2-Tooloffset, 20, 0, 0, 0]
-        print("prehomingtop:",prehomingtop)
-
-        toppoints=[prettpoint5,ttpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
+        toppoints=[prettpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
         print("toppoints:",toppoints)
 
         
@@ -249,6 +247,7 @@ def smalldoor1tool3(z,cps,force=None):
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
+            releaseForce(cps=cps, config=config)
 
         def perform_process_top(cps, config, points1):
             # Vibration on
@@ -326,14 +325,10 @@ def smalldoor1tool3(z,cps,force=None):
             # Release Force Control
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -351,8 +346,6 @@ def smalldoor1tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,80,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -401,10 +394,10 @@ def smalldoor1tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
-        tpoints=[pretpoint0,tpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
+        tpoints=[pretpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
         print("tpoints:",tpoints)
 
         def perform_process_left(cps, config, points1):
@@ -483,9 +476,7 @@ def smalldoor1tool3(z,cps,force=None):
             releaseForce(cps=cps, config=config)
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     try:
@@ -520,7 +511,6 @@ def smalldoor2tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-        prehoming=[0,0,100,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -566,7 +556,7 @@ def smalldoor2tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
         #Y length
@@ -579,15 +569,15 @@ def smalldoor2tool3(z,cps,force=None):
         tpoint40=[point0[0]+Tooloffset, ylenth/2+Tooloffset-2, point0[2], 0, 0, 0]
         print("tpoint40:",tpoint40)
 
-        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("tpoint4:",pretpoint4)
 
         tpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint5:",tpoint5)
-        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint5;",pretpoint5)
 
-        tpoints=[pretpoint4,tpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
+        tpoints=[pretpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
         #tpoints=[pretpoint5,tpoint5,tpoint3,tpoint0,tpoint4,pretpoint4]
         
         #Top half cycles
@@ -604,19 +594,16 @@ def smalldoor2tool3(z,cps,force=None):
         print("ttpoint5:", ttpoint5)
         ttpoint52=[xlength-Tooloffset+5, point2[1]/2-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint5:", ttpoint5)
-        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint2:", prettpoint5)
         ttpoint1=[-xlength+Tooloffset, point2[1]-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint1:", ttpoint1)
         ttpoint4=[-xlength+Tooloffset, point2[1]/2-Tooloffset, point2[2]+1, 0, 0, 0]
         print("ttpoint4:", ttpoint4)
-        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint4:", prettpoint4)
 
-        prehomingtop=[xlength/2-Tooloffset+5, point2[1]/2-Tooloffset, 20, 0, 0, 0]
-        print("prehomingtop:",prehomingtop)
-
-        toppoints=[prettpoint5,ttpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
+        toppoints=[prettpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
         print("toppoints:",toppoints)
         
         def perform_process_bottom(cps, config, points1):
@@ -657,6 +644,7 @@ def smalldoor2tool3(z,cps,force=None):
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
+            releaseForce(cps=cps, config=config)
 
         def perform_process_top(cps, config, points1):
             # Vibration on
@@ -733,14 +721,10 @@ def smalldoor2tool3(z,cps,force=None):
             # Release Force Control
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -758,8 +742,6 @@ def smalldoor2tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,80,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -808,10 +790,10 @@ def smalldoor2tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
-        tpoints=[pretpoint0,tpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
+        tpoints=[pretpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
         print("tpoints:",tpoints)
 
 
@@ -891,9 +873,7 @@ def smalldoor2tool3(z,cps,force=None):
             # Release Force Control
             releaseForce(cps=cps, config=config)
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     try:
@@ -928,8 +908,6 @@ def smalldoor3tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,100,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -975,7 +953,7 @@ def smalldoor3tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
         #Y length
@@ -988,15 +966,15 @@ def smalldoor3tool3(z,cps,force=None):
         tpoint40=[point0[0]+Tooloffset, ylenth/2+Tooloffset-2, point0[2], 0, 0, 0]
         print("tpoint40:",tpoint40)
 
-        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("tpoint4:",pretpoint4)
 
         tpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint5:",tpoint5)
-        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint5;",pretpoint5)
 
-        tpoints=[pretpoint4,tpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
+        tpoints=[pretpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
         #tpoints=[pretpoint5,tpoint5,tpoint3,tpoint0,tpoint4,pretpoint4]
         
         #Top half cycles
@@ -1013,19 +991,16 @@ def smalldoor3tool3(z,cps,force=None):
         print("ttpoint5:", ttpoint5)
         ttpoint52=[xlength-Tooloffset+5, point2[1]/2-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint5:", ttpoint5)
-        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint2:", prettpoint5)
         ttpoint1=[-xlength+Tooloffset, point2[1]-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint1:", ttpoint1)
         ttpoint4=[-xlength+Tooloffset, point2[1]/2-Tooloffset, point2[2]+1, 0, 0, 0]
         print("ttpoint4:", ttpoint4)
-        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint4:", prettpoint4)
 
-        prehomingtop=[xlength/2-Tooloffset+5, point2[1]/2-Tooloffset, 20, 0, 0, 0]
-        print("prehomingtop:",prehomingtop)
-
-        toppoints=[prettpoint5,ttpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
+        toppoints=[prettpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
         print("toppoints:",toppoints)
 
         
@@ -1067,6 +1042,7 @@ def smalldoor3tool3(z,cps,force=None):
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
+            releaseForce(cps=cps, config=config)
 
         def perform_process_top(cps, config, points1):
             # Vibration on
@@ -1143,14 +1119,10 @@ def smalldoor3tool3(z,cps,force=None):
             # Release Force Control
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -1168,8 +1140,6 @@ def smalldoor3tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,80,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -1220,10 +1190,10 @@ def smalldoor3tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
-        tpoints=[pretpoint0,tpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
+        tpoints=[pretpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
         print("tpoints:",tpoints)
 
         def perform_process_left(cps, config, points1):
@@ -1302,9 +1272,7 @@ def smalldoor3tool3(z,cps,force=None):
             releaseForce(cps=cps, config=config)
         
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     try:
@@ -1339,8 +1307,6 @@ def smalldoor4tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,100,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -1386,7 +1352,7 @@ def smalldoor4tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
         #Y length
@@ -1399,15 +1365,15 @@ def smalldoor4tool3(z,cps,force=None):
         tpoint40=[point0[0]+Tooloffset, ylenth/2+Tooloffset-2, point0[2], 0, 0, 0]
         print("tpoint40:",tpoint40)
 
-        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint4=[point0[0]+Tooloffset, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("tpoint4:",pretpoint4)
 
         tpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint5:",tpoint5)
-        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, 10, 0, 0, 0]
+        pretpoint5=[point3[0]-Tooloffset+5, ylenth/2+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint5;",pretpoint5)
 
-        tpoints=[pretpoint4,tpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
+        tpoints=[pretpoint4,tpoint40,tpoint0,tpoint3,tpoint5,pretpoint5]
         #tpoints=[pretpoint5,tpoint5,tpoint3,tpoint0,tpoint4,pretpoint4]
         
         #Top half cycles
@@ -1424,19 +1390,16 @@ def smalldoor4tool3(z,cps,force=None):
         print("ttpoint5:", ttpoint5)
         ttpoint52=[xlength-Tooloffset+5, point2[1]/2-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint5:", ttpoint5)
-        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint5=[xlength-Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint2:", prettpoint5)
         ttpoint1=[-xlength+Tooloffset, point2[1]-Tooloffset+2, point2[2]+1, 0, 0, 0]
         print("ttpoint1:", ttpoint1)
         ttpoint4=[-xlength+Tooloffset, point2[1]/2-Tooloffset, point2[2]+1, 0, 0, 0]
         print("ttpoint4:", ttpoint4)
-        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, 10, 0, 0, 0]
+        prettpoint4=[-xlength+Tooloffset+5, point2[1]/2-Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("prettpoint4:", prettpoint4)
 
-        prehomingtop=[xlength/2-Tooloffset+5, point2[1]/2-Tooloffset, 20, 0, 0, 0]
-        print("prehomingtop:",prehomingtop)
-
-        toppoints=[prettpoint5,ttpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
+        toppoints=[prettpoint5,ttpoint52,ttpoint2,ttpoint1,ttpoint4,prettpoint4]
         print("toppoints:",toppoints)
 
         def perform_process_bottom(cps, config, points1):
@@ -1477,6 +1440,7 @@ def smalldoor4tool3(z,cps,force=None):
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
+            releaseForce(cps=cps, config=config)
 
         def perform_process_top(cps, config, points1):
             # Vibration on
@@ -1553,14 +1517,10 @@ def smalldoor4tool3(z,cps,force=None):
             # Release Force Control
 
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
-        communicate(cps=cps,config=config,point=prehomingtop,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_top(cps, config, points1=toppoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     def smalldoortool3small(z,cps):
@@ -1578,8 +1538,6 @@ def smalldoor4tool3(z,cps,force=None):
         # ret = cps.HRIF_Connect(0, IP, port)
 
         #Main Points
-
-        prehoming=[0,0,80,0,0,0]
         
         # t1=[88.831,93.955,-10,0,0,0]
         # pret1=[88.831,93.955,10,0,0,0]
@@ -1627,10 +1585,10 @@ def smalldoor4tool3(z,cps,force=None):
         print("tpoint2:", tpoint2)
         tpoint3=[point3[0]-Tooloffset+5, point3[1]+Tooloffset, point3[2], 0, 0, 0]
         print("tpoint3:", tpoint3)
-        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, 10, 0, 0, 0]
+        pretpoint0=[point0[0]+Tooloffset, point0[1]+Tooloffset, FORCE_APPROACH_Z_MM, 0, 0, 0]
         print("pretpoint0:", pretpoint0)
 
-        tpoints=[pretpoint0,tpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
+        tpoints=[pretpoint0,tpoint01,tpoint1,tpoint2,tpoint3,tpoint0,pretpoint0]
         print("tpoints:",tpoints)
 
 
@@ -1710,9 +1668,7 @@ def smalldoor4tool3(z,cps,force=None):
             # Release Force Control
             releaseForce(cps=cps, config=config)
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
-        communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         # cps.HRIF_DisConnect(0)
 
     try:
@@ -1735,6 +1691,4 @@ if __name__ == "__main__":
     smalldoor2tool3(z=-10)
     smalldoor3tool3(z=-10)
     smalldoor4tool3(z=-10)
-
-
 

@@ -397,6 +397,11 @@ def _verify_tool_released(cps, config, expected_tool_number=None):
     while True:
         detected = _get_tool_in_hand(cps)
         if detected == 0:
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].info(
+                    "[toolMotion] Tool release confirmed in %.3fs.",
+                    time.monotonic() - start,
+                )
             return True
         if time.monotonic() - start >= timeout_s:
             break
@@ -1085,8 +1090,6 @@ def putForceZminus(
     search_linear_velocity=5.0,
     search_angular_velocity=1.0,
     blending_timeout_s=7.0,
-    force_reach_ratio=0.9,
-    max_seek_seconds=10.0,
 ):
     # Initialize parameters
     boxID = 0  # Control box ID
@@ -1124,7 +1127,10 @@ def putForceZminus(
     # Define the target force control values (e.g., maintain fixed force in y and z axis)
     freedom = goal + [0, 0, 0]
     time.sleep(0.0001)
-    cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
+    nret = cps.HRIF_SetControlFreedom(0, 0, freedom)
+    if nret != 0:
+        config["logger"].error(f"Failed to set Z- control freedom: {nret}")
+        return False
 
     # Set maximum search velocities for force control
     linear_velocity = max(1.0, float(search_linear_velocity))
@@ -1195,13 +1201,11 @@ def putForceZminus(
         return False
 
     # Enable force control
-    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    nret = cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
-
-    target_force = abs(float(force))
-    reach_ratio = max(0.1, min(1.0, float(force_reach_ratio)))
-    required_force = target_force * reach_ratio
-    seek_start_t = time.time()
+    if nret != 0:
+        config["logger"].error(f"Failed to enable force control: {nret}")
+        return False
 
     notFound = True
     while notFound:
@@ -1211,17 +1215,6 @@ def putForceZminus(
             except Exception:
                 pass
             config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return False
-        if (time.time() - seek_start_t) >= float(max_seek_seconds):
-            try:
-                cps.HRIF_SetForceControlState(boxID, rbtID, 0)
-            except Exception:
-                pass
-            config["logger"].error(
-                "[forceControl] Timeout during force seek after %.2fs (required=%.3fN).",
-                float(max_seek_seconds),
-                required_force,
-            )
             return False
 
         result = []
@@ -1238,15 +1231,12 @@ def putForceZminus(
                 measured = abs(float(result[i]))
             except (TypeError, ValueError, IndexError):
                 continue
-            if measured >= required_force:
+            if measured > abs(float(force)):
                 config["logger"].info(
-                    "[forceControl] Force condition met: Axis %s, Force %.3f (required %.3f, ratio %.2f)",
+                    "[forceControl] Force condition met: Axis %s, Force %.3f",
                     i,
                     measured,
-                    required_force,
-                    reach_ratio,
                 )
-                time.sleep(0.0001)
                 notFound = False
                 break
 
@@ -6704,6 +6694,7 @@ def communicate(
         wait_start = time.time()
         consecutive_state_errors = 0
         saw_running = False
+        first_done_seen_at = None
         while True:
             if stop_requested():
                 stop_j7()
@@ -6745,6 +6736,8 @@ def communicate(
                     saw_running = True
 
                 if state_done(pluginRes):
+                    if first_done_seen_at is None:
+                        first_done_seen_at = time.time()
                     trace_event(
                         "state_done_seen",
                         pluginRes,
@@ -6821,6 +6814,14 @@ def communicate(
                         time.sleep(move_poll_s)
 
                     if stable_done and stable_samples >= settle_stable_samples:
+                        confirmation_delay_s = time.time() - first_done_seen_at
+                        config["logger"].info(
+                            "[7thAxisMove] Stable STOPPED confirmed: target=%.3fmm "
+                            "confirmation_delay=%.3fs samples=%s",
+                            float(position),
+                            confirmation_delay_s,
+                            stable_samples,
+                        )
                         trace_event(
                             "settle_accept_done",
                             pluginRes,
@@ -7363,9 +7364,8 @@ def keepTool11(
         wait=True,
     )
 
-    # After drop, tool must not remain attached.
-    if _verify_tool_attached(cps, toolNumber, config):
-        raise RuntimeError("Tool still detected after drop command.")
+    # Confirm the released state directly. Checking for attachment here caused
+    # every successful drop to wait for the full attachment-check timeout.
     if not _verify_tool_released(
         cps=cps, config=config, expected_tool_number=toolNumber
     ):
@@ -7901,7 +7901,7 @@ def stopper_statusmod(cps, digital_number=2, state=None):
             raise ValueError("State must be 'up', 'down', or None")
 
 
-def set_table_state(CPS, table_id, desired_state):
+def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
     """
     Set the table to a specific desired state
     """
@@ -7967,6 +7967,13 @@ def set_table_state(CPS, table_id, desired_state):
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
                 }
+            if not wait_for_confirmation:
+                return {
+                    "success": True,
+                    "newState": "Open",
+                    "commandAccepted": True,
+                    "message": "Table A horizontal command accepted",
+                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("0", "1")
             )
@@ -8003,6 +8010,13 @@ def set_table_state(CPS, table_id, desired_state):
                         "Failed to command Table A close position "
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
+                }
+            if not wait_for_confirmation:
+                return {
+                    "success": True,
+                    "newState": "Close",
+                    "commandAccepted": True,
+                    "message": "Table A 45 degree command accepted",
                 }
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("1", "0")
@@ -8048,6 +8062,13 @@ def set_table_state(CPS, table_id, desired_state):
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
                 }
+            if not wait_for_confirmation:
+                return {
+                    "success": True,
+                    "newState": "Open",
+                    "commandAccepted": True,
+                    "message": "Table B horizontal command accepted",
+                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_b_co, lambda v: v == "0"
             )
@@ -8084,6 +8105,13 @@ def set_table_state(CPS, table_id, desired_state):
                         "Failed to command Table B close position "
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
+                }
+            if not wait_for_confirmation:
+                return {
+                    "success": True,
+                    "newState": "Close",
+                    "commandAccepted": True,
+                    "message": "Table B 45 degree command accepted",
                 }
             confirmed, reason, last_value = _wait_until(
                 _read_table_b_co, lambda v: v == "1"

@@ -128,22 +128,6 @@ def _wait_robot_motion_done(cps, timeout_s=45.0, poll_s=0.02):
     return False
 
 
-def _resolve_force_seek_timeout(edge_speed, fallback=10.0):
-    """
-    Force-seek timeout must scale with sanding speed.
-    At low user sanding speed (e.g. 0.15), fixed 10s is often too short.
-    """
-    try:
-        speed_ratio = max(0.05, min(1.0, float(edge_speed)))
-    except Exception:
-        speed_ratio = 1.0
-
-    # Keep 10s at >=35% speed; extend progressively below that.
-    scale = max(1.0, 0.35 / speed_ratio)
-    timeout = float(fallback) * scale
-    return max(10.0, min(45.0, timeout))
-
-
 def build_edge_coverage_path(
     x_coords,
     y_coords,
@@ -228,12 +212,7 @@ def execute_edge_coverage(
         )
 
     edge_speed = _resolve_edge_speed(config)
-    force_seek_linear = 5.0
-    if edge_speed < 0.35:
-        # Improve force seeking at very low sanding-speed settings.
-        force_seek_linear = 8.0
     force_blending_timeout = 0.4 if split else 7.0
-    force_seek_timeout = _resolve_force_seek_timeout(edge_speed, fallback=10.0)
 
     try:
         force_ok = putForceZminus(
@@ -242,31 +221,9 @@ def execute_edge_coverage(
             tcp=config["coords"][tcp_key],
             ucs=config["coords"][ucs_key],
             config=config,
-            search_linear_velocity=force_seek_linear,
+            search_linear_velocity=5.0,
             blending_timeout_s=force_blending_timeout,
-            max_seek_seconds=force_seek_timeout,
         )
-
-        if not force_ok:
-            # One retry with a longer timeout before failing the entire cycle.
-            retry_timeout = min(60.0, force_seek_timeout * 1.5)
-            retry_seek_linear = max(force_seek_linear, 10.0)
-            if isinstance(config, dict) and config.get("logger"):
-                config["logger"].warning(
-                    "[Edge Coverage] Force seek retry (timeout=%.1fs, linear=%.1f).",
-                    retry_timeout,
-                    retry_seek_linear,
-                )
-            force_ok = putForceZminus(
-                cps=cps,
-                force=force,
-                tcp=config["coords"][tcp_key],
-                ucs=config["coords"][ucs_key],
-                config=config,
-                search_linear_velocity=retry_seek_linear,
-                blending_timeout_s=force_blending_timeout,
-                max_seek_seconds=retry_timeout,
-            )
 
         if not force_ok:
             raise RuntimeError("[Edge Coverage] Failed to establish force contact before edge path.")

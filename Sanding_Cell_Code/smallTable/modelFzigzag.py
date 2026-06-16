@@ -411,7 +411,6 @@ def _perform_process_top(
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
         config=config,
-        max_seek_seconds=12.0,
     )
     if not force_ok:
         raise RuntimeError("Force seek failed before Model F sanding start point.")

@@ -530,25 +530,40 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         wait=True,
     )
 
-    putForceZminus(cps=cps, force=force, tcp=tcp, ucs=ucs, config=config)
-    turn_vibration_on(cps)
+    force_ok = putForceZminus(
+        cps=cps,
+        force=force,
+        tcp=tcp,
+        ucs=ucs,
+        config=config,
+        search_linear_velocity=5.0,
+    )
+    if not force_ok:
+        raise RuntimeError("[Frame] Failed to establish stable Z- force contact.")
 
-    for end_pose in sanding_points[1:]:
-        communicate(
-            cps=cps,
-            config=config,
-            point=end_pose,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=sanding_speed,
-            velocity_profile="sanding",
-            wait=True,
-        )
+    vibration_on = False
+    try:
+        turn_vibration_on(cps)
+        vibration_on = True
 
-    waitForBlending(cps=cps, config=config)
-    turn_vibration_off(cps)
-    releaseForce(cps=cps, config=config, wait_for_blending=False)
+        for end_pose in sanding_points[1:]:
+            communicate(
+                cps=cps,
+                config=config,
+                point=end_pose,
+                tcp=tcp,
+                ucs=ucs,
+                seventh=-1,
+                speed=sanding_speed,
+                velocity_profile="sanding",
+                wait=True,
+            )
+
+        waitForBlending(cps=cps, config=config)
+    finally:
+        if vibration_on:
+            turn_vibration_off(cps)
+        releaseForce(cps=cps, config=config, wait_for_blending=False)
 
 
 def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner):

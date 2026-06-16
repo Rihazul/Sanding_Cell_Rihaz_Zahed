@@ -173,19 +173,23 @@ export function RobotControlPanel({
                 label="Table A"
                 isActive={tableAOpen}
                 isPending={!!tableAPending}
+                allowPendingToggle
                 pendingLabel={tableAPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableAOpen;
                   setTableAPending(willOpen ? 'opening' : 'closing');
-                  const response = await toggleTableState('tableAOpenClose');
+                  setTableAOpen(willOpen);
+                  const response = await toggleTableState('tableAOpenClose', willOpen ? 'Close' : 'Open');
                   if (response?.error || response?.newState === 'Busy') {
+                    setTableAOpen(!willOpen);
                     setTableAPending(null);
                     addActivity(response?.error || 'Table A action blocked. Please try again.', 'warning');
                     return;
                   }
                   addActivity(`Table A moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning'); 
                 } catch (error) {
+                  setTableAOpen(!willOpen);
                   setTableAPending(null);
                   addActivity(`Table A action failed: ${error}`, 'error');
                 }
@@ -200,19 +204,23 @@ export function RobotControlPanel({
                 label="Table B"
                 isActive={tableBOpen}
                 isPending={!!tableBPending}
+                allowPendingToggle
                 pendingLabel={tableBPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableBOpen;
                   setTableBPending(willOpen ? 'opening' : 'closing');
-                  const response = await toggleTableState('tableBOpenClose');
+                  setTableBOpen(willOpen);
+                  const response = await toggleTableState('tableBOpenClose', willOpen ? 'Close' : 'Open');
                   if (response?.error || response?.newState === 'Busy') {
+                    setTableBOpen(!willOpen);
                     setTableBPending(null);
                     addActivity(response?.error || 'Table B action blocked. Please try again.', 'warning');
                     return;
                   }
                   addActivity(`Table B moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning');
                 } catch (error) {
+                  setTableBOpen(!willOpen);
                   setTableBPending(null);
                   addActivity(`Table B action failed: ${error}`, 'error');
                 }

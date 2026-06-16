@@ -11,7 +11,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from smallTable.frameplane1final import smalldoor1side,smalldoor2side,smalldoor3side,smalldoor4side
 from smallTable.zigzagplane1final import smalldoor1zizag,smalldoor2zizag,smalldoor3zizag,smalldoor4zizag
 from smallTable.edge_coverage_tool3 import run_tool3_pocket_edge_cycles
-from smallTable.pocketplane1final import smalldoor1pocket,smalldoor2pocket,smalldoor3pocket,smalldoor4pocket
 from smallTable.frame1tool2sidefinal import door1frametool2side,door2frametool2side,door3frametool2side,door4frametool2side
 from smallTable.frame1tool2edgefinal import door1frametool2sideedge,door2frametool2sideedge,door3frametool2sideedge,door4frametool2sideedge
 from smallTable.frame1tool3 import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
@@ -105,29 +104,6 @@ def run_zigzag_cycles(
             if INTER_PASS_DELAY_SECONDS > 0:
                 print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
                 time.sleep(INTER_PASS_DELAY_SECONDS)
-
-def run_pocket_cycles(count, force, door_num, z,cps):
-    """Execute door function based on number"""
-    if count <= 0:  # Skip if count is 0 or negative
-        return
-    door_funcs = {
-        1: smalldoor1pocket,
-        2: smalldoor2pocket,
-        3: smalldoor3pocket,
-        4: smalldoor4pocket
-    }
-    
-    try:
-        door_func = door_funcs[door_num]
-    except KeyError:
-        raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
-
-    for i in range(count):
-        print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(force=force,z=z,cps=cps)
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
 
 def run_tool2side_cycles(count, force, door_num,cps):
     """Execute door function based on number"""
@@ -286,14 +262,12 @@ def sandingModelCTableA():
 
     frame_by_door = get_tableA_task_by_door(json_config_TableA, 'frame')
     zigzag_by_door = get_tableA_task_by_door(json_config_TableA, 'pocketzigzag')
-    pocket_by_door = get_tableA_task_by_door(json_config_TableA, 'pocketsquare')
     tool2side_by_door = get_tableA_task_by_door(json_config_TableA, 'side')
     tool2edge_by_door = get_tableA_task_by_door(json_config_TableA, 'edgeOutside')
     tool3_by_door = get_tableA_task_by_door(json_config_TableA, '3D')
 
     side_cycles_doors = doors_with_cycles(frame_by_door)
     zig_zag_cycle_doors = doors_with_cycles(zigzag_by_door)
-    pocket_cycle_doors = doors_with_cycles(pocket_by_door)
     tool2side_cycle_doors = doors_with_cycles(tool2side_by_door)
     tool2sideedge_cycle_doors = doors_with_cycles(tool2edge_by_door)
     tl3sideedge_door = doors_with_cycles(tool3_by_door)

@@ -20,7 +20,7 @@ from smallTable.scancord import get_door_position, get_inner_corner_point, get_y
 
 INTERNAL_OFFSET_MM = 38.0
 INTERNAL_FORCE_N = 5
-FORCE_APPROACH_Z_MM = 40.0
+FORCE_APPROACH_Z_MM = 35.0
 
 
 def load_config():
@@ -148,7 +148,6 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
     ucs = config["coords"]["ucsTable1"]
 
     seventh = get_door_position(door_number)
-    prehoming = [0, 0, 100, 0, 0, 0]
     applied_force = _resolve_force(force)
 
     if _requires_split_path(door_number):
@@ -176,18 +175,6 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             velocity_profile="robotspeed",
             wait=pass_number == 1,
         )
-        if pass_number == 1:
-            communicate(
-                cps=cps,
-                config=config,
-                point=prehoming,
-                tcp=tcp,
-                ucs=ucs,
-                seventh=-1,
-                speed=robot_speed,
-                velocity_profile="robotspeed",
-                wait=True,
-            )
         communicate(
             cps=cps,
             config=config,
@@ -203,13 +190,19 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
         force_applied = False
         vibration_on = False
         try:
-            putForceZminus(
+            force_ok = putForceZminus(
                 cps=cps,
                 force=applied_force,
                 tcp=tcp,
                 ucs=ucs,
                 config=config,
+                search_linear_velocity=5.0,
             )
+            if not force_ok:
+                raise RuntimeError(
+                    f"Door {door_number} Model D pass {pass_number}: "
+                    "failed to establish stable Z- force contact."
+                )
             force_applied = True
             turn_vibration_on(cps)
             vibration_on = True
@@ -240,17 +233,6 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             cps=cps,
             config=config,
             point=pre_start,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        communicate(
-            cps=cps,
-            config=config,
-            point=prehoming,
             tcp=tcp,
             ucs=ucs,
             seventh=-1,

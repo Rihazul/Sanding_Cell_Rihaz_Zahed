@@ -912,6 +912,54 @@ export function CompactTableConfig({
 
   };
 
+  const toggleAllScannedDoorsForRow = (label: string) => {
+    if (
+      tableName !== 'A' ||
+      detectedDoorNumbers?.length !== 4 ||
+      !doorConfigs ||
+      !setDoorConfigs
+    ) {
+      return;
+    }
+
+    const rowIndex = rows.findIndex(r => r.label === label);
+    if (rowIndex < 0) return;
+
+    const compatibleDoors = detectedDoorNumbers.filter(doorNumber => {
+      const selectedModel =
+        doorConfigs.find(d => d.doorNumber === doorNumber)?.model || model;
+      return !selectedModel || isTableAOperationAllowed(selectedModel, label);
+    });
+    const currentSelection = rowDoorSelections[label] || [];
+    const allCompatibleSelected =
+      compatibleDoors.length > 0 &&
+      compatibleDoors.every(doorNumber => currentSelection.includes(doorNumber));
+    const nextSelection = allCompatibleSelected ? [] : compatibleDoors;
+
+    setRowDoorSelections(prev => ({ ...prev, [label]: nextSelection }));
+    if (nextSelection.length > 0) {
+      setSelectedDoor(nextSelection[0]);
+      setRowActiveDoor(prev => ({ ...prev, [label]: nextSelection[0] }));
+    }
+
+    if (!allCompatibleSelected) {
+      setDoorConfigs(prev =>
+        prev.map(dc => {
+          if (!compatibleDoors.includes(dc.doorNumber)) return dc;
+          const newRows = [...dc.rows];
+          const currentRow = newRows[rowIndex];
+          if (!currentRow) return dc;
+          newRows[rowIndex] = {
+            ...currentRow,
+            force: currentRow.force > 0 ? currentRow.force : 5,
+            cycle: currentRow.cycle > 0 ? currentRow.cycle : 1,
+          };
+          return { ...dc, rows: newRows };
+        })
+      );
+    }
+  };
+
   const handlePocketZigZagOptionChange = (idx: number, option: 'verticalSpiral' | 'horizontalSpiral' | 'edgeCoverage', checked: boolean) => {
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
       const rowLabel = rows[idx]?.label;
@@ -1086,6 +1134,34 @@ export function CompactTableConfig({
 
                         <div className="flex items-center gap-3 flex-wrap">
                           <div className="flex items-center gap-2 flex-wrap">
+                            {detectedDoorNumbers?.length === 4 && (() => {
+                              const compatibleDoors = detectedDoorNumbers.filter(doorNumber => {
+                                const selectedModel =
+                                  doorConfigs.find(d => d.doorNumber === doorNumber)?.model || model;
+                                return !selectedModel || isTableAOperationAllowed(selectedModel, row.label);
+                              });
+                              const selectedDoors = rowDoorSelections[row.label] || [];
+                              const allSelected =
+                                compatibleDoors.length > 0 &&
+                                compatibleDoors.every(doorNumber => selectedDoors.includes(doorNumber));
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    toggleAllScannedDoorsForRow(row.label);
+                                  }}
+                                  disabled={isOperating || compatibleDoors.length === 0}
+                                  className={`min-w-[94px] px-3 py-1 text-xs font-bold rounded-md border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    allSelected
+                                      ? 'text-white bg-emerald-600 border-emerald-600 hover:bg-emerald-700'
+                                      : 'text-emerald-800 bg-emerald-50 border-emerald-500 hover:bg-emerald-100'
+                                  }`}
+                                >
+                                  {allSelected ? 'Clear All 4' : 'All 4 Doors'}
+                                </button>
+                              );
+                            })()}
                             {[1, 2, 3, 4].map((doorNum) => {
                               const doorConfig = doorConfigs.find(d => d.doorNumber === doorNum);
                               const hasModel = doorConfig?.model && doorConfig.model !== '';

@@ -1947,6 +1947,23 @@ def toggle_state(table_id):
             msg = "Please home the robot (7th axis) before opening or closing the table."
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
+
+        requested_state = request.args.get("desired")
+        if requested_state in ("Open", "Close"):
+            result = set_table_state(
+                CPS,
+                table_id,
+                requested_state,
+                wait_for_confirmation=False,
+            )
+            if not result.get("success", False):
+                socketio.emit(
+                    'flash_message',
+                    {"message": result.get("message", "Table movement command failed."), "type": "warning"},
+                )
+                return jsonify(result), 500
+            return jsonify(result)
+
         if table_id == "tableAOpenClose": 
             nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
             nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)

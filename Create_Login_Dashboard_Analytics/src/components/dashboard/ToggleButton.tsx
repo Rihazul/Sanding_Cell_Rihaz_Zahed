@@ -8,6 +8,7 @@ interface ToggleButtonProps {
   activeLabel: string;
   inactiveLabel: string;
   isPending?: boolean;
+  allowPendingToggle?: boolean;
   pendingLabel?: string;
   disabled?: boolean;
   showCheckmarkPosition?: 'left' | 'right';
@@ -20,13 +21,14 @@ export function ToggleButton({
   activeLabel,
   inactiveLabel,
   isPending = false,
+  allowPendingToggle = false,
   pendingLabel,
   disabled = false,
   showCheckmarkPosition = 'left',
 }: ToggleButtonProps) {
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
-    if (!disabled && !isPending) {
+    if (!disabled && (!isPending || allowPendingToggle)) {
       onToggle();
     }
   };
@@ -34,7 +36,7 @@ export function ToggleButton({
   return (
     <motion.button
       type="button"
-      whileTap={disabled || isPending ? {} : { scale: 0.95 }}
+      whileTap={disabled || (isPending && !allowPendingToggle) ? {} : { scale: 0.95 }}
       onClick={handleClick}
       disabled={disabled}
       aria-busy={isPending}

@@ -340,8 +340,12 @@ export async function performAction(
 }
 
 // Toggle state for Table open/close
-export async function toggleTableState(tableId: 'tableAOpenClose' | 'tableBOpenClose') {
-  return apiCall(`/toggle_state/${tableId}`, 'GET');
+export async function toggleTableState(
+  tableId: 'tableAOpenClose' | 'tableBOpenClose',
+  desiredState?: 'Open' | 'Close'
+) {
+  const desired = desiredState ? `?desired=${desiredState}` : '';
+  return apiCall(`/toggle_state/${tableId}${desired}`, 'GET');
 }
 
 // Get current state for Table open/close

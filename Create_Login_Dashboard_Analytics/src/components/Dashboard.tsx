@@ -248,16 +248,17 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   ];
 
   const makeRowSet = () => defaultRows.map(r => ({ ...r }));
+  const makeTableARowSet = () => defaultRows.map(r => ({ ...r, force: 5, cycle: 1 }));
 
-  const [tableARows, setTableARows] = useState<RowConfig[]>(makeRowSet());
+  const [tableARows, setTableARows] = useState<RowConfig[]>(makeTableARowSet());
   const [tableBRows, setTableBRows] = useState<RowConfig[]>(makeRowSet());
 
   // Door configurations for Table A (each door can have a different model)
   const [doorConfigs, setDoorConfigs] = useState<Array<{doorNumber: number, model: string, rows: RowConfig[]}>>([
-    { doorNumber: 1, model: '', rows: makeRowSet() },
-    { doorNumber: 2, model: '', rows: makeRowSet() },
-    { doorNumber: 3, model: '', rows: makeRowSet() },
-    { doorNumber: 4, model: '', rows: makeRowSet() },
+    { doorNumber: 1, model: '', rows: makeTableARowSet() },
+    { doorNumber: 2, model: '', rows: makeTableARowSet() },
+    { doorNumber: 3, model: '', rows: makeTableARowSet() },
+    { doorNumber: 4, model: '', rows: makeTableARowSet() },
   ]);
 
   // Check if Frame or Pocket ZigZag are configured (force AND cycle > 0) to enable Spiral Settings
