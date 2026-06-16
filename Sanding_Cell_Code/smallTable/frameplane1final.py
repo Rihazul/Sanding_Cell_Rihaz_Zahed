@@ -55,6 +55,7 @@ DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
 SANDING_Z_THRESHOLD = 5.0
 FORCE_APPROACH_Z_MM = 20.0
+FRAME_FORCE_TOUCHDOWN_DEBUG_DELAY_S = 3.0
 FRAME_FORCE_MOVE_SETTLE_TIMEOUT_S = 0.75
 FRAME_FORCE_MOVE_SETTLE_DELAY_S = 0.05
 J7_IDLE_TIMEOUT_S = 45.0
@@ -579,6 +580,13 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     if not force_ok:
         print("[FrameDebug] putForceZminus FAILED; raising RuntimeError")
         raise RuntimeError("[Frame] Failed to establish stable Z- force contact.")
+
+    print(
+        f"[FrameDebug] touchdown debug delay START "
+        f"{FRAME_FORCE_TOUCHDOWN_DEBUG_DELAY_S:.1f}s before vibration/motion"
+    )
+    time.sleep(FRAME_FORCE_TOUCHDOWN_DEBUG_DELAY_S)
+    print("[FrameDebug] touchdown debug delay DONE")
 
     vibration_on = False
     try:
