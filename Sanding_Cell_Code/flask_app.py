@@ -1929,100 +1929,156 @@ def check_tool4_status():
             return jsonify({"status": "busy", "shouldBlink": False})
         should_blink = check_tool4_attachment_condition(CPS)
     return jsonify({"status": "OK", "shouldBlink": bool(should_blink)})
+def _table_name(table_id):
+    if table_id == "tableAOpenClose":
+        return "Table A"
+    if table_id == "tableBOpenClose":
+        return "Table B"
+    return "Table"
+
+
+def _table_target_name(desired_state):
+    if desired_state == "Open":
+        return "horizontal"
+    if desired_state == "Close":
+        return "45 degree"
+    return "unknown"
+
+
+def _cps_ret_ok(ret):
+    return ret in (0, None)
+
+
+def _command_table_state_direct(cps, table_id, desired_state):
+    """
+    Send the table output command immediately.
+    Physical confirmation is handled by /table_state polling, not by this button route.
+    """
+    if desired_state not in ("Open", "Close"):
+        return {
+            "success": False,
+            "newState": "Error",
+            "message": f"Invalid desired table state: {desired_state}",
+        }
+
+    table_name = _table_name(table_id)
+    target_name = _table_target_name(desired_state)
+
+    if table_id == "tableAOpenClose":
+        if desired_state == "Open":
+            # Table A horizontal: DO1 release, DO0 drive.
+            release_ret = cps.HRIF_SetBoxDO(0, 1, 0)
+            drive_ret = cps.HRIF_SetBoxDO(0, 0, 1)
+        else:
+            # Table A 45 degree: DO0 release, DO1 drive.
+            release_ret = cps.HRIF_SetBoxDO(0, 0, 0)
+            drive_ret = cps.HRIF_SetBoxDO(0, 1, 1)
+    elif table_id == "tableBOpenClose":
+        if desired_state == "Open":
+            # Table B horizontal: CO1 release, CO0 drive.
+            release_ret = cps.HRIF_SetBoxCO(0, 1, 0)
+            drive_ret = cps.HRIF_SetBoxCO(0, 0, 1)
+        else:
+            # Table B 45 degree: CO0 release, CO1 drive.
+            release_ret = cps.HRIF_SetBoxCO(0, 0, 0)
+            drive_ret = cps.HRIF_SetBoxCO(0, 1, 1)
+    else:
+        return {
+            "success": False,
+            "newState": "Error",
+            "message": f"Invalid table ID: {table_id}",
+        }
+
+    print(
+        f"[table-toggle] command table={table_id} target={desired_state} "
+        f"release_ret={release_ret} drive_ret={drive_ret}"
+    )
+
+    if not (_cps_ret_ok(release_ret) and _cps_ret_ok(drive_ret)):
+        return {
+            "success": False,
+            "newState": "Error",
+            "message": (
+                f"{table_name} {target_name} command failed "
+                f"(release_ret={release_ret}, drive_ret={drive_ret})"
+            ),
+        }
+
+    return {
+        "success": True,
+        "newState": desired_state,
+        "commandSent": True,
+        "message": f"{table_name} {target_name} command sent",
+    }
+
+
+def _read_current_table_state_for_toggle(cps, table_id):
+    if table_id == "tableAOpenClose":
+        di_state_0 = []
+        di_state_1 = []
+        nRet0 = cps.HRIF_ReadBoxDI(0, 0, di_state_0)
+        nRet1 = cps.HRIF_ReadBoxDI(0, 1, di_state_1)
+        if nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1:
+            sensor_state = (str(di_state_0[0]), str(di_state_1[0]))
+            if sensor_state == ("1", "0"):
+                return "Close", None
+            if sensor_state == ("0", "1"):
+                return "Open", None
+            return None, f"Table A sensor state is invalid: {sensor_state}"
+        return None, "Unable to read Table A position sensors."
+
+    if table_id == "tableBOpenClose":
+        robot_state = []
+        nRet = cps.HRIF_ReadBoxCO(0, 1, robot_state)
+        if nRet == 0 and robot_state:
+            return ("Close" if robot_state[0] == '1' else "Open"), None
+        return None, "Unable to read Table B position output."
+
+    return None, "Invalid input. No state change."
+
+
 ############################################################################################
-# Toggle the Table A/B Open/Close button text depending upon table current state.Improved by rafat and working
+# Toggle the Table A/B Open/Close button text depending upon table current state.
 @app.route('/toggle_state/<table_id>', methods=['GET'])
 def toggle_state(table_id):
-    robot_state = []
-    di_state_0 = []
-    di_state_1 = []
-    config_data_UI = fetch_and_combine_data()
+    requested_state = request.args.get("desired")
+    print(
+        f"[table-toggle] request table={table_id} desired={requested_state} "
+        f"j7_home_confirmed={j7_home_confirmed}"
+    )
+
     with locked_cps() as ok:
         if not ok:
+            print(f"[table-toggle] busy table={table_id} desired={requested_state}")
             return jsonify({'newState': "Busy"}), 200
 
         # Ensure 7th axis is at home before allowing table open/close.
         # J7 position cannot be read, so we rely on a software flag set by homing.
         if not j7_home_confirmed:
             msg = "Please home the robot (7th axis) before opening or closing the table."
-            socketio.emit('flash_message', {"message": msg})
+            print(f"[table-toggle] blocked table={table_id}: {msg}")
+            socketio.emit('flash_message', {"message": msg, "type": "warning"})
             return jsonify({"error": msg, "newState": "Blocked"}), 200
 
-        requested_state = request.args.get("desired")
-        if requested_state in ("Open", "Close"):
-            result = set_table_state(CPS, table_id, requested_state)
-            if not result.get("success", False):
-                socketio.emit(
-                    'flash_message',
-                    {"message": result.get("message", "Table movement command failed."), "type": "warning"},
-                )
-                return jsonify(result), 500
-            return jsonify(result)
+        if requested_state not in ("Open", "Close"):
+            current_state, error = _read_current_table_state_for_toggle(CPS, table_id)
+            if error:
+                print(f"[table-toggle] state read failed table={table_id}: {error}")
+                socketio.emit('flash_message', {"message": error, "type": "warning"})
+                return jsonify({"error": error, "newState": "Unknown"}), 500
+            requested_state = "Open" if current_state == "Close" else "Close"
 
-        if table_id == "tableAOpenClose": 
-            nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
-            nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
-            sensors_ok = nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1
-            if not sensors_ok:
-                msg = "Unable to read Table A position sensors."
-                socketio.emit('flash_message', {"message": msg, "type": "warning"})
-                return jsonify({"error": msg, "newState": "Unknown"}), 500
+        result = _command_table_state_direct(CPS, table_id, requested_state)
 
-            sensor_state = (str(di_state_0[0]), str(di_state_1[0]))
-            if sensor_state == ("1", "0"):
-                # Currently 45 degrees; move to horizontal.
-                result = set_table_state(CPS, "tableAOpenClose", "Open")
-            elif sensor_state == ("0", "1"):
-                # Currently horizontal; move to 45 degrees.
-                result = set_table_state(CPS, "tableAOpenClose", "Close")
-            else:
-                msg = f"Table A sensor state is invalid: {sensor_state}"
-                socketio.emit('flash_message', {"message": msg, "type": "warning"})
-                return jsonify({"error": msg, "newState": "Unknown"}), 500
+    if not result.get("success", False):
+        socketio.emit(
+            'flash_message',
+            {"message": result.get("message", "Table movement command failed."), "type": "warning"},
+        )
+        return jsonify(result), 500
 
-            if not result.get("success", False):
-                socketio.emit(
-                    'flash_message',
-                    {"message": result.get("message", "Table A movement failed."), "type": "warning"},
-                )
-                return jsonify(result), 500
-            new_state = result["newState"]
-
-        elif table_id == "tableBOpenClose":
-            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-            if nRet != 0 or not robot_state:
-                msg = "Unable to read Table B position output."
-                socketio.emit('flash_message', {"message": msg, "type": "warning"})
-                return jsonify({"error": msg, "newState": "Unknown"}), 500
-            if robot_state[0] == '1':
-                result = set_table_state(CPS, "tableBOpenClose", "Open")
-                socketio.emit('flash_message', {"message": f"Table B is in horizontal position"})
-            else:
-                result = set_table_state(CPS, "tableBOpenClose", "Close")
-                socketio.emit('flash_message', {"message": f"Alert !!! Table B is in 45 degree working position so be carefull at the time of manually moving robot"})
-            if not result.get("success", False):
-                socketio.emit(
-                    'flash_message',
-                    {"message": result.get("message", "Table B movement failed."), "type": "warning"},
-                )
-                return jsonify(result), 500
-            new_state = result["newState"]
-            ######
-            #ToDo: The project was not complete, so change the digital number in the CPS functions which can open or close the tableB.
-            #Syntax: HRIF_SetBoxDo(BoxID, DigitalNumber(Ask Nic What is the Digital Output for TableB), TableState(1or0))
-            ######
-            # nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
-            # if robot_state[0] == '1':
-            #     new_state = "Open"
-            #     nRet = CPS.HRIF_SetBoxDO(0, 1, 0)
-            # else:
-            #     new_state = "Close"
-            #     nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
-
-        else:
-            return jsonify({'newState': 'Invalid input. No state change.'})
-
-    return jsonify({'newState': f"{new_state}"})
+    socketio.emit('flash_message', {"message": result["message"]})
+    return jsonify(result)
 
 ############################################################################################
 # Send the Table A/B actual state to the frontend.

@@ -4,6 +4,8 @@ import { Badge } from '../ui/badge';
 import { ToggleButton } from './ToggleButton';
 import { toolToggle, performAction, toggleTableState } from '../../services/api';
 
+type TablePendingState = 'opening' | 'closing' | null;
+
 interface RobotControlPanelProps {
   robotEnabled: boolean;
   setRobotEnabled: (enabled: boolean) => void;
@@ -13,10 +15,10 @@ interface RobotControlPanelProps {
   setStopperBUp: (up: boolean) => void;
   tableAOpen: boolean;
   tableBOpen: boolean;
-  tableAPending: 'opening' | 'closing' | null;
-  setTableAPending: (pending: 'opening' | 'closing' | null) => void;
-  tableBPending: 'opening' | 'closing' | null;
-  setTableBPending: (pending: 'opening' | 'closing' | null) => void;
+  tableAPending: TablePendingState;
+  setTableAPending: React.Dispatch<React.SetStateAction<TablePendingState>>;
+  tableBPending: TablePendingState;
+  setTableBPending: React.Dispatch<React.SetStateAction<TablePendingState>>;
   t1Picked: boolean;
   setT1Picked: (picked: boolean) => void;
   t2Picked: boolean;
@@ -75,6 +77,7 @@ export function RobotControlPanel({
 }: RobotControlPanelProps) {
   const TOOL_PENDING_FALLBACK_PICK_MS = 2500;
   const TOOL_PENDING_FALLBACK_DROP_MS = 6000;
+  const TABLE_PENDING_FALLBACK_MS = 12000;
   const getHeldTool = (currentTool: number) => {
     if (currentTool !== 1 && t1Picked) return 1;
     if (currentTool !== 2 && t2Picked) return 2;
@@ -178,7 +181,8 @@ export function RobotControlPanel({
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableAOpen;
-                  setTableAPending(willOpen ? 'opening' : 'closing');
+                  const pendingState = willOpen ? 'opening' : 'closing';
+                  setTableAPending(pendingState);
                   setTableAOpen(willOpen);
                   const response = await toggleTableState('tableAOpenClose', willOpen ? 'Close' : 'Open');
                   if (response?.error || response?.newState === 'Busy') {
@@ -188,6 +192,10 @@ export function RobotControlPanel({
                     return;
                   }
                   addActivity(`Table A moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning'); 
+                  window.setTimeout(
+                    () => setTableAPending(prev => (prev === pendingState ? null : prev)),
+                    TABLE_PENDING_FALLBACK_MS
+                  );
                 } catch (error) {
                   setTableAOpen(!willOpen);
                   setTableAPending(null);
@@ -209,7 +217,8 @@ export function RobotControlPanel({
                 onToggle={async () => { 
                 try {
                   const willOpen = !tableBOpen;
-                  setTableBPending(willOpen ? 'opening' : 'closing');
+                  const pendingState = willOpen ? 'opening' : 'closing';
+                  setTableBPending(pendingState);
                   setTableBOpen(willOpen);
                   const response = await toggleTableState('tableBOpenClose', willOpen ? 'Close' : 'Open');
                   if (response?.error || response?.newState === 'Busy') {
@@ -219,6 +228,10 @@ export function RobotControlPanel({
                     return;
                   }
                   addActivity(`Table B moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning');
+                  window.setTimeout(
+                    () => setTableBPending(prev => (prev === pendingState ? null : prev)),
+                    TABLE_PENDING_FALLBACK_MS
+                  );
                 } catch (error) {
                   setTableBOpen(!willOpen);
                   setTableBPending(null);
