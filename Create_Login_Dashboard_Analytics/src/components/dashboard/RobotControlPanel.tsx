@@ -5,6 +5,7 @@ import { ToggleButton } from './ToggleButton';
 import { toolToggle, performAction, toggleTableState } from '../../services/api';
 
 type TablePendingState = 'opening' | 'closing' | null;
+type ToolPendingState = { state: 'picking' | 'dropping'; since: number } | null;
 
 interface RobotControlPanelProps {
   robotEnabled: boolean;
@@ -14,7 +15,9 @@ interface RobotControlPanelProps {
   stopperBUp: boolean;
   setStopperBUp: (up: boolean) => void;
   tableAOpen: boolean;
+  setTableAOpen: (open: boolean) => void;
   tableBOpen: boolean;
+  setTableBOpen: (open: boolean) => void;
   tableAPending: TablePendingState;
   setTableAPending: React.Dispatch<React.SetStateAction<TablePendingState>>;
   tableBPending: TablePendingState;
@@ -27,14 +30,14 @@ interface RobotControlPanelProps {
   setT3Picked: (picked: boolean) => void;
   t4Picked: boolean;
   setT4Picked: (picked: boolean) => void;
-  t1Pending: { state: 'picking' | 'dropping'; since: number } | null;
-  setT1Pending: (pending: { state: 'picking' | 'dropping'; since: number } | null) => void;
-  t2Pending: { state: 'picking' | 'dropping'; since: number } | null;
-  setT2Pending: (pending: { state: 'picking' | 'dropping'; since: number } | null) => void;
-  t3Pending: { state: 'picking' | 'dropping'; since: number } | null;
-  setT3Pending: (pending: { state: 'picking' | 'dropping'; since: number } | null) => void;
-  t4Pending: { state: 'picking' | 'dropping'; since: number } | null;
-  setT4Pending: (pending: { state: 'picking' | 'dropping'; since: number } | null) => void;
+  t1Pending: ToolPendingState;
+  setT1Pending: React.Dispatch<React.SetStateAction<ToolPendingState>>;
+  t2Pending: ToolPendingState;
+  setT2Pending: React.Dispatch<React.SetStateAction<ToolPendingState>>;
+  t3Pending: ToolPendingState;
+  setT3Pending: React.Dispatch<React.SetStateAction<ToolPendingState>>;
+  t4Pending: ToolPendingState;
+  setT4Pending: React.Dispatch<React.SetStateAction<ToolPendingState>>;
   laserOn: boolean;
   setLaserOn: (on: boolean) => void;
   isOperating: boolean;
@@ -49,7 +52,9 @@ export function RobotControlPanel({
   stopperBUp,
   setStopperBUp,
   tableAOpen,
+  setTableAOpen,
   tableBOpen,
+  setTableBOpen,
   tableAPending,
   setTableAPending,
   tableBPending,
@@ -179,24 +184,34 @@ export function RobotControlPanel({
                 allowPendingToggle
                 pendingLabel={tableAPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
+                const willOpen = !tableAOpen;
+                let pendingTimeout: number | undefined;
                 try {
-                  const willOpen = !tableAOpen;
                   const pendingState = willOpen ? 'opening' : 'closing';
                   setTableAPending(pendingState);
                   setTableAOpen(willOpen);
+                  pendingTimeout = window.setTimeout(
+                    () =>
+                      setTableAPending(prev => {
+                        if (prev === pendingState) {
+                          addActivity('Table A command was sent but the position was not confirmed.', 'warning');
+                          return null;
+                        }
+                        return prev;
+                      }),
+                    TABLE_PENDING_FALLBACK_MS
+                  );
                   const response = await toggleTableState('tableAOpenClose', willOpen ? 'Close' : 'Open');
                   if (response?.error || response?.newState === 'Busy') {
+                    if (pendingTimeout) window.clearTimeout(pendingTimeout);
                     setTableAOpen(!willOpen);
                     setTableAPending(null);
                     addActivity(response?.error || 'Table A action blocked. Please try again.', 'warning');
                     return;
                   }
                   addActivity(`Table A moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning'); 
-                  window.setTimeout(
-                    () => setTableAPending(prev => (prev === pendingState ? null : prev)),
-                    TABLE_PENDING_FALLBACK_MS
-                  );
                 } catch (error) {
+                  if (pendingTimeout) window.clearTimeout(pendingTimeout);
                   setTableAOpen(!willOpen);
                   setTableAPending(null);
                   addActivity(`Table A action failed: ${error}`, 'error');
@@ -215,24 +230,34 @@ export function RobotControlPanel({
                 allowPendingToggle
                 pendingLabel={tableBPending === 'opening' ? 'TO 45°' : 'TO HORIZONTAL'}
                 onToggle={async () => { 
+                const willOpen = !tableBOpen;
+                let pendingTimeout: number | undefined;
                 try {
-                  const willOpen = !tableBOpen;
                   const pendingState = willOpen ? 'opening' : 'closing';
                   setTableBPending(pendingState);
                   setTableBOpen(willOpen);
+                  pendingTimeout = window.setTimeout(
+                    () =>
+                      setTableBPending(prev => {
+                        if (prev === pendingState) {
+                          addActivity('Table B command was sent but the position was not confirmed.', 'warning');
+                          return null;
+                        }
+                        return prev;
+                      }),
+                    TABLE_PENDING_FALLBACK_MS
+                  );
                   const response = await toggleTableState('tableBOpenClose', willOpen ? 'Close' : 'Open');
                   if (response?.error || response?.newState === 'Busy') {
+                    if (pendingTimeout) window.clearTimeout(pendingTimeout);
                     setTableBOpen(!willOpen);
                     setTableBPending(null);
                     addActivity(response?.error || 'Table B action blocked. Please try again.', 'warning');
                     return;
                   }
                   addActivity(`Table B moving ${willOpen ? 'to 45°' : 'to Horizontal'}`, willOpen ? 'info' : 'warning');
-                  window.setTimeout(
-                    () => setTableBPending(prev => (prev === pendingState ? null : prev)),
-                    TABLE_PENDING_FALLBACK_MS
-                  );
                 } catch (error) {
+                  if (pendingTimeout) window.clearTimeout(pendingTimeout);
                   setTableBOpen(!willOpen);
                   setTableBPending(null);
                   addActivity(`Table B action failed: ${error}`, 'error');

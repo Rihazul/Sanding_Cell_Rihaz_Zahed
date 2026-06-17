@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from threading import Thread
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
@@ -55,6 +55,11 @@ from cycle_data_utils import overlap_mm_to_step
 UPLOAD_FOLDER = './3DModels'
 ALLOWED_EXTENSIONS = {'stp'}
 os.makedirs(UPLOAD_FOLDER,exist_ok=True)
+
+FLASK_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(FLASK_DIR, os.pardir))
+REACT_BUILD_DIR = os.path.join(PROJECT_ROOT, "Create_Login_Dashboard_Analytics", "build")
+REACT_ASSETS_DIR = os.path.join(REACT_BUILD_DIR, "assets")
 
 
 #RightTable 
@@ -760,10 +765,15 @@ def _parent_cps_healthy_for_homing():
     return True
 
 ############################################################################################
-# Home route to render the frontend interface. Add more routes if necessary!
+# Home route to render the Vite/React frontend.
 @app.route('/')
 def interface():
-    return render_template('interface.html')
+    return send_from_directory(REACT_BUILD_DIR, 'index.html')
+
+
+@app.route('/assets/<path:filename>')
+def react_assets(filename):
+    return send_from_directory(REACT_ASSETS_DIR, filename)
 
 ############################################################################################
 # Display the sanding state in the frontend.

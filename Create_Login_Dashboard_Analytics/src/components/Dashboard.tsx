@@ -320,7 +320,9 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 stopperBUp={stopperBUp}
                 setStopperBUp={setStopperBUp}
                 tableAOpen={tableAOpen}
+                setTableAOpen={setTableAOpen}
                 tableBOpen={tableBOpen}
+                setTableBOpen={setTableBOpen}
                 tableAPending={tableAPending}
                 setTableAPending={setTableAPending}
                 tableBPending={tableBPending}
