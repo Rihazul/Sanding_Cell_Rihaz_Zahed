@@ -1936,7 +1936,6 @@ def toggle_state(table_id):
     robot_state = []
     di_state_0 = []
     di_state_1 = []
-    config_data_UI = fetch_and_combine_data()
     with locked_cps() as ok:
         if not ok:
             return jsonify({'newState': "Busy"}), 200
@@ -1950,19 +1949,50 @@ def toggle_state(table_id):
 
         requested_state = request.args.get("desired")
         if requested_state in ("Open", "Close"):
-            result = set_table_state(
-                CPS,
-                table_id,
-                requested_state,
-                wait_for_confirmation=False,
-            )
-            if not result.get("success", False):
-                socketio.emit(
-                    'flash_message',
-                    {"message": result.get("message", "Table movement command failed."), "type": "warning"},
-                )
+            if table_id == "tableAOpenClose":
+                if requested_state == "Open":
+                    # Horizontal command: DO1 off, DO0 on.
+                    nRet_release = CPS.HRIF_SetBoxDO(0, 1, 0)
+                    nRet_drive = CPS.HRIF_SetBoxDO(0, 0, 1)
+                    message = "Table A horizontal command accepted"
+                else:
+                    # 45-degree command: DO0 off, DO1 on.
+                    nRet_release = CPS.HRIF_SetBoxDO(0, 0, 0)
+                    nRet_drive = CPS.HRIF_SetBoxDO(0, 1, 1)
+                    message = "Table A 45 degree command accepted"
+            elif table_id == "tableBOpenClose":
+                if requested_state == "Open":
+                    # Horizontal command: CO1 off, CO0 on.
+                    nRet_release = CPS.HRIF_SetBoxCO(0, 1, 0)
+                    nRet_drive = CPS.HRIF_SetBoxCO(0, 0, 1)
+                    message = "Table B horizontal command accepted"
+                else:
+                    # 45-degree command: CO0 off, CO1 on.
+                    nRet_release = CPS.HRIF_SetBoxCO(0, 0, 0)
+                    nRet_drive = CPS.HRIF_SetBoxCO(0, 1, 1)
+                    message = "Table B 45 degree command accepted"
+            else:
+                return jsonify({'newState': 'Invalid input. No state change.'})
+
+            if nRet_release not in (0, None) or nRet_drive not in (0, None):
+                result = {
+                    "success": False,
+                    "newState": "Error",
+                    "message": (
+                        "Table movement command failed "
+                        f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
+                    ),
+                }
+                socketio.emit('flash_message', {"message": result["message"], "type": "warning"})
                 return jsonify(result), 500
-            return jsonify(result)
+
+            socketio.emit('flash_message', {"message": message})
+            return jsonify({
+                "success": True,
+                "newState": requested_state,
+                "commandAccepted": True,
+                "message": message,
+            })
 
         if table_id == "tableAOpenClose": 
             nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
