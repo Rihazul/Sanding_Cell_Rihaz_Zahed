@@ -1948,21 +1948,6 @@ def toggle_state(table_id):
             socketio.emit('flash_message', {"message": msg})
             return jsonify({"error": msg}), 200
 
-        requested_state = request.args.get("desired")
-        if requested_state in ("Open", "Close"):
-            result = set_table_state(
-                CPS,
-                table_id,
-                requested_state,
-            )
-            if not result.get("success", False):
-                socketio.emit(
-                    'flash_message',
-                    {"message": result.get("message", "Table movement command failed."), "type": "warning"},
-                )
-                return jsonify(result), 500
-            return jsonify(result)
-
         if table_id == "tableAOpenClose": 
             nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
             nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
