@@ -982,7 +982,7 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    linear_velocity = 5  # 100 mm/s
+    linear_velocity = 7  # 100 mm/s
     angular_velocity = 1  # 10 °/s
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
@@ -1087,7 +1087,7 @@ def putForceZminus(
     ucs,
     config,
     goal=[0, 0, 1],
-    search_linear_velocity=5.0,
+    search_linear_velocity=7.0,
     search_angular_velocity=1.0,
     blending_timeout_s=7.0,
 ):
@@ -1605,7 +1605,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    linear_velocity = 5  # 100 mm/s
+    linear_velocity = 7  # 100 mm/s
     angular_velocity = 1  # 10 °/s
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
@@ -1742,7 +1742,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    linear_velocity = 5  # 100 mm/s
+    linear_velocity = 7  # 100 mm/s
     angular_velocity = 1  # 10 °/s
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
@@ -1883,7 +1883,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     # Use same default seek speed as X+ for a gentler, symmetric contact behavior.
     force_cfg = config.get("forceControl", {}) if isinstance(config, dict) else {}
     try:
-        linear_velocity = float(force_cfg.get("xminusLinearVelocity", 5))
+        linear_velocity = float(force_cfg.get("xminusLinearVelocity", 7))
     except (TypeError, ValueError):
         linear_velocity = 7
     try:
@@ -2026,7 +2026,7 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
 
     # Set maximum search velocities for force control
-    linear_velocity = 5  # 100 mm/s
+    linear_velocity = 7  # 100 mm/s
     angular_velocity = 1  # 10 °/s
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity

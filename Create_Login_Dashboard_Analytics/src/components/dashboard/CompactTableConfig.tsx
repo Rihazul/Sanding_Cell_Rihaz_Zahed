@@ -144,9 +144,9 @@ export function CompactTableConfig({
     return value || 'No model selected';
   };
 
-  const getModelPreviewCandidates = (table: 'A' | 'B', selectedModel: string) => {
+  const getCanonicalModelKey = (selectedModel: string) => {
     const raw = (selectedModel || '').trim();
-    if (!raw) return [];
+    if (!raw) return '';
     const normalized = raw.toLowerCase().replace(/[^a-z0-9]/g, '');
     let canonicalKey = MODEL_KEY_ALIAS[normalized] || raw;
     if (typeof canonicalKey === 'string') {
@@ -158,6 +158,13 @@ export function CompactTableConfig({
       else if (probe.includes('modele')) canonicalKey = 'modelE';
       else if (probe.includes('modelf')) canonicalKey = 'modelF';
     }
+    return canonicalKey;
+  };
+
+  const getModelPreviewCandidates = (table: 'A' | 'B', selectedModel: string) => {
+    const raw = (selectedModel || '').trim();
+    if (!raw) return [];
+    const canonicalKey = getCanonicalModelKey(raw);
     const candidates = MODEL_IMAGE_MAP[table][canonicalKey] || [];
     if (candidates.length) return candidates;
 
@@ -174,6 +181,20 @@ export function CompactTableConfig({
     const relativePath = candidates[attemptIndex] || '';
     if (!relativePath) return '';
     return `/${relativePath}?${PREVIEW_CACHE_BUST}`;
+  };
+
+  const getModelPreviewDisplaySrcs = (
+    table: 'A' | 'B',
+    selectedModel: string,
+    attemptIndex: number
+  ) => {
+    if (table === 'A' && getCanonicalModelKey(selectedModel) === 'modelD') {
+      return ['table_1/model5_c.jpeg', 'table_1/model4.jpg', 'table_1/model5_a.jpg'].map(
+        (relativePath) => `/${relativePath}?${PREVIEW_CACHE_BUST}`
+      );
+    }
+    const src = getModelPreviewSrc(table, selectedModel, attemptIndex);
+    return src ? [src] : [];
   };
 
   const selectedDoorModel =
@@ -1080,19 +1101,28 @@ export function CompactTableConfig({
                   <option value="modelE">Model E - Moulure Interne et Externe</option>
                   <option value="modelF">Model F - Flat</option>
                 </select>
-                {getModelPreviewSrc('A', tableAPreviewModel, previewAttemptIndexA) && (
+                {getModelPreviewDisplaySrcs('A', tableAPreviewModel, previewAttemptIndexA).length > 0 && (
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
                     <div className="text-xs text-slate-600 mb-2">Selected model preview</div>
-                    <img
-                      src={getModelPreviewSrc('A', tableAPreviewModel, previewAttemptIndexA)}
-                      alt={`Table A ${formatModelName(tableAPreviewModel)}`}
-                      onError={() => {
-                        const maxIdx = getModelPreviewCandidates('A', tableAPreviewModel).length - 1;
-                        setPreviewAttemptIndexA((prev) => (prev < maxIdx ? prev + 1 : prev));
-                      }}
-                      style={{ width: '11.25rem', height: '7.5rem' }}
-                      className="mx-auto object-contain rounded-md bg-white border border-slate-200"
-                    />
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {getModelPreviewDisplaySrcs('A', tableAPreviewModel, previewAttemptIndexA).map((src, index) => (
+                        <img
+                          key={`${src}-${index}`}
+                          src={src}
+                          alt={`Table A ${formatModelName(tableAPreviewModel)} preview ${index + 1}`}
+                          onError={(event) => {
+                            if (getCanonicalModelKey(tableAPreviewModel) === 'modelD') {
+                              event.currentTarget.style.display = 'none';
+                              return;
+                            }
+                            const maxIdx = getModelPreviewCandidates('A', tableAPreviewModel).length - 1;
+                            setPreviewAttemptIndexA((prev) => (prev < maxIdx ? prev + 1 : prev));
+                          }}
+                          style={{ width: '11.25rem', height: '7.5rem' }}
+                          className="object-contain rounded-md bg-white border border-slate-200"
+                        />
+                      ))}
+                    </div>
                   </div>
                 )}
                 <div className="mt-2 text-xs">
