@@ -7927,14 +7927,14 @@ def set_table_state(CPS, table_id, desired_state):
             # Set Table A to Open position (horizontal)
             state_ok, current_state = _read_table_a_di()
             if state_ok and current_state == ("0", "1"):
-                return {
-                    "success": True,
-                    "newState": "Open",
-                    "alreadyInState": True,
-                    "message": "Table A already confirmed at horizontal position",
-                }
+                print("[TableDebug] Table A already reads horizontal; refreshing DO command anyway.")
             nRet_release = CPS.HRIF_SetBoxDO(0, 1, 0)
             nRet_drive = CPS.HRIF_SetBoxDO(0, 0, 1)
+            print(
+                f"[TableDebug] Table A Open(horizontal) command: "
+                f"initial_di={current_state if state_ok else 'unreadable'} "
+                f"release_DO1_ret={nRet_release} drive_DO0_ret={nRet_drive}"
+            )
             if nRet_release not in (0, None) or nRet_drive not in (0, None):
                 return {
                     "success": False,
@@ -7964,14 +7964,14 @@ def set_table_state(CPS, table_id, desired_state):
             # Set Table A to Close position (45 degrees)
             state_ok, current_state = _read_table_a_di()
             if state_ok and current_state == ("1", "0"):
-                return {
-                    "success": True,
-                    "newState": "Close",
-                    "alreadyInState": True,
-                    "message": "Table A already confirmed at 45 degree position",
-                }
+                print("[TableDebug] Table A already reads 45 degree; refreshing DO command anyway.")
             nRet_release = CPS.HRIF_SetBoxDO(0, 0, 0)
             nRet_drive = CPS.HRIF_SetBoxDO(0, 1, 1)
+            print(
+                f"[TableDebug] Table A Close(45deg) command: "
+                f"initial_di={current_state if state_ok else 'unreadable'} "
+                f"release_DO0_ret={nRet_release} drive_DO1_ret={nRet_drive}"
+            )
             if nRet_release not in (0, None) or nRet_drive not in (0, None):
                 return {
                     "success": False,
@@ -8008,14 +8008,14 @@ def set_table_state(CPS, table_id, desired_state):
             # Set Table B to Open position (horizontal)
             state_ok, current_state = _read_table_b_co()
             if state_ok and current_state == "0":
-                return {
-                    "success": True,
-                    "newState": "Open",
-                    "alreadyInState": True,
-                    "message": "Table B already confirmed at horizontal position",
-                }
+                print("[TableDebug] Table B already reads horizontal; refreshing CO command anyway.")
             nRet_release = CPS.HRIF_SetBoxCO(0, 1, 0)
             nRet_drive = CPS.HRIF_SetBoxCO(0, 0, 1)
+            print(
+                f"[TableDebug] Table B Open(horizontal) command: "
+                f"initial_co1={current_state if state_ok else 'unreadable'} "
+                f"release_CO1_ret={nRet_release} drive_CO0_ret={nRet_drive}"
+            )
             if nRet_release not in (0, None) or nRet_drive not in (0, None):
                 return {
                     "success": False,
@@ -8045,14 +8045,14 @@ def set_table_state(CPS, table_id, desired_state):
             # Set Table B to Close position (45 degrees)
             state_ok, current_state = _read_table_b_co()
             if state_ok and current_state == "1":
-                return {
-                    "success": True,
-                    "newState": "Close",
-                    "alreadyInState": True,
-                    "message": "Table B already confirmed at 45 degree position",
-                }
+                print("[TableDebug] Table B already reads 45 degree; refreshing CO command anyway.")
             nRet_release = CPS.HRIF_SetBoxCO(0, 0, 0)
             nRet_drive = CPS.HRIF_SetBoxCO(0, 1, 1)
+            print(
+                f"[TableDebug] Table B Close(45deg) command: "
+                f"initial_co1={current_state if state_ok else 'unreadable'} "
+                f"release_CO0_ret={nRet_release} drive_CO1_ret={nRet_drive}"
+            )
             if nRet_release not in (0, None) or nRet_drive not in (0, None):
                 return {
                     "success": False,
