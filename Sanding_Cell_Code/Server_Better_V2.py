@@ -7926,7 +7926,7 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
         if desired_state == "Open":
             # Set Table A to Open position (horizontal)
             state_ok, current_state = _read_table_a_di()
-            if state_ok and current_state == ("0", "1"):
+            if wait_for_confirmation and state_ok and current_state == ("0", "1"):
                 return {
                     "success": True,
                     "newState": "Open",
@@ -7970,7 +7970,7 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
         elif desired_state == "Close":
             # Set Table A to Close position (45 degrees)
             state_ok, current_state = _read_table_a_di()
-            if state_ok and current_state == ("1", "0"):
+            if wait_for_confirmation and state_ok and current_state == ("1", "0"):
                 return {
                     "success": True,
                     "newState": "Close",
@@ -8021,7 +8021,7 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
         if desired_state == "Open":
             # Set Table B to Open position (horizontal)
             state_ok, current_state = _read_table_b_co()
-            if state_ok and current_state == "0":
+            if wait_for_confirmation and state_ok and current_state == "0":
                 return {
                     "success": True,
                     "newState": "Open",
@@ -8065,7 +8065,7 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
         elif desired_state == "Close":
             # Set Table B to Close position (45 degrees)
             state_ok, current_state = _read_table_b_co()
-            if state_ok and current_state == "1":
+            if wait_for_confirmation and state_ok and current_state == "1":
                 return {
                     "success": True,
                     "newState": "Close",
