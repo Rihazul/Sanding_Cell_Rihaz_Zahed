@@ -18,9 +18,9 @@ from Server_Better_V2 import (
 from smallTable.scancord import get_door_position, get_inner_corner_point, get_y_values
 
 
-INTERNAL_OFFSET_MM = 35.0
+INTERNAL_OFFSET_MM = 17.0
 INTERNAL_FORCE_N = 5
-FORCE_APPROACH_Z_MM = 17.0
+FORCE_APPROACH_Z_MM = 13.0
 
 
 def load_config():
