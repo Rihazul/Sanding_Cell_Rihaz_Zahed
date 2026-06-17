@@ -579,27 +579,14 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         raise RuntimeError("[Frame] Failed to establish stable Z- force contact.")
 
     contact_sanding_points = [list(point) for point in sanding_points]
-    actual_pos = []
-    nret = cps.HRIF_ReadActPos(0, 0, actual_pos)
-    if nret == 0 and len(actual_pos) > 8:
-        try:
-            contact_z = float(actual_pos[8])
-            print(
-                f"[FrameDebug] contact Z captured after force: "
-                f"contact_z={contact_z} original_path_z={contact_sanding_points[0][2]}"
-            )
-            for point in contact_sanding_points:
-                point[2] = contact_z
-        except (TypeError, ValueError):
-            print(
-                f"[FrameDebug] contact Z read invalid; keeping programmed path Z. "
-                f"actual_pos={actual_pos}"
-            )
-    else:
-        print(
-            f"[FrameDebug] contact Z read failed; keeping programmed path Z. "
-            f"nret={nret} actual_pos={actual_pos}"
-        )
+    force_control_z = float(force_approach_point[2])
+    for point in contact_sanding_points:
+        point[2] = force_control_z
+    print(
+        "[FrameDebug] frame path Z locked to force-control start Z. "
+        f"force_control_z={force_control_z} "
+        "This matches zigzag/edge behavior: X/Y moves run while Z stays force-controlled."
+    )
 
     vibration_on = False
     try:

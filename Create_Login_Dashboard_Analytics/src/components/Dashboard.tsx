@@ -135,12 +135,13 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
       if (tableBResult.status === 'fulfilled') {
         const state = tableBResult.value?.state;
         if (state === 'Open' || state === 'Close') {
-          // Table B backend reports Open when physically at 45 degrees.
-          setTableBOpen(state === 'Open');
-          if (state === 'Open') {
+          // Table B backend state: Close = physical 45 degrees, Open = horizontal.
+          // tableBOpen is retained as the existing UI "45 degrees active" flag.
+          setTableBOpen(state === 'Close');
+          if (state === 'Close') {
             setTableBPending(prev => (prev === 'opening' ? null : prev));
           }
-          if (state === 'Close') {
+          if (state === 'Open') {
             setTableBPending(prev => (prev === 'closing' ? null : prev));
           }
         }
