@@ -32,7 +32,7 @@ def load_json_config():
 
 
 
-def testmodel4tool2sidesmallfunctionbig(force,cps):
+def testmodel4tool2sidesmallfunctionbig(force,cps,section=None,return_home=True,pass_index=None):
     # Load configuration from YAML
     config = load_config()
 
@@ -432,6 +432,89 @@ def testmodel4tool2sidesmallfunctionbig(force,cps):
         axis_thread.join()
 
     #Bottom Cycle 1
+
+    selected_section = section.lower() if isinstance(section, str) else None
+    if selected_section is not None:
+        def _finish_tool2_section_home():
+            communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+            communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            moveOnlyJ6r(cps, -326, config)
+
+        if pass_index is not None:
+            current_pass_index = int(pass_index)
+            if current_pass_index < 0:
+                return False
+            if selected_section == "bottom":
+                bottom_followup_passes = [cx1, cx2, cx3, cx4]
+                if current_pass_index == 0:
+                    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+                    communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                    perform_process_bottom(cps, config, points1=pointsb)
+                elif current_pass_index <= len(bottom_followup_passes):
+                    cx_val = bottom_followup_passes[current_pass_index - 1]
+                    communicate(cps=cps, config=config, point=point2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                    run_single_movement(robot_point=point1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                    perform_process_bottom(cps, config, points1=pointsb)
+                else:
+                    return False
+            elif selected_section == "left":
+                if current_pass_index != 0:
+                    return False
+                communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                perform_process_left(cps, config, points1=pointsleft)
+                communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            elif selected_section == "top":
+                top_passes = [tcx5, tcx4, tcx3, tcx2, tcx1]
+                if current_pass_index >= len(top_passes):
+                    return False
+                cx_val = top_passes[current_pass_index]
+                run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                perform_process_top(cps, config, points1=pointstopmain)
+                communicate(cps=cps, config=config, point=pointtop3air if 'pointtop3air' in locals() else pointtop2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                if current_pass_index == len(top_passes) - 1:
+                    communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            elif selected_section == "right":
+                if current_pass_index != 0:
+                    return False
+                communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+                perform_process_right(cps, config, points1=pointsright)
+            else:
+                raise ValueError(f"Unknown Tool 2 section: {section}")
+
+            if return_home:
+                _finish_tool2_section_home()
+            return True
+
+        if selected_section == "bottom":
+            communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+            communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            perform_process_bottom(cps, config, points1=pointsb)
+            for cx_val in [cx1, cx2, cx3, cx4]:
+                communicate(cps=cps, config=config, point=point2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                run_single_movement(robot_point=point1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                perform_process_bottom(cps, config, points1=pointsb)
+        elif selected_section == "left":
+            communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            perform_process_left(cps, config, points1=pointsleft)
+            communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        elif selected_section == "top":
+            for cx_val in [tcx5, tcx4, tcx3, tcx2, tcx1]:
+                run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                perform_process_top(cps, config, points1=pointstopmain)
+                communicate(cps=cps, config=config, point=pointtop3air if 'pointtop3air' in locals() else pointtop2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+            communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        elif selected_section == "right":
+            communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+            perform_process_right(cps, config, points1=pointsright)
+        else:
+            raise ValueError(f"Unknown Tool 2 section: {section}")
+
+        if return_home:
+            _finish_tool2_section_home()
+        return True
+
     communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
     communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
     perform_process_bottom(cps, config, points1=pointsb)

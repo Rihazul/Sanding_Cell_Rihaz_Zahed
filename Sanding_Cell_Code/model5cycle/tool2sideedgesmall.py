@@ -31,8 +31,8 @@ def load_json_config():
 
 
 
-def testmodel5tooloutedgerun(force,cps):
-    def testmodel4tooloutedgesmallfunction(force,cps):
+def testmodel5tooloutedgerun(force,cps,section=None,return_home=True,pass_index=None):
+    def testmodel4tooloutedgesmallfunction(force,cps,section=None,return_home=True,pass_index=None):
         # Load configuration from YAML
         config = load_config()
 
@@ -54,7 +54,7 @@ def testmodel5tooloutedgerun(force,cps):
         p6 = exported_points["p6"]
         p7 = exported_points["p7"]
         p8 = exported_points["p8"]
-    
+
 
         print("p1=",p1)
         print("p2=",p2)
@@ -69,7 +69,7 @@ def testmodel5tooloutedgerun(force,cps):
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
         print(speeed)
-    
+
         #Frame of Outside
         frameOutside=p1[0]-p3[0]
         print("frameOutside=",frameOutside)
@@ -77,19 +77,19 @@ def testmodel5tooloutedgerun(force,cps):
         #Bottom Points
         pointhome=[p4[0],p4[1],-150,0,0,-90]
         print("pointhome=",pointhome)
-        point1pre=[p4[0],p4[1]-5,p4[2]+45,0,21.998,-90]
+        point1pre=[p4[0],p4[1]-5,p4[2]+45,0,22,-90]
         print("point1pre=",point1pre)
-        point1=[p4[0],p4[1]+0-8,p4[2]+45,0,21.998,-90]
+        point1=[p4[0],p4[1]+0-8,p4[2]+45,0,22,-90]
         print("point1=",point1)
-        point12=[p4[0]+1+1,p4[1]+0-8,p4[2]+45,0,21.998,-90]
+        point12=[p4[0]+1+1,p4[1]+0-8,p4[2]+45,0,22,-90]
         print("point12=",point12)
-        point2=[p1[0]/2,p1[1]+0-8,p1[2]+45,0,21.998,-90]
+        point2=[p1[0]/2,p1[1]+0-8,p1[2]+45,0,22,-90]
         print("point2=",point2)
-        point2pre=[p1[0]/2,p1[1]-5-10,p1[2]+45,0,21.998,-90]
+        point2pre=[p1[0]/2,p1[1]-5-10,p1[2]+45,0,22,-90]
         print("point2pre=",point2pre)
-        point2air=[p1[0]/2,p1[1]-20,p1[2]+45,0,21.998,-90]
+        point2air=[p1[0]/2,p1[1]-20,p1[2]+45,0,22,-90]
         print("point2air=",point2air)
-        point1Combo=[0,p1[1]-20,p1[2]+45,0,21.998,-90]
+        point1Combo=[0,p1[1]-20,p1[2]+45,0,22,-90]
         print("point1Combo=",point1Combo)
 
         #Bottom Extra point
@@ -97,60 +97,60 @@ def testmodel5tooloutedgerun(force,cps):
         print("point2bottomextra=",point2bottomextra)
 
         #Left Points
-        pointleft1=[(p1[0]/2)+10,p4[1],p1[2]+45,0,21.998,0]
+        pointleft1=[(p1[0]/2)+10,p4[1],p1[2]+45,0,22,0]
         print("pointleft1=",pointleft1)
-        pointleft1pre=[(p1[0]/2)+2+5,p4[1],p1[2]+45,0,21.998,0]
+        pointleft1pre=[(p1[0]/2)+2+5,p4[1],p1[2]+45,0,22,0]
         print("pointleft1pre=",pointleft1pre)
-        pointleft12=[(p1[0]/2)+10,p4[1]+1+1,p1[2]+45,0,21.998,0]
+        pointleft12=[(p1[0]/2)+10,p4[1]+1+1,p1[2]+45,0,22,0]
         print("pointleft12=",pointleft12)
-        pointleft2=[(p1[0]/2)+10,p2[1],p1[2]+45,0,21.998,0]
+        pointleft2=[(p1[0]/2)+10,p2[1],p1[2]+45,0,22,0]
         print("pointleft2=",pointleft2)
-        pointleft2pre=[(p1[0]/2)+2+5+10,p2[1],p1[2]+45,0,21.998,0]
+        pointleft2pre=[(p1[0]/2)+2+5+10,p2[1],p1[2]+45,0,22,0]
         print("pointleft2pre=",pointleft2pre)
         #Left Extra Points
         pointLeftExtra=[(p1[0]/2)+21,p2[1]+10,p1[2]+15,0,0,90]
         print("pointLeftExtra=",pointLeftExtra)
 
-        
+
         #Top Cycle Points
-        pointtop1=[(p1[0]/2),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop1=[(p1[0]/2),p2[1]+10,p1[2]+45,0,22,90]
         print("pointtop1=",pointtop1)
-        pointtop1pre=[(p1[0]/2),p2[1]+2+8,p1[2]+45,0,21.998,90]
+        pointtop1pre=[(p1[0]/2),p2[1]+2+8,p1[2]+45,0,22,90]
         print("pointtop1pre=",pointtop1pre)
-        pointtop12=[(p1[0]/2)-1-1,p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop12=[(p1[0]/2)-1-1,p2[1]+10,p1[2]+45,0,22,90]
         print("pointtop12=",pointtop12)
-        pointtop2=[(p4[0]/2),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop2=[(p4[0]/2),p2[1]+10,p1[2]+45,0,22,90]
         print("pointtop2=",pointtop2)
-        pointtop2pre=[(p4[0]/2),p2[1]+2+8+10,p1[2]+45,0,21.998,90]
+        pointtop2pre=[(p4[0]/2),p2[1]+2+8+10,p1[2]+45,0,22,90]
         print("pointtop2pre =",pointtop2pre)
-        pointtop2air=[(p4[0]/2),p2[1]+2+3+10,p1[2]+45,0,21.998,90]
+        pointtop2air=[(p4[0]/2),p2[1]+2+3+10,p1[2]+45,0,22,90]
         print("pointtop2air =",pointtop2air)
-        pointtop1Combo=[(p1[0]/2),p2[1]+2+3+10,p1[2]+45,0,21.998,90]
+        pointtop1Combo=[(p1[0]/2),p2[1]+2+3+10,p1[2]+45,0,22,90]
         print("pointtop1Combo =",pointtop1Combo)
 
         #TopMain Minus Points
-        pointtop3=[-(p1[0]/2),p2[1]+10,p1[2]+45,0,21.998,90]
+        pointtop3=[-(p1[0]/2),p2[1]+10,p1[2]+45,0,22,90]
         print("pointtop3=",pointtop3)
-        pointtop3pre=[-(p1[0]/2),p2[1]+2+8+10,p1[2]+45,0,21.998,90]
+        pointtop3pre=[-(p1[0]/2),p2[1]+2+8+10,p1[2]+45,0,22,90]
         print("pointtop3pre =",pointtop3pre)
-        pointtop3air=[-(p1[0]/2),p2[1]+2+3+10,p1[2]+45,0,21.998,90]
+        pointtop3air=[-(p1[0]/2),p2[1]+2+3+10,p1[2]+45,0,22,90]
         print("pointtop3air =",pointtop3air)
 
-        
+
         #Top Cycle Points Extra
         pointtopExtra=[(p4[0]/2)-6,p2[1]+2+3+10,p1[2]+15,0,0,180]
         print("pointtopExtra =",pointtopExtra)
 
         #RightCycle
-        pointright1=[(p4[0]/2)-8,p2[1],p1[2]+45,0,21.998,180]
+        pointright1=[(p4[0]/2)-8,p2[1],p1[2]+45,0,22,180]
         print("pointright1 =",pointright1)
-        pointright1pre=[(p4[0]/2)-1-4,p2[1],p1[2]+45,0,21.998,180]
+        pointright1pre=[(p4[0]/2)-1-4,p2[1],p1[2]+45,0,22,180]
         print("pointright1pre =",pointright1pre)
-        pointright12=[(p4[0]/2)-8,p2[1]-1-1,p1[2]+45,0,21.998,180]
+        pointright12=[(p4[0]/2)-8,p2[1]-1-1,p1[2]+45,0,22,180]
         print("pointright12 =",pointright12)
-        pointright2=[(p4[0]/2)-8,p4[0],p1[2]+45,0,21.998,180]
+        pointright2=[(p4[0]/2)-8,p4[0],p1[2]+45,0,22,180]
         print("pointright2 =",pointright2)
-        pointright2pre=[(p4[0]/2)-1-4-10,p4[0],p1[2]+45,0,21.998,180]
+        pointright2pre=[(p4[0]/2)-1-4-10,p4[0],p1[2]+45,0,22,180]
         print("pointright2pre =",pointright2pre)
         homelast=[0,0,-50,0,0,180]
         print("homelast =",homelast)
@@ -227,7 +227,7 @@ def testmodel5tooloutedgerun(force,cps):
         def perform_process_bottom(cps, config, points1,force):
             # Vibration on
             # turn_vibration_on(cps)
-            
+
             # Force Control Activated
             #putForceZplus(
                 #cps=cps,
@@ -236,7 +236,7 @@ def testmodel5tooloutedgerun(force,cps):
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
-            
+
             # Communicate to each point in points1
             for point in points1:
                 if point==point12:putForceYplus1(
@@ -257,18 +257,18 @@ def testmodel5tooloutedgerun(force,cps):
                     speed=0.6,
                     wait=False
                 )
-            
+
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            
+
             # Release Force Control
             releaseForce(cps=cps, config=config)
-        
+
         def perform_process_left(cps, config, points1,force):
             # Vibration on
             # turn_vibration_on(cps)
-            
+
             # Force Control Activated
             #putForceZplus(
                 #cps=cps,
@@ -277,7 +277,7 @@ def testmodel5tooloutedgerun(force,cps):
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
-            
+
             # Communicate to each point in points1
             for point in points1:
                 if point==pointleft12:putForceXminus(
@@ -298,19 +298,19 @@ def testmodel5tooloutedgerun(force,cps):
                     speed=0.6,
                     wait=False
                 )
-            
+
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            
+
             # Release Force Control
             releaseForce(cps=cps, config=config)
-        
-        
+
+
         def perform_process_top(cps, config, points1,force):
             # Vibration on
             # turn_vibration_on(cps)
-            
+
             # Force Control Activated
             #putForceZplus(
                 #cps=cps,
@@ -319,7 +319,7 @@ def testmodel5tooloutedgerun(force,cps):
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
-            
+
             # Communicate to each point in points1
             for point in points1:
                 if point==pointtop12:putForceYminus1(
@@ -340,19 +340,19 @@ def testmodel5tooloutedgerun(force,cps):
                     speed=0.6,
                     wait=False
                 )
-            
+
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            
+
             # Release Force Control
             releaseForce(cps=cps, config=config)
-        
-        
+
+
         def perform_process_right(cps, config, points1,force):
             # Vibration on
             # turn_vibration_on(cps)
-            
+
             # Force Control Activated
             #putForceZplus(
                 #cps=cps,
@@ -361,7 +361,7 @@ def testmodel5tooloutedgerun(force,cps):
                 #ucs=config['coords']['ucsTable2'],
                 #config=config
             #)
-            
+
             # Communicate to each point in points1
             for point in points1:
                 if point==pointright12:putForceXplus(
@@ -382,11 +382,11 @@ def testmodel5tooloutedgerun(force,cps):
                     speed=0.6,
                     wait=False
                 )
-            
+
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
-            
+
             # Release Force Control
             releaseForce(cps=cps, config=config)
 
@@ -439,20 +439,103 @@ def testmodel5tooloutedgerun(force,cps):
             axis_thread.join()
 
         #Bottom Cycle 1
+
+        selected_section = section.lower() if isinstance(section, str) else None
+        if selected_section is not None:
+            def _finish_tool2_section_home():
+                communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+                communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                moveOnlyJ6r(cps, -326, config)
+
+            if pass_index is not None:
+                current_pass_index = int(pass_index)
+                if current_pass_index < 0:
+                    return False
+                if selected_section == "bottom":
+                    bottom_followup_passes = [cx1]
+                    if current_pass_index == 0:
+                        communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+                        communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                        perform_process_bottom(cps, config, points1=pointsb, force=force)
+                    elif current_pass_index <= len(bottom_followup_passes):
+                        cx_val = bottom_followup_passes[current_pass_index - 1]
+                        communicate(cps=cps, config=config, point=point2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                        run_single_movement(robot_point=point1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                        perform_process_bottom(cps, config, points1=pointsb, force=force)
+                    else:
+                        return False
+                elif selected_section == "left":
+                    if current_pass_index != 0:
+                        return False
+                    communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                    communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                    perform_process_left(cps, config, points1=pointsleft, force=force)
+                    communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                elif selected_section == "top":
+                    top_passes = [tcx1, tcx]
+                    if current_pass_index >= len(top_passes):
+                        return False
+                    cx_val = top_passes[current_pass_index]
+                    run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                    perform_process_top(cps, config, points1=pointstopmain, force=force)
+                    communicate(cps=cps, config=config, point=pointtop3air if 'pointtop3air' in locals() else pointtop2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                    if current_pass_index == len(top_passes) - 1:
+                        communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                elif selected_section == "right":
+                    if current_pass_index != 0:
+                        return False
+                    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+                    perform_process_right(cps, config, points1=pointsright, force=force)
+                else:
+                    raise ValueError(f"Unknown Tool 2 section: {section}")
+
+                if return_home:
+                    _finish_tool2_section_home()
+                return True
+
+            if selected_section == "bottom":
+                communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=False)
+                communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                perform_process_bottom(cps, config, points1=pointsb, force=force)
+                for cx_val in [cx1]:
+                    communicate(cps=cps, config=config, point=point2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                    run_single_movement(robot_point=point1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                    perform_process_bottom(cps, config, points1=pointsb, force=force)
+            elif selected_section == "left":
+                communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+                perform_process_left(cps, config, points1=pointsleft, force=force)
+                communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            elif selected_section == "top":
+                for cx_val in [tcx1, tcx]:
+                    run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                    perform_process_top(cps, config, points1=pointstopmain, force=force)
+                    communicate(cps=cps, config=config, point=pointtop3air if 'pointtop3air' in locals() else pointtop2air, tcp=config['coords']['tcpSideTool'], ucs=config['coords']['ucsTable2'], seventh=-1, speed=speeed, wait=True)
+                communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+            elif selected_section == "right":
+                communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
+                perform_process_right(cps, config, points1=pointsright, force=force)
+            else:
+                raise ValueError(f"Unknown Tool 2 section: {section}")
+
+            if return_home:
+                _finish_tool2_section_home()
+            return True
+
         communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
         communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         perform_process_bottom(cps, config, points1=pointsb,force=force)
-        
+
         # Bottom Cycles 2-6
         cx_points = [cx1]
 
         for cx in cx_points:
-            communicate(cps=cps, config=config, point=point2air, 
-                    tcp=config['coords']['tcpSideTool'], 
+            communicate(cps=cps, config=config, point=point2air,
+                    tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1, speed=speeed, wait=True)
-            run_single_movement(robot_point=point1Combo, 
-                                seventh_axis_point=cx, 
+            run_single_movement(robot_point=point1Combo,
+                                seventh_axis_point=cx,
                                 cps=cps, config=config)
             perform_process_bottom(cps, config, points1=pointsb,force=force)
 
@@ -465,8 +548,8 @@ def testmodel5tooloutedgerun(force,cps):
         #             ucs=config['coords']['ucsTable2'],
         #             speed=speeed,
         #             wait=True)
-        # run_single_movement(robot_point=point2bottomextra, 
-        #                         seventh_axis_point=tcx11, 
+        # run_single_movement(robot_point=point2bottomextra,
+        #                         seventh_axis_point=tcx11,
         #                         cps=cps, config=config)
 
 
@@ -477,23 +560,23 @@ def testmodel5tooloutedgerun(force,cps):
         perform_process_left(cps, config, points1=pointsleft,force=force)
         # #Left Cycle Extrea
         communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
-        
+
         # #Top Cycle 2
         cx_points = [tcx1,tcx]
 
         for cx in cx_points:
-            
-            run_single_movement(robot_point=pointtop1Combo, 
-                                seventh_axis_point=cx, 
+
+            run_single_movement(robot_point=pointtop1Combo,
+                                seventh_axis_point=cx,
                                 cps=cps, config=config)
             perform_process_top(cps, config, points1=pointstopmain,force=force)
-            communicate(cps=cps, config=config, point=pointtop2air, 
-                    tcp=config['coords']['tcpSideTool'], 
+            communicate(cps=cps, config=config, point=pointtop2air,
+                    tcp=config['coords']['tcpSideTool'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1, speed=speeed, wait=True)
-        
+
         #Top Cycle Extra
-        
+
         communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
         #Right Cycle
         #communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
@@ -503,8 +586,8 @@ def testmodel5tooloutedgerun(force,cps):
         communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
         communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
 
-    
-        # #Joint 6 movement 
+
+        # #Joint 6 movement
         moveOnlyJ6r(cps, -326, config)
     #Main Cycle
     p1 = exported_points["p1"]
@@ -515,16 +598,16 @@ def testmodel5tooloutedgerun(force,cps):
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
         if xlen > 1000:
-            mod5tool2edgebig(force,cps)
+            return mod5tool2edgebig(force,cps,section=section,return_home=return_home,pass_index=pass_index)
         else:
-            testmodel4tooloutedgesmallfunction(force,cps)
+            return testmodel4tooloutedgesmallfunction(force,cps,section=section,return_home=return_home,pass_index=pass_index)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
-    
-    
-    
+
+
+
 
 
 if __name__ == "__main__":
     testmodel5tooloutedgerun(force=3)
-    
+

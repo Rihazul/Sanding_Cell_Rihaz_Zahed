@@ -30,8 +30,8 @@ def load_json_config():
 
 
 
-def mod1tool2sidesrun(force,cps,section=None,return_home=True):
-    def mod1tool2sidesbig(force,cps,section=None,return_home=True):
+def mod1tool2sidesrun(force,cps,section=None,return_home=True,pass_index=None):
+    def mod1tool2sidesbig(force,cps,section=None,return_home=True,pass_index=None):
         # Load configuration from YAML
         config = load_config()
 
@@ -425,6 +425,57 @@ def mod1tool2sidesrun(force,cps,section=None,return_home=True):
             )
         selected_section = section.lower() if isinstance(section, str) else None
 
+        if pass_index is not None:
+            current_pass_index = int(pass_index)
+            if current_pass_index < 0:
+                return False
+            if selected_section == "bottom":
+                bottom_followup_passes = [cx1, cx2]
+                if current_pass_index == 0:
+                    communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                    communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot",wait=False)
+                    perform_process_bottom(cps, config, points1=pointsb,force=force)
+                elif current_pass_index <= len(bottom_followup_passes):
+                    cx_val = bottom_followup_passes[current_pass_index - 1]
+                    communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                    run_single_movement(robot_point=point1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                    perform_process_bottom(cps, config, points1=pointsb,force=force)
+                else:
+                    return False
+            elif selected_section == "left":
+                if current_pass_index != 0:
+                    return False
+                communicate(cps=cps,config=config,point=point2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                if 'tcx3' in locals():
+                    communicate(cps=cps,config=config,seventh=tcx3,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot",wait=False)
+                communicate(cps=cps,config=config,point=point2bottomextra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                perform_process_left(cps, config, points1=pointsleft,force=force)
+                communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+            elif selected_section == "top":
+                top_passes = [tcx2, tcx1, tcx]
+                if current_pass_index >= len(top_passes):
+                    return False
+                cx_val = top_passes[current_pass_index]
+                communicate(cps=cps,config=config,point=pointtop3air if 'pointtop3air' in locals() else pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                run_single_movement(robot_point=pointtop1Combo, seventh_axis_point=cx_val, cps=cps, config=config)
+                perform_process_top(cps, config, points1=pointstopmain,force=force)
+                communicate(cps=cps,config=config,point=pointtop3air if 'pointtop3air' in locals() else pointtop2air,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                if current_pass_index == len(top_passes) - 1:
+                    communicate(cps=cps,config=config,point=pointtopExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+            elif selected_section == "right":
+                if current_pass_index != 0:
+                    return False
+                if 'pointsright' in locals():
+                    communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot",wait=False)
+                    perform_process_right(cps, config, points1=pointsright,force=force)
+            else:
+                raise ValueError(f"Unknown Tool 2 section: {section}")
+            if return_home:
+                communicate(cps=cps,config=config,seventh=-19,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],speed=speeed, velocity_profile="robot",wait=False)
+                communicate(cps=cps,config=config,point=homelast,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot",wait=True)
+                moveOnlyJ6r(cps, -326, config)
+            return True
+
         if selected_section in (None, "bottom"):
             #Bottom Cycle 1
             communicate(cps=cps,config=config,point=pointhome,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed, velocity_profile="robot", wait=True)
@@ -501,9 +552,9 @@ def mod1tool2sidesrun(force,cps,section=None,return_home=True):
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
         if xlen > 600:
-            mod1tool2sidesbig(force,cps,section=section,return_home=return_home)
+            return mod1tool2sidesbig(force,cps,section=section,return_home=return_home,pass_index=pass_index)
         else:
-            mod1tool2sidesmall(force,cps,section=section,return_home=return_home)
+            return mod1tool2sidesmall(force,cps,section=section,return_home=return_home,pass_index=pass_index)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
     

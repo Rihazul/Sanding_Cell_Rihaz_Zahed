@@ -68,64 +68,90 @@ def run_zigzag_cycles(
             time.sleep(3)
 
 
-def run_tool2side_cycles(count,force,cps,section=None,return_home=True):
-    """Execute zigzag function with specified number of cycles"""
+def run_tool2side_cycles(count, force, cps, section=None, return_home=True, pass_index=None):
+    result = False
     for i in range(count):
-        print(f"\n=== ZIGZAG CYCLE {i+1}/{count} ===")
-        testmodel2tool2sidesrun(force=force,cps=cps,section=section,return_home=return_home)
-        if i < count-1:
-            print("Pausing 3 seconds before next zigzag cycle...")
-            time.sleep(3)
+        print(f"\n=== TOOL 2 SIDE CYCLE {i+1}/{count} ===")
+        result = bool(testmodel2tool2sidesrun(
+            force=force,
+            cps=cps,
+            section=section,
+            return_home=return_home,
+            pass_index=pass_index,
+        ))
+        if i < count - 1:
+            time.sleep(0.5)
+    return result
 
 
-def run_tool2sideoutedge_cycles(count,force,cps,section=None,return_home=True):
-    """Execute zigzag function with specified number of cycles"""
+def run_tool2sideoutedge_cycles(count, force, cps, section=None, return_home=True, pass_index=None):
+    result = False
     for i in range(count):
-        print(f"\n=== ZIGZAG CYCLE {i+1}/{count} ===")
-        testmodel2tool2edgerun(force=force,cps=cps,section=section,return_home=return_home)
-        if i < count-1:
-            print("Pausing 3 seconds before next zigzag cycle...")
-            time.sleep(3)
+        print(f"\n=== TOOL 2 EDGE-OUTSIDE CYCLE {i+1}/{count} ===")
+        result = bool(testmodel2tool2edgerun(
+            force=force,
+            cps=cps,
+            section=section,
+            return_home=return_home,
+            pass_index=pass_index,
+        ))
+        if i < count - 1:
+            time.sleep(0.5)
+    return result
 
 
 def run_tool2_combined_cycles(side_count, side_force, edge_count, edge_force, cps):
-    """
-    Run Tool 2 side+edge together in one grouped sequence while Tool 2 is mounted.
-    This keeps task selection grouped by the same tool and same 7th-axis family.
-    """
+    """Run Tool 2 side and outside-edge on each 7th-axis pass before advancing."""
     sections = ("bottom", "left", "top", "right")
+    max_passes_by_section = {"bottom": 8, "left": 1, "top": 8, "right": 1}
     total_steps = max(side_count, edge_count)
     for step in range(total_steps):
         if stop_requested():
             return
-        print(f"\n=== TOOL2 GROUP STEP {step+1}/{total_steps} (section-by-section) ===")
-        for idx, section_name in enumerate(sections):
+        print(f"\n=== TOOL2 GROUP STEP {step+1}/{total_steps} (pass-by-pass) ===")
+        side_runs = step < side_count
+        edge_runs = step < edge_count
+        for section_name in sections:
             if stop_requested():
                 return
-            side_runs = step < side_count
-            edge_runs = step < edge_count
-            is_final_section = (step == total_steps - 1) and (idx == len(sections) - 1)
-
-            if side_runs:
-                side_return_home = is_final_section and not edge_runs
-                print(f"Tool2 SIDE section: {section_name}")
-                run_tool2side_cycles(
-                    1,
-                    side_force,
-                    cps,
-                    section=section_name,
-                    return_home=side_return_home,
+            for section_pass_index in range(max_passes_by_section[section_name]):
+                if stop_requested():
+                    return
+                side_executed = False
+                edge_executed = False
+                final_right_pass = (
+                    step == total_steps - 1
+                    and section_name == "right"
+                    and section_pass_index == 0
                 )
-            if edge_runs:
-                edge_return_home = is_final_section
-                print(f"Tool2 EDGE section: {section_name}")
-                run_tool2sideoutedge_cycles(
-                    1,
-                    edge_force,
-                    cps,
-                    section=section_name,
-                    return_home=edge_return_home,
-                )
+                if side_runs:
+                    side_return_home = final_right_pass and not edge_runs
+                    print(
+                        f"Tool2 SIDE section={section_name} pass={section_pass_index}"
+                    )
+                    side_executed = run_tool2side_cycles(
+                        1,
+                        side_force,
+                        cps,
+                        section=section_name,
+                        return_home=side_return_home,
+                        pass_index=section_pass_index,
+                    )
+                if edge_runs:
+                    edge_return_home = final_right_pass
+                    print(
+                        f"Tool2 EDGE section={section_name} pass={section_pass_index}"
+                    )
+                    edge_executed = run_tool2sideoutedge_cycles(
+                        1,
+                        edge_force,
+                        cps,
+                        section=section_name,
+                        return_home=edge_return_home,
+                        pass_index=section_pass_index,
+                    )
+                if not side_executed and not edge_executed:
+                    break
         if step < total_steps - 1:
             time.sleep(0.5)
 
