@@ -10,7 +10,7 @@ settings:
 server:
   ip: '192.168.0.104'
   port: 9092
-  cpip: '192.168.0.10' 
+  cpip: '192.168.10.10' 
   cps: 10003
   frontEnd_base_url: "http://127.0.0.1:5100"
   frontEnd_messaging_url: "http://127.0.0.1:5100/trigger"
