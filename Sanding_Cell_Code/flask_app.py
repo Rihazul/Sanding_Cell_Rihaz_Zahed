@@ -1936,6 +1936,7 @@ def toggle_state(table_id):
     robot_state = []
     di_state_0 = []
     di_state_1 = []
+    config_data_UI = fetch_and_combine_data()
     with locked_cps() as ok:
         if not ok:
             return jsonify({'newState': "Busy"}), 200
@@ -1949,50 +1950,19 @@ def toggle_state(table_id):
 
         requested_state = request.args.get("desired")
         if requested_state in ("Open", "Close"):
-            if table_id == "tableAOpenClose":
-                if requested_state == "Open":
-                    # Horizontal command: DO1 off, DO0 on.
-                    nRet_release = CPS.HRIF_SetBoxDO(0, 1, 0)
-                    nRet_drive = CPS.HRIF_SetBoxDO(0, 0, 1)
-                    message = "Table A horizontal command accepted"
-                else:
-                    # 45-degree command: DO0 off, DO1 on.
-                    nRet_release = CPS.HRIF_SetBoxDO(0, 0, 0)
-                    nRet_drive = CPS.HRIF_SetBoxDO(0, 1, 1)
-                    message = "Table A 45 degree command accepted"
-            elif table_id == "tableBOpenClose":
-                if requested_state == "Open":
-                    # Horizontal command: CO1 off, CO0 on.
-                    nRet_release = CPS.HRIF_SetBoxCO(0, 1, 0)
-                    nRet_drive = CPS.HRIF_SetBoxCO(0, 0, 1)
-                    message = "Table B horizontal command accepted"
-                else:
-                    # 45-degree command: CO0 off, CO1 on.
-                    nRet_release = CPS.HRIF_SetBoxCO(0, 0, 0)
-                    nRet_drive = CPS.HRIF_SetBoxCO(0, 1, 1)
-                    message = "Table B 45 degree command accepted"
-            else:
-                return jsonify({'newState': 'Invalid input. No state change.'})
-
-            if nRet_release not in (0, None) or nRet_drive not in (0, None):
-                result = {
-                    "success": False,
-                    "newState": "Error",
-                    "message": (
-                        "Table movement command failed "
-                        f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
-                    ),
-                }
-                socketio.emit('flash_message', {"message": result["message"], "type": "warning"})
+            result = set_table_state(
+                CPS,
+                table_id,
+                requested_state,
+                wait_for_confirmation=False,
+            )
+            if not result.get("success", False):
+                socketio.emit(
+                    'flash_message',
+                    {"message": result.get("message", "Table movement command failed."), "type": "warning"},
+                )
                 return jsonify(result), 500
-
-            socketio.emit('flash_message', {"message": message})
-            return jsonify({
-                "success": True,
-                "newState": requested_state,
-                "commandAccepted": True,
-                "message": message,
-            })
+            return jsonify(result)
 
         if table_id == "tableAOpenClose": 
             nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
@@ -2006,10 +1976,10 @@ def toggle_state(table_id):
             sensor_state = (str(di_state_0[0]), str(di_state_1[0]))
             if sensor_state == ("1", "0"):
                 # Currently 45 degrees; move to horizontal.
-                result = set_table_state(CPS, "tableAOpenClose", "Open", wait_for_confirmation=False)
+                result = set_table_state(CPS, "tableAOpenClose", "Open")
             elif sensor_state == ("0", "1"):
                 # Currently horizontal; move to 45 degrees.
-                result = set_table_state(CPS, "tableAOpenClose", "Close", wait_for_confirmation=False)
+                result = set_table_state(CPS, "tableAOpenClose", "Close")
             else:
                 msg = f"Table A sensor state is invalid: {sensor_state}"
                 socketio.emit('flash_message', {"message": msg, "type": "warning"})
@@ -2098,29 +2068,22 @@ def table_state(table_id):
         if not ok:
             return jsonify({'state': 'Unknown'})
         if table_id == "tableAOpenClose":
-            do_state_0 = []
-            do_state_1 = []
-            nRet0 = CPS.HRIF_ReadBoxDO(0, 0, do_state_0)
-            nRet1 = CPS.HRIF_ReadBoxDO(0, 1, do_state_1)
-            if nRet0 == 0 and nRet1 == 0 and do_state_0 and do_state_1:
-                output_state = (str(do_state_0[0]), str(do_state_1[0]))
-                if output_state == ("0", "1"):
+            di_state_0 = []
+            di_state_1 = []
+            nRet0 = CPS.HRIF_ReadBoxDI(0, 0, di_state_0)
+            nRet1 = CPS.HRIF_ReadBoxDI(0, 1, di_state_1)
+            if nRet0 == 0 and nRet1 == 0 and di_state_0 and di_state_1:
+                if di_state_0[0] == '1' and di_state_1[0] == '0':
                     return jsonify({'state': 'Close'})
-                if output_state == ("1", "0"):
+                if di_state_0[0] == '0' and di_state_1[0] == '1':
                     return jsonify({'state': 'Open'})
             return jsonify({'state': 'Unknown'})
 
         if table_id == "tableBOpenClose":
-            co_state_0 = []
-            co_state_1 = []
-            nRet0 = CPS.HRIF_ReadBoxCO(0, 0, co_state_0)
-            nRet1 = CPS.HRIF_ReadBoxCO(0, 1, co_state_1)
-            if nRet0 == 0 and nRet1 == 0 and co_state_0 and co_state_1:
-                output_state = (str(co_state_0[0]), str(co_state_1[0]))
-                if output_state == ("0", "1"):
-                    return jsonify({'state': 'Open'})
-                if output_state == ("1", "0"):
-                    return jsonify({'state': 'Close'})
+            robot_state = []
+            nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
+            if nRet == 0 and robot_state:
+                return jsonify({'state': 'Open' if robot_state[0] == '1' else 'Close'})
             return jsonify({'state': 'Unknown'})
 
         return jsonify({'state': 'Invalid'})
