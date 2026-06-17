@@ -650,9 +650,9 @@ def generate_zigzag_path(
         orientation_mode = (orientation or "vertical").lower()
         movement_mode = (movement or "zigzag").lower()
 
-        rx_sanding = -0.034
-        ry_sanding = 0.556
-        rz_sanding = 0.251
+        rx_sanding = 0.0
+        ry_sanding = 0.0
+        rz_sanding = 0.0
 
         if movement_mode == "rect":
             zigzag_coords = [

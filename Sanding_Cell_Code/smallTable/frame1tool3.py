@@ -21,7 +21,7 @@ from smallTable.scancord import (
     get_y_values
 )
 
-FORCE_APPROACH_Z_MM = 35.0
+FORCE_APPROACH_Z_MM = 15.0
 
 
 def load_config():
@@ -74,6 +74,7 @@ def _resolve_force(user_force, default_force=5.0):
 
 def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, label="tool1"):
     """Run Tool 1 path while keeping Z under force control, like frame/zigzag/edge."""
+    robot_speed, _ = _get_motion_speeds(config)
     points = [list(point) for point in (points1 or [])]
     if len(points) < 2:
         print(f"[Tool1ForcePath] {label}: skipped, not enough points")
@@ -104,7 +105,8 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
 
     print(
         f"[Tool1ForcePath] {label}: approach={approach_point} "
-        f"contact_points={len(contact_points)} force_control_z={force_control_z}"
+        f"contact_points={len(contact_points)} force_control_z={force_control_z} "
+        f"robot_speed={robot_speed} sanding_speed={sanding_speed}"
     )
     communicate(
         cps=cps,
@@ -113,8 +115,8 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
         tcp=config['coords']['tcptool1plane1'],
         ucs=config['coords']['ucsTable1'],
         seventh=-1,
-        speed=sanding_speed,
-        velocity_profile="sandingspeed",
+        speed=robot_speed,
+        velocity_profile="robotspeed",
         wait=True,
     )
 
@@ -167,8 +169,8 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
                 seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
+                speed=robot_speed,
+                velocity_profile="robotspeed",
                 wait=True,
             )
 

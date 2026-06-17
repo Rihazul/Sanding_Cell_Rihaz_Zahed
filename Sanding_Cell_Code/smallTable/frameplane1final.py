@@ -54,7 +54,7 @@ def compute_timeout(
 DEFAULT_SPIRAL_LINEAR_SPEED = 200.0
 DEFAULT_SPIRAL_RADIUS = 12.0
 SANDING_Z_THRESHOLD = 5.0
-FORCE_APPROACH_Z_MM = 20.0
+FORCE_APPROACH_Z_MM = 15.0
 J7_IDLE_TIMEOUT_S = 45.0
 J7_IDLE_POLL_S = 0.02
 
@@ -504,9 +504,14 @@ def load_json_config():
     return config
 
 def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tcp, ucs):
+    try:
+        robot_speed = float(load_json_config().get("robotSpeed", sanding_speed))
+    except Exception:
+        robot_speed = sanding_speed
+
     print(
         f"[FrameDebug] _run_linear_sanding_process START "
-        f"force={force} sanding_speed={sanding_speed} tcp={tcp} ucs={ucs} "
+        f"force={force} robot_speed={robot_speed} sanding_speed={sanding_speed} tcp={tcp} ucs={ucs} "
         f"input_points={len(points) if points is not None else 'None'}"
     )
     sanding_points = []
@@ -541,6 +546,7 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
 
     force_approach_point = list(sanding_points[0])
     force_approach_point[2] = FORCE_APPROACH_Z_MM
+    force_approach_point[3:6] = [0, 0, 0]
     print(
         f"[FrameDebug] force approach point prepared: "
         f"original_first={sanding_points[0]} approach={force_approach_point} "
@@ -555,8 +561,8 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         tcp=tcp,
         ucs=ucs,
         seventh=-1,
-        speed=sanding_speed,
-        velocity_profile="sanding",
+        speed=robot_speed,
+        velocity_profile="robotspeed",
         wait=True,
     )
     print(f"[FrameDebug] communicate force approach DONE point={force_approach_point}")
@@ -582,9 +588,11 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     force_control_z = float(force_approach_point[2])
     for point in contact_sanding_points:
         point[2] = force_control_z
+        point[3:6] = [0, 0, 0]
     print(
         "[FrameDebug] frame path Z locked to force-control start Z. "
         f"force_control_z={force_control_z} "
+        "Orientation locked to Rx=0, Ry=0, Rz=0. "
         "This matches zigzag/edge behavior: X/Y moves run while Z stays force-controlled."
     )
 
