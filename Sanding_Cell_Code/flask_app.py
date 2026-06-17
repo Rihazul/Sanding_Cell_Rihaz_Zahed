@@ -1954,7 +1954,6 @@ def toggle_state(table_id):
                 CPS,
                 table_id,
                 requested_state,
-                wait_for_confirmation=False,
             )
             if not result.get("success", False):
                 socketio.emit(

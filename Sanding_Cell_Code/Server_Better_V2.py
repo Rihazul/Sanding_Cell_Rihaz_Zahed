@@ -7878,7 +7878,7 @@ def stopper_statusmod(cps, digital_number=2, state=None):
             raise ValueError("State must be 'up', 'down', or None")
 
 
-def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
+def set_table_state(CPS, table_id, desired_state):
     """
     Set the table to a specific desired state
     """
@@ -7944,13 +7944,6 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
                 }
-            if not wait_for_confirmation:
-                return {
-                    "success": True,
-                    "newState": "Open",
-                    "commandAccepted": True,
-                    "message": "Table A horizontal command accepted",
-                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("0", "1")
             )
@@ -7987,13 +7980,6 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
                         "Failed to command Table A close position "
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
-                }
-            if not wait_for_confirmation:
-                return {
-                    "success": True,
-                    "newState": "Close",
-                    "commandAccepted": True,
-                    "message": "Table A 45 degree command accepted",
                 }
             confirmed, reason, last_value = _wait_until(
                 _read_table_a_di, lambda v: v == ("1", "0")
@@ -8039,13 +8025,6 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
                 }
-            if not wait_for_confirmation:
-                return {
-                    "success": True,
-                    "newState": "Open",
-                    "commandAccepted": True,
-                    "message": "Table B horizontal command accepted",
-                }
             confirmed, reason, last_value = _wait_until(
                 _read_table_b_co, lambda v: v == "0"
             )
@@ -8082,13 +8061,6 @@ def set_table_state(CPS, table_id, desired_state, wait_for_confirmation=True):
                         "Failed to command Table B close position "
                         f"(release_ret={nRet_release}, drive_ret={nRet_drive})"
                     ),
-                }
-            if not wait_for_confirmation:
-                return {
-                    "success": True,
-                    "newState": "Close",
-                    "commandAccepted": True,
-                    "message": "Table B 45 degree command accepted",
                 }
             confirmed, reason, last_value = _wait_until(
                 _read_table_b_co, lambda v: v == "1"
