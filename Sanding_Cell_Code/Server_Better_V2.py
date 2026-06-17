@@ -3599,6 +3599,75 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 measured_frame_2,
                 sizing_policy,
             )
+        
+        def apply_pocket_detection_fallback(
+            results,
+            axis_label,
+            door_number,
+            expected_pocket_depth_mm=10.0,
+            min_pocket_depth_mm=7.0,
+            max_pocket_depth_mm=14.0,
+        ):
+            """
+            Fallback pocket detection for cases where the scanner clearly measured
+            a pocket-like height change, but the stable-region classifier rejected it.
+
+            Example failure:
+            - heightRange ≈ 10 mm
+            - pocketDetected = False
+            - reason = stable_regions_lt_2
+
+            In that case, we still want to mark the axis as pocket-detected.
+            """
+
+            if not isinstance(results, dict):
+                return results
+
+            def safe_float(value, default=0.0):
+                try:
+                    value = float(value)
+                    if not math.isfinite(value):
+                        return default
+                    return value
+                except (TypeError, ValueError):
+                    return default
+
+            pocket_detected = bool(results.get("pocketDetected", False))
+            height_range = safe_float(results.get("heightRange", 0.0))
+            depth_mm = safe_float(results.get("depthMm", 0.0))
+            reason = str(results.get("reason", ""))
+
+            pocket_like_height = min_pocket_depth_mm <= height_range <= max_pocket_depth_mm
+
+            classifier_failed_but_depth_exists = (
+                not pocket_detected
+                and pocket_like_height
+                and reason in {
+                    "stable_regions_lt_2",
+                    "no_stable_regions",
+                    "insufficient_stable_regions",
+                }
+            )
+
+            if classifier_failed_but_depth_exists:
+                results["pocketDetected"] = True
+                results["profileType"] = "frame_and_pocket"
+                results["depthMm"] = depth_mm if depth_mm > 0 else height_range
+                results["reason"] = (
+                    f"{reason}_fallback_height_range_{height_range:.2f}mm"
+                )
+
+                config["logger"].warning(
+                    "[scan-%s] Door %s pocket fallback applied: "
+                    "heightRange=%.3fmm depthMm=%.3fmm original_reason=%s",
+                    axis_label,
+                    door_number,
+                    height_range,
+                    depth_mm,
+                    reason,
+                )
+
+            return results
 
         scan_robot_speed = _resolve_ui_ratio(
             config, "robotSpeed", config.get("UI", {}).get("robotSpeed")
@@ -4080,6 +4149,12 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
+            
+            results = apply_pocket_detection_fallback(
+                results,
+                axis_label="x",
+                door_number=door_number,
+            )
 
             config["logger"].info("[scan] calculated x values for door: ", results)
 
@@ -4334,6 +4409,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
+            
+            results = apply_pocket_detection_fallback(
+                results,
+                axis_label="y",
+                door_number=door_number,
+            )
+            
             # results = identify_gradient_change_points_dynamic(ymeasurements, thresholds=[0.2, 0.1])
             config["logger"].info("[scan] calculated y values for door: ", results)
             (
@@ -4350,16 +4432,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
             y_profile_type = results.get("profileType", "unknown")
             y_pocket_detected = bool(results.get("pocketDetected", False))
-            if (
+            if x_pocket_detected or y_pocket_detected:
+                door_profile = "frame_and_pocket"
+            elif (
                 x_profile_type == "uniform_depth_no_pocket"
                 and y_profile_type == "uniform_depth_no_pocket"
             ):
                 door_profile = "uniform_depth_no_pocket"
-            elif (
-                x_profile_type == "frame_and_pocket"
-                and y_profile_type == "frame_and_pocket"
-            ):
-                door_profile = "frame_and_pocket"
             else:
                 door_profile = "mixed_or_uncertain"
 
