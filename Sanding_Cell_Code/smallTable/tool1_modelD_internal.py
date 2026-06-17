@@ -18,7 +18,7 @@ from Server_Better_V2 import (
 from smallTable.scancord import get_door_position, get_inner_corner_point, get_y_values
 
 
-INTERNAL_OFFSET_MM = 38.0
+INTERNAL_OFFSET_MM = 0.0
 INTERNAL_FORCE_N = 5
 FORCE_APPROACH_Z_MM = 35.0
 
@@ -278,14 +278,23 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
                 f"pass={pass_number}"
             )
 
+            force_control_z = float(pre_start[2])
+            force_path_points = [list(point) for point in path_points]
+            for point in force_path_points:
+                point[2] = force_control_z
+            print(
+                f"[ModelD] path Z locked to force-control start Z door={door_number} "
+                f"pass={pass_number} force_control_z={force_control_z}"
+            )
+
             print(
                 f"[ModelD] sanding path start door={door_number} "
-                f"pass={pass_number} points={len(path_points)}"
+                f"pass={pass_number} points={len(force_path_points)}"
             )
-            for point_index, point in enumerate(path_points, start=1):
+            for point_index, point in enumerate(force_path_points, start=1):
                 print(
                     f"[ModelD] sanding point start door={door_number} "
-                    f"pass={pass_number} point={point_index}/{len(path_points)} "
+                    f"pass={pass_number} point={point_index}/{len(force_path_points)} "
                     f"value={point}"
                 )
                 communicate(
@@ -301,7 +310,7 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
                 )
                 print(
                     f"[ModelD] sanding point done door={door_number} "
-                    f"pass={pass_number} point={point_index}/{len(path_points)}"
+                    f"pass={pass_number} point={point_index}/{len(force_path_points)}"
                 )
             print(
                 f"[ModelD] sanding path done door={door_number} "

@@ -72,6 +72,107 @@ def _resolve_force(user_force, default_force=5.0):
         return float(default_force)
 
 
+def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, label="tool1"):
+    """Run Tool 1 path while keeping Z under force control, like frame/zigzag/edge."""
+    points = [list(point) for point in (points1 or [])]
+    if len(points) < 2:
+        print(f"[Tool1ForcePath] {label}: skipped, not enough points")
+        return
+
+    approach_point = list(points[0])
+    force_control_z = float(approach_point[2])
+    exit_point = None
+    try:
+        if float(points[-1][2]) >= force_control_z:
+            exit_point = list(points[-1])
+    except (TypeError, ValueError, IndexError):
+        exit_point = None
+
+    contact_points = []
+    for point in points[1:]:
+        try:
+            if float(point[2]) < force_control_z:
+                locked_point = list(point)
+                locked_point[2] = force_control_z
+                contact_points.append(locked_point)
+        except (TypeError, ValueError, IndexError):
+            print(f"[Tool1ForcePath] {label}: skipped invalid point {point}")
+
+    if not contact_points:
+        print(f"[Tool1ForcePath] {label}: skipped, no contact points")
+        return
+
+    print(
+        f"[Tool1ForcePath] {label}: approach={approach_point} "
+        f"contact_points={len(contact_points)} force_control_z={force_control_z}"
+    )
+    communicate(
+        cps=cps,
+        config=config,
+        point=approach_point,
+        tcp=config['coords']['tcptool1plane1'],
+        ucs=config['coords']['ucsTable1'],
+        seventh=-1,
+        speed=sanding_speed,
+        velocity_profile="sandingspeed",
+        wait=True,
+    )
+
+    force_applied = False
+    vibration_on = False
+    try:
+        force_ok = putForceZminus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcptool1plane1'],
+            ucs=config['coords']['ucsTable1'],
+            config=config,
+            search_linear_velocity=5.0,
+        )
+        if not force_ok:
+            raise RuntimeError(f"[Tool1ForcePath] {label}: failed to establish Z- force contact.")
+        force_applied = True
+
+        turn_vibration_on(cps)
+        vibration_on = True
+
+        for index, point in enumerate(contact_points, start=1):
+            is_last = index == len(contact_points)
+            print(f"[Tool1ForcePath] {label}: move {index}/{len(contact_points)} {point}")
+            communicate(
+                cps=cps,
+                config=config,
+                point=point,
+                tcp=config['coords']['tcptool1plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
+                speed_mode="linear",
+                wait=is_last,
+            )
+
+        waitForBlending(cps=cps, config=config)
+    finally:
+        if vibration_on:
+            turn_vibration_off(cps)
+        if force_applied:
+            releaseForce(cps=cps, config=config)
+        if exit_point is not None:
+            print(f"[Tool1ForcePath] {label}: exit lift {exit_point}")
+            communicate(
+                cps=cps,
+                config=config,
+                point=exit_point,
+                tcp=config['coords']['tcptool1plane1'],
+                ucs=config['coords']['ucsTable1'],
+                seventh=-1,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
+                wait=True,
+            )
+
+
 
 
 def _is_big_door(door_number):
@@ -210,87 +311,23 @@ def smalldoor1tool3(z,cps,force=None):
 
         
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint40:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint0:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            releaseForce(cps=cps, config=config)
-
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         def perform_process_top(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==ttpoint52:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==ttpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-        
+                sanding_speed=sanding_speed,
+                label="external_top",
+            )
         def perform_process_left(cps, config, points1):
             # Vibration on
             turn_vibration_on(cps)
@@ -434,47 +471,14 @@ def smalldoor1tool3(z,cps,force=None):
             # Release Force Control
 
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint01:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
@@ -607,86 +611,23 @@ def smalldoor2tool3(z,cps,force=None):
         print("toppoints:",toppoints)
         
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint40:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint0:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            releaseForce(cps=cps, config=config)
-
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         def perform_process_top(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            # Communicate to each point in points1
-            for point in points1:
-                if point==ttpoint52:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==ttpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-        
+                sanding_speed=sanding_speed,
+                label="external_top",
+            )
         def perform_process_left(cps, config, points1):
             # Vibration on
             turn_vibration_on(cps)
@@ -832,46 +773,14 @@ def smalldoor2tool3(z,cps,force=None):
             # Release Force Control
 
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint01:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
@@ -1005,87 +914,23 @@ def smalldoor3tool3(z,cps,force=None):
 
         
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint40:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint0:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            releaseForce(cps=cps, config=config)
-
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         def perform_process_top(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==ttpoint52:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==ttpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-        
+                sanding_speed=sanding_speed,
+                label="external_top",
+            )
         def perform_process_left(cps, config, points1):
             # Vibration on
             turn_vibration_on(cps)
@@ -1230,47 +1075,14 @@ def smalldoor3tool3(z,cps,force=None):
             # Release Force Control
 
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint01:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
-        
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
@@ -1403,87 +1215,23 @@ def smalldoor4tool3(z,cps,force=None):
         print("toppoints:",toppoints)
 
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint40:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint0:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            releaseForce(cps=cps, config=config)
-
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         def perform_process_top(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==ttpoint52:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==ttpoint2:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config) 
-        
+                sanding_speed=sanding_speed,
+                label="external_top",
+            )
         def perform_process_left(cps, config, points1):
             # Vibration on
             turn_vibration_on(cps)
@@ -1627,46 +1375,14 @@ def smalldoor4tool3(z,cps,force=None):
             # Release Force Control
 
         def perform_process_bottom(cps, config, points1):
-            # Vibration on
-            # turn_vibration_on(cps)
-            
-            # Force Control Activated
-            #putForceZplus(
-                #cps=cps,
-                #force=15,
-                #tcp=config['coords']['tcptool1plane1'],
-                #ucs=config['coords']['ucsTable2'],
-                #config=config
-            #)
-            
-            # Communicate to each point in points1
-            for point in points1:
-                if point==tpoint01:putForceZminus(
+            _run_tool1_force_locked_path(
                 cps=cps,
+                config=config,
+                points1=points1,
                 force=applied_force,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                config=config
-                )
-                if point==tpoint1:turn_vibration_on(cps)
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=config['coords']['tcptool1plane1'],
-                    ucs=config['coords']['ucsTable1'],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True
-                )
-            
-            # Wait for blending and turn off vibration
-            waitForBlending(cps=cps, config=config)
-            turn_vibration_off(cps)
-            
-            # Release Force Control
-            releaseForce(cps=cps, config=config)
+                sanding_speed=sanding_speed,
+                label="external_bottom",
+            )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
