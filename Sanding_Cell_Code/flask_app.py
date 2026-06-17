@@ -1941,19 +1941,12 @@ def toggle_state(table_id):
         if not ok:
             return jsonify({'newState': "Busy"}), 200
 
-        # Manual table buttons should send the pneumatic command immediately.
-        # Task and scan flows still enforce their own table/robot interlocks.
+        # Ensure 7th axis is at home before allowing table open/close.
+        # J7 position cannot be read, so we rely on a software flag set by homing.
         if not j7_home_confirmed:
-            socketio.emit(
-                'flash_message',
-                {
-                    "message": (
-                        "Warning: 7th-axis homing is not confirmed; "
-                        "manual table command is being sent."
-                    ),
-                    "type": "warning",
-                },
-            )
+            msg = "Please home the robot (7th axis) before opening or closing the table."
+            socketio.emit('flash_message', {"message": msg})
+            return jsonify({"error": msg}), 200
 
         requested_state = request.args.get("desired")
         if requested_state in ("Open", "Close"):
@@ -1961,7 +1954,7 @@ def toggle_state(table_id):
                 CPS,
                 table_id,
                 requested_state,
-                wait_for_confirmation=False,
+                wait_for_confirmation=True,
             )
             if not result.get("success", False):
                 socketio.emit(
@@ -2002,35 +1995,27 @@ def toggle_state(table_id):
 
         elif table_id == "tableBOpenClose":
             nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
-            if nRet != 0 or not robot_state:
-                msg = "Unable to read Table B position state."
-                socketio.emit('flash_message', {"message": msg, "type": "warning"})
-                return jsonify({"error": msg, "newState": "Unknown"}), 500
-
             if robot_state[0] == '1':
-                # Currently 45 degrees; move to horizontal.
-                result = set_table_state(
-                    CPS,
-                    "tableBOpenClose",
-                    "Open",
-                    wait_for_confirmation=False,
-                )
+                new_state = "Open"
+                nRet = CPS.HRIF_SetBoxCO(0, 1, 0)  # (0, digital output number, states)
+                nRet = CPS.HRIF_SetBoxCO(0, 0, 1)
+                socketio.emit('flash_message', {"message": f"Table B is in horizontal position"})
             else:
-                # Currently horizontal; move to 45 degrees.
-                result = set_table_state(
-                    CPS,
-                    "tableBOpenClose",
-                    "Close",
-                    wait_for_confirmation=False,
-                )
-
-            if not result.get("success", False):
-                socketio.emit(
-                    'flash_message',
-                    {"message": result.get("message", "Table B movement failed."), "type": "warning"},
-                )
-                return jsonify(result), 500
-            new_state = result["newState"]
+                new_state = "Close"
+                nRet = CPS.HRIF_SetBoxCO(0, 0, 0)
+                nRet = CPS.HRIF_SetBoxCO(0, 1, 1)
+                socketio.emit('flash_message', {"message": f"Alert !!! Table B is in 45 degree working position so be carefull at the time of manually moving robot"})
+            ######
+            #ToDo: The project was not complete, so change the digital number in the CPS functions which can open or close the tableB.
+            #Syntax: HRIF_SetBoxDo(BoxID, DigitalNumber(Ask Nic What is the Digital Output for TableB), TableState(1or0))
+            ######
+            # nRet = CPS.HRIF_ReadBoxDO(0, 1, robot_state)
+            # if robot_state[0] == '1':
+            #     new_state = "Open"
+            #     nRet = CPS.HRIF_SetBoxDO(0, 1, 0)
+            # else:
+            #     new_state = "Close"
+            #     nRet = CPS.HRIF_SetBoxDO(0, 1, 1)
 
         else:
             return jsonify({'newState': 'Invalid input. No state change.'})
