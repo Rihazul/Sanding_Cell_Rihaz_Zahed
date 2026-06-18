@@ -271,6 +271,29 @@ export function CompactTableConfig({
     return `${baseModel}::${doorModelSig}`;
   };
 
+  const formatScanSignatureSummary = (signature: string) => {
+    const [baseModel = '', doorSig = ''] = String(signature || '').split('::');
+    const doorParts = doorSig
+      .split('|')
+      .map((part) => {
+        const [doorNumber, doorModel] = part.split(':');
+        if (!doorNumber || !doorModel) return '';
+        return `Door ${doorNumber}: ${formatModelName(doorModel)}`;
+      })
+      .filter(Boolean);
+
+    if (baseModel) {
+      return `${formatModelName(baseModel)}${doorParts.length ? ` (${doorParts.join(', ')})` : ''}`;
+    }
+    if (doorParts.length) return doorParts.join(', ');
+    return 'No model recorded';
+  };
+
+  const buildScanMismatchWarning = (scanSignature: string, currentSignature: string) =>
+    `The saved scan was made for ${formatScanSignatureSummary(scanSignature)}. ` +
+    `Current setup is ${formatScanSignatureSummary(currentSignature)}. ` +
+    'Select the scanned model/setup again or run Scan for the current setup.';
+
   const applyDetectedDoorsFromScanStatus = (status: any) => {
     if (!status?.hasScan || !status?.doorDetectionAvailable) {
       setDetectedDoorNumbers(null);
@@ -454,6 +477,12 @@ export function CompactTableConfig({
     console.log('Start Task clicked for Table', tableName);
 
     if (isOperating || isScanning) return;
+    const confirmed = await confirmStartTask();
+    if (!confirmed) {
+      addActivity(`Table ${tableName}: Start task cancelled to review configuration`, 'warning');
+      return;
+    }
+
     if (tableName === 'A') {
       let effectiveScanCompleted = scanCompleted;
       let effectiveLastSignature = lastScanSignature;
@@ -495,24 +524,20 @@ export function CompactTableConfig({
         (!!effectiveLastSignature && scanSignatureNow !== effectiveLastSignature);
       if (scanInvalid) {
         const swal = getSwal();
-        const warningText = 'Model/configuration changed or scan missing. Please run Scan first before Start Task.';
+        const warningText = effectiveLastSignature
+          ? buildScanMismatchWarning(effectiveLastSignature, scanSignatureNow)
+          : 'No Table A scan is recorded. Run Scan for the selected model and detected doors before starting the task.';
         if (swal?.fire) {
           await swal.fire({
             title: 'Scan Required',
             text: warningText,
             icon: 'warning',
-            timer: 2000,
-            showConfirmButton: false,
+            confirmButtonText: 'OK',
           });
         }
-        addActivity(`Table ${tableName}: Scan required before starting task (model/config changed or no valid scan).`, 'warning');
+        addActivity(`Table ${tableName}: ${warningText}`, 'warning');
         return;
       }
-    }
-    const confirmed = await confirmStartTask();
-    if (!confirmed) {
-      addActivity(`Table ${tableName}: Start task cancelled to review configuration`, 'warning');
-      return;
     }
 
     setIsOperating(true);
@@ -1128,7 +1153,7 @@ export function CompactTableConfig({
                 <div className="mt-2 text-xs">
                   {scanCompleted && scanConfigMismatch ? (
                     <span className="text-amber-700">
-                      Saved scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}, but it does not match the current model/door setup. Re-scan before starting.
+                      Saved scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}, but it was made for {formatScanSignatureSummary(lastScanSignature || '')}. Current setup is {formatScanSignatureSummary(getTableAScanSignature())}. Re-scan or select the scanned setup before starting.
                     </span>
                   ) : scanCompleted ? (
                     <span className="text-green-700">
