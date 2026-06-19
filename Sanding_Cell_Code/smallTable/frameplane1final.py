@@ -587,7 +587,7 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     contact_sanding_points = [list(point) for point in sanding_points]
     force_control_z = float(force_approach_point[2])
     for point in contact_sanding_points:
-        # Keep original scanned sanding Z, usually z=1
+        point[2] = force_control_z
         point[3:6] = [0, 0, 0]
     print(
         "[FrameDebug] frame path Z locked to force-control start Z. "
