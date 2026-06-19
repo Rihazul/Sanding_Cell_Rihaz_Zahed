@@ -7,16 +7,16 @@ from Server_Better_V2 import _get_tool_in_hand, _read_tool_sensors
 from Server_Better_V2 import setup_logger
 import yaml, requests
 from modules.CPS import CPSClient, RbtClient, PluginClient
-from multiprocessing import Process, Event, Pipe, current_process
+from multiprocessing import Process, Event, Pipe
 import time
 from flask_socketio import SocketIO
 # Get the absolute path to flask_app.py (important when running as an executable)
 import os
 import sys
-import webview  # PyWebView for embedding Flask in a window
 from werkzeug.utils import secure_filename
 import logging
 import threading
+import importlib
 from contextlib import contextmanager
 import re
 from collections import deque
@@ -27,30 +27,15 @@ logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 # for right table model plotting and sanding
 from FileUtils.upload import upload3DModel
-from Table1Model.plotexp import plot_data as plot_data_table1Model
-from Table2Model.plotexp import plot_data as plot_data_table2Model
-from Table3Model.plotexp import plot_data as plot_data_table3Model
-from Table4Model.plotexp import plot_data as plot_data_table4Model
-from Table5Model.plotexp import plot_data as plot_data_table5Model
 import json
 import copy
-from model1cycle.mainmodel1 import startingRobotToSandmodel1
-from model2cycle.mainmodel2 import startingRobotToSandmodel2
-from model3cycle.mainmodel3 import startingRobotToSandmodel3
-from model4cycle.mainmodel4 import startingRobotToSandmodel4
-from model5cycle.mainmodel5 import startingRobotToSandmodel5
 
 #for left table homing and sanding total
-from smallTable.smallmodelfinal import sandingModelATableA
-from smallTable.smallmodelfinal2 import sandingModelBTableA
-from smallTable.smallmodelfinal3 import sandingModelCTableA
-from smallTable.smallmodelfinal4 import sandingModelDETableA
-from smallTable.smallmodelfinal5 import sandingModelETableA
-from smallTable.smallmodelfinalF import sandingModelFTableA
 from smallTable.scansmalltable import scanTableA
 from smallTable.scanhoming import scanhoming
 from smallTable.homingtotal import homingtotal
 from cycle_data_utils import overlap_mm_to_step
+from tablea_task_worker import run_tablea_task_child
 
 UPLOAD_FOLDER = './3DModels'
 ALLOWED_EXTENSIONS = {'stp'}
@@ -62,22 +47,27 @@ REACT_BUILD_DIR = os.path.join(PROJECT_ROOT, "Create_Login_Dashboard_Analytics",
 REACT_ASSETS_DIR = os.path.join(REACT_BUILD_DIR, "assets")
 
 
-#RightTable 
+#RightTable
 modelMethodmap = {
-    "modelA": startingRobotToSandmodel1,
-    "modelB": startingRobotToSandmodel2,
-    "modelC": startingRobotToSandmodel3,
-    "modelD": startingRobotToSandmodel4,
-    "modelE": startingRobotToSandmodel5,
+    "modelA": ("model1cycle.mainmodel1", "startingRobotToSandmodel1"),
+    "modelB": ("model2cycle.mainmodel2", "startingRobotToSandmodel2"),
+    "modelC": ("model3cycle.mainmodel3", "startingRobotToSandmodel3"),
+    "modelD": ("model4cycle.mainmodel4", "startingRobotToSandmodel4"),
+    "modelE": ("model5cycle.mainmodel5", "startingRobotToSandmodel5"),
 }
 #RightTable
 modelMap = {
-    "modelA": plot_data_table1Model,
-    "modelB": plot_data_table2Model,
-    "modelC": plot_data_table3Model,
-    "modelD": plot_data_table4Model,
-    "modelE": plot_data_table5Model,
+    "modelA": ("Table1Model.plotexp", "plot_data"),
+    "modelB": ("Table2Model.plotexp", "plot_data"),
+    "modelC": ("Table3Model.plotexp", "plot_data"),
+    "modelD": ("Table4Model.plotexp", "plot_data"),
+    "modelE": ("Table5Model.plotexp", "plot_data"),
 }
+
+
+def _load_function(module_name, function_name):
+    module = importlib.import_module(module_name)
+    return getattr(module, function_name)
 
 
 def _run_tableb_plot_dialog(model_key, inverse_overlapping, conn):
@@ -86,7 +76,8 @@ def _run_tableb_plot_dialog(model_key, inverse_overlapping, conn):
     executes on that process's main thread (avoids tkinter thread errors).
     """
     try:
-        plot_fn = modelMap[model_key]
+        module_name, function_name = modelMap[model_key]
+        plot_fn = _load_function(module_name, function_name)
         action = plot_fn(inverseOverlapping=inverse_overlapping)
         conn.send({"ok": True, "action": action})
     except Exception as e:
@@ -97,16 +88,11 @@ def _run_tableb_plot_dialog(model_key, inverse_overlapping, conn):
         except Exception:
             pass
 
-#left Table
-modelMethodMapTableA = {
-    "modelA": sandingModelATableA,
-    "modelB": sandingModelBTableA,
-    "modelC": sandingModelCTableA,
-    "modelD": sandingModelDETableA,
-    "modelE": sandingModelETableA,
-    "modelF": sandingModelFTableA,
-}
 
+def _run_tableb_task_child(model_key):
+    module_name, function_name = modelMethodmap[model_key]
+    task_fn = _load_function(module_name, function_name)
+    task_fn()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -281,14 +267,9 @@ default_data["tableB"] = default_data["tableA"]
 CPS = CPSClient()
 IP = "192.168.0.10"
 port = 10003
-# Avoid eager CPS connect in spawned child processes (e.g., homing child).
-# Child workers should create/connect their own local CPS clients.
+# Lazy-connect CPS from endpoints/actions instead of blocking Flask startup.
+# Child workers create/connect their own local CPS clients.
 ret = None
-if current_process().name == "MainProcess":
-    try:
-        ret = CPS.HRIF_Connect(0, IP, port)
-    except Exception:
-        ret = None
 Tpos = 0
 velocity = 0.1
 robot_lock = threading.Lock()
@@ -483,6 +464,17 @@ def _get_tablea_scan_status():
         "isScanning": _inline_scan_active.is_set(),
         "scanRevision": scan_revision,
     }
+
+
+def _tablea_scan_recent(scan_status, max_age_seconds=180):
+    scanned_at = scan_status.get("scannedAt") if isinstance(scan_status, dict) else None
+    if not scanned_at:
+        return False
+    try:
+        scanned_dt = datetime.fromisoformat(str(scanned_at))
+    except Exception:
+        return False
+    return (datetime.now() - scanned_dt).total_seconds() <= max_age_seconds
 
 
 def _sanitize_cps_runtime():
@@ -796,7 +788,7 @@ def trigger():
 # Save modal data
 @app.route('/save_modal_data', methods=['POST'])
 def save_modal_data():
-    global modal_data_store    
+    global modal_data_store
     try:
         modal_data = request.json  # Get modal data from frontend
         modal_data_store = modal_data  # Store it in memory
@@ -904,13 +896,13 @@ def start_TableB_process():
 
     if client_process and client_process.is_alive():
         return jsonify({'status': 'error', 'message': 'Process already running'})
-    
+
     if not data:
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
-    
+
     if 'TableB' not in data:
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
-    
+
     tableData = data['TableB']
     selected_model = tableData.get('model')
 
@@ -944,14 +936,14 @@ def start_TableB_process():
     buttonClicked = plot_result.get("action", "cancel")
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
-        
+
     if buttonClicked == "cancel":
         return jsonify({
             'success': False,
             'process' : "cancelled",
             "status": "Process is cancelled"
-        })   
-    
+        })
+
     clear_stop()
     with robot_lock:
         conn_ret = ensure_cps_connected(force=True)
@@ -967,11 +959,11 @@ def start_TableB_process():
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
     _disconnect_global_cps_for_child_start()
-    client_process = Process(target=modelMethodmap[selected_model], args=())
+    client_process = Process(target=_run_tableb_task_child, args=(selected_model,))
     process_state['status'] = 'in_progress'
     client_process.start()
     Thread(target=_track_process, args=(client_process,), daemon=True).start()
-    
+
     # startingRobotToSand()
     return jsonify({
         'success': True,
@@ -987,16 +979,16 @@ def start_TableA_process():
     global j7_home_confirmed
     data = request.json
     print("Received data in start_TableA_process:", data)
-    
+
     if client_process and client_process.is_alive():
         return jsonify({'status': 'error', 'message': 'Process already running'})
 
     if not data:
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
-    
+
     if 'TableA' not in data:
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
-    
+
     tableData = data['TableA']
     scan_status = _get_tablea_scan_status()
     if not scan_status.get("hasScan"):
@@ -1053,6 +1045,12 @@ def start_TableA_process():
                 "currentSignature": current_signature,
             }
         ), 409
+    recent_matching_scan = bool(
+        previous_signature
+        and current_signature
+        and previous_signature == current_signature
+        and _tablea_scan_recent(scan_status)
+    )
 
     runtime_config = load_config()
     auto_model_f_from_scan = bool(
@@ -1066,91 +1064,39 @@ def start_TableA_process():
     if selected_model == "modelF":
         print("Applying backend Model F guard: only pocketzigzag is allowed; forcing Tool 4 workflow.")
         _enforce_model_f_tablea_payload(tableData)
-    
+
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
 
     clear_stop()
-    preparation_start = time.monotonic()
-    with robot_lock:
-        connect_start = time.monotonic()
-        conn_ret = ensure_cps_connected(force=True)
-        connect_elapsed = time.monotonic() - connect_start
-        if conn_ret != 0:
-            return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
-        # Operation routing uses swapped IO table IDs on this cell:
-        # selecting Table A task requires Table A at 45 degrees and Table B horizontal.
-        table_b_start = time.monotonic()
-        table_b_result = set_table_state(CPS, "tableBOpenClose", "Open")
-        table_b_elapsed = time.monotonic() - table_b_start
-        if not table_b_result.get("success", False):
-            app.logger.error(
-                "[TableA Start] Table B preparation failed after %.3fs: %s",
-                table_b_elapsed,
-                table_b_result,
-            )
-            return jsonify(
-                {
-                    "error": table_b_result.get("message", "Failed to prepare Table B."),
-                    "code": "table_b_preparation_failed",
-                }
-            ), 500
-
-        table_a_start = time.monotonic()
-        table_a_result = set_table_state(CPS, "tableAOpenClose", "Close")
-        table_a_elapsed = time.monotonic() - table_a_start
-        if not table_a_result.get("success", False):
-            app.logger.error(
-                "[TableA Start] Table A preparation failed after %.3fs: %s",
-                table_a_elapsed,
-                table_a_result,
-            )
-            return jsonify(
-                {
-                    "error": table_a_result.get("message", "Failed to prepare Table A."),
-                    "code": "table_a_preparation_failed",
-                }
-            ), 500
-
-        socketio.emit(
-            'flash_message',
-            {"message": "Operation table mode confirmed: Table A 45°, Table B horizontal"},
-        )
-        stopper_statusmod(CPS, state="up")
-        app.logger.info(
-            "[TableA Start] preparation complete in %.3fs "
-            "(connect=%.3fs, tableB=%.3fs already=%s, tableA=%.3fs already=%s)",
-            time.monotonic() - preparation_start,
-            connect_elapsed,
-            table_b_elapsed,
-            bool(table_b_result.get("alreadyInState", False)),
-            table_a_elapsed,
-            bool(table_a_result.get("alreadyInState", False)),
-        )
-
+    launch_start = time.monotonic()
     # Disconnect/reset parent CPS before child opens its own CPS session.
     disconnect_start = time.monotonic()
     _disconnect_global_cps_for_child_start()
     disconnect_elapsed = time.monotonic() - disconnect_start
     child_start = time.monotonic()
-    client_process = Process(target=modelMethodMapTableA[tableData['model']], args=())
+    client_process = Process(
+        target=run_tablea_task_child,
+        args=(tableData['model'], recent_matching_scan),
+    )
     process_state['status'] = 'in_progress'
     client_process.start()
     app.logger.info(
         "[TableA Start] child process started in %.3fs "
-        "(parent disconnect=%.3fs); total request preparation %.3fs",
+        "(parent disconnect=%.3fs); total launch %.3fs. "
+        "Table/stoppers preparation now runs inside child.",
         time.monotonic() - child_start,
         disconnect_elapsed,
-        time.monotonic() - preparation_start,
+        time.monotonic() - launch_start,
     )
     Thread(target=_track_process, args=(client_process,), daemon=True).start()
-    
+
     return jsonify({
         'success': True,
         'process' : "started",
         "status": "Process started"
     })
-    
+
 
 ############################################################################################
 
@@ -1160,38 +1106,38 @@ def start_TableA_process():
 def upload_3d_file():
     if 'file' not in request.files:
         return jsonify({'success': False, 'message': 'No file part'})
-    
+
     file = request.files['file']
     if file.filename == '':
         return jsonify({'success': False, 'message': 'No selected file'})
-        
-    
+
+
     if file and allowed_file(file.filename):
         try:
             # Secure the filename and save the file
             filename = secure_filename(file.filename)
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             file.save(filepath)
-            
-            upload3DModel(filepath) 
-            
+
+            upload3DModel(filepath)
+
             return jsonify({
                 'success': True,
                 'message': 'File uploaded successfully',
-                'filename': filename                
+                'filename': filename
             })
         except Exception as e:
             return jsonify({
                 'success': False,
                 'message': f'Error processing file: {str(e)}'
             })
-    
+
     return jsonify({
         'success': False,
         'message': 'Invalid file type'
     })
-    
-    
+
+
 ############################################################################################
 
 # Combines the data from the config file and the user inputted data and return as combined configurations data.
@@ -1199,19 +1145,19 @@ def fetch_and_combine_data():
     try:
         api_response = requests.get("http://localhost:5100/get_modal_data")
         api_data = api_response.json()
-        
+
         if api_data.get("message") == "No modal data.":
             return {"status": "incomplete", "message": "Settings are still remaining to do."}
     except Exception as e:
         return {"status": "error", "message": f"API error: {e}"}
-    
+
     try:
         with open('./configs/config.yaml', 'r') as file:
             config_data = yaml.safe_load(file)
         print("Config Data: ", config_data)
     except Exception as e:
         return {"status": "error", "message": f"YAML file error: {e}"}
-    
+
     combined_data = {**config_data, **api_data['tableA']}  # YAML data is combined with API data
     return combined_data
 
@@ -1462,10 +1408,10 @@ def tool_toggle():
 
     # 1) Get or build your config from file + modal data
     config_data_UI = fetch_and_combine_data()
-    
+
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
-    
+
     def check_conditions(condition_list):
         """Helper to check CPS conditions."""
         for func, box_id, nBit, expected in condition_list:
@@ -1616,10 +1562,10 @@ def tool_toggle2():
 
     # 1) Get or build your config from file + modal data
     config_data_UI = fetch_and_combine_data()
-    
+
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
-    
+
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
         with locked_cps() as ok:
@@ -1715,7 +1661,7 @@ def tool_toggle2():
                 return jsonify({"error": "Drop conditions not met"}), 400
     else:
         return jsonify({"error": "Invalid action. Must be 'pick' or 'keep'."}), 400
-    
+
 
 ###########################################################################################
 ############################################################################################
@@ -1741,10 +1687,10 @@ def tool_toggle1():
 
     # 1) Get or build your config from file + modal data
     config_data_UI = fetch_and_combine_data()
-    
+
     # Manually add a logger instance to config
     config_data_UI['logger'] = setup_logger(config_data_UI['settings']['debug'])
-    
+
     # 3) Depending on the action, call getTool or keepTool
     if action == "pick":
         with locked_cps() as ok:
@@ -1853,8 +1799,8 @@ def check_tool1_attachment_condition(cps):
 def check_tool1_status():
     """
     A route that calls our check_tool1_attachment_condition function
-    and returns a simple JSON response. 
-    By calling this route, we ensure the server checks the condition 
+    and returns a simple JSON response.
+    By calling this route, we ensure the server checks the condition
     and emits the blink_circle_button event if needed.
     """
     with locked_cps() as ok:
@@ -1879,7 +1825,7 @@ def check_tool2_attachment_condition(cps):
 def check_tool2_status():
     """
     A route that calls check_tool2_attachment_condition.
-    By calling this route, we check the lines for tool2 
+    By calling this route, we check the lines for tool2
     and emit a 'blink_circle_button2' event with True or False.
     """
     with locked_cps() as ok:
@@ -1906,7 +1852,7 @@ def check_tool3_attachment_condition(cps):
 def check_tool3_status():
     """
     A route that calls check_tool3_attachment_condition.
-    By calling this route, we check the lines for tool3 
+    By calling this route, we check the lines for tool3
     and emit a 'blink_circle_button3' event with True or False.
     """
     with locked_cps() as ok:
@@ -2115,7 +2061,7 @@ def get_state(table_id):
             else:
                 new_state = "Unknown"
 
-        elif table_id == "tableBOpenClose": 
+        elif table_id == "tableBOpenClose":
             nRet = CPS.HRIF_ReadBoxCO(0, 1, robot_state)
             socketio.emit('flash_message', {"message": f"Table B is Set To {'Close' if robot_state[0] == '1' else 'Open'}. Please Wait Till The Process Finishes..."})
             if robot_state[0] == '1':
@@ -2125,7 +2071,7 @@ def get_state(table_id):
         else:
             return jsonify({'newState': 'Invalid input. No state change.'})
 
-    
+
     return jsonify({'newState': f"{new_state}"})
 
 ############################################################################################
@@ -2333,7 +2279,7 @@ def handle_action():
             CPS.HRIF_SetBoxDO(0, 2, 1) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperA Put Up"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
-    
+
     if action == "stopperDown":
         with locked_cps() as ok:
             if not ok:
@@ -2341,7 +2287,7 @@ def handle_action():
             CPS.HRIF_SetBoxDO(0, 2, 0) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperA Pulled Down"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
-    
+
     elif action == "stopperUpB":
         with locked_cps() as ok:
             if not ok:
@@ -2349,7 +2295,7 @@ def handle_action():
             CPS.HRIF_SetBoxCO(0, 2, 1) #Table Digital Output is 2
         socketio.emit('flash_message', {"message": f"StopperB Put Up"})
         return jsonify({'status': 'success', 'message': 'Action stopper received and executed'})
-    
+
     elif action == "stopperDownB":
         with locked_cps() as ok:
             if not ok:
@@ -2365,7 +2311,7 @@ def handle_action():
             CPS.HRIF_SetBoxDO(0, 5, 0)
         socketio.emit('flash_message', {"message": f"Grabbing the Tool In Hand"})
         return jsonify({'status': 'success', 'message': 'Action tool received and executed'})
-    
+
     elif action == "toolDrop":
         with locked_cps() as ok:
             if not ok:
@@ -2373,7 +2319,7 @@ def handle_action():
             CPS.HRIF_SetBoxDO(0, 5, 1)
         socketio.emit('flash_message', {"message": f"Dropping the Tool In Hand"})
         return jsonify({'status': 'success', 'message': 'Action tool received and executed'})
-    
+
     elif action == "laserOn":
         with locked_cps() as ok:
             if ok:
@@ -2486,7 +2432,7 @@ def handle_action():
             CPS.HRIF_GrpEnable(0, 0)
         socketio.emit('flash_message', {"message": f"Cobot Enabled"})
         return jsonify({'status': 'success', 'message': 'Action enable received and executed'})
-    
+
     elif action == "disable":
         with locked_cps(allow_when_busy=True) as ok:
             if not ok:
@@ -2494,11 +2440,11 @@ def handle_action():
             CPS.HRIF_GrpDisable(0, 0)
         socketio.emit('flash_message', {"message": f"Cobot Disabled"})
         return jsonify({'status': 'success', 'message': 'Action enable received and executed'})
-    
+
     # elif action == "confirm":
     #     config_data_UI = fetch_and_combine_data()
     #     return start_process(config_data_UI)
-    
+
     elif action == "scan":
         required, reason = _compute_homing_requirement()
         if required:
@@ -2650,12 +2596,12 @@ def handle_action():
                         'flash_message',
                         {
                             "message": (
-                                "Scan interlock legacy mode: Table A command -> 45deg, "
-                                "Table B unchanged (non-blocking)."
+                                "Scan interlock mode: Table A command -> 45deg, "
+                                "Table B command -> horizontal."
                             )
                         },
                     )
-                    socketio.emit('flash_message', {"message": "Operation table mode: Table A 45°, Table B unchanged"})
+                    socketio.emit('flash_message', {"message": "Operation table mode: Table A 45°, Table B horizontal"})
                     scanTableA(cps=cps, config=runtime_scan_config)
                 finally:
                     laser(cps, "off", config=config)
@@ -2685,7 +2631,7 @@ def handle_action():
             return jsonify({'status': 'error', 'message': f'Scan failed: {exc}'}), 500
         finally:
             _inline_scan_active.clear()
-    
+
     return jsonify({'status': 'error', 'message': 'Invalid action provided'}), 400
 
 ############################################################################################

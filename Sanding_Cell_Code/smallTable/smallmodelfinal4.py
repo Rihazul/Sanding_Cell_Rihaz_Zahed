@@ -120,7 +120,7 @@ def run_tool2side_cycles(count, force, door_num,cps):
         3: door3frametool2side,
         4: door4frametool2side
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -147,7 +147,7 @@ def run_tool2side_edgecycles(count, force, door_num,cps):
         3: door3frametool2sideedge,
         4: door4frametool2sideedge
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -185,7 +185,7 @@ def run_tool3_cycles(count, door_num, z, cps, force):
         if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
             print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
             time.sleep(INTER_PASS_DELAY_SECONDS)
-  
+
 # def keepToolupdated(cps, toolNumber, config): #Tool Postion a rekhe dibe
 #         # if (not config['settings']['useTool']):
 #         #     return
@@ -203,7 +203,7 @@ def run_tool3_cycles(count, door_num, z, cps, force):
 #         communicate(cps=cps, point=config['point'][f'tool{toolNumber}home'], tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.25, wait=True)
 #         # if don't need to pick another tool just after dropping this one, then come to safe picking position
 #         # msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Tool {toolNumber} Kept Successfully")
-#         # if goToSafe: 
+#         # if goToSafe:
 #         #     communicate(cps=cps, point=config['point']['safePointTool'],tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=True)
 
 # def getToolUpdated(cps, toolNumber, config, startFromSafe=True): #Tool postion dile nibe
@@ -219,7 +219,7 @@ def run_tool3_cycles(count, door_num, z, cps, force):
 #         #     return
 #         # msg_to_frontend(api_url=config['server']['frontEnd_messaging_url'], message=f"Tool {toolNumber} Collection Started...")
 #         # # if didn't drop another tool just before picking this one, then come to safe picking position
-#         # if startFromSafe: 
+#         # if startFromSafe:
 #         #     communicate(cps=cps, point=config['point']['safePointTool'],tcp=config['coords']['tcpDefault'], ucs=config['coords']['ucsDefault'], seventh=-1, config=config, speed=0.9, wait=False)
 
 #         # go to that tool's home position (right above the tool)
@@ -296,10 +296,10 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     keepTool11(cps, toolNumber=tool_in_hand, config=config, goToSafe=False, startFromSafe=True)
     return False
 
-def sandingModelDETableA():
+def sandingModelDETableA(cps=None):
     config = load_config()
     config['logger'] = setup_logger(config['settings']['debug'])
-    
+
     json_config = load_json_config()
     json_config_TableA = json_config['TableA']
 
@@ -316,7 +316,7 @@ def sandingModelDETableA():
     tool2side_cycle_doors = doors_with_cycles(tool2side_by_door)
     tool2sideedge_cycle_doors = doors_with_cycles(tool2edge_by_door)
     tl3sideedge_door = doors_with_cycles(tool3_by_door)
-    
+
     z, z1, z2 = -4, 0, -3
 
     #Speed
@@ -329,7 +329,7 @@ def sandingModelDETableA():
     # side_cycles3   = 0
     # side_cycles4   = 0
     # # zigzag_cycles = 1
-    # door_number1=1  # 1 to 4 
+    # door_number1=1  # 1 to 4
     # door_number2=2
     # door_number3=3
     # door_number4=4
@@ -419,15 +419,19 @@ def sandingModelDETableA():
     config['logger'] = setup_logger(config['settings']['debug'])
 
     #Establish connection with robot
-    cps = CPSClient()
-    IP = config['server']['cpip']
-    port = config['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
+    # Establish connection with robot unless caller supplied one.
+    owns_cps = cps is None
+    if owns_cps:
+        cps = CPSClient()
+        IP = config["server"]["cpip"]
+        port = config["server"]["cps"]
+        ret = cps.HRIF_Connect(0, IP, port)
+        if ret != 0:
+            raise RuntimeError(f"Failed to connect, error code: {ret}")
+    else:
+        ret = 0
 
     # --- Adding tool detection code here ---
-    if ret != 0:
-        print(f"Failed to connect, error code: {ret}")
-        exit()
 
     def read_ci_bit(cps, bit_index):
         """Reads CI bit and returns its value (0 or 1)."""
@@ -678,7 +682,12 @@ def sandingModelDETableA():
         if stop_requested():
             raise
     finally:
+        if owns_cps and cps is not None:
+            try:
+                cps.HRIF_DisConnect(0)
+            except Exception:
+                pass
         print("\nSequence terminated")
 
 if __name__ == "__main__":
-    sandingModelDETableA() 
+    sandingModelDETableA()

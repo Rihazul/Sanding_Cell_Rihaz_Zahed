@@ -1090,6 +1090,7 @@ def putForceZminus(
     search_linear_velocity=7.0,
     search_angular_velocity=1.0,
     blending_timeout_s=7.0,
+    contact_force_threshold=None,
 ):
     # Same pattern as X-/Y-: goal is the enabled axis mask, force_goal carries direction.
     boxID = 0
@@ -1129,11 +1130,26 @@ def putForceZminus(
 
     linear_velocity = max(1.0, float(search_linear_velocity))
     angular_velocity = max(0.1, float(search_angular_velocity))
+    force_abs = abs(float(force))
+    detection_threshold = force_abs
+    if contact_force_threshold is not None:
+        # This threshold only controls when our Python contact-search loop
+        # returns. The controller still receives force_abs as the force goal.
+        # Never wait for more contact force than the operator requested.
+        detection_threshold = min(force_abs, max(0.1, abs(float(contact_force_threshold))))
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
     )
     time.sleep(0.0001)
-    config["logger"].info(f"search velocities: {nret}")
+    config["logger"].info(
+        "[forceControl] search velocities: %s (linear=%.3f, angular=%.3f, "
+        "force_goal=%.3fN, contact_threshold=%.3fN)",
+        nret,
+        linear_velocity,
+        angular_velocity,
+        float(force),
+        detection_threshold,
+    )
     if nret != 0:
         config["logger"].error(f"Failed to set max search velocities: {nret}")
         return False
@@ -1211,9 +1227,13 @@ def putForceZminus(
 
         config["logger"].info(f"[forceControl] Force that is coming is: {result}")
         for i, val in enumerate(goal):
-            if val and abs(float(result[i])) > abs(force):
+            if val and abs(float(result[i])) > detection_threshold:
                 config["logger"].info(
-                    f"[forceControl] Force condition met: Axis {i}, Force {result[i]}"
+                    "[forceControl] Force condition met: Axis %s, Force %s, "
+                    "threshold %.3fN",
+                    i,
+                    result[i],
+                    detection_threshold,
                 )
                 time.sleep(0.0001)
                 notFound = False
@@ -3723,16 +3743,29 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         config["_scan_last_error"] = None
 
         # Scan is executed on small-door Table A.
-        # Legacy non-blocking behavior:
-        # drive only Table A down (45°), leave Table B unchanged, then proceed.
+        # Prepare the same operation mode expected by Table A tasks:
+        # Table A at 45 degrees and Table B horizontal.
+        parked_table_result = set_table_state(cps, "tableBOpenClose", "Open")
         active_table_result = set_table_state(cps, "tableAOpenClose", "Close")
-        parked_table_result = {"success": True, "newState": "Unchanged", "message": "Table B left unchanged for scan"}
         config["logger"].info(
-            "[scan][INTERLOCK_LEGACY] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->unchanged)=%s",
+            "[scan][INTERLOCK] runtime=%s active(tableA->45deg_cmd)=%s parked(tableB->horizontal_cmd)=%s",
             os.path.abspath(__file__),
             active_table_result,
             parked_table_result,
         )
+        if not parked_table_result.get("success", False):
+            error_message = (
+                "Scan aborted: Table B was not confirmed at the horizontal position. "
+                + str(parked_table_result.get("message", ""))
+            ).strip()
+            config["_scan_last_error"] = error_message
+            config["logger"].error("[scan] %s", error_message)
+            msg_to_frontend(
+                api_url=config["server"]["frontEnd_messaging_url"],
+                message=error_message,
+            )
+            return ([], [], [], [], [], [], [])
+
         if not active_table_result.get("success", False):
             error_message = (
                 "Scan aborted: Table A was not confirmed at the 45 degree position. "
@@ -6156,6 +6189,7 @@ def communicate(
             "sandingvelocity",
             "sandvelocity",
             "sandingspeed",
+            "sanding_velocity",
         ):
             return "sanding"
         if normalized in (
@@ -6164,6 +6198,7 @@ def communicate(
             "robotvelocity",
             "robovelocity",
             "robotspeed",
+            "robot_velocity",
         ):
             return "robot"
         return None
@@ -6652,10 +6687,10 @@ def communicate(
         )
         # Require a stable stopped-state window before accepting move completion.
         settle_window_s = max(
-            0.05, float(door_cfg.get("seventhAxisSettleWindowSec", 0.8))
+            0.0, float(door_cfg.get("seventhAxisSettleWindowSec", 0.8))
         )
         settle_stable_samples = max(
-            2, int(door_cfg.get("seventhAxisSettleStableSamples", 6))
+            1, int(door_cfg.get("seventhAxisSettleStableSamples", 6))
         )
 
         # Read state first; only reconnect J7 if state read is unavailable.
@@ -6829,7 +6864,7 @@ def communicate(
                         settle_window_s=settle_window_s,
                         settle_stable_samples=settle_stable_samples,
                     )
-                    while time.time() < settle_deadline:
+                    while True:
                         probe = []
                         nret_probe = cps.HRIF_HRApp(
                             0, "HR_Motor", "MotorGetState", ["J7"], probe
@@ -6867,6 +6902,8 @@ def communicate(
                             )
                             if stable_samples >= settle_stable_samples:
                                 break
+                        if time.time() >= settle_deadline:
+                            break
                         time.sleep(move_poll_s)
 
                     if stable_done and stable_samples >= settle_stable_samples:
@@ -7032,6 +7069,7 @@ def communicate(
                     tcp,
                     ucs,
                 )
+        j7_wait_start = time.time()
         ok = seventhGoToPos(
             cps=cps,
             position=seventh,
@@ -7040,6 +7078,13 @@ def communicate(
             wait=wait if wait is not None else bool(1 - doMeasure),
             strict_run_transition=bool(require_seventh_run_transition),
         )
+        if isinstance(config, dict) and config.get("logger"):
+            config["logger"].info(
+                "[J7 Target] command finished target=%.3f ok=%s duration=%.3fs",
+                float(seventh),
+                bool(ok),
+                time.time() - j7_wait_start,
+            )
         if not ok:
             return None if require_seventh_ok else measurements
 

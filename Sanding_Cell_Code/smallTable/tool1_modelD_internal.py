@@ -21,6 +21,7 @@ from smallTable.scancord import get_door_position, get_inner_corner_point, get_y
 INTERNAL_OFFSET_MM = 17.0
 INTERNAL_FORCE_N = 5
 FORCE_APPROACH_Z_MM = 13.0
+TOOL1_CONTACT_FORCE_THRESHOLD_N = 2.0
 
 
 def load_config():
@@ -243,6 +244,7 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             print(
                 f"[ModelD] force Z- start door={door_number} "
                 f"pass={pass_number} force={applied_force} "
+                f"contact_threshold={TOOL1_CONTACT_FORCE_THRESHOLD_N} "
                 "search_linear_velocity=5.0"
             )
             force_ok = putForceZminus(
@@ -252,6 +254,7 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
                 ucs=ucs,
                 config=config,
                 search_linear_velocity=5.0,
+                contact_force_threshold=TOOL1_CONTACT_FORCE_THRESHOLD_N,
             )
             print(
                 f"[ModelD] force Z- result door={door_number} "

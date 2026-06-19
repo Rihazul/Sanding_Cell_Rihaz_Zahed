@@ -300,31 +300,31 @@ export function CompactTableConfig({
       return;
     }
 
-    const detected = Array.from(
-      new Set(
+    const detected = Array.from<number>(
+      new Set<number>(
         (Array.isArray(status.detectedDoorNumbers) ? status.detectedDoorNumbers : [])
           .map((value: unknown) => Number(value))
-          .filter((value: number) => Number.isInteger(value) && value >= 1 && value <= 4)
+          .filter((value: number): value is number => Number.isInteger(value) && value >= 1 && value <= 4)
       )
     ).sort((a, b) => a - b);
 
     setDetectedDoorNumbers(detected);
-    setRowDoorSelections(prev =>
+    setRowDoorSelections((prev: Record<string, number[]>) =>
       Object.fromEntries(
-        Object.entries(prev).map(([label, doors]) => [
+        Object.entries(prev).map(([label, doors]: [string, number[]]) => [
           label,
-          doors.filter(doorNumber => detected.includes(doorNumber)),
+          doors.filter((doorNumber: number) => detected.includes(doorNumber)),
         ])
-      )
+      ) as Record<string, number[]>
     );
-    setRowActiveDoor(prev => {
+    setRowActiveDoor((prev: Record<string, number>) => {
       const fallbackDoor = detected[0] ?? 1;
       return Object.fromEntries(
-        Object.entries(prev).map(([label, doorNumber]) => [
+        Object.entries(prev).map(([label, doorNumber]: [string, number]) => [
           label,
           detected.includes(doorNumber) ? doorNumber : fallbackDoor,
         ])
-      );
+      ) as Record<string, number>;
     });
   };
 
@@ -484,48 +484,14 @@ export function CompactTableConfig({
     }
 
     if (tableName === 'A') {
-      let effectiveScanCompleted = scanCompleted;
-      let effectiveLastSignature = lastScanSignature;
-      try {
-        const status = await getScanStatus();
-        const hasScan = !!status?.hasScan;
-        if (!hasScan) {
-          const warningText = 'Scan required before starting Table A task.';
-          const swal = getSwal();
-          if (swal?.fire) {
-            await swal.fire({
-              title: 'Scan Required',
-              text: warningText,
-              icon: 'warning',
-              timer: 2000,
-              showConfirmButton: false,
-            });
-          }
-          addActivity(`Table ${tableName}: ${warningText}`, 'warning');
-          return;
-        }
-        effectiveScanCompleted = true;
-        setScanCompleted(true);
-        applyDetectedDoorsFromScanStatus(status);
-        if (status?.signature) {
-          effectiveLastSignature = String(status.signature);
-          setLastScanSignature(effectiveLastSignature);
-        }
-        if (status?.scannedAt) {
-          setLastScannedAt(String(status.scannedAt));
-        }
-      } catch {
-        // keep local checks as fallback
-      }
-
       const scanSignatureNow = getTableAScanSignature();
       const scanInvalid =
-        !effectiveScanCompleted ||
-        (!!effectiveLastSignature && scanSignatureNow !== effectiveLastSignature);
+        !scanCompleted ||
+        (!!lastScanSignature && scanSignatureNow !== lastScanSignature);
       if (scanInvalid) {
         const swal = getSwal();
-        const warningText = effectiveLastSignature
-          ? buildScanMismatchWarning(effectiveLastSignature, scanSignatureNow)
+        const warningText = lastScanSignature
+          ? buildScanMismatchWarning(lastScanSignature, scanSignatureNow)
           : 'No Table A scan is recorded. Run Scan for the selected model and detected doors before starting the task.';
         if (swal?.fire) {
           await swal.fire({

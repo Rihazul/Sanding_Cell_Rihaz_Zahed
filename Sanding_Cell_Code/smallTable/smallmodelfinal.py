@@ -332,7 +332,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     )
     return False
 
-def sandingModelATableA():
+def sandingModelATableA(cps=None):
     # Tool1 Side Cycle
     # side_cycles   = 1
     config = load_config()
@@ -458,15 +458,19 @@ def sandingModelATableA():
     # config['logger'] = setup_logger(config['settings']['debug'])
 
     # Establish connection with robot
-    cps = CPSClient()
-    IP = config["server"]["cpip"]
-    port = config["server"]["cps"]
-    ret = cps.HRIF_Connect(0, IP, port)
+    # Establish connection with robot unless caller supplied one.
+    owns_cps = cps is None
+    if owns_cps:
+        cps = CPSClient()
+        IP = config["server"]["cpip"]
+        port = config["server"]["cps"]
+        ret = cps.HRIF_Connect(0, IP, port)
+        if ret != 0:
+            raise RuntimeError(f"Failed to connect, error code: {ret}")
+    else:
+        ret = 0
 
     # --- Adding tool detection code here ---
-    if ret != 0:
-        print(f"Failed to connect, error code: {ret}")
-        exit()
 
     def read_ci_bit(cps, bit_index):
         """Reads CI bit and returns its value (0 or 1)."""
@@ -775,6 +779,11 @@ def sandingModelATableA():
         traceback.print_exc()
         raise
     finally:
+        if owns_cps and cps is not None:
+            try:
+                cps.HRIF_DisConnect(0)
+            except Exception:
+                pass
         print("\nSequence terminated")
 
 

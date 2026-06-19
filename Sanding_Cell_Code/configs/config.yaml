@@ -113,8 +113,8 @@ door:
   edgeJ7HoldDuringPrepoint: false
   edgeJ7HoldDuringEdgePath: false
   seventhAxisEarlyDoneRetries: 0
-  seventhAxisSettleWindowSec: 0.15
-  seventhAxisSettleStableSamples: 2
+  seventhAxisSettleWindowSec: 0.02
+  seventhAxisSettleStableSamples: 1
   # homingSpeed: 1.0
 
 point:

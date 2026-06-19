@@ -22,6 +22,7 @@ from smallTable.scancord import (
 )
 
 FORCE_APPROACH_Z_MM = 15.0
+TOOL1_CONTACT_FORCE_THRESHOLD_N = 2.0
 
 
 def load_config():
@@ -130,6 +131,7 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
             ucs=config['coords']['ucsTable1'],
             config=config,
             search_linear_velocity=5.0,
+            contact_force_threshold=TOOL1_CONTACT_FORCE_THRESHOLD_N,
         )
         if not force_ok:
             raise RuntimeError(f"[Tool1ForcePath] {label}: failed to establish Z- force contact.")

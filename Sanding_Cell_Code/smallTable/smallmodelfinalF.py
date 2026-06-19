@@ -125,7 +125,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     return False
 
 
-def sandingModelFTableA():
+def sandingModelFTableA(cps=None):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
@@ -149,14 +149,17 @@ def sandingModelFTableA():
     speeed = float(json_config["robotSpeed"])
     keep_tool_after_task = bool(config.get("settings", {}).get("keepToolAfterTask", True))
 
-    cps = CPSClient()
-    IP = config["server"]["cpip"]
-    port = config["server"]["cps"]
-    ret = cps.HRIF_Connect(0, IP, port)
-
-    if ret != 0:
-        print(f"Failed to connect, error code: {ret}")
-        exit()
+    # Establish connection with robot unless caller supplied one.
+    owns_cps = cps is None
+    if owns_cps:
+        cps = CPSClient()
+        IP = config["server"]["cpip"]
+        port = config["server"]["cps"]
+        ret = cps.HRIF_Connect(0, IP, port)
+        if ret != 0:
+            raise RuntimeError(f"Failed to connect, error code: {ret}")
+    else:
+        ret = 0
 
     def read_ci_bit(cps, bit_index):
         result = []
@@ -327,6 +330,11 @@ def sandingModelFTableA():
         # Propagate failure so parent process does not look like a clean completion.
         raise
     finally:
+        if owns_cps and cps is not None:
+            try:
+                cps.HRIF_DisConnect(0)
+            except Exception:
+                pass
         print("\nSequence terminated")
 
 

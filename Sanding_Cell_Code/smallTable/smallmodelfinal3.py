@@ -47,7 +47,7 @@ def run_side_cycles(count, force, door_num,cps):
         3: smalldoor3side,
         4: smalldoor4side
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -80,7 +80,7 @@ def run_zigzag_cycles(
         3: smalldoor3zizag,
         4: smalldoor4zizag
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -115,7 +115,7 @@ def run_tool2side_cycles(count, force, door_num,cps):
         3: door3frametool2side,
         4: door4frametool2side
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -143,7 +143,7 @@ def run_tool2side_edgecycles(count, force, door_num,cps):
         3: door3frametool2sideedge,
         4: door4frametool2sideedge
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -171,7 +171,7 @@ def run_tool3_cycles(count, door_num, z, cps, force):
         3: smalldoor3tool3,
         4: smalldoor4tool3
     }
-    
+
     try:
         door_func = door_funcs[door_num]
     except KeyError:
@@ -248,13 +248,13 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
     keepTool11(cps, toolNumber=tool_in_hand, config=config, goToSafe=False, startFromSafe=True)
     return False
 
-def sandingModelCTableA():
+def sandingModelCTableA(cps=None):
     #Tool1 Side Cycle
     # side_cycles   = 1
     config = load_config()
 
     config['logger'] = setup_logger(config['settings']['debug'])
-    
+
     json_config = load_json_config()
     json_config_TableA = json_config['TableA']
 
@@ -326,7 +326,7 @@ def sandingModelCTableA():
     # pocket_door2= 2
     # pocket_door3= 3
     # pocket_door4= 4
-    
+
     #Tool2Side Cycle
     # tl2side_cycle1= 0
     # tl2side_cycle2= 0
@@ -374,15 +374,19 @@ def sandingModelCTableA():
     config['logger'] = setup_logger(config['settings']['debug'])
 
     #Establish connection with robot
-    cps = CPSClient()
-    IP = config['server']['cpip']
-    port = config['server']['cps']
-    ret = cps.HRIF_Connect(0, IP, port)
+    # Establish connection with robot unless caller supplied one.
+    owns_cps = cps is None
+    if owns_cps:
+        cps = CPSClient()
+        IP = config["server"]["cpip"]
+        port = config["server"]["cps"]
+        ret = cps.HRIF_Connect(0, IP, port)
+        if ret != 0:
+            raise RuntimeError(f"Failed to connect, error code: {ret}")
+    else:
+        ret = 0
 
     # --- Adding tool detection code here ---
-    if ret != 0:
-        print(f"Failed to connect, error code: {ret}")
-        exit()
 
     def read_ci_bit(cps, bit_index):
         """Reads CI bit and returns its value (0 or 1)."""
@@ -637,7 +641,12 @@ def sandingModelCTableA():
         if stop_requested():
             raise
     finally:
+        if owns_cps and cps is not None:
+            try:
+                cps.HRIF_DisConnect(0)
+            except Exception:
+                pass
         print("\nSequence terminated")
 
 if __name__ == "__main__":
-    sandingModelCTableA() 
+    sandingModelCTableA()
