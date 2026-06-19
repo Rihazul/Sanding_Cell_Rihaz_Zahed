@@ -1177,7 +1177,7 @@ def putForceZminus(
         config["logger"].error(f"Failed to set stiff params: {nRet}")
         return False
 
-    damp = [3000, 3000, 3000, 40, 40, 40]
+    damp = [5000, 5000, 5000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
