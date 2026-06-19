@@ -270,15 +270,15 @@ def door1frametool2sideedge(force,cps):
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]+4,10,0,22,-90]
+        uptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]+10,10,0,22,-90]
+        preuptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]+4,10,0,22,-90]
+        uptoppoint12=[-distance*2+2,p2[1]-5,10,0,22,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[p1[0],p3[1]+4,10,0,22,-90]
+        uptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[p1[0],p3[1]+10,10,0,22,-90]
+        preuptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
@@ -348,15 +348,15 @@ def door1frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -547,15 +547,15 @@ def door1frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]-5,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -587,15 +587,15 @@ def door1frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -813,15 +813,15 @@ def door2frametool2sideedge(force,cps):
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]+4,10,0,22,-90]
+        uptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]+10,10,0,22,-90]
+        preuptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]+4,10,0,22,-90]
+        uptoppoint12=[-distance*2+2,p2[1]-5,10,0,22,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[p1[0],p3[1]+4,10,0,22,-90]
+        uptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[p1[0],p3[1]+10,10,0,22,-90]
+        preuptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
@@ -891,15 +891,15 @@ def door2frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -1090,15 +1090,15 @@ def door2frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]-5,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -1130,15 +1130,15 @@ def door2frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -1356,15 +1356,15 @@ def door3frametool2sideedge(force,cps):
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]+4,10,0,22,-90]
+        uptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]+10,10,0,22,-90]
+        preuptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]+4,10,0,22,-90]
+        uptoppoint12=[-distance*2+2,p2[1]-5,10,0,22,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[p1[0],p3[1]+4,10,0,22,-90]
+        uptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[p1[0],p3[1]+10,10,0,22,-90]
+        preuptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
@@ -1434,15 +1434,15 @@ def door3frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1],80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
-        prebottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
-        prebottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -1633,15 +1633,15 @@ def door3frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]-5,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -1673,15 +1673,15 @@ def door3frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
         prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
         prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
@@ -1899,15 +1899,15 @@ def door4frametool2sideedge(force,cps):
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]+4,10,0,22,-90]
+        uptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]+10,10,0,22,-90]
+        preuptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]+4,10,0,22,-90]
+        uptoppoint12=[-distance*2+2,p2[1]-5,10,0,22,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[p1[0],p3[1]+4,10,0,22,-90]
+        uptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[p1[0],p3[1]+10,10,0,22,-90]
+        preuptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
@@ -2176,15 +2176,15 @@ def door4frametool2sideedge(force,cps):
         extraright=[p2[0]-10,p2[1]+10,80,0,0,0]
 
         #top points
-        toppoint1=[p2[0],p2[1]+4,10,0,22,-90]
+        toppoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("toppoint1:", toppoint1)
-        pretopoint1=[p2[0],p2[1]+10,10,0,22,-90]
+        pretopoint1=[p2[0],p2[1]-5,10,0,22,-90]
         print("pretopoint1:", pretopoint1)
-        toppoint2=[p3[0],p3[1]+4,10,0,22,-90]
+        toppoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("toppoint2:", toppoint2)
-        pretopoint2=[p3[0],p3[1]+10,10,0,22,-90]
+        pretopoint2=[p3[0],p3[1]-5,10,0,22,-90]
         print("pretopoint2:", pretopoint2)
-        toppoint12=[p2[0]+2,p2[1]+4,10,0,22,-90]
+        toppoint12=[p2[0]+2,p2[1]-5,10,0,22,-90]
         print("toppoint12:", toppoint12)
 
         toppoints=[pretopoint1,toppoint1,toppoint12,toppoint2,pretopoint2]
@@ -2203,7 +2203,7 @@ def door4frametool2sideedge(force,cps):
         print("leftpoint2:", leftpoint2)
         preleftpoint2=[p4[0]+5,p4[1],10,0,22,-180]
         print("preleftpoint2:", preleftpoint2)
-        leftpoint12=[p3[0]+5,p3[1]-2,10,0,22,-180]
+        leftpoint12=[p3[0]+5,p3[1],10,0,22,-180]
         print("leftpoint12:", leftpoint12)
 
         leftpoints=[preleftpoint1,leftpoint1,leftpoint12,leftpoint2,preleftpoint2]
@@ -2216,15 +2216,15 @@ def door4frametool2sideedge(force,cps):
         extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
 
         #Bottom Points
-        bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
+        bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("bottompoint1:", bottompoint1)
         prebottompoint1=[p4[0],p4[1]-10,10,0,22,90]
         print("prebottompoint1:", prebottompoint1)
-        bottompoint2=[p1[0],p1[1]-12,10,0,22,90]
+        bottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("bottompoint2:", bottompoint2)
         prebottompoint2=[p1[0],p1[1]-10,10,0,22,90]
         print("prebottompoint2:", prebottompoint2)
-        bottompoint12=[p4[0]-2,p4[1]-12,10,0,22,90]
+        bottompoint12=[p4[0]-2,p4[1]-10,10,0,22,90]
         print("bottompoint12:", bottompoint12)
         bottompoints=[prebottompoint1,bottompoint1,bottompoint12,bottompoint2,prebottompoint2]
         print("bottompoints:", bottompoints)
