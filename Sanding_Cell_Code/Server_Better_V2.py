@@ -6384,7 +6384,17 @@ def communicate(
             while wait:
                 nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
                 if stop_requested():
-                    break
+                    try:
+                        cps.HRIF_GrpStop(0, 0)
+                    except Exception as stop_exc:
+                        config["logger"].warning(
+                            "[customMoveL] GrpStop failed after stop request: %s",
+                            stop_exc,
+                        )
+                    config["logger"].warning(
+                        "[customMoveL] Stop requested; robot group stop issued."
+                    )
+                    return False
                 # config['logger'].info(robotRes)
 
                 #---- SAFETY CHECK ----
@@ -6442,6 +6452,19 @@ def communicate(
         max_read_errors_before_abort = 80
         try:
             while keepgoing:
+                if stop_requested():
+                    config["logger"].warning(
+                        "[scan-data] Stop requested; stopping robot during data collection."
+                    )
+                    try:
+                        cps.HRIF_GrpStop(0, 0)
+                    except Exception as stop_exc:
+                        config["logger"].warning(
+                            "[scan-data] GrpStop failed after stop request: %s",
+                            stop_exc,
+                        )
+                    break
+
                 try:
                     height = getRawHeight(instrument)
                     read_error_count = 0
@@ -6558,10 +6581,17 @@ def communicate(
         # keepgoing = True
         result = []
         while keepgoing:
+            if stop_requested():
+                try:
+                    cps.HRIF_GrpStop(0, 0)
+                except Exception:
+                    pass
+                return False
             cps.HRIF_ReadRobotState(0, 0, result)
             # config['logger'].info(f"Here! waiting now {result}")
             if result[11] == "1":
                 keepgoing = False
+        return True
 
     def seventhGoToPos(
         cps,

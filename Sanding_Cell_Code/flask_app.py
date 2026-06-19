@@ -1357,10 +1357,11 @@ def stop_process():
         _cps_reconnect_grace_until = time.monotonic() + CPS_RECONNECT_GRACE_SECONDS
     elif scan_active:
         # Scan runs inline in /action and shares the global CPS socket.
-        # Do not hard-reset CPS here; let scan exit cooperatively on stop flag.
+        # The scan thread stops motion through its existing CPS socket. Keep a
+        # second-connection stop as a non-blocking safety backup only.
         print("Inline scan is active; requesting cooperative stop.")
         request_stop()
-        _halt_robot_motion_best_effort()
+        Thread(target=_halt_robot_motion_best_effort, daemon=True).start()
         _last_stop_ts = time.monotonic()
         _cps_reconnect_grace_until = time.monotonic() + max(
             CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS

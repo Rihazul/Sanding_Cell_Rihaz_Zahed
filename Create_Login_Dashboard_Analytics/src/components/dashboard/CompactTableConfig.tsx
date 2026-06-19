@@ -455,6 +455,10 @@ export function CompactTableConfig({
         tableAModel: model || '',
         tableADoorModels: getTableADoorModels(),
       });
+      if (scanResponse?.status === 'cancelled') {
+        addActivity(`Table ${tableName}: Scan stopped by user`, 'warning');
+        return;
+      }
       const status = scanResponse?.scanStatus;
       if (!status?.hasScan) {
         throw new Error('Scan action completed, but no scan result was returned.');
