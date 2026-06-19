@@ -793,8 +793,7 @@ def putForceYplus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -901,8 +900,7 @@ def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz] changed by rafat for z minus is removed
 
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
@@ -1037,8 +1035,7 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -1180,7 +1177,7 @@ def putForceZminus(
         config["logger"].error(f"Failed to set stiff params: {nRet}")
         return False
 
-    damp = [8000, 8000, 8000, 40, 40, 40]
+    damp = [3000, 3000, 3000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
@@ -1193,8 +1190,7 @@ def putForceZminus(
         -force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -1339,8 +1335,7 @@ def putForce3Direction(cps, force, tcp, ucs, config, goal=[1, 1, 1]):
         force[2] * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -1436,7 +1431,7 @@ def putForce3Directionup(cps, force, tcp, ucs, config, goal=[1, 1, 1]):
                 return False
 
         # Set force goal
-        force_goal = [force[i] * goal[i] for i in range(3)] + [0, 0, 0, 0]
+        force_goal = [force[i] * goal[i] for i in range(3)] + [0, 0, 0]
         nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
         if nret != 0:
             config["logger"].error(f"Failed to set force control goal: {nret}")
@@ -1544,8 +1539,7 @@ def putForceYplus(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz] changed by rafat for z minus is removed
 
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
@@ -1680,8 +1674,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -1818,8 +1811,7 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -1964,8 +1956,7 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -2101,8 +2092,7 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
@@ -2238,8 +2228,7 @@ def putForceYminus1edge(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
         force * goal[2],
         0,
         0,
-        0,
-        0,
+        0
     ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
