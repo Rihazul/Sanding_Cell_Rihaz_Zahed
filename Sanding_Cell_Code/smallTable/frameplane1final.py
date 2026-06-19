@@ -609,9 +609,13 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         )
         for move_idx, end_pose in enumerate(contact_sanding_points[1:], start=1):
             is_last_segment = move_idx == len(contact_sanding_points[1:])
+            original_point = sanding_points[move_idx]
             print(
-                f"[FrameDebug] sanding communicate START "
-                f"{move_idx}/{len(contact_sanding_points[1:])}: {end_pose} "
+                f"[FrameDebug][VERIFY_SEND] segment={move_idx}/{len(contact_sanding_points[1:])} "
+                f"original_point={original_point} "
+                f"original_z={original_point[2]} "
+                f"sent_end_pose={end_pose} "
+                f"sent_z={end_pose[2]} "
                 f"wait={is_last_segment}"
             )
             communicate(
