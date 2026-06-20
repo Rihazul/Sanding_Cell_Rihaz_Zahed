@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Components.RobotState import RobotState
 import yaml
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,stop_requested
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -503,7 +503,7 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tcp, ucs):
+def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tcp, ucs, cycles=1):
     try:
         robot_speed = float(load_json_config().get("robotSpeed", sanding_speed))
     except Exception:
@@ -607,37 +607,36 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
             f"[FrameDebug] sanding motion START "
             f"move_points={len(contact_sanding_points[1:])}"
         )
-        for move_idx, end_pose in enumerate(contact_sanding_points[1:], start=1):
-            is_last_segment = move_idx == len(contact_sanding_points[1:])
-            original_point = sanding_points[move_idx]
-            print(
-                f"[FrameDebug][VERIFY_SEND] segment={move_idx}/{len(contact_sanding_points[1:])} "
-                f"original_point={original_point} "
-                f"original_z={original_point[2]} "
-                f"sent_end_pose={end_pose} "
-                f"sent_z={end_pose[2]} "
-                f"wait={is_last_segment}"
-            )
-            communicate(
-                cps=cps,
-                config=config,
-                point=end_pose,
-                tcp=tcp,
-                ucs=ucs,
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sanding",
-                speed_mode="linear",
-                wait=is_last_segment,
-            )
-            print(
-                f"[FrameDebug] sanding communicate DONE "
-                f"{move_idx}/{len(contact_sanding_points[1:])}: {end_pose}"
-            )
+        cycle_count = max(1, int(cycles))
+        for cycle_index in range(cycle_count):
+            if stop_requested():
+                raise RuntimeError("[Frame] Stop requested.")
+            print(f"[FrameDebug] continuous cycle {cycle_index + 1}/{cycle_count}")
+            for move_idx, end_pose in enumerate(contact_sanding_points[1:], start=1):
+                is_last_segment = move_idx == len(contact_sanding_points[1:])
+                original_point = sanding_points[move_idx]
+                print(
+                    f"[FrameDebug][VERIFY_SEND] cycle={cycle_index + 1}/{cycle_count} "
+                    f"segment={move_idx}/{len(contact_sanding_points[1:])} "
+                    f"original_point={original_point} original_z={original_point[2]} "
+                    f"sent_end_pose={end_pose} sent_z={end_pose[2]} wait={is_last_segment}"
+                )
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=end_pose,
+                    tcp=tcp,
+                    ucs=ucs,
+                    seventh=-1,
+                    speed=sanding_speed,
+                    velocity_profile="sanding",
+                    speed_mode="linear",
+                    wait=is_last_segment,
+                )
 
-        print("[FrameDebug] waitForBlending START")
-        waitForBlending(cps=cps, config=config)
-        print("[FrameDebug] waitForBlending DONE")
+            print("[FrameDebug] waitForBlending START")
+            waitForBlending(cps=cps, config=config)
+            print("[FrameDebug] waitForBlending DONE")
     finally:
         print(f"[FrameDebug] cleanup START vibration_on={vibration_on}")
         if vibration_on:
@@ -650,7 +649,7 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         print("[FrameDebug] _run_linear_sanding_process END")
 
 
-def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner):
+def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner, cycles=1):
     print(f"[FrameDebug] door dispatch START door={door_num} force={force}")
     ylen_data = get_y_values(door_num, default_on_error=True)
     ylen = ylen_data['ylen']
@@ -677,15 +676,17 @@ def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner):
 
     if ylen > 600:
         print(f"[FrameDebug] door={door_num} selecting BIG runner ylen={ylen}")
-        big_runner(force, cps, speed, sanding_speed)
+        for cycle_index in range(max(1, int(cycles))):
+            print(f"[FrameDebug] big-door full cycle {cycle_index + 1}/{cycles}")
+            big_runner(force, cps, speed, sanding_speed, 1)
     else:
         print(f"[FrameDebug] door={door_num} selecting SMALL runner ylen={ylen}")
-        small_runner(force, cps, speed, sanding_speed)
+        small_runner(force, cps, speed, sanding_speed, max(1, int(cycles)))
     print(f"[FrameDebug] door dispatch END door={door_num}")
 
 
-def smalldoor1side(force,cps):
-    def smalldoor1sidesmall(force,cps,speed,sanding_speed):
+def smalldoor1side(force, cps, cycles=1):
+    def smalldoor1sidesmall(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -743,6 +744,7 @@ def smalldoor1side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -752,7 +754,7 @@ def smalldoor1side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    def smalldoor1sidebig(force,cps,speed,sanding_speed):
+    def smalldoor1sidebig(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -851,7 +853,7 @@ def smalldoor1side(force,cps):
         #Upper Points
         upperdoorpoints=[toppoint5pre,toppoint5,toppoint5top,toppoint2,toppoint1,toppoint4,toppoint4pre]
         print("upperdoorpoints:", upperdoorpoints)
-        
+
         def perform_process_bottom(cps, config, points1, force):
             return _run_linear_sanding_process(
                 cps,
@@ -859,6 +861,7 @@ def smalldoor1side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -869,6 +872,7 @@ def smalldoor1side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -922,7 +926,7 @@ def smalldoor1side(force,cps):
                 raise RuntimeError(
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
-        
+
         communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
@@ -938,11 +942,12 @@ def smalldoor1side(force,cps):
         cps,
         smalldoor1sidesmall,
         smalldoor1sidebig,
+        cycles=cycles,
     )
 
 
-def smalldoor2side(force,cps):
-    def smalldoor2sidesmall(force,cps,speed,sanding_speed):
+def smalldoor2side(force, cps, cycles=1):
+    def smalldoor2sidesmall(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -998,6 +1003,7 @@ def smalldoor2side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1006,7 +1012,7 @@ def smalldoor2side(force,cps):
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    def smalldoor2sidebig(force,cps,speed,sanding_speed):
+    def smalldoor2sidebig(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -1103,7 +1109,7 @@ def smalldoor2side(force,cps):
         #Upper Points
         upperdoorpoints=[toppoint5pre,toppoint5,toppoint5top,toppoint2,toppoint1,toppoint4,toppoint4pre]
         print("upperdoorpoints:", upperdoorpoints)
-        
+
         def perform_process_bottom(cps, config, points1, force):
             return _run_linear_sanding_process(
                 cps,
@@ -1111,6 +1117,7 @@ def smalldoor2side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1121,6 +1128,7 @@ def smalldoor2side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1174,7 +1182,7 @@ def smalldoor2side(force,cps):
                 raise RuntimeError(
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
-        
+
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
@@ -1189,11 +1197,12 @@ def smalldoor2side(force,cps):
         cps,
         smalldoor2sidesmall,
         smalldoor2sidebig,
+        cycles=cycles,
     )
 
 
-def smalldoor3side(force,cps):
-    def smalldoor3sidesmall(force,cps,speed,sanding_speed):
+def smalldoor3side(force, cps, cycles=1):
+    def smalldoor3sidesmall(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -1249,6 +1258,7 @@ def smalldoor3side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1257,7 +1267,7 @@ def smalldoor3side(force,cps):
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    def smalldoor3sidebig(force,cps,speed,sanding_speed):
+    def smalldoor3sidebig(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -1355,7 +1365,7 @@ def smalldoor3side(force,cps):
         #Upper Points
         upperdoorpoints=[toppoint5pre,toppoint5,toppoint5top,toppoint2,toppoint1,toppoint4,toppoint4pre]
         print("upperdoorpoints:", upperdoorpoints)
-        
+
         def perform_process_bottom(cps, config, points1, force):
             return _run_linear_sanding_process(
                 cps,
@@ -1363,6 +1373,7 @@ def smalldoor3side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1373,6 +1384,7 @@ def smalldoor3side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1426,7 +1438,7 @@ def smalldoor3side(force,cps):
                 raise RuntimeError(
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
-        
+
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
@@ -1440,11 +1452,12 @@ def smalldoor3side(force,cps):
         cps,
         smalldoor3sidesmall,
         smalldoor3sidebig,
+        cycles=cycles,
     )
 
 
-def smalldoor4side(force,cps):
-    def smalldoor4sidesmall(force,cps,speed,sanding_speed):
+def smalldoor4side(force, cps, cycles=1):
+    def smalldoor4sidesmall(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -1500,6 +1513,7 @@ def smalldoor4side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1508,7 +1522,7 @@ def smalldoor4side(force,cps):
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         # cps.HRIF_DisConnect(0)
 
-    def smalldoor4sidebig(force,cps,speed,sanding_speed):
+    def smalldoor4sidebig(force, cps, speed, sanding_speed, cycles=1):
         # Load configuration from YAML
         config = load_config()
 
@@ -1606,7 +1620,7 @@ def smalldoor4side(force,cps):
         #Upper Points
         upperdoorpoints=[toppoint5pre,toppoint5,toppoint5top,toppoint2,toppoint1,toppoint4,toppoint4pre]
         print("upperdoorpoints:", upperdoorpoints)
-        
+
         def perform_process_bottom(cps, config, points1, force):
             return _run_linear_sanding_process(
                 cps,
@@ -1614,6 +1628,7 @@ def smalldoor4side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1624,6 +1639,7 @@ def smalldoor4side(force,cps):
                 points1,
                 force,
                 sanding_speed,
+                cycles=cycles,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
@@ -1677,7 +1693,7 @@ def smalldoor4side(force,cps):
                 raise RuntimeError(
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
-        
+
         communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
@@ -1691,6 +1707,7 @@ def smalldoor4side(force,cps):
         cps,
         smalldoor4sidesmall,
         smalldoor4sidebig,
+        cycles=cycles,
     )
 
 

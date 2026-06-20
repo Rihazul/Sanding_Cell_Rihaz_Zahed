@@ -8,7 +8,7 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,putForceXminus
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,putForceXminus,stop_requested
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -73,7 +73,7 @@ def _resolve_force(user_force, default_force=5.0):
         return float(default_force)
 
 
-def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, label="tool1"):
+def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, label="tool1", cycles=1):
     """Run Tool 1 path while keeping Z under force control, like frame/zigzag/edge."""
     robot_speed, _ = _get_motion_speeds(config)
     points = [list(point) for point in (points1 or [])]
@@ -140,23 +140,28 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
         turn_vibration_on(cps)
         vibration_on = True
 
-        for index, point in enumerate(contact_points, start=1):
-            is_last = index == len(contact_points)
-            print(f"[Tool1ForcePath] {label}: move {index}/{len(contact_points)} {point}")
-            communicate(
-                cps=cps,
-                config=config,
-                point=point,
-                tcp=config['coords']['tcptool1plane1'],
-                ucs=config['coords']['ucsTable1'],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
-                speed_mode="linear",
-                wait=is_last,
-            )
+        cycle_count = max(1, int(cycles))
+        for cycle_index in range(cycle_count):
+            if stop_requested():
+                raise RuntimeError("[Tool1] Stop requested.")
+            print(f"[Tool1ForcePath] {label}: continuous cycle {cycle_index + 1}/{cycle_count}")
+            for index, point in enumerate(contact_points, start=1):
+                is_last = index == len(contact_points)
+                print(f"[Tool1ForcePath] {label}: move {index}/{len(contact_points)} {point}")
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=point,
+                    tcp=config["coords"]["tcptool1plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    speed_mode="linear",
+                    wait=is_last,
+                )
 
-        waitForBlending(cps=cps, config=config)
+            waitForBlending(cps=cps, config=config)
     finally:
         if vibration_on:
             turn_vibration_off(cps)
@@ -201,7 +206,12 @@ def _is_big_door(door_number):
     return use_split_path
 
 
-def smalldoor1tool3(z,cps,force=None):
+def smalldoor1tool3(z, cps, force=None, cycles=1):
+    if cycles > 1 and _is_big_door(1):
+        for cycle_index in range(int(cycles)):
+            print(f"[Tool1] Door 1 big-door full cycle {cycle_index + 1}/{cycles}")
+            smalldoor1tool3(z=z, cps=cps, force=force, cycles=1)
+        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -322,6 +332,7 @@ def smalldoor1tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1):
             _run_tool1_force_locked_path(
@@ -331,6 +342,7 @@ def smalldoor1tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_top",
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1):
             # Vibration on
@@ -482,6 +494,7 @@ def smalldoor1tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
@@ -502,7 +515,12 @@ def smalldoor1tool3(z,cps,force=None):
         except Exception:
             pass
 
-def smalldoor2tool3(z,cps,force=None):
+def smalldoor2tool3(z, cps, force=None, cycles=1):
+    if cycles > 1 and _is_big_door(2):
+        for cycle_index in range(int(cycles)):
+            print(f"[Tool1] Door 2 big-door full cycle {cycle_index + 1}/{cycles}")
+            smalldoor2tool3(z=z, cps=cps, force=force, cycles=1)
+        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -622,6 +640,7 @@ def smalldoor2tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1):
             _run_tool1_force_locked_path(
@@ -631,6 +650,7 @@ def smalldoor2tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_top",
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1):
             # Vibration on
@@ -784,6 +804,7 @@ def smalldoor2tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
@@ -804,7 +825,12 @@ def smalldoor2tool3(z,cps,force=None):
         except Exception:
             pass
 
-def smalldoor3tool3(z,cps,force=None):
+def smalldoor3tool3(z, cps, force=None, cycles=1):
+    if cycles > 1 and _is_big_door(3):
+        for cycle_index in range(int(cycles)):
+            print(f"[Tool1] Door 3 big-door full cycle {cycle_index + 1}/{cycles}")
+            smalldoor3tool3(z=z, cps=cps, force=force, cycles=1)
+        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -925,6 +951,7 @@ def smalldoor3tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1):
             _run_tool1_force_locked_path(
@@ -934,6 +961,7 @@ def smalldoor3tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_top",
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1):
             # Vibration on
@@ -1086,6 +1114,7 @@ def smalldoor3tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)
@@ -1106,7 +1135,12 @@ def smalldoor3tool3(z,cps,force=None):
         except Exception:
             pass
 
-def smalldoor4tool3(z,cps,force=None):
+def smalldoor4tool3(z, cps, force=None, cycles=1):
+    if cycles > 1 and _is_big_door(4):
+        for cycle_index in range(int(cycles)):
+            print(f"[Tool1] Door 4 big-door full cycle {cycle_index + 1}/{cycles}")
+            smalldoor4tool3(z=z, cps=cps, force=force, cycles=1)
+        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -1226,6 +1260,7 @@ def smalldoor4tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1):
             _run_tool1_force_locked_path(
@@ -1235,6 +1270,7 @@ def smalldoor4tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_top",
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1):
             # Vibration on
@@ -1386,6 +1422,7 @@ def smalldoor4tool3(z,cps,force=None):
                 force=applied_force,
                 sanding_speed=sanding_speed,
                 label="external_bottom",
+                cycles=cycles,
             )
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_bottom(cps, config, points1=tpoints)

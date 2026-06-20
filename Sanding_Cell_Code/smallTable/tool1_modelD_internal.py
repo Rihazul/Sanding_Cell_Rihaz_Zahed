@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Server_Better_V2 import (
     communicate,
     setup_logger,
+    stop_requested,
     waitForBlending,
     turn_vibration_on,
     turn_vibration_off,
@@ -140,7 +141,7 @@ def _resolve_force(user_force):
         return INTERNAL_FORCE_N
 
 
-def _run_model_d_internal_for_door(door_number, z, cps, force=None):
+def _run_model_d_internal_for_door(door_number, z, cps, force=None, cycles=1):
     print(f"[ModelD] START door={door_number} z={z} requested_force={force}")
     config = load_config()
     print(f"[ModelD] config loaded door={door_number}")
@@ -188,15 +189,34 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
             f"pass_targets={pass_targets}"
         )
 
+    numbered_passes = list(enumerate(zip(pass_targets, passes), start=1))
+    if split_path:
+        operation_cycles = max(1, int(cycles))
+        pass_sequence = []
+        for operation_cycle in range(1, operation_cycles + 1):
+            cycle_passes = list(numbered_passes)
+            if operation_cycle % 2 == 0:
+                cycle_passes.reverse()
+            for pass_number, pass_data in cycle_passes:
+                pass_sequence.append((operation_cycle, pass_number, pass_data))
+    else:
+        operation_cycles = 1
+        pass_sequence = [
+            (1, pass_number, pass_data)
+            for pass_number, pass_data in numbered_passes
+        ]
+
     print(
         f"[ModelD] entering pass loop door={door_number} "
-        f"targets={pass_targets} passes={len(passes)}"
+        f"targets={pass_targets} passes={len(passes)} cycles={operation_cycles}"
     )
-    for pass_number, (j7_target, (pre_start, path_points)) in enumerate(
-        zip(pass_targets, passes), start=1
-    ):
+    for operation_cycle, pass_number, (
+        j7_target,
+        (pre_start, path_points),
+    ) in pass_sequence:
         print(
             f"[ModelD] pass start door={door_number} "
+            f"cycle={operation_cycle}/{operation_cycles} "
             f"pass={pass_number}/{len(passes)} J7={j7_target} "
             f"pre_start={pre_start} path_count={len(path_points)}"
         )
@@ -294,27 +314,31 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
                 f"[ModelD] sanding path start door={door_number} "
                 f"pass={pass_number} points={len(force_path_points)}"
             )
-            for point_index, point in enumerate(force_path_points, start=1):
+            cycle_count = 1 if split_path else max(1, int(cycles))
+            for cycle_index in range(cycle_count):
+                if stop_requested():
+                    raise RuntimeError("[ModelD] Stop requested.")
                 print(
-                    f"[ModelD] sanding point start door={door_number} "
-                    f"pass={pass_number} point={point_index}/{len(force_path_points)} "
-                    f"value={point}"
+                    f"[ModelD] continuous cycle {cycle_index + 1}/{cycle_count} "
+                    f"door={door_number} pass={pass_number}"
                 )
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point,
-                    tcp=tcp,
-                    ucs=ucs,
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    wait=True,
-                )
-                print(
-                    f"[ModelD] sanding point done door={door_number} "
-                    f"pass={pass_number} point={point_index}/{len(force_path_points)}"
-                )
+                for point_index, point in enumerate(force_path_points, start=1):
+                    print(
+                        f"[ModelD] sanding point start door={door_number} "
+                        f"pass={pass_number} cycle={cycle_index + 1}/{cycle_count} "
+                        f"point={point_index}/{len(force_path_points)} value={point}"
+                    )
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point,
+                        tcp=tcp,
+                        ucs=ucs,
+                        seventh=-1,
+                        speed=sanding_speed,
+                        velocity_profile="sandingspeed",
+                        wait=True,
+                    )
             print(
                 f"[ModelD] sanding path done door={door_number} "
                 f"pass={pass_number}"
@@ -385,17 +409,17 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None):
     print(f"[ModelD] END door={door_number}")
 
 
-def smalldoor1tool3(z, cps, force=None):
-    _run_model_d_internal_for_door(1, z, cps, force=force)
+def smalldoor1tool3(z, cps, force=None, cycles=1):
+    _run_model_d_internal_for_door(1, z, cps, force=force, cycles=cycles)
 
 
-def smalldoor2tool3(z, cps, force=None):
-    _run_model_d_internal_for_door(2, z, cps, force=force)
+def smalldoor2tool3(z, cps, force=None, cycles=1):
+    _run_model_d_internal_for_door(2, z, cps, force=force, cycles=cycles)
 
 
-def smalldoor3tool3(z, cps, force=None):
-    _run_model_d_internal_for_door(3, z, cps, force=force)
+def smalldoor3tool3(z, cps, force=None, cycles=1):
+    _run_model_d_internal_for_door(3, z, cps, force=force, cycles=cycles)
 
 
-def smalldoor4tool3(z, cps, force=None):
-    _run_model_d_internal_for_door(4, z, cps, force=force)
+def smalldoor4tool3(z, cps, force=None, cycles=1):
+    _run_model_d_internal_for_door(4, z, cps, force=force, cycles=cycles)

@@ -17,6 +17,7 @@ from Components.RobotState import RobotState
 from Server_Better_V2 import (
     communicate,
     setup_logger,
+    stop_requested,
     waitForBlending,
     setSpeed,
     turn_vibration_on,
@@ -124,7 +125,7 @@ DEFAULT_MOVEJS_JERK_RATIO = 100
 DEFAULT_MOVEJS_TRANSITION_DEG = 25
 MOVEJS_MAX_POINTS = 50
 TOOL4_DIAMETER_MM = 135.0
-TOOL4_RADIUS_MM = (TOOL4_DIAMETER_MM +11) / 2.0 
+TOOL4_RADIUS_MM = (TOOL4_DIAMETER_MM +11) / 2.0
 POCKET_MAX_OVERLAP_MM = 100.0
 
 
@@ -368,7 +369,7 @@ def finalize_spiral_path(
             return False
         time.sleep(0.1)
         print(f"Waiting for PATH_READY... t={elapsed:.1f}s state={st}\r", end="")
-    
+
     vibration_on = False
     force_applied = False
     ok = False
@@ -386,13 +387,13 @@ def finalize_spiral_path(
             )
             force_applied = True
             time.sleep(force_settle_s)
-    
+
         ret = cps.HRIF_MovePathL(box_id, robot_id, track_name)
         print(f"[Spiral] Robot returned {ret} after MovePathL,")
         if ret != 0:
             return False
         move_start = time.time()
-    
+
         # Wait briefly for motion to start, then turn vibration on.
         motion_started = False
         motion_wait_start = time.time()
@@ -402,7 +403,7 @@ def finalize_spiral_path(
                     motion_started = True
                     break
             time.sleep(0.02)
-        
+
         turn_vibration_on(cps)
         vibration_on = True
 
@@ -824,6 +825,7 @@ def _run_small_door_zigzag(
     movement="zigzag",
     spiral_settings=None,
     *,
+    cycles=1,
     split=False,
 ):
     apply_spiral_settings(spiral_settings)
@@ -914,7 +916,7 @@ def _run_small_door_zigzag(
     print("zigzag_pathp=", zigzag_pathp1)
     print("prepointp:", prepointp1)
 
-    def perform_process_top(zigzag_points):
+    def perform_process_top(zigzag_points, cycle_count):
         force_seek_linear = 5.0
         force_blending_timeout = 0.4 if split else 7.0
 
@@ -942,30 +944,44 @@ def _run_small_door_zigzag(
             )
             turn_vibration_on(cps)
 
-            for index, point_A in enumerate(zigzag_points):
-                if index + 1 >= len(zigzag_points):
-                    break
-                point_B = zigzag_points[index + 1]
-                print("Linear move from A to B:", point_A, "->", point_B)
-                is_last_segment = index == (len(zigzag_points) - 2)
-                communicate(
+            total_cycles = max(1, int(cycle_count))
+            for cycle_index in range(total_cycles):
+                if stop_requested():
+                    raise RuntimeError("[ZigZag] Stop requested.")
+                cycle_points = (
+                    zigzag_points
+                    if cycle_index % 2 == 0
+                    else list(reversed(zigzag_points))
+                )
+                direction = "forward" if cycle_index % 2 == 0 else "reverse"
+                print(
+                    f"[ZigZag] Continuous cycle {cycle_index + 1}/{total_cycles} "
+                    f"direction={direction}"
+                )
+                for index, point_A in enumerate(cycle_points):
+                    if index + 1 >= len(cycle_points):
+                        break
+                    point_B = cycle_points[index + 1]
+                    print("Linear move from A to B:", point_A, "->", point_B)
+                    is_last_segment = index == (len(cycle_points) - 2)
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point_B,
+                        tcp=config["coords"]["tcptool4plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=float(json_config["sandingSpeed"]),
+                        velocity_profile="sandingspeed",
+                        speed_mode="linear",
+                        wait=is_last_segment,
+                    )
+
+                waitForBlending(
                     cps=cps,
                     config=config,
-                    point=point_B,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=float(json_config["sandingSpeed"]),
-                    velocity_profile="sandingspeed",
-                    speed_mode="linear",
-                    wait=is_last_segment,
+                    timeout_s=_resolve_sanding_blend_timeout(config),
                 )
-
-        waitForBlending(
-            cps=cps,
-            config=config,
-            timeout_s=_resolve_sanding_blend_timeout(config),
-        )
         turn_vibration_off(cps)
         releaseForce(cps=cps, config=config)
 
@@ -997,7 +1013,7 @@ def _run_small_door_zigzag(
                     wait=True,
                 )
 
-        perform_process_top(current_zigzag)
+        perform_process_top(current_zigzag, cycles)
         communicate(
             cps=cps,
             config=config,
@@ -1011,7 +1027,7 @@ def _run_small_door_zigzag(
 
 
 def smalldoor1zizag(
-    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
+    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None, cycles=1
 ):
     print("[zigzag] Door 1 single-pass mode enabled (split disabled).")
     return _run_small_door_zigzag(
@@ -1022,12 +1038,13 @@ def smalldoor1zizag(
         orientation=orientation,
         movement=movement,
         spiral_settings=spiral_settings,
+        cycles=cycles,
         split=False,
     )
 
 
 def smalldoor2zizag(
-    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
+    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None, cycles=1
 ):
     print("[zigzag] Door 2 single-pass mode enabled (split disabled).")
     return _run_small_door_zigzag(
@@ -1038,12 +1055,13 @@ def smalldoor2zizag(
         orientation=orientation,
         movement=movement,
         spiral_settings=spiral_settings,
+        cycles=cycles,
         split=False,
     )
 
 
 def smalldoor3zizag(
-    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
+    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None, cycles=1
 ):
     print("[zigzag] Door 3 single-pass mode enabled (split disabled).")
     return _run_small_door_zigzag(
@@ -1054,12 +1072,13 @@ def smalldoor3zizag(
         orientation=orientation,
         movement=movement,
         spiral_settings=spiral_settings,
+        cycles=cycles,
         split=False,
     )
 
 
 def smalldoor4zizag(
-    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None
+    force, z, cps, orientation="horizontal", movement="zigzag", spiral_settings=None, cycles=1
 ):
     print("[zigzag] Door 4 single-pass mode enabled (split disabled).")
     return _run_small_door_zigzag(
@@ -1070,6 +1089,7 @@ def smalldoor4zizag(
         orientation=orientation,
         movement=movement,
         spiral_settings=spiral_settings,
+        cycles=cycles,
         split=False,
     )
 

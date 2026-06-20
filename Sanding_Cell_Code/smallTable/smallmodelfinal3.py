@@ -21,21 +21,39 @@ import time
 from cycle_data_utils import any_cycles, doors_with_cycles, get_spiral_settings, get_tableA_task_by_door
 
 INTER_PASS_DELAY_SECONDS = 0.0
+J7_IDLE_TIMEOUT_S = 45.0
+J7_IDLE_POLL_S = 0.02
+
+
+def wait_for_j7_idle(
+    cps: CPSClient,
+    timeout_s: float = J7_IDLE_TIMEOUT_S,
+    poll_s: float = J7_IDLE_POLL_S,
+) -> bool:
+    start_time = time.time()
+    result = []
+    while True:
+        result.clear()
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], result)
+        if (
+            (nret == 0 or nret is None)
+            and len(result) > 2
+            and str(result[2]).strip() == "0"
+        ):
+            return True
+        if (time.time() - start_time) >= float(timeout_s):
+            print(
+                f"[J7] Timeout waiting for idle after {timeout_s:.1f}s. "
+                f"Last state={result}"
+            )
+            return False
+        time.sleep(max(0.005, float(poll_s)))
 
 def load_config():
     """Loads configuration from config.yaml."""
     with open('./configs/config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     return config
-
-# def run_side_cycles(count,force):
-#     """Execute side function with specified number of cycles"""
-#     for i in range(count):
-#         print(f"\n=== SIDE CYCLE {i+1}/{count} ===")
-#         testmodel4sidesmallfunction(force=force)
-#         if i < count-1:
-#             print("Pausing 3 seconds before next side cycle...")
-#             time.sleep(3)
 
 def run_side_cycles(count, force, door_num,cps):
     """Execute door function based on number"""
@@ -53,12 +71,10 @@ def run_side_cycles(count, force, door_num,cps):
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(force=force,cps=cps)
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== FRAME CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(force=force,cps=cps, cycles=count)
+
+
 
 def run_zigzag_cycles(
     count,
@@ -86,24 +102,18 @@ def run_zigzag_cycles(
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        if stop_requested():
-            raise RuntimeError("[Spiral] Stop requested.")
-        print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(
-            force=force,
-            z=z,
-            cps=cps,
-            orientation=orientation,
-            movement=movement,
-            spiral_settings=spiral_settings,
-        )
-        if i < count - 1:
-            if stop_requested():
-                raise RuntimeError("[Spiral] Stop requested.")
-            if INTER_PASS_DELAY_SECONDS > 0:
-                print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-                time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== ZIGZAG CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(
+        force=force,
+        z=z,
+        cps=cps,
+        orientation=orientation,
+        movement=movement,
+        spiral_settings=spiral_settings,
+        cycles=count,
+    )
+
+
 
 def run_tool2side_cycles(count, force, door_num,cps):
     """Execute door function based on number"""
@@ -177,12 +187,10 @@ def run_tool3_cycles(count, door_num, z, cps, force):
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        print(f"\n=== SIDE CYCLE {i+1}/{count} (Door {door_num}) ===")
-        door_func(z=z, cps=cps, force=force)
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== TOOL 1 CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(z=z, cps=cps, force=force, cycles=count)
+
+
 def load_json_config():
     """Loads configuration from config.json."""
     with open('./configs/cycleData.json', 'r') as file:
@@ -236,7 +244,7 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         return True
 
     print(f"Tool {tool_in_hand} detected; dropping before picking tool {tool_num}.")
-    communicate(
+    seventh_result = communicate(
         cps=cps,
         config=config,
         seventh=0,
@@ -244,8 +252,23 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         ucs=config["coords"]["ucsTable1"],
         speed=0.3,
         wait=True,
+        require_seventh_ok=True,
     )
-    keepTool11(cps, toolNumber=tool_in_hand, config=config, goToSafe=False, startFromSafe=True)
+    if seventh_result is None:
+        raise RuntimeError(
+            f"Failed to move J7 to the tool station before dropping tool {tool_in_hand}."
+        )
+    if not wait_for_j7_idle(cps):
+        raise RuntimeError(
+            f"J7 did not become idle before dropping tool {tool_in_hand}."
+        )
+    keepTool11(
+        cps,
+        toolNumber=tool_in_hand,
+        config=config,
+        goToSafe=False,
+        startFromSafe=True,
+    )
     return False
 
 def sandingModelCTableA(cps=None):
@@ -272,100 +295,10 @@ def sandingModelCTableA(cps=None):
     tool2sideedge_cycle_doors = doors_with_cycles(tool2edge_by_door)
     tl3sideedge_door = doors_with_cycles(tool3_by_door)
 
-    z, z1, z2 = 0, 0, -10
+    z, z1, z2 = 10, 0, 10
 
     #Speed
     speeed = float(json_config['robotSpeed'])
-
-    # side_cycles1  = 1  # 0 to 10
-    # side_cycles2   = 0
-    # side_cycles3   = 0
-    # side_cycles4   = 0
-    # # zigzag_cycles = 1
-    # door_number1=1  # 1 to 4
-    # door_number2=2
-    # door_number3=3
-    # door_number4=4
-    # # tool2_side_cycle=1
-    # # tool2_sideoutedge=1
-    # force_side_cycles1=2  # 1 to 30
-    # force_side_cycles2=2
-    # force_side_cycles3=2
-    # force_side_cycles4=2
-    # force_zigzag_cycles = 1
-    # force_tool2_side_cycle=2
-    # force_tool2_sideoutedge=2
-
-    #Zigzag Cycle Tool1
-    # zig_cycle1= 0
-    # zig_cycle2= 0
-    # zig_cycle3= 0
-    # zig_cycle4= 0
-    # force_zigzag1= 2
-    # force_zigzag2= 2
-    # force_zigzag3= 2
-    # force_zigzag4= 2
-    # zig_door1=1
-    # zig_door2=2
-    # zig_door3=3
-    # zig_door4=4
-    # z= 0 #-6.5 before
-    # z1=0
-    # z2=-10
-
-    #PocketTool1
-    # pocket_cycle1= 0
-    # pocket_cycle2= 0
-    # pocket_cycle3= 0
-    # pocket_cycle4= 0
-    # force_pocket1 = 2
-    # force_pocket2 = 2
-    # force_pocket3 = 2
-    # force_pocket4 = 2
-    # pocket_door1= 1
-    # pocket_door2= 2
-    # pocket_door3= 3
-    # pocket_door4= 4
-
-    #Tool2Side Cycle
-    # tl2side_cycle1= 0
-    # tl2side_cycle2= 0
-    # tl2side_cycle3= 0
-    # tl2side_cycle4= 0
-    # tl2side_force1= 2
-    # tl2side_force2= 2
-    # tl2side_force3= 2
-    # tl2side_force4= 2
-    # tl2side_door1= 1
-    # tl2side_door2= 2
-    # tl2side_door3= 3
-    # tl2side_door4= 4
-
-    #Tool2Side Cycle Edge
-    # tl2sideedge_cycle1= 0
-    # tl2sideedge_cycle2= 0
-    # tl2sideedge_cycle3= 0
-    # tl2sideedge_cycle4= 0
-    # tl2sideedge_force1= 2
-    # tl2sideedge_force2= 2
-    # tl2sideedge_force3= 2
-    # tl2sideedge_force4= 2
-    # tl2sideedge_door1= 1
-    # tl2sideedge_door2= 2
-    # tl2sideedge_door3= 3
-    # tl2sideedge_door4= 4
-
-    # zig_zag_cycle_force = int(json_config_TableA['pocketzigzag']['force'])
-
-    #Tool3Cycle
-    # tl3sideedge_cycle1= 0
-    # tl3sideedge_cycle2= 0
-    # tl3sideedge_cycle3= 0
-    # tl3sideedge_cycle4= 0
-    # tl3sideedge_door1= 1
-    # tl3sideedge_door2= 2
-    # tl3sideedge_door3= 3
-    # tl3sideedge_door4= 4
 
     # Load configuration from YAML
     config = load_config()
@@ -433,7 +366,7 @@ def sandingModelCTableA(cps=None):
         )
 
     def move_seventh_to_tool_station():
-        communicate(
+        seventh_result = communicate(
             cps=cps,
             config=config,
             seventh=0,
@@ -441,7 +374,12 @@ def sandingModelCTableA(cps=None):
             ucs=config["coords"]["ucsTable1"],
             speed=0.7,
             wait=True,
+            require_seventh_ok=True,
         )
+        if seventh_result is None:
+            raise RuntimeError("Failed to move J7 to the tool station.")
+        if not wait_for_j7_idle(cps):
+            raise RuntimeError("J7 did not become idle at the tool station.")
 
     def move_to_homing_with_tool():
         move_to_safe_point()
@@ -638,8 +576,7 @@ def sandingModelCTableA(cps=None):
     except Exception as e:
         print(f"\nExecution error: {str(e)}")
         traceback.print_exc()
-        if stop_requested():
-            raise
+        raise
     finally:
         if owns_cps and cps is not None:
             try:

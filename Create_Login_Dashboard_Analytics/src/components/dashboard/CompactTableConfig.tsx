@@ -543,8 +543,8 @@ export function CompactTableConfig({
           rows: dc.rows.map(r => ({ ...r })),
         }));
 
-        // Ensure all selected doors for a row share the same task values unless explicitly set.
-        // This prevents partial payloads like only one selected door being serialized with cycle/force.
+        // A row selected for multiple doors is one shared operation. Apply the
+        // active door's values to every selected door before serializing it.
         for (const [label, selectedDoors] of Object.entries(selectedDoorsByRow)) {
           if (!selectedDoors.length) continue;
           const rowIndex = rows.findIndex(r => r.label === label);
@@ -554,17 +554,13 @@ export function CompactTableConfig({
             .map(doorNumber => normalizedDoorConfigs.find(dc => dc.doorNumber === doorNumber)?.rows[rowIndex])
             .filter((row): row is RowConfig => !!row);
 
+          const activeDoorNumber = rowActiveDoor[label];
+          const activeDoorRow = selectedDoors.includes(activeDoorNumber)
+            ? normalizedDoorConfigs.find(dc => dc.doorNumber === activeDoorNumber)?.rows[rowIndex]
+            : undefined;
           const templateRow =
-            rowsForSelectedDoors.find(r =>
-              r.force > 0 && r.cycle > 0
-            ) ||
-            rowsForSelectedDoors.find(r =>
-              r.force > 0 ||
-              r.cycle > 0 ||
-              !!r.verticalSpiral ||
-              !!r.horizontalSpiral ||
-              !!r.edgeCoverage
-            ) ||
+            activeDoorRow ||
+            rowsForSelectedDoors.find(r => r.force > 0 && r.cycle > 0) ||
             rowsForSelectedDoors[0];
 
           if (!templateRow) continue;
@@ -573,14 +569,13 @@ export function CompactTableConfig({
             if (!selectedDoors.includes(dc.doorNumber)) return;
             const currentRow = dc.rows[rowIndex];
             if (!currentRow) return;
-            const needsForce = currentRow.force <= 0 && templateRow.force > 0;
-            const needsCycle = currentRow.cycle <= 0 && templateRow.cycle > 0;
-            const shouldPopulateValues = needsForce || needsCycle;
-            if (!shouldPopulateValues) return;
             dc.rows[rowIndex] = {
               ...currentRow,
-              force: needsForce ? templateRow.force : currentRow.force,
-              cycle: needsCycle ? templateRow.cycle : currentRow.cycle,
+              force: templateRow.force,
+              cycle: templateRow.cycle,
+              verticalSpiral: templateRow.verticalSpiral,
+              horizontalSpiral: templateRow.horizontalSpiral,
+              edgeCoverage: templateRow.edgeCoverage,
             };
           });
         }

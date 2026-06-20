@@ -3,6 +3,7 @@ from Server_Better_V2 import (
     putForceZminus,
     releaseForce,
     setup_logger,
+    stop_requested,
     turn_vibration_off,
     turn_vibration_on,
     waitForBlending,
@@ -185,7 +186,7 @@ def build_edge_coverage_path(
             [edge_point3[0], edge_point3[1], edge_point3[2], rx, ry, rz],
             [edge_point4[0], edge_point4[1], edge_point4[2], rx, ry, rz],
         ]
-        
+
     for point in path:
         point[0] = abs(point[0])
         point[1] = abs(point[1])
@@ -202,6 +203,7 @@ def execute_edge_coverage(
     split=False,
     tcp_key="tcptool3plane1",
     ucs_key="ucsTable1",
+    cycles=1,
 ):
     """Execute edge coverage path with force and vibration control."""
     if not edge_points:
@@ -244,55 +246,61 @@ def execute_edge_coverage(
                 float(edge_speed),
             )
 
-        for idx, point in enumerate(edge_points):
-            communicate(
+        cycle_count = max(1, int(cycles))
+        for cycle_index in range(cycle_count):
+            if stop_requested():
+                raise RuntimeError("[Edge Coverage] Stop requested.")
+            print(f"[Edge Coverage] Continuous cycle {cycle_index + 1}/{cycle_count}")
+            cycle_points = edge_points if cycle_index == 0 else edge_points[1:]
+            for point in cycle_points:
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=point,
+                    tcp=config["coords"][tcp_key],
+                    ucs=config["coords"][ucs_key],
+                    seventh=-1,
+                    speed=edge_speed,
+                    velocity_profile="sanding",
+                    speed_mode="linear",
+                    wait=False,
+                )
+
+            blend_ok = waitForBlending(
                 cps=cps,
                 config=config,
-                point=point,
-                tcp=config["coords"][tcp_key],
-                ucs=config["coords"][ucs_key],
-                seventh=-1,
-                speed=edge_speed,
-                velocity_profile="sanding",
-                speed_mode="linear",
-                wait=False,
+                timeout_s=blend_timeout,
             )
+            if not blend_ok:
+                # First fallback: wait for generic robot motion-done flag.
+                motion_done = _wait_robot_motion_done(
+                    cps=cps,
+                    timeout_s=min(180.0, max(30.0, blend_timeout * 1.5)),
+                    poll_s=0.02,
+                )
+                if motion_done:
+                    if isinstance(config, dict) and config.get("logger"):
+                        config["logger"].warning(
+                            "[Edge Coverage] Blending timeout reported, but robot motion-done is true; continuing."
+                        )
+                    print("[Edge Coverage] Completed linear edge path (motion-done fallback)")
+                    continue
 
-        blend_ok = waitForBlending(
-            cps=cps,
-            config=config,
-            timeout_s=blend_timeout,
-        )
-        if not blend_ok:
-            # First fallback: wait for generic robot motion-done flag.
-            motion_done = _wait_robot_motion_done(
-                cps=cps,
-                timeout_s=min(180.0, max(30.0, blend_timeout * 1.5)),
-                poll_s=0.02,
-            )
-            if motion_done:
+                # Second fallback: approximate endpoint verification.
+                reached_last = _verify_reached_last_edge_point(
+                    cps=cps,
+                    target_point=edge_points[-1],
+                    timeout_s=40.0,
+                    tol_mm=80.0,
+                )
+                if not reached_last:
+                    raise RuntimeError(
+                        "[Edge Coverage] Blending wait timed out before contour completion."
+                    )
                 if isinstance(config, dict) and config.get("logger"):
                     config["logger"].warning(
-                        "[Edge Coverage] Blending timeout reported, but robot motion-done is true; continuing."
+                        "[Edge Coverage] Blending timeout reported, but final edge point was reached; continuing."
                     )
-                print("[Edge Coverage] Completed linear edge path (motion-done fallback)")
-                return True
-
-            # Second fallback: approximate endpoint verification.
-            reached_last = _verify_reached_last_edge_point(
-                cps=cps,
-                target_point=edge_points[-1],
-                timeout_s=40.0,
-                tol_mm=80.0,
-            )
-            if not reached_last:
-                raise RuntimeError(
-                    "[Edge Coverage] Blending wait timed out before contour completion."
-                )
-            if isinstance(config, dict) and config.get("logger"):
-                config["logger"].warning(
-                    "[Edge Coverage] Blending timeout reported, but final edge point was reached; continuing."
-                )
         print("[Edge Coverage] Completed linear edge path")
         return True
     finally:
@@ -334,7 +342,7 @@ def _build_pocket_xy_for_door(door_num, z):
     return x_coords, y_coords, z_coords, seventh_pos
 
 
-def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
+def _run_single_door_edge_pass(cps, force, z, door_num, orientation, cycles=1):
     config = _load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
 
@@ -388,6 +396,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation):
         edge_points=edge_points,
         force=force,
         split=False,
+        cycles=cycles,
     )
     communicate(
         cps=cps,
@@ -419,12 +428,12 @@ def run_tool3_pocket_edge_cycles(
     if door_num not in (1, 2, 3, 4):
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        print(f"\n=== TOOL 3 EDGE CYCLE {i + 1}/{count} (Door {door_num}) ===")
-        _run_single_door_edge_pass(
-            cps=cps,
-            force=force,
-            z=z,
-            door_num=door_num,
-            orientation=orientation,
-        )
+    print(f"\n=== TOOL 3 EDGE CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    _run_single_door_edge_pass(
+        cps=cps,
+        force=force,
+        z=z,
+        door_num=door_num,
+        orientation=orientation,
+        cycles=count,
+    )

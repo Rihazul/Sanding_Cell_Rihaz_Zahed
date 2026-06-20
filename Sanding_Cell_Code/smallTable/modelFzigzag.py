@@ -13,6 +13,7 @@ import yaml
 from Server_Better_V2 import (
     communicate,
     setup_logger,
+    stop_requested,
     waitForBlending,
     turn_vibration_on,
     turn_vibration_off,
@@ -350,6 +351,7 @@ def _perform_process_top(
     sanding_speed,
     robot_speed,
     seventh_target=None,
+    cycles=1,
 ):
     if not points1:
         return
@@ -420,43 +422,45 @@ def _perform_process_top(
     # actively settling at contact.
     turn_vibration_on(cps)
 
-    path_points = points1[1:]
-    for point in path_points[:-1]:
+    cycle_count = max(1, int(cycles))
+    for cycle_index in range(cycle_count):
+        if stop_requested():
+            raise RuntimeError("[ModelF] Stop requested.")
+        cycle_points = points1 if cycle_index % 2 == 0 else list(reversed(points1))
+        direction = "forward" if cycle_index % 2 == 0 else "reverse"
+        print(
+            f"[ModelF] Continuous cycle {cycle_index + 1}/{cycle_count} "
+            f"direction={direction}"
+        )
+        path_points = cycle_points[1:]
+        for point in path_points[:-1]:
+            communicate(
+                cps=cps,
+                config=config,
+                point=point,
+                tcp=config["coords"]["tcptool4plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
+                wait=False,
+            )
+        final_point = [float(value) for value in path_points[-1]]
         communicate(
             cps=cps,
             config=config,
-            point=point,
+            point=final_point,
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=sanding_speed,
             velocity_profile="sandingspeed",
-            wait=False,
+            wait=True,
         )
-    final_point = [
-        float(points1[-1][0]),
-        float(points1[-1][1]),
-        float(points1[-1][2]),
-        float(points1[-1][3]),
-        float(points1[-1][4]),
-        float(points1[-1][5]),
-    ]
-    communicate(
-        cps=cps,
-        config=config,
-        point=final_point,
-        tcp=config["coords"]["tcptool4plane1"],
-        ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=sanding_speed,
-        velocity_profile="sandingspeed",
-        wait=True,
-    )
-
-    waitForBlending(cps=cps, config=config)
+        waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
     releaseForce(cps=cps, config=config)
-    last_point = points1[-1]
+    last_point = points1[-1] if cycle_count % 2 == 1 else points1[0]
     last_lift = _with_lift(last_point, FORCE_APPROACH_LIFT_MM)
     communicate(
         cps=cps,
@@ -517,7 +521,7 @@ def _split_big_door_zigzag(path_points, orientation):
     return _build(first_half), _build(second_half)
 
 
-def _run_door_small(door_num, force, z, cps, orientation):
+def _run_door_small(door_num, force, z, cps, orientation, cycles=1):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
     cycle_cfg = load_json_config()
@@ -560,10 +564,11 @@ def _run_door_small(door_num, force, z, cps, orientation):
         sanding_speed=sanding_speed,
         robot_speed=robot_speed,
         seventh_target=x1,
+        cycles=cycles,
     )
 
 
-def _run_door_big(door_num, force, z, cps, orientation):
+def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
     config = load_config()
     config["logger"] = setup_logger(config["settings"]["debug"])
     cycle_cfg = load_json_config()
@@ -640,9 +645,29 @@ def _run_door_big(door_num, force, z, cps, orientation):
             (tcx1, zigzag_path2),
         ]
 
-    for pass_index, (current_tcx, current_path) in enumerate(pass_plan):
+    operation_cycles = max(1, int(cycles))
+    pass_sequence = []
+    for operation_cycle in range(1, operation_cycles + 1):
+        cycle_passes = list(enumerate(pass_plan, start=1))
+        reverse_cycle = operation_cycle % 2 == 0
+        if reverse_cycle:
+            cycle_passes.reverse()
+        for pass_index, (current_tcx, current_path) in cycle_passes:
+            # Model F is zigzag, so reverse both the J7 pass order and path
+            # direction on alternating cycles to avoid an unnecessary return.
+            path = list(reversed(current_path)) if reverse_cycle else current_path
+            pass_sequence.append(
+                (operation_cycle, pass_index, current_tcx, path)
+            )
+
+    for operation_cycle, pass_index, current_tcx, current_path in pass_sequence:
         if not current_path:
             continue
+        print(
+            f"[ModelF] Door {door_num} cycle "
+            f"{operation_cycle}/{operation_cycles}, "
+            f"J7 pass {pass_index}/{len(pass_plan)}: {current_tcx}"
+        )
         seventh_wait = False
         communicate(
             cps=cps,
@@ -665,7 +690,7 @@ def _run_door_big(door_num, force, z, cps, orientation):
         )
 
 
-def _run_door(door_num, force, z, cps, orientation, movement):
+def _run_door(door_num, force, z, cps, orientation, movement, cycles=1):
     # Model F: full-door zigzag only, no edge-coverage pass.
     orientation = str(orientation or "vertical").strip().lower()
     if orientation not in {"vertical", "horizontal"}:
@@ -700,25 +725,32 @@ def _run_door(door_num, force, z, cps, orientation, movement):
         print(
             f"[ModelF] Door {door_num}: large area detected (x={xlen_num:.1f}, y={ylen_num:.1f}) -> 2 seventh-axis passes."
         )
-        _run_door_big(door_num, force, z, cps, orientation)
+        _run_door_big(
+            door_num,
+            force,
+            z,
+            cps,
+            orientation,
+            cycles=cycles,
+        )
     else:
-        _run_door_small(door_num, force, z, cps, orientation)
+        _run_door_small(door_num, force, z, cps, orientation, cycles=cycles)
 
 
-def smalldoor1zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None):
-    _run_door(1, force, z, cps, orientation, movement)
+def smalldoor1zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None, cycles=1):
+    _run_door(1, force, z, cps, orientation, movement, cycles=cycles)
 
 
-def smalldoor2zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None):
-    _run_door(2, force, z, cps, orientation, movement)
+def smalldoor2zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None, cycles=1):
+    _run_door(2, force, z, cps, orientation, movement, cycles=cycles)
 
 
-def smalldoor3zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None):
-    _run_door(3, force, z, cps, orientation, movement)
+def smalldoor3zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None, cycles=1):
+    _run_door(3, force, z, cps, orientation, movement, cycles=cycles)
 
 
-def smalldoor4zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None):
-    _run_door(4, force, z, cps, orientation, movement)
+def smalldoor4zizag(force, z, cps, orientation="vertical", movement="zigzag", spiral_settings=None, cycles=1):
+    _run_door(4, force, z, cps, orientation, movement, cycles=cycles)
 
 
 if __name__ == "__main__":

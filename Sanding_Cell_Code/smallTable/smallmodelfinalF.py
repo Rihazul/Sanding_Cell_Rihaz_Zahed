@@ -61,19 +61,18 @@ def run_zigzag_cycles(
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        print(f"\n=== ZIGZAG CYCLE {i + 1}/{count} (Door {door_num}) ===")
-        door_func(
-            force=force,
-            z=z,
-            cps=cps,
-            orientation=orientation,
-            movement=movement,
-            spiral_settings=spiral_settings,
-        )
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== ZIGZAG CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(
+        force=force,
+        z=z,
+        cps=cps,
+        orientation=orientation,
+        movement=movement,
+        spiral_settings=spiral_settings,
+        cycles=count,
+    )
+
+
 
 
 def _decode_tool_from_ci(ci0, ci1, ci2):

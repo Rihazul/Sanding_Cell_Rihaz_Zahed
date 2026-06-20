@@ -88,17 +88,6 @@ def wait_for_j7_idle(cps: CPSClient, timeout_s: float = J7_IDLE_TIMEOUT_S, poll_
             return False
         time.sleep(max(0.005, float(poll_s)))
 
-
-# def run_side_cycles(count,force):
-#     """Execute side function with specified number of cycles"""
-#     for i in range(count):
-#         print(f"\n=== SIDE CYCLE {i+1}/{count} ===")
-#         testmodel4sidesmallfunction(force=force)
-#         if i < count-1:
-#             print("Pausing 3 seconds before next side cycle...")
-#             time.sleep(3)
-
-
 # function for running door frame with tool 3
 def run_side_cycles(count, force, door_num, cps):
     """Execute door function based on number"""
@@ -116,15 +105,10 @@ def run_side_cycles(count, force, door_num, cps):
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
-        door_func(force=force, cps=cps)
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== FRAME CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(force=force, cps=cps, cycles=count)
 
 
-# function for running zigzag and spiral tool path with tool 3
 def run_zigzag_cycles(
     count,
     force,
@@ -151,27 +135,18 @@ def run_zigzag_cycles(
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        if stop_requested():
-            raise RuntimeError("[Spiral] Stop requested.")
-        print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
-        door_func(
-            force=force,
-            z=z,
-            cps=cps,
-            orientation=orientation,
-            movement=movement,
-            spiral_settings=spiral_settings,
-        )
-        if i < count - 1:
-            if stop_requested():
-                raise RuntimeError("[Spiral] Stop requested.")
-            if INTER_PASS_DELAY_SECONDS > 0:
-                print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-                time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== ZIGZAG CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(
+        force=force,
+        z=z,
+        cps=cps,
+        orientation=orientation,
+        movement=movement,
+        spiral_settings=spiral_settings,
+        cycles=count,
+    )
 
 
-#function for side with tool 2
 def run_tool2side_cycles(count, force, door_num, cps):
     """Execute door function based on number"""
     if count <= 0:  # Skip if count is 0 or negative
@@ -245,12 +220,10 @@ def run_tool3_cycles(count, door_num, z, cps):
     except KeyError:
         raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
 
-    for i in range(count):
-        print(f"\n=== SIDE CYCLE {i + 1}/{count} (Door {door_num}) ===")
-        door_func(z=z, cps=cps)
-        if i < count - 1 and INTER_PASS_DELAY_SECONDS > 0:
-            print(f"Pausing {INTER_PASS_DELAY_SECONDS:.2f} seconds...")
-            time.sleep(INTER_PASS_DELAY_SECONDS)
+    print(f"\n=== TOOL 1 CONTINUOUS CYCLES: {count} (Door {door_num}) ===")
+    door_func(z=z, cps=cps, cycles=count)
+
+
 
 
 def load_json_config():
@@ -323,6 +296,10 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         raise RuntimeError(
             f"Failed to move 7th axis to tool station before dropping tool {tool_in_hand}."
         )
+    if not wait_for_j7_idle(cps):
+        raise RuntimeError(
+            f"J7 did not become idle before dropping tool {tool_in_hand}."
+        )
     keepTool11(
         cps,
         toolNumber=tool_in_hand,
@@ -362,100 +339,6 @@ def sandingModelATableA(cps=None):
     # Keep the mounted tool after the final completed task unless explicitly disabled.
     keep_tool_after_task = bool(config.get("settings", {}).get("keepToolAfterTask", True))
 
-    # side_cycles1  = 1  # 0 to 10
-    # side_cycles2   = 0
-    # side_cycles3   = 0
-    # side_cycles4   = 0
-    # # zigzag_cycles = 1
-    # door_number1=1  # 1 to 4
-    # door_number2=2
-    # door_number3=3
-    # door_number4=4
-    # # tool2_side_cycle=1
-    # # tool2_sideoutedge=1
-    # force_side_cycles1=2  # 1 to 30
-    # force_side_cycles2=2
-    # force_side_cycles3=2
-    # force_side_cycles4=2
-    # force_zigzag_cycles = 1
-    # force_tool2_side_cycle=2
-    # force_tool2_sideoutedge=2
-
-    # Zigzag Cycle Tool1
-    # zig_cycle1= 0
-    # zig_cycle2= 0
-    # zig_cycle3= 0
-    # zig_cycle4= 0
-    # force_zigzag1= 2
-    # force_zigzag2= 2
-    # force_zigzag3= 2
-    # force_zigzag4= 2
-    # zig_door1=1
-    # zig_door2=2
-    # zig_door3=3
-    # zig_door4=4
-    # z= 0 #-6.5 before
-    # z1=0
-    # z2=-10
-
-    # PocketTool1
-    # pocket_cycle1= 0
-    # pocket_cycle2= 0
-    # pocket_cycle3= 0
-    # pocket_cycle4= 0
-    # force_pocket1 = 2
-    # force_pocket2 = 2
-    # force_pocket3 = 2
-    # force_pocket4 = 2
-    # pocket_door1= 1
-    # pocket_door2= 2
-    # pocket_door3= 3
-    # pocket_door4= 4
-
-    # Tool2Side Cycle
-    # tl2side_cycle1= 0
-    # tl2side_cycle2= 0
-    # tl2side_cycle3= 0
-    # tl2side_cycle4= 0
-    # tl2side_force1= 2
-    # tl2side_force2= 2
-    # tl2side_force3= 2
-    # tl2side_force4= 2
-    # tl2side_door1= 1
-    # tl2side_door2= 2
-    # tl2side_door3= 3
-    # tl2side_door4= 4
-
-    # Tool2Side Cycle Edge
-    # tl2sideedge_cycle1= 0
-    # tl2sideedge_cycle2= 0
-    # tl2sideedge_cycle3= 0
-    # tl2sideedge_cycle4= 0
-    # tl2sideedge_force1= 2
-    # tl2sideedge_force2= 2
-    # tl2sideedge_force3= 2
-    # tl2sideedge_force4= 2
-    # tl2sideedge_door1= 1
-    # tl2sideedge_door2= 2
-    # tl2sideedge_door3= 3
-    # tl2sideedge_door4= 4
-    # zig_zag_cycle_force = int(json_config_TableA['pocketzigzag']['force'])
-
-    # Tool3Cycle
-    # tl3sideedge_cycle1= 0
-    # tl3sideedge_cycle2= 0
-    # tl3sideedge_cycle3= 0
-    # tl3sideedge_cycle4= 0
-    # tl3sideedge_door1= 1
-    # tl3sideedge_door2= 2
-    # tl3sideedge_door3= 3
-    # tl3sideedge_door4= 4
-
-    # # Load configuration from YAML
-    # config = load_config()
-
-    # #Set up logger
-    # config['logger'] = setup_logger(config['settings']['debug'])
 
     # Establish connection with robot
     # Establish connection with robot unless caller supplied one.
