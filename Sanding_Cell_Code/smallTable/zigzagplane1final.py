@@ -794,6 +794,29 @@ def _resolve_inner_sanding_offset(cycle_cfg, default=67.5):
     except Exception:
         return max(1.0, float(default))
 
+def _build_zigzag_operation_sequence(requested_orientation, cycles, movement="zigzag"):
+    """Return the orientation order to run without repeating one orientation back-to-back by cycle."""
+    total_cycles = max(1, int(cycles))
+    requested = str(requested_orientation or "vertical").strip().lower()
+    movement_mode = str(movement or "zigzag").strip().lower()
+
+    if requested == "horizontal":
+        single_orientation = "horizontal"
+    else:
+        single_orientation = "vertical"
+
+    if movement_mode != "zigzag":
+        return tuple((cycle_number, single_orientation) for cycle_number in range(1, total_cycles + 1))
+
+    if total_cycles == 1:
+        if requested == "both":
+            return ((1, "vertical"), (1, "horizontal"))
+        return ((1, single_orientation),)
+
+    return tuple(
+        (cycle_number, "vertical" if cycle_number % 2 else "horizontal")
+        for cycle_number in range(1, total_cycles + 1)
+    )
 
 def get_pocket_size(door_number, default_on_error=True):
     """Return pocket size (xlen, ylen) using pocket corner points."""
@@ -880,19 +903,14 @@ def _run_small_door_zigzag(
 
     x_coords_path = [coord / 2 for coord in x_coords1] if split else x_coords1
     inner_sanding_offset = _resolve_inner_sanding_offset(json_config, default=67.5)
-    requested_orientation = str(orientation or "vertical").strip().lower()
-    if requested_orientation == "both":
-        cycle_orientations = ("vertical", "horizontal")
-    elif requested_orientation == "horizontal":
-        cycle_orientations = ("horizontal",)
-    else:
-        cycle_orientations = ("vertical",)
-    if str(movement or "zigzag").lower() != "zigzag":
-        cycle_orientations = cycle_orientations[:1]
+    operation_sequence = _build_zigzag_operation_sequence(orientation, cycles, movement)
+    path_orientations = tuple(dict.fromkeys(
+        cycle_orientation for _, cycle_orientation in operation_sequence
+    ))
 
     paths_by_orientation = {}
     prepoints_by_orientation = {}
-    for path_orientation in cycle_orientations:
+    for path_orientation in path_orientations:
         _, generated_path, generated_prepoint = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
@@ -906,7 +924,7 @@ def _run_small_door_zigzag(
         paths_by_orientation[path_orientation] = generated_path
         prepoints_by_orientation[path_orientation] = generated_prepoint
 
-    first_orientation = cycle_orientations[0]
+    first_orientation = path_orientations[0]
     zigzag_pathp1 = paths_by_orientation[first_orientation]
     prepointp1 = prepoints_by_orientation[first_orientation]
     print("zigzag_pathp=", zigzag_pathp1)
@@ -984,17 +1002,14 @@ def _run_small_door_zigzag(
         turn_vibration_off(cps)
         releaseForce(cps=cps, config=config)
 
-    total_cycles = max(1, int(cycles))
-    cycle_paths = []
-    for cycle_index in range(total_cycles):
-        for cycle_orientation in cycle_orientations:
-            cycle_paths.append(
-                (
-                    cycle_index + 1,
-                    cycle_orientation,
-                    paths_by_orientation[cycle_orientation],
-                )
-            )
+    cycle_paths = [
+        (
+            cycle_number,
+            cycle_orientation,
+            paths_by_orientation[cycle_orientation],
+        )
+        for cycle_number, cycle_orientation in operation_sequence
+    ]
     for idx, seventh_pos in enumerate(seventh_positions):
         first_split = split and idx == 0
         if not first_split:

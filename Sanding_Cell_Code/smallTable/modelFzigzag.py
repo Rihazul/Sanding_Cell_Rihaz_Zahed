@@ -111,6 +111,25 @@ def _resolve_inner_sanding_offset(cycle_cfg, default=50.0):
     except Exception:
         return max(1.0, float(default))
 
+def _build_zigzag_operation_sequence(requested_orientation, cycles):
+    """Return the orientation order to run without repeating one orientation back-to-back by cycle."""
+    total_cycles = max(1, int(cycles))
+    requested = str(requested_orientation or "vertical").strip().lower()
+
+    if requested == "horizontal":
+        single_orientation = "horizontal"
+    else:
+        single_orientation = "vertical"
+
+    if total_cycles == 1:
+        if requested == "both":
+            return ((1, "vertical"), (1, "horizontal"))
+        return ((1, single_orientation),)
+
+    return tuple(
+        (cycle_number, "vertical" if cycle_number % 2 else "horizontal")
+        for cycle_number in range(1, total_cycles + 1)
+    )
 
 def _with_lift(point, lift_mm):
     if not point:
@@ -525,16 +544,13 @@ def _run_door_small(door_num, force, z, cps, orientation, cycles=1):
     p8 = points["p8"]
     x1 = p8[0] + get_door_position(door_num)
 
-    requested_orientation = str(orientation or "vertical").strip().lower()
-    if requested_orientation == "both":
-        cycle_orientations = ("vertical", "horizontal")
-    elif requested_orientation == "horizontal":
-        cycle_orientations = ("horizontal",)
-    else:
-        cycle_orientations = ("vertical",)
+    operation_sequence = _build_zigzag_operation_sequence(orientation, cycles)
+    path_orientations = tuple(dict.fromkeys(
+        cycle_orientation for _, cycle_orientation in operation_sequence
+    ))
 
     paths_by_orientation = {}
-    for path_orientation in cycle_orientations:
+    for path_orientation in path_orientations:
         _, generated_path, _, _ = generate_zigzag_path(
             x_coords=points["x_coords"],
             y_coords=points["y_coords"],
@@ -547,16 +563,14 @@ def _run_door_small(door_num, force, z, cps, orientation, cycles=1):
         )
         paths_by_orientation[path_orientation] = generated_path
 
-    cycle_paths = []
-    for cycle_index in range(max(1, int(cycles))):
-        for cycle_orientation in cycle_orientations:
-            cycle_paths.append(
-                (
-                    cycle_index + 1,
-                    cycle_orientation,
-                    paths_by_orientation[cycle_orientation],
-                )
-            )
+    cycle_paths = [
+        (
+            cycle_number,
+            cycle_orientation,
+            paths_by_orientation[cycle_orientation],
+        )
+        for cycle_number, cycle_orientation in operation_sequence
+    ]
     communicate(
         cps=cps,
         config=config,
@@ -594,13 +608,11 @@ def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
 
     tcx0 = p8[0] + get_door_position(door_num)
     tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
-    requested_orientation = str(orientation or "vertical").strip().lower()
-    if requested_orientation == "both":
-        cycle_orientations = ("vertical", "horizontal")
-    elif requested_orientation == "horizontal":
-        cycle_orientations = ("horizontal",)
-    else:
-        cycle_orientations = ("vertical",)
+    operation_sequence = _build_zigzag_operation_sequence(orientation, cycles)
+    path_orientations = tuple(dict.fromkeys(
+        cycle_orientation for _, cycle_orientation in operation_sequence
+    ))
+
     def build_pass_plan(cycle_orientation):
         _, zigzag_full, _, _ = generate_zigzag_path(
             x_coords=points["x_coords"],
@@ -640,10 +652,9 @@ def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
             ]
         return [(tcx0, path1), (tcx1, path2)]
 
-    operation_cycles = max(1, int(cycles))
     plans_by_orientation = {
         path_orientation: build_pass_plan(path_orientation)
-        for path_orientation in cycle_orientations
+        for path_orientation in path_orientations
     }
 
     # Complete every selected pattern on one J7 half before moving to the
@@ -651,21 +662,20 @@ def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
     for pass_index in range(2):
         cycle_paths = []
         current_tcx = None
-        for operation_cycle in range(1, operation_cycles + 1):
-            for cycle_orientation in cycle_orientations:
-                cycle_tcx, cycle_path = plans_by_orientation[cycle_orientation][pass_index]
-                current_tcx = cycle_tcx
-                if cycle_path:
-                    cycle_paths.append(
-                        (operation_cycle, cycle_orientation, cycle_path)
-                    )
+        for operation_cycle, cycle_orientation in operation_sequence:
+            cycle_tcx, cycle_path = plans_by_orientation[cycle_orientation][pass_index]
+            current_tcx = cycle_tcx
+            if cycle_path:
+                cycle_paths.append(
+                    (operation_cycle, cycle_orientation, cycle_path)
+                )
 
         if not cycle_paths or current_tcx is None:
             continue
         print(
             f"[ModelF] Door {door_num} grouped J7 pass "
             f"{pass_index + 1}/2: J7={current_tcx}, "
-            f"cycles={operation_cycles}, patterns={cycle_orientations}"
+            f"sequence={operation_sequence}"
         )
         communicate(
             cps=cps,
