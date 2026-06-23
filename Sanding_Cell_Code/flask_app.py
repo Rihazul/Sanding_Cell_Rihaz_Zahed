@@ -775,6 +775,16 @@ def interface():
 def react_assets(filename):
     return send_from_directory(REACT_ASSETS_DIR, filename)
 
+
+@app.route('/table_1/<path:filename>')
+def react_table_1_images(filename):
+    return send_from_directory(os.path.join(REACT_BUILD_DIR, 'table_1'), filename)
+
+
+@app.route('/table_2/<path:filename>')
+def react_table_2_images(filename):
+    return send_from_directory(os.path.join(REACT_BUILD_DIR, 'table_2'), filename)
+
 ############################################################################################
 # Display the sanding state in the frontend.
 @app.route('/trigger', methods=['POST'])
