@@ -30,12 +30,20 @@ from FileUtils.upload import upload3DModel
 import json
 import copy
 
-#for left table homing and sanding total
-from smallTable.scansmalltable import scanTableA
-from smallTable.scanhoming import scanhoming
-from smallTable.homingtotal import homingtotal
+# for left table homing and sanding total
+# Heavy scan/homing modules are imported lazily so the desktop app can open faster.
 from cycle_data_utils import overlap_mm_to_step
 from tablea_task_worker import run_tablea_task_child
+
+
+def _get_scan_table_a():
+    from smallTable.scansmalltable import scanTableA
+    return scanTableA
+
+
+def _get_homingtotal():
+    from smallTable.homingtotal import homingtotal
+    return homingtotal
 
 UPLOAD_FOLDER = './3DModels'
 ALLOWED_EXTENSIONS = {'stp'}
@@ -687,7 +695,7 @@ def _run_homing_child(config_data_UI):
         # Optional legacy follow-up; disabled by default because handle_client(homingState=True)
         # already performs homing, and the extra move can cause unsafe transitions.
         if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
-            homingtotal(cps=cps, config=config_data_UI)
+            _get_homingtotal()(cps=cps, config=config_data_UI)
     except Exception as e:
         try:
             config_data_UI["logger"].error(f"[homing child] Exception: {e}")
@@ -723,7 +731,7 @@ def _run_homing_inline(config_data_UI):
 
             # Optional legacy follow-up; preserve behavior parity with child path.
             if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
-                homingtotal(cps=CPS, config=config_data_UI)
+                _get_homingtotal()(cps=CPS, config=config_data_UI)
     except Exception as e:
         try:
             config_data_UI["logger"].error(f"[homing inline] Exception: {e}")
@@ -2705,7 +2713,7 @@ def handle_action():
                         },
                     )
                     socketio.emit('flash_message', {"message": "Operation table mode: Table A 45°, Table B horizontal"})
-                    scanTableA(cps=cps, config=runtime_scan_config)
+                    _get_scan_table_a()(cps=cps, config=runtime_scan_config)
                 finally:
                     laser(cps, "off", config=config)
 

@@ -15,4 +15,4 @@ if (-not (Test-Path (Join-Path $backendDir "desktop_launcher.py"))) {
 }
 
 Set-Location $backendDir
-uv run desktop_launcher.py
+uv run --no-sync desktop_launcher.py
