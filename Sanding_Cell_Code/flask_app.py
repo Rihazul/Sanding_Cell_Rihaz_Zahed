@@ -776,6 +776,11 @@ def react_assets(filename):
     return send_from_directory(REACT_ASSETS_DIR, filename)
 
 
+@app.route('/sweetalert-lite.js')
+def react_sweetalert_lite():
+    return send_from_directory(REACT_BUILD_DIR, 'sweetalert-lite.js')
+
+
 @app.route('/table_1/<path:filename>')
 def react_table_1_images(filename):
     return send_from_directory(os.path.join(REACT_BUILD_DIR, 'table_1'), filename)
