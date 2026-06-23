@@ -52,6 +52,7 @@ from Server_Better_V2 import (
     getTool11,
     communicate,
     stop_requested,
+    moveOnlyJ6r,
 )
 from modules.CPS import CPSClient
 import time
@@ -307,6 +308,9 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         goToSafe=False,
         startFromSafe=True,
     )
+    if tool_in_hand == 1 and tool_num == 3:
+        print("Tool 1 -> Tool 3 transition: applying joint-only correction J1=+30, J6=-90.")
+        moveOnlyJ6r(cps, -90, config, J1=30, wait=True)
     return False
 
 def sandingModelATableA(cps=None):

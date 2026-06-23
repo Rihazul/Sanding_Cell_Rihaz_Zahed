@@ -81,7 +81,7 @@ export interface DoorConfig {
     horizontalSpiral?: boolean;
     edgeCoverage?: boolean;
     // Derived helpers
-    orientation?: 'vertical' | 'horizontal';
+    orientation?: 'vertical' | 'horizontal' | 'both';
     edge?: boolean;
   }[];
 }
@@ -147,8 +147,12 @@ export async function startTableAProcess(data: {
     const derive = (row?: DoorConfig['rows'][number]) => {
       const verticalSpiral = !!row?.verticalSpiral;
       const horizontalSpiral = !!row?.horizontalSpiral;
-      const orientation: 'vertical' | 'horizontal' =
-        horizontalSpiral && !verticalSpiral ? 'horizontal' : 'vertical';
+      const orientation: 'vertical' | 'horizontal' | 'both' =
+        verticalSpiral && horizontalSpiral
+          ? 'both'
+          : horizontalSpiral
+            ? 'horizontal'
+            : 'vertical';
       const edge = !!row?.edgeCoverage;
       return { orientation, edge };
     };
@@ -173,8 +177,12 @@ export async function startTableAProcess(data: {
       if (row.label === 'Pocket ZigZag') {
         const verticalSpiral = !!row.verticalSpiral;
         const horizontalSpiral = !!row.horizontalSpiral;
-        const orientation: 'vertical' | 'horizontal' =
-          horizontalSpiral && !verticalSpiral ? 'horizontal' : 'vertical';
+        const orientation: 'vertical' | 'horizontal' | 'both' =
+          verticalSpiral && horizontalSpiral
+            ? 'both'
+            : horizontalSpiral
+              ? 'horizontal'
+              : 'vertical';
         const edgeCoverage = !!row.edgeCoverage;
         tasks[key] = {
           ...base,

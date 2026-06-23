@@ -1277,12 +1277,8 @@ def _get_tool_in_hand_stable(cps, attempts=4, delay_s=0.08):
 
 
 def _disconnect_global_cps_for_child_start():
-    """Atomically disconnect/reset parent CPS before spawning a child worker."""
+    """Disconnect and reset CPS once before starting a child."""
     with robot_lock:
-        try:
-            CPS.HRIF_DisConnect(0)
-        except Exception:
-            pass
         _hard_reset_cps_runtime()
 
 ############################################################################################

@@ -14,7 +14,7 @@ from smallTable.edge_coverage_tool3 import run_tool3_pocket_edge_cycles
 from smallTable.frame1tool2sidefinal import door1frametool2side,door2frametool2side,door3frametool2side,door4frametool2side
 from smallTable.frame1tool2edgefinal import door1frametool2sideedge,door2frametool2sideedge,door3frametool2sideedge,door4frametool2sideedge
 from smallTable.frame1tool3 import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested,moveOnlyJ6r
 from modules.CPS import CPSClient
 import time
 
@@ -269,6 +269,9 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         goToSafe=False,
         startFromSafe=True,
     )
+    if tool_in_hand == 1 and tool_num == 3:
+        print("Tool 1 -> Tool 3 transition: applying joint-only correction J1=+30, J6=-90.")
+        moveOnlyJ6r(cps, -90, config, J1=30, wait=True)
     return False
 
 def sandingModelCTableA(cps=None):

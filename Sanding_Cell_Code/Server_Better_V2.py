@@ -7730,17 +7730,18 @@ def turn_vibration_off(cps, debug=False):
         print(f"Error turning OFF vibration. Error code: {nRet}")
 
 
-def moveOnlyJ6r(cps, J6, config, wait=True):
+def moveOnlyJ6r(cps, J6, config, J1=0, wait=True):
     """Only increase the J6 angle to the certain value given. handles both positive and negative values
 
     Args:
         cps (cps): cobot client
         J6 (float): angle value (in degrees)
+        J1 (float): angle value (in degrees)
         config (config): our config value
     """
     result = []  # Read the current actual location information
     nret = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
-    dJ1 = float(result[0])
+    dJ1 = float(result[0]) + J1
     dJ2 = float(result[1])
     dJ3 = float(result[2])
     dJ4 = float(result[3])
@@ -7752,8 +7753,8 @@ def moveOnlyJ6r(cps, J6, config, wait=True):
 
     sTcpName = config["coords"]["tcpDefault"]  # Definetheusercoordinatesvariable
     sUcsName = config["coords"]["ucsDefault"]  # Definemovementspeed
-    dVelocity = 100  # Define the movement acceleration
-    dAcc = 150  # Define the transition radius
+    dVelocity = 150  # Define the movement acceleration
+    dAcc = 170  # Define the transition radius
     dRadius = config["coords"][
         "transitionRadius"
     ]  # Deine whether the joint angle is used

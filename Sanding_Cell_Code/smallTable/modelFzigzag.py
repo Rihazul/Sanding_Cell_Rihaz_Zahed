@@ -32,6 +32,8 @@ TRANSFER_LIFT_Z_MM = 70.0
 FORCE_APPROACH_LIFT_MM = 15.0
 FORCE_PRESEEK_GAP_MM = 4.0
 CIRCULAR_TOOL_XY_OFFSET_MM = 50.0
+TOOL4_DIAMETER_MM = 135.0
+POCKET_MAX_OVERLAP_MM = 100.0
 
 
 def load_config():
@@ -94,15 +96,15 @@ def _get_motion_speeds(config):
 def _resolve_inner_sanding_offset(cycle_cfg, default=50.0):
     """
     Convert UI overlap (mm) to sanding step (mm) safely.
-    UI range is overlap=0..110; step must never be 0.
+    UI range is overlap=0..100; step is tool diameter minus overlap.
     """
     try:
         return float(
             get_inverse_overlap_step(
                 cycle_cfg or {},
                 key="inverseOverlapping",
-                tool_diameter_mm=146.0,
-                max_overlap_mm=110.0,
+                tool_diameter_mm=TOOL4_DIAMETER_MM,
+                max_overlap_mm=POCKET_MAX_OVERLAP_MM,
                 min_step_mm=1.0,
             )
         )
@@ -131,10 +133,10 @@ def _compute_boundary_points(door_num, frame_offset, z):
 
     distance = p6[0] - p8[0]
 
-    point5 = [-p5[0], p5[1], z, -0.034, 0.556, 0.251]
-    point6 = [-p6[0], p6[1], z, -0.034, 0.556, 0.251]
-    point7 = [-p7[0], p7[1], z, -0.034, 0.556, 0.251]
-    point8 = [-p8[0], p8[1], z, -0.034, 0.556, 0.251]
+    point5 = [-p5[0], p5[1], z, 0.0, 0.0, 0.0]
+    point6 = [-p6[0], p6[1], z, 0.0, 0.0, 0.0]
+    point7 = [-p7[0], p7[1], z, 0.0, 0.0, 0.0]
+    point8 = [-p8[0], p8[1], z, 0.0, 0.0, 0.0]
 
     point5u = [-distance, point5[1], point5[2], point5[3], point5[4], point5[5]]
     point6u = [-distance, point6[1], point6[2], point6[3], point6[4], point6[5]]
@@ -258,9 +260,7 @@ def generate_zigzag_path(
         if orientation_mode == "horizontal":
             yinner = abs(y_max - y_min)
             if yinner > 0:
-                num_steps = math.floor(yinner / step_mm)
-                if num_steps == 0:
-                    num_steps = 1
+                num_steps = max(1, math.ceil(yinner / step_mm))
                 adjusted_step = yinner / num_steps
 
                 offset = 0.0
@@ -352,21 +352,24 @@ def _perform_process_top(
     robot_speed,
     seventh_target=None,
     cycles=1,
+    cycle_paths=None,
 ):
-    if not points1:
+    if cycle_paths is None:
+        cycle_paths = [
+            (cycle_index + 1, "unchanged", points1)
+            for cycle_index in range(max(1, int(cycles)))
+        ]
+    valid_cycle_paths = [
+        (cycle_number, cycle_orientation, cycle_path)
+        for cycle_number, cycle_orientation, cycle_path in cycle_paths
+        if cycle_path
+    ]
+    if not valid_cycle_paths:
         return
 
-    start_point = [
-        float(points1[0][0]),
-        float(points1[0][1]),
-        float(points1[0][2]),
-        float(points1[0][3]),
-        float(points1[0][4]),
-        float(points1[0][5]),
-    ]
+    start_point = [float(value) for value in valid_cycle_paths[0][2][0]]
     start_lift = _with_lift(start_point, FORCE_APPROACH_LIFT_MM)
 
-    # If a previous pass left force mode latched, clear it before the next seek.
     try:
         releaseForce(cps=cps, config=config, wait_for_blending=False)
     except Exception:
@@ -384,8 +387,6 @@ def _perform_process_top(
         wait=True,
     )
     if seventh_target is not None:
-        # Let arm and 7th-axis overlap during transition, then hard-sync J7
-        # before force engagement to avoid contact while J7 is still moving.
         communicate(
             cps=cps,
             config=config,
@@ -417,50 +418,41 @@ def _perform_process_top(
     if not force_ok:
         raise RuntimeError("Force seek failed before Model F sanding start point.")
 
-    # Do not issue an extra MoveL immediately after force seek.
-    # On this cell that step can deadlock on first run while force mode is
-    # actively settling at contact.
     turn_vibration_on(cps)
-
-    cycle_count = max(1, int(cycles))
-    for cycle_index in range(cycle_count):
+    motion_points = []
+    total_cycles = max(int(item[0]) for item in valid_cycle_paths)
+    for cycle_number, cycle_orientation, cycle_points in valid_cycle_paths:
         if stop_requested():
             raise RuntimeError("[ModelF] Stop requested.")
-        cycle_points = points1 if cycle_index % 2 == 0 else list(reversed(points1))
-        direction = "forward" if cycle_index % 2 == 0 else "reverse"
         print(
-            f"[ModelF] Continuous cycle {cycle_index + 1}/{cycle_count} "
-            f"direction={direction}"
+            f"[ModelF] Continuous cycle {cycle_number}/{total_cycles} "
+            f"orientation={cycle_orientation}"
         )
-        path_points = cycle_points[1:]
-        for point in path_points[:-1]:
-            communicate(
-                cps=cps,
-                config=config,
-                point=point,
-                tcp=config["coords"]["tcptool4plane1"],
-                ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
-                wait=False,
-            )
-        final_point = [float(value) for value in path_points[-1]]
+        # Keep contact while connecting to the first point of the next orientation.
+        if motion_points:
+            motion_points.extend(cycle_points)
+        else:
+            motion_points.extend(cycle_points[1:])
+
+    for point_index, point in enumerate(motion_points):
+        if stop_requested():
+            raise RuntimeError("[ModelF] Stop requested.")
         communicate(
             cps=cps,
             config=config,
-            point=final_point,
+            point=point,
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
             speed=sanding_speed,
             velocity_profile="sandingspeed",
-            wait=True,
+            wait=point_index == len(motion_points) - 1,
         )
-        waitForBlending(cps=cps, config=config)
+    waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
     releaseForce(cps=cps, config=config)
-    last_point = points1[-1] if cycle_count % 2 == 1 else points1[0]
+
+    last_point = valid_cycle_paths[-1][2][-1]
     last_lift = _with_lift(last_point, FORCE_APPROACH_LIFT_MM)
     communicate(
         cps=cps,
@@ -473,7 +465,6 @@ def _perform_process_top(
         velocity_profile="robotspeed",
         wait=True,
     )
-
 
 def _split_big_door_zigzag(path_points, orientation):
     if not path_points:
@@ -532,20 +523,40 @@ def _run_door_small(door_num, force, z, cps, orientation, cycles=1):
     frame_offset = 0
     points = _compute_boundary_points(door_num, frame_offset, z)
     p8 = points["p8"]
-
     x1 = p8[0] + get_door_position(door_num)
 
-    _, zigzag_path, _, _ = generate_zigzag_path(
-        x_coords=points["x_coords"],
-        y_coords=points["y_coords"],
-        z_coords=points["z_coords"],
-        innerOffset=0,
-        innerOffsetX=0,
-        orientation=orientation,
-        innerSandingOffset=inner_sanding_offset,
-        edge_coverage=False,
-    )
+    requested_orientation = str(orientation or "vertical").strip().lower()
+    if requested_orientation == "both":
+        cycle_orientations = ("vertical", "horizontal")
+    elif requested_orientation == "horizontal":
+        cycle_orientations = ("horizontal",)
+    else:
+        cycle_orientations = ("vertical",)
 
+    paths_by_orientation = {}
+    for path_orientation in cycle_orientations:
+        _, generated_path, _, _ = generate_zigzag_path(
+            x_coords=points["x_coords"],
+            y_coords=points["y_coords"],
+            z_coords=points["z_coords"],
+            innerOffset=0,
+            innerOffsetX=0,
+            orientation=path_orientation,
+            innerSandingOffset=inner_sanding_offset,
+            edge_coverage=False,
+        )
+        paths_by_orientation[path_orientation] = generated_path
+
+    cycle_paths = []
+    for cycle_index in range(max(1, int(cycles))):
+        for cycle_orientation in cycle_orientations:
+            cycle_paths.append(
+                (
+                    cycle_index + 1,
+                    cycle_orientation,
+                    paths_by_orientation[cycle_orientation],
+                )
+            )
     communicate(
         cps=cps,
         config=config,
@@ -559,14 +570,13 @@ def _run_door_small(door_num, force, z, cps, orientation, cycles=1):
     _perform_process_top(
         cps,
         config,
-        points1=zigzag_path,
+        points1=cycle_paths[0][2],
         force=force,
         sanding_speed=sanding_speed,
         robot_speed=robot_speed,
         seventh_target=x1,
-        cycles=cycles,
+        cycle_paths=cycle_paths,
     )
-
 
 def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
     config = load_config()
@@ -584,91 +594,79 @@ def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
 
     tcx0 = p8[0] + get_door_position(door_num)
     tcx1 = tcx0 + ((p6[0] - p7[0]) / 2)
-
-    _, zigzag_full, _, _ = generate_zigzag_path(
-        x_coords=points["x_coords"],
-        y_coords=points["y_coords"],
-        z_coords=points["z_coords"],
-        innerOffset=0,
-        innerOffsetX=0,
-        orientation=orientation,
-        innerSandingOffset=inner_sanding_offset,
-        edge_coverage=False,
-    )
-    zigzag_path1, zigzag_path2_global = _split_big_door_zigzag(zigzag_full, orientation)
-
-    if not zigzag_path1 and zigzag_full:
-        zigzag_path1 = zigzag_full[:]
-
-    orientation_mode = str(orientation or "vertical").strip().lower()
-    # Big-door reach split requirement: both orientations use 2 passes with
-    # seventh-axis x1/x2 shift.
-    # For horizontal, pass 2 must use the remaining upper rows (mid->top).
-    # Keep it in original local coordinates; x2 compensation is applied once
-    # in pass_plan to avoid over/under shifts.
-    if orientation_mode == "horizontal" and zigzag_path2_global:
-        zigzag_path2 = [list(p) for p in zigzag_path2_global]
-    elif zigzag_path1:
-        zigzag_path2 = [list(p) for p in zigzag_path1]
+    requested_orientation = str(orientation or "vertical").strip().lower()
+    if requested_orientation == "both":
+        cycle_orientations = ("vertical", "horizontal")
+    elif requested_orientation == "horizontal":
+        cycle_orientations = ("horizontal",)
     else:
-        zigzag_path2 = zigzag_path2_global if zigzag_path2_global else zigzag_full[:]
-
-    if zigzag_path1 and zigzag_path2:
-        print(
-            f"[ModelF] Door {door_num} split: x1 start={zigzag_path1[0][:3]}, "
-            f"x2 start={zigzag_path2[0][:3]}"
+        cycle_orientations = ("vertical",)
+    def build_pass_plan(cycle_orientation):
+        _, zigzag_full, _, _ = generate_zigzag_path(
+            x_coords=points["x_coords"],
+            y_coords=points["y_coords"],
+            z_coords=points["z_coords"],
+            innerOffset=0,
+            innerOffsetX=0,
+            orientation=cycle_orientation,
+            innerSandingOffset=inner_sanding_offset,
+            edge_coverage=False,
         )
+        path1, path2_global = _split_big_door_zigzag(
+            zigzag_full, cycle_orientation
+        )
+        if not path1 and zigzag_full:
+            path1 = zigzag_full[:]
 
-    if orientation_mode == "horizontal":
-        # Horizontal big-door split is by rows (bottom half, then top half).
-        # Keep x1->x2 seventh-axis transition, but compensate local X so global
-        # sanding coverage stays on the door (0..total length).
-        x2_shift = float(tcx1) - float(tcx0)
-        zigzag_path2 = [
-            [
-                float(p[0]) - x2_shift,
-                float(p[1]),
-                float(p[2]),
-                float(p[3]),
-                float(p[4]),
-                float(p[5]),
+        if cycle_orientation == "horizontal" and path2_global:
+            path2 = [list(point) for point in path2_global]
+        elif path1:
+            path2 = [list(point) for point in path1]
+        else:
+            path2 = path2_global if path2_global else zigzag_full[:]
+
+        if cycle_orientation == "horizontal":
+            x2_shift = float(tcx1) - float(tcx0)
+            path2 = [
+                [
+                    float(point[0]) - x2_shift,
+                    float(point[1]),
+                    float(point[2]),
+                    float(point[3]),
+                    float(point[4]),
+                    float(point[5]),
+                ]
+                for point in path2
             ]
-            for p in zigzag_path2
-        ]
-        pass_plan = [
-            (tcx0, zigzag_path1),
-            (tcx1, zigzag_path2),
-        ]
-    else:
-        pass_plan = [
-            (tcx0, zigzag_path1),
-            (tcx1, zigzag_path2),
-        ]
+        return [(tcx0, path1), (tcx1, path2)]
 
     operation_cycles = max(1, int(cycles))
-    pass_sequence = []
-    for operation_cycle in range(1, operation_cycles + 1):
-        cycle_passes = list(enumerate(pass_plan, start=1))
-        reverse_cycle = operation_cycle % 2 == 0
-        if reverse_cycle:
-            cycle_passes.reverse()
-        for pass_index, (current_tcx, current_path) in cycle_passes:
-            # Model F is zigzag, so reverse both the J7 pass order and path
-            # direction on alternating cycles to avoid an unnecessary return.
-            path = list(reversed(current_path)) if reverse_cycle else current_path
-            pass_sequence.append(
-                (operation_cycle, pass_index, current_tcx, path)
-            )
+    plans_by_orientation = {
+        path_orientation: build_pass_plan(path_orientation)
+        for path_orientation in cycle_orientations
+    }
 
-    for operation_cycle, pass_index, current_tcx, current_path in pass_sequence:
-        if not current_path:
+    # Complete every selected pattern on one J7 half before moving to the
+    # other half. Selecting both makes each cycle vertical + horizontal.
+    for pass_index in range(2):
+        cycle_paths = []
+        current_tcx = None
+        for operation_cycle in range(1, operation_cycles + 1):
+            for cycle_orientation in cycle_orientations:
+                cycle_tcx, cycle_path = plans_by_orientation[cycle_orientation][pass_index]
+                current_tcx = cycle_tcx
+                if cycle_path:
+                    cycle_paths.append(
+                        (operation_cycle, cycle_orientation, cycle_path)
+                    )
+
+        if not cycle_paths or current_tcx is None:
             continue
         print(
-            f"[ModelF] Door {door_num} cycle "
-            f"{operation_cycle}/{operation_cycles}, "
-            f"J7 pass {pass_index}/{len(pass_plan)}: {current_tcx}"
+            f"[ModelF] Door {door_num} grouped J7 pass "
+            f"{pass_index + 1}/2: J7={current_tcx}, "
+            f"cycles={operation_cycles}, patterns={cycle_orientations}"
         )
-        seventh_wait = False
         communicate(
             cps=cps,
             config=config,
@@ -677,23 +675,23 @@ def _run_door_big(door_num, force, z, cps, orientation, cycles=1):
             ucs=config["coords"]["ucsTable1"],
             speed=robot_speed,
             velocity_profile="robotspeed",
-            wait=seventh_wait,
+            wait=False,
         )
         _perform_process_top(
             cps,
             config,
-            points1=current_path,
+            points1=cycle_paths[0][2],
             force=force,
             sanding_speed=sanding_speed,
             robot_speed=robot_speed,
             seventh_target=current_tcx,
+            cycle_paths=cycle_paths,
         )
-
 
 def _run_door(door_num, force, z, cps, orientation, movement, cycles=1):
     # Model F: full-door zigzag only, no edge-coverage pass.
     orientation = str(orientation or "vertical").strip().lower()
-    if orientation not in {"vertical", "horizontal"}:
+    if orientation not in {"vertical", "horizontal", "both"}:
         orientation = "vertical"
 
     if movement != "zigzag":

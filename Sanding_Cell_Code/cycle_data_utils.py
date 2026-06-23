@@ -70,7 +70,7 @@ def get_spiral_settings(cycle_data: Mapping[str, Any]) -> SpiralSettings:
     movement = str(cfg.get("movement") or "zigzag").lower()
     if movement not in {"zigzag", "rect"}:
         movement = "zigzag"
-    if orientation not in {"vertical", "horizontal"}:
+    if orientation not in {"vertical", "horizontal", "both"}:
         orientation = "vertical"
     return SpiralSettings(
         enabled=_to_bool(cfg.get("enabled"), False),
@@ -88,8 +88,13 @@ def _extract_task_fields(task_cfg: Mapping[str, Any]) -> Dict[str, Any]:
     vertical_spiral = _to_bool(task_cfg.get("verticalSpiral"), False)
     horizontal_spiral = _to_bool(task_cfg.get("horizontalSpiral"), False)
     orientation = str(task_cfg.get("orientation") or "").strip().lower()
-    if orientation not in {"vertical", "horizontal"}:
-        orientation = "horizontal" if horizontal_spiral and not vertical_spiral else "vertical"
+    if orientation not in {"vertical", "horizontal", "both"}:
+        if vertical_spiral and horizontal_spiral:
+            orientation = "both"
+        elif horizontal_spiral:
+            orientation = "horizontal"
+        else:
+            orientation = "vertical"
     edge_flag = _to_bool(task_cfg.get("edge"), _to_bool(task_cfg.get("edgeCoverage"), False))
     return {
         "cycle": _to_int(task_cfg.get("cycle"), 0),
@@ -101,6 +106,15 @@ def _extract_task_fields(task_cfg: Mapping[str, Any]) -> Dict[str, Any]:
         "edge": edge_flag,
         "orientation": orientation,
     }
+
+
+def _normalize_tablea_task_fields(task_key: str, fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Enforce Table A Pocket ZigZag multi-cycle orientation behavior."""
+    if task_key == "pocketzigzag" and _to_int(fields.get("cycle"), 0) > 1:
+        fields["verticalSpiral"] = True
+        fields["horizontalSpiral"] = True
+        fields["orientation"] = "both"
+    return fields
 
 
 def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dict[int, Dict[str, Any]]:
@@ -149,7 +163,7 @@ def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dic
                     fields["edgeCoverage"] = _to_bool(shared_fields.get("edgeCoverage"), fields.get("edgeCoverage", False))
                     fields["edge"] = fields["edgeCoverage"]
 
-            by_door[door_num] = fields
+            by_door[door_num] = _normalize_tablea_task_fields(task_key, fields)
         return by_door
 
     # Legacy format
@@ -166,7 +180,7 @@ def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dic
         door_num = _to_int(door, 0)
         if door_num <= 0:
             continue
-        by_door[door_num] = dict(shared)
+        by_door[door_num] = _normalize_tablea_task_fields(task_key, dict(shared))
 
     return by_door
 

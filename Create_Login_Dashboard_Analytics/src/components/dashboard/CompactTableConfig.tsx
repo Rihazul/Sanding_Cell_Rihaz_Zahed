@@ -845,7 +845,12 @@ export function CompactTableConfig({
         prev.map(dc => {
           if (dc.doorNumber !== targetDoor) return dc;
           const newRows = [...dc.rows];
-          newRows[idx] = { ...newRows[idx], [field]: value };
+          const updatedRow = { ...newRows[idx], [field]: value };
+          if (rowLabel === 'Pocket ZigZag' && field === 'cycle' && Number(value) > 1) {
+            updatedRow.verticalSpiral = true;
+            updatedRow.horizontalSpiral = true;
+          }
+          newRows[idx] = updatedRow;
           return { ...dc, rows: newRows };
         })
       );
@@ -1009,12 +1014,7 @@ export function CompactTableConfig({
           }
 
           (nextRow as any)[option] = checked;
-          if (option === 'verticalSpiral' && checked) {
-            nextRow.horizontalSpiral = false;
-          }
-          if (option === 'horizontalSpiral' && checked) {
-            nextRow.verticalSpiral = false;
-          }
+
           newRows[idx] = nextRow;
           return { ...dc, rows: newRows };
         })
@@ -1023,12 +1023,15 @@ export function CompactTableConfig({
       setRows((prev: RowConfig[]) => {
         const next = [...prev];
         const nextRow = { ...next[idx], [option]: checked };
-        if (option === 'verticalSpiral' && checked) {
-          nextRow.horizontalSpiral = false;
+        if (tableName !== 'A') {
+          if (option === 'verticalSpiral' && checked) {
+            nextRow.horizontalSpiral = false;
+          }
+          if (option === 'horizontalSpiral' && checked) {
+            nextRow.verticalSpiral = false;
+          }
         }
-        if (option === 'horizontalSpiral' && checked) {
-          nextRow.verticalSpiral = false;
-        }
+
         next[idx] = nextRow;
         return next;
       });
@@ -1274,38 +1277,49 @@ export function CompactTableConfig({
 
                       {/* Pocket ZigZag Options - Second line below */}
                       {row.label === 'Pocket ZigZag' && (
-                        <div className="mt-4 pt-6 border-t border-indigo-100 flex items-center justify-center gap-3">
-                          <span className="text-sm text-gray-500 font-medium">Pattern:</span>
-                          <div className="flex items-center gap-3">
-                            <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                              row.verticalSpiral 
-                                ? 'bg-blue-500 border-blue-500 text-white' 
-                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                            }`}>
-                              <input
-                                type="checkbox"
-                                checked={row.verticalSpiral || false}
-                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
-                                disabled={isOperating}
-                                className="sr-only"
-                              />
-                              <span className="text-sm font-medium">↕ Vertical</span>
-                            </label>
-                            <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                              row.horizontalSpiral 
-                                ? 'bg-blue-500 border-blue-500 text-white' 
-                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                            }`}>
-                              <input
-                                type="checkbox"
-                                checked={row.horizontalSpiral || false}
-                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
-                                disabled={isOperating}
-                                className="sr-only"
-                              />
-                              <span className="text-sm font-medium">↔ Horizontal</span>
-                            </label>
+                        <div className="mt-4 pt-6 border-t border-indigo-100">
+                          <div className="flex items-center justify-center gap-3">
+                            <span className="text-sm text-gray-500 font-medium">Pattern:</span>
+                            <div className="flex items-center gap-3">
+                              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
+                                row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                              } ${
+                                row.verticalSpiral || row.cycle > 1
+                                  ? 'bg-blue-500 border-blue-500 text-white'
+                                  : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                              }`}>
+                                <input
+                                  type="checkbox"
+                                  checked={row.verticalSpiral || row.cycle > 1}
+                                  onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
+                                  disabled={isOperating || row.cycle > 1}
+                                  className="sr-only"
+                                />
+                                <span className="text-sm font-medium">↕ Vertical</span>
+                              </label>
+                              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
+                                row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                              } ${
+                                row.horizontalSpiral || row.cycle > 1
+                                  ? 'bg-blue-500 border-blue-500 text-white'
+                                  : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                              }`}>
+                                <input
+                                  type="checkbox"
+                                  checked={row.horizontalSpiral || row.cycle > 1}
+                                  onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
+                                  disabled={isOperating || row.cycle > 1}
+                                  className="sr-only"
+                                />
+                                <span className="text-sm font-medium">↔ Horizontal</span>
+                              </label>
+                            </div>
                           </div>
+                          {row.cycle > 1 && (
+                            <p className="mt-2 text-center text-xs font-medium text-indigo-700">
+                              More than 1 cycle selected: every cycle will run both Vertical and Horizontal patterns.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

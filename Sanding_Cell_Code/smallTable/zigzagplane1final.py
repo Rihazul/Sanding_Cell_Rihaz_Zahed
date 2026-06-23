@@ -880,52 +880,54 @@ def _run_small_door_zigzag(
 
     x_coords_path = [coord / 2 for coord in x_coords1] if split else x_coords1
     inner_sanding_offset = _resolve_inner_sanding_offset(json_config, default=67.5)
-    _, zigzag_pathp1, prepointp1 = generate_zigzag_path(
-        x_coords=x_coords_path,
-        y_coords=y_coords1,
-        z_coords=z_coords1,
-        innerOffset=22,
-        innerOffsetX=60,
-        orientation=orientation,
-        movement=movement,
-        innerSandingOffset=inner_sanding_offset,
-    )
-    zigzag_pathp1_left = zigzag_pathp1
-    zigzag_pathp1_right = zigzag_pathp1
-    if split:
-        _, zigzag_pathp1_left, _ = generate_zigzag_path(
+    requested_orientation = str(orientation or "vertical").strip().lower()
+    if requested_orientation == "both":
+        cycle_orientations = ("vertical", "horizontal")
+    elif requested_orientation == "horizontal":
+        cycle_orientations = ("horizontal",)
+    else:
+        cycle_orientations = ("vertical",)
+    if str(movement or "zigzag").lower() != "zigzag":
+        cycle_orientations = cycle_orientations[:1]
+
+    paths_by_orientation = {}
+    prepoints_by_orientation = {}
+    for path_orientation in cycle_orientations:
+        _, generated_path, generated_prepoint = generate_zigzag_path(
             x_coords=x_coords_path,
             y_coords=y_coords1,
             z_coords=z_coords1,
             innerOffset=22,
             innerOffsetX=60,
-            orientation=orientation,
+            orientation=path_orientation,
             movement=movement,
             innerSandingOffset=inner_sanding_offset,
         )
-        _, zigzag_pathp1_right, _ = generate_zigzag_path(
-            x_coords=x_coords_path,
-            y_coords=y_coords1,
-            z_coords=z_coords1,
-            innerOffset=22,
-            innerOffsetX=60,
-            orientation=orientation,
-            movement=movement,
-            innerSandingOffset=inner_sanding_offset,
-        )
+        paths_by_orientation[path_orientation] = generated_path
+        prepoints_by_orientation[path_orientation] = generated_prepoint
+
+    first_orientation = cycle_orientations[0]
+    zigzag_pathp1 = paths_by_orientation[first_orientation]
+    prepointp1 = prepoints_by_orientation[first_orientation]
     print("zigzag_pathp=", zigzag_pathp1)
     print("prepointp:", prepointp1)
 
-    def perform_process_top(zigzag_points, cycle_count):
+    def perform_process_top(cycle_paths):
         force_seek_linear = 5.0
         force_blending_timeout = 0.4 if split else 7.0
 
-        if zigzag_points and len(zigzag_points) > 0:
-            print("[Spiral] Moving to first zigzag point:", zigzag_points[0])
+        valid_cycle_paths = [
+            (cycle_number, cycle_orientation, cycle_path)
+            for cycle_number, cycle_orientation, cycle_path in cycle_paths
+            if cycle_path
+        ]
+        if valid_cycle_paths:
+            first_point = valid_cycle_paths[0][2][0]
+            print("[Spiral] Moving to first zigzag point:", first_point)
             communicate(
                 cps=cps,
                 config=config,
-                point=zigzag_points[0],
+                point=first_point,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
@@ -944,52 +946,57 @@ def _run_small_door_zigzag(
             )
             turn_vibration_on(cps)
 
-            total_cycles = max(1, int(cycle_count))
-            for cycle_index in range(total_cycles):
+            motion_points = []
+            total_cycles = max(int(item[0]) for item in valid_cycle_paths)
+            for cycle_number, cycle_orientation, cycle_points in valid_cycle_paths:
                 if stop_requested():
                     raise RuntimeError("[ZigZag] Stop requested.")
-                cycle_points = (
-                    zigzag_points
-                    if cycle_index % 2 == 0
-                    else list(reversed(zigzag_points))
-                )
-                direction = "forward" if cycle_index % 2 == 0 else "reverse"
                 print(
-                    f"[ZigZag] Continuous cycle {cycle_index + 1}/{total_cycles} "
-                    f"direction={direction}"
+                    f"[ZigZag] Continuous cycle {cycle_number}/{total_cycles} "
+                    f"orientation={cycle_orientation}"
                 )
-                for index, point_A in enumerate(cycle_points):
-                    if index + 1 >= len(cycle_points):
-                        break
-                    point_B = cycle_points[index + 1]
-                    print("Linear move from A to B:", point_A, "->", point_B)
-                    is_last_segment = index == (len(cycle_points) - 2)
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point_B,
-                        tcp=config["coords"]["tcptool4plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=float(json_config["sandingSpeed"]),
-                        velocity_profile="sandingspeed",
-                        speed_mode="linear",
-                        wait=is_last_segment,
-                    )
+                # The next orientation's first point is the in-contact connector.
+                if motion_points:
+                    motion_points.extend(cycle_points)
+                else:
+                    motion_points.extend(cycle_points[1:])
 
-                waitForBlending(
+            for point_index, point_b in enumerate(motion_points):
+                if stop_requested():
+                    raise RuntimeError("[ZigZag] Stop requested.")
+                communicate(
                     cps=cps,
                     config=config,
-                    timeout_s=_resolve_sanding_blend_timeout(config),
+                    point=point_b,
+                    tcp=config["coords"]["tcptool4plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=float(json_config["sandingSpeed"]),
+                    velocity_profile="sandingspeed",
+                    speed_mode="linear",
+                    wait=point_index == len(motion_points) - 1,
                 )
+            waitForBlending(
+                cps=cps,
+                config=config,
+                timeout_s=_resolve_sanding_blend_timeout(config),
+            )
         turn_vibration_off(cps)
         releaseForce(cps=cps, config=config)
 
+    total_cycles = max(1, int(cycles))
+    cycle_paths = []
+    for cycle_index in range(total_cycles):
+        for cycle_orientation in cycle_orientations:
+            cycle_paths.append(
+                (
+                    cycle_index + 1,
+                    cycle_orientation,
+                    paths_by_orientation[cycle_orientation],
+                )
+            )
     for idx, seventh_pos in enumerate(seventh_positions):
         first_split = split and idx == 0
-        current_zigzag = zigzag_pathp1
-        if split:
-            current_zigzag = zigzag_pathp1_left if idx == 0 else zigzag_pathp1_right
         if not first_split:
             communicate(
                 cps=cps,
@@ -1013,7 +1020,7 @@ def _run_small_door_zigzag(
                     wait=True,
                 )
 
-        perform_process_top(current_zigzag, cycles)
+        perform_process_top(cycle_paths)
         communicate(
             cps=cps,
             config=config,
