@@ -894,7 +894,7 @@ def start_TableB_process():
     global j7_home_confirmed
     data = request.json
 
-    if client_process and client_process.is_alive():
+    if (client_process and client_process.is_alive()) or (client_thread and client_thread.is_alive()):
         return jsonify({'status': 'error', 'message': 'Process already running'})
 
     if not data:
@@ -975,12 +975,14 @@ def start_TableB_process():
 
 @app.route('/start_TableA_process', methods=['POST'])
 def start_TableA_process():
-    global client_process
+    global client_process, client_thread
     global j7_home_confirmed
     data = request.json
+    route_start = time.monotonic()
+    route_timings = {}
     print("Received data in start_TableA_process:", data)
 
-    if client_process and client_process.is_alive():
+    if (client_process and client_process.is_alive()) or (client_thread and client_thread.is_alive()):
         return jsonify({'status': 'error', 'message': 'Process already running'})
 
     if not data:
@@ -990,7 +992,9 @@ def start_TableA_process():
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
 
     tableData = data['TableA']
+    step_start = time.monotonic()
     scan_status = _get_tablea_scan_status()
+    route_timings["scanStatusSeconds"] = time.monotonic() - step_start
     if not scan_status.get("hasScan"):
         return jsonify(
             {
@@ -1052,7 +1056,9 @@ def start_TableA_process():
         and _tablea_scan_recent(scan_status)
     )
 
+    step_start = time.monotonic()
     runtime_config = load_config()
+    route_timings["loadConfigSeconds"] = time.monotonic() - step_start
     auto_model_f_from_scan = bool(
         runtime_config.get("settings", {}).get("autoModelFFromScan", False)
     )
@@ -1065,36 +1071,40 @@ def start_TableA_process():
         print("Applying backend Model F guard: only pocketzigzag is allowed; forcing Tool 4 workflow.")
         _enforce_model_f_tablea_payload(tableData)
 
+    step_start = time.monotonic()
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
+    route_timings["cycleDataWriteSeconds"] = time.monotonic() - step_start
 
+    step_start = time.monotonic()
     clear_stop()
+    route_timings["clearStopSeconds"] = time.monotonic() - step_start
     launch_start = time.monotonic()
-    # Disconnect/reset parent CPS before child opens its own CPS session.
-    disconnect_start = time.monotonic()
-    _disconnect_global_cps_for_child_start()
-    disconnect_elapsed = time.monotonic() - disconnect_start
-    child_start = time.monotonic()
-    client_process = Process(
-        target=run_tablea_task_child,
-        args=(tableData['model'], recent_matching_scan),
-    )
+    thread_start = time.monotonic()
     process_state['status'] = 'in_progress'
-    client_process.start()
-    app.logger.info(
-        "[TableA Start] child process started in %.3fs "
-        "(parent disconnect=%.3fs); total launch %.3fs. "
-        "Table/stoppers preparation now runs inside child.",
-        time.monotonic() - child_start,
-        disconnect_elapsed,
-        time.monotonic() - launch_start,
+    process_state['last_action'] = 'tableA_task'
+    client_thread = Thread(
+        target=_run_tablea_task_thread,
+        args=(tableData['model'], recent_matching_scan),
+        daemon=True,
     )
-    Thread(target=_track_process, args=(client_process,), daemon=True).start()
+    client_thread.start()
+    thread_elapsed = time.monotonic() - thread_start
+    total_elapsed = time.monotonic() - launch_start
+    route_timings["workerStartSeconds"] = thread_elapsed
+    route_timings["launchSeconds"] = total_elapsed
+    route_timings["routeTotalSeconds"] = time.monotonic() - route_start
+    app.logger.info(
+        "[TableA Start] response ready in %.3fs; timings=%s",
+        route_timings["routeTotalSeconds"],
+        route_timings,
+    )
 
     return jsonify({
         'success': True,
         'process' : "started",
-        "status": "Process started"
+        "status": "Process started",
+        "timings": route_timings,
     })
 
 
@@ -1280,6 +1290,102 @@ def _disconnect_global_cps_for_child_start():
     """Disconnect and reset CPS once before starting a child."""
     with robot_lock:
         _hard_reset_cps_runtime()
+
+
+def _fast_detach_global_cps_for_child_start():
+    """Fast parent CPS detach before a Table A worker owns robot access.
+
+    This avoids blocking the start-task HTTP response on SDK disconnect
+    timeouts while still closing parent sockets and resetting the wrapper.
+    """
+    global CPS, _cps_last_connect_attempt
+    with robot_lock:
+        try:
+            client = CPS.g_clients[0]
+            for attr in ("tcp", "tcp_fast"):
+                sock = getattr(client, attr, None)
+                if sock is not None:
+                    try:
+                        sock.close()
+                    except Exception:
+                        pass
+                    try:
+                        setattr(client, attr, None)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        try:
+            plugin_client = CPS.g_plugin_clients[0]
+            sock = getattr(plugin_client, "tcp", None)
+            if sock is not None:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+                try:
+                    plugin_client.tcp = None
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            CPS.g_clients[0] = RbtClient()
+            CPS.g_plugin_clients[0] = PluginClient()
+            CPS.g_client_state[0] = False
+            CPS.g_plugin_client_state[0] = False
+        except Exception:
+            CPS = CPSClient()
+        _cps_last_connect_attempt = 0.0
+
+
+def _post_scan_prepare_for_tablea_start():
+    """Detach the scan CPS session after scan so first task start is not delayed."""
+    try:
+        # Let /action return and release robot_lock before cleanup starts.
+        time.sleep(0.05)
+        start = time.monotonic()
+        _fast_detach_global_cps_for_child_start()
+        app.logger.info(
+            "[scan] Post-scan CPS detach complete in %.3fs; Table A start is prepped.",
+            time.monotonic() - start,
+        )
+    except Exception as exc:
+        try:
+            app.logger.warning("[scan] Post-scan CPS detach skipped/failed: %s", exc)
+        except Exception:
+            pass
+
+
+def _run_tablea_task_thread(model_key, recent_matching_scan=False):
+    """Run Table A task in a background thread to avoid Windows process spawn delay."""
+    global client_thread, _last_child_exit_ts, _cps_reconnect_grace_until
+    ok = False
+    try:
+        detach_start = time.monotonic()
+        _fast_detach_global_cps_for_child_start()
+        app.logger.info(
+            "[TableA Thread] parent CPS detached in %.3fs before worker connect.",
+            time.monotonic() - detach_start,
+        )
+        run_tablea_task_child(model_key, recent_matching_scan)
+        ok = True
+    except Exception as exc:
+        try:
+            app.logger.exception("[TableA Thread] task failed: %s", exc)
+        except Exception:
+            print(f"[TableA Thread] task failed: {exc}")
+    finally:
+        _last_child_exit_ts = time.monotonic()
+        _cps_reconnect_grace_until = _last_child_exit_ts + max(CPS_RECONNECT_GRACE_SECONDS, POST_STOP_GRACE_SECONDS)
+        process_state['status'] = 'completed' if ok else 'failed'
+        process_state['last_action'] = None
+        client_thread = None
+        socketio.emit(
+            'flash_message',
+            {"message": "Process finished" if ok else "Process failed"},
+        )
+        _fast_detach_global_cps_for_child_start()
 
 ############################################################################################
 # Start the handle_client process threads
@@ -2613,6 +2719,7 @@ def handle_action():
                     model=scan_model,
                     door_models=scan_door_models,
                 )
+                Thread(target=_post_scan_prepare_for_tablea_start, daemon=True).start()
                 return jsonify(
                     {
                         'status': 'success',
