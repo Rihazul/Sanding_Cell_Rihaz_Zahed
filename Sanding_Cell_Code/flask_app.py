@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-from threading import Thread
+from threading import Thread, Timer
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
 from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
 from Server_Better_V2 import _get_tool_in_hand, _read_tool_sensors
@@ -1106,11 +1106,14 @@ def start_TableA_process():
     thread_start = time.monotonic()
     process_state['status'] = 'in_progress'
     process_state['last_action'] = 'tableA_task'
-    client_thread = Thread(
-        target=_run_tablea_task_thread,
+    # Defer worker execution slightly so the HTTP response reaches the UI
+    # before heavy model imports/CPS preparation can take the GIL or robot lock.
+    client_thread = Timer(
+        0.05,
+        _run_tablea_task_thread,
         args=(tableData['model'], recent_matching_scan),
-        daemon=True,
     )
+    client_thread.daemon = True
     client_thread.start()
     thread_elapsed = time.monotonic() - thread_start
     total_elapsed = time.monotonic() - launch_start
@@ -1315,51 +1318,60 @@ def _disconnect_global_cps_for_child_start():
         _hard_reset_cps_runtime()
 
 
-def _fast_detach_global_cps_for_child_start():
+def _fast_detach_global_cps_for_child_start_locked():
     """Fast parent CPS detach before a Table A worker owns robot access.
 
     This avoids blocking the start-task HTTP response on SDK disconnect
     timeouts while still closing parent sockets and resetting the wrapper.
     """
     global CPS, _cps_last_connect_attempt
-    with robot_lock:
-        try:
-            client = CPS.g_clients[0]
-            for attr in ("tcp", "tcp_fast"):
-                sock = getattr(client, attr, None)
-                if sock is not None:
-                    try:
-                        sock.close()
-                    except Exception:
-                        pass
-                    try:
-                        setattr(client, attr, None)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-        try:
-            plugin_client = CPS.g_plugin_clients[0]
-            sock = getattr(plugin_client, "tcp", None)
+  
+    try:
+        client = CPS.g_clients[0]
+        for attr in ("tcp", "tcp_fast"):
+            sock = getattr(client, attr, None)
             if sock is not None:
                 try:
                     sock.close()
                 except Exception:
                     pass
                 try:
-                    plugin_client.tcp = None
+                    setattr(client, attr, None)
                 except Exception:
                     pass
-        except Exception:
-            pass
-        try:
-            CPS.g_clients[0] = RbtClient()
-            CPS.g_plugin_clients[0] = PluginClient()
-            CPS.g_client_state[0] = False
-            CPS.g_plugin_client_state[0] = False
-        except Exception:
-            CPS = CPSClient()
-        _cps_last_connect_attempt = 0.0
+    except Exception:
+        pass
+    try:
+        plugin_client = CPS.g_plugin_clients[0]
+        sock = getattr(plugin_client, "tcp", None)
+        if sock is not None:
+            try:
+                sock.close()
+            except Exception:
+                pass
+            try:
+                plugin_client.tcp = None
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        CPS.g_clients[0] = RbtClient()
+        CPS.g_plugin_clients[0] = PluginClient()
+        CPS.g_client_state[0] = False
+        CPS.g_plugin_client_state[0] = False
+    except Exception:
+        CPS = CPSClient()
+    _cps_last_connect_attempt = 0.0
+        
+
+def _fast_detach_global_cps_for_child_start():
+    """
+    Fast parent CPS detach before a Table A worker owns robot access.
+    Safe to call when robot_lock is NOT already held.
+    """
+    with robot_lock:
+        _fast_detach_global_cps_for_child_start_locked()
 
 
 def _post_scan_prepare_for_tablea_start():
@@ -2742,7 +2754,14 @@ def handle_action():
                     model=scan_model,
                     door_models=scan_door_models,
                 )
-                Thread(target=_post_scan_prepare_for_tablea_start, daemon=True).start()
+                detach_start = time.monotonic()
+                _fast_detach_global_cps_for_child_start_locked()
+                
+                config["logger"].info(
+                    "[scan] CPS detached synchronously after scan in %.3fs; Table A start is ready.",
+                    time.monotonic() - detach_start
+                )
+                
                 return jsonify(
                     {
                         'status': 'success',
@@ -2750,6 +2769,7 @@ def handle_action():
                         'scanStatus': _get_tablea_scan_status(),
                     }
                 )
+                
         except Exception as exc:
             if stop_requested():
                 config['logger'].info("[scan] Scan cancelled by stop request: %s", exc)
@@ -2764,4 +2784,4 @@ def handle_action():
 ############################################################################################
 if __name__ == '__main__':
     # Desktop/runtime mode should avoid Flask reloader duplicates.
-    app.run(host='0.0.0.0', port=5100, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=5100, debug=False, use_reloader=False, threaded=True)
