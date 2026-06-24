@@ -107,7 +107,7 @@ def _run_tool2_side_process(
             releaseForce(cps=cps, config=config)
 
 
-def _run_tool2_side_by_ylen(door_num, force, cps, small_runner, big_runner):
+def _run_tool2_side_by_ylen(door_num, force, cps, cycles, small_runner, big_runner):
     ylen_data = get_y_values(door_num, default_on_error=True)
     ylen = ylen_data['ylen']
     print("ylen:", ylen)
@@ -122,12 +122,19 @@ def _run_tool2_side_by_ylen(door_num, force, cps, small_runner, big_runner):
             f"Tool 2 side cannot run Door {door_num}: invalid ylen value {ylen!r}."
         )
 
-    if ylen > 600:
-        return big_runner(force, cps)
-    return small_runner(force, cps)
+    cycle_count = max(1, int(cycles))
+    runner = big_runner if ylen > 600 else small_runner
+    door_size = "big" if ylen > 600 else "small"
+    for cycle_index in range(cycle_count):
+        print(
+            f"\n=== Tool 2 side {door_size}-door internal cycle "
+            f"{cycle_index + 1}/{cycle_count} (Door {door_num}) ==="
+        )
+        runner(force, cps)
+    return
 
 
-def door1frametool2side(force,cps):
+def door1frametool2side(force,cps,cycles=1):
     def door1frametool2sidebig(force,cps):
 
 
@@ -475,7 +482,7 @@ def door1frametool2side(force,cps):
 
 
 
-    def door1frametool2sidesmall(force,cps):
+    def door1frametool2sidesmall(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -676,12 +683,13 @@ def door1frametool2side(force,cps):
         1,
         force,
         cps,
+        cycles,
         door1frametool2sidesmall,
         door1frametool2sidebig,
     )
 
 
-def door2frametool2side(force,cps):
+def door2frametool2side(force,cps,cycles=1):
     def door2frametool2sidebig(force,cps):
 
 
@@ -1024,7 +1032,7 @@ def door2frametool2side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    def door2frametool2sidesmall(force,cps):
+    def door2frametool2sidesmall(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -1222,12 +1230,13 @@ def door2frametool2side(force,cps):
         2,
         force,
         cps,
+        cycles,
         door2frametool2sidesmall,
         door2frametool2sidebig,
     )
 
 
-def door3frametool2side(force,cps):
+def door3frametool2side(force,cps,cycles=1):
     def door3frametool2sidebig(force,cps):
 
 
@@ -1570,7 +1579,7 @@ def door3frametool2side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    def door3frametool2sidesmall(force,cps):
+    def door3frametool2sidesmall(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -1768,12 +1777,13 @@ def door3frametool2side(force,cps):
         3,
         force,
         cps,
+        cycles,
         door3frametool2sidesmall,
         door3frametool2sidebig,
     )
 
 
-def door4frametool2side(force,cps):
+def door4frametool2side(force,cps,cycles=1):
     def door4frametool2sidebig(force,cps):
 
 
@@ -2116,7 +2126,7 @@ def door4frametool2side(force,cps):
 
         # cps.HRIF_DisConnect(0)
 
-    def door4frametool2sidesmall(force,cps):
+    def door4frametool2sidesmall(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -2314,6 +2324,7 @@ def door4frametool2side(force,cps):
         4,
         force,
         cps,
+        cycles,
         door4frametool2sidesmall,
         door4frametool2sidebig,
     )

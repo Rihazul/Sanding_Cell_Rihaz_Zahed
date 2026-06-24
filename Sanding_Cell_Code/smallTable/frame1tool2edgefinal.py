@@ -126,7 +126,7 @@ def _run_tool2_edge_process(
             releaseForce(cps=cps, config=config)
 
 
-def _run_tool2_edge_by_ylen(door_num, force, cps, small_runner, big_runner):
+def _run_tool2_edge_by_ylen(door_num, force, cps, cycles, small_runner, big_runner):
     ylen_data = get_y_values(door_num, default_on_error=False)
     ylen = ylen_data['ylen']
     print("ylen:", ylen)
@@ -142,13 +142,18 @@ def _run_tool2_edge_by_ylen(door_num, force, cps, small_runner, big_runner):
         print(f"Invalid ylen value type: {type(ylen)} - expected number or 'null'")
         return
 
-    if ylen > 600:
-        big_runner(force, cps)
-    else:
-        small_runner(force, cps)
+    cycle_count = max(1, int(cycles))
+    runner = big_runner if ylen > 600 else small_runner
+    door_size = "big" if ylen > 600 else "small"
+    for cycle_index in range(cycle_count):
+        print(
+            f"\n=== Tool 2 edge {door_size}-door internal cycle "
+            f"{cycle_index + 1}/{cycle_count} (Door {door_num}) ==="
+        )
+        runner(force, cps)
 
 
-def door1frametool2sideedge(force,cps):
+def door1frametool2sideedge(force,cps,cycles=1):
     def door1frametool2sidebigedge(force,cps):
         # Load configuration
         config = load_config()
@@ -493,7 +498,7 @@ def door1frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
-    def door1frametool2edgesmalledge(force,cps):
+    def door1frametool2edgesmalledge(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -690,12 +695,13 @@ def door1frametool2sideedge(force,cps):
         1,
         force,
         cps,
+        cycles,
         door1frametool2edgesmalledge,
         door1frametool2sidebigedge,
     )
 
 
-def door2frametool2sideedge(force,cps):
+def door2frametool2sideedge(force,cps,cycles=1):
     def door2frametool2sidebigedge(force,cps):
         # Load configuration
         config = load_config()
@@ -1040,7 +1046,7 @@ def door2frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
-    def door2frametool2edgesmalledge(force,cps):
+    def door2frametool2edgesmalledge(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -1237,12 +1243,13 @@ def door2frametool2sideedge(force,cps):
         2,
         force,
         cps,
+        cycles,
         door2frametool2edgesmalledge,
         door2frametool2sidebigedge,
     )
 
 
-def door3frametool2sideedge(force,cps):
+def door3frametool2sideedge(force,cps,cycles=1):
     def door3frametool2sidebigedge(force,cps):
         # Load configuration
         config = load_config()
@@ -1587,7 +1594,7 @@ def door3frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
-    def door3frametool2edgesmalledge(force,cps):
+    def door3frametool2edgesmalledge(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -1784,12 +1791,13 @@ def door3frametool2sideedge(force,cps):
         3,
         force,
         cps,
+        cycles,
         door3frametool2edgesmalledge,
         door3frametool2sidebigedge,
     )
 
 
-def door4frametool2sideedge(force,cps):
+def door4frametool2sideedge(force,cps,cycles=1):
     def door4frametool2sidebigedge(force,cps):
         # Load configuration
         config = load_config()
@@ -2133,7 +2141,7 @@ def door4frametool2sideedge(force,cps):
         # moveOnlyJ6r(cps, -90, config)
         # cps.HRIF_DisConnect(0)
 
-    def door4frametool2edgesmalledge(force,cps):
+    def door4frametool2edgesmalledge(force,cps,cycles=1):
         # Load configuration
         config = load_config()
         config['logger'] = setup_logger(config['settings']['debug'])
@@ -2330,6 +2338,7 @@ def door4frametool2sideedge(force,cps):
         4,
         force,
         cps,
+        cycles,
         door4frametool2edgesmalledge,
         door4frametool2sidebigedge,
     )
