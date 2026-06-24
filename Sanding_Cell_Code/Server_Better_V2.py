@@ -42,7 +42,6 @@ def waitForBlending(cps, config, timeout_s=None):
                     nret_robot == 0
                     and isinstance(robot_state, (list, tuple))
                     and len(robot_state) > 11
-                    and str(robot_state[0]).strip() == "0"
                     and str(robot_state[11]).strip() == "1"
                 )
                 if robot_idle:
@@ -6395,7 +6394,7 @@ def communicate(
                 if len(robotRes)<= 11:
                     raise IndexError(f"customMoveL: robotRes too short ({len(robotRes)}): {robotRes}")
 
-                if str(robotRes[0]).strip() == "0" and str(robotRes[11]).strip() == "1":
+                if str(robotRes[11]).strip() == "1":
                     break
                 if (time.time() - wait_start) >= move_wait_timeout_s:
                     config["logger"].warning(
@@ -7415,8 +7414,7 @@ def keepTool11(
             nret_state == 0
             and isinstance(robot_state, (list, tuple))
             and len(robot_state) > 11
-            and str(robot_state[0]).strip() == "0"
-                    and str(robot_state[11]).strip() == "1"
+            and str(robot_state[11]).strip() == "1"
         )
         if not robot_idle:
             msg_to_frontend(
@@ -7454,8 +7452,7 @@ def keepTool11(
             nret_state == 0
             and isinstance(robot_state, (list, tuple))
             and len(robot_state) > 11
-            and str(robot_state[0]).strip() == "0"
-                    and str(robot_state[11]).strip() == "1"
+            and str(robot_state[11]).strip() == "1"
         )
         if not robot_idle:
             msg_to_frontend(
@@ -8255,5 +8252,3 @@ if __name__ == "__main__":
         config = yaml.safe_load(file)
 
     handle_client(config)
-
-
