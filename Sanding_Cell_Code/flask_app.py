@@ -106,7 +106,15 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def _scan_indicates_model_f():
+def _scan_indicates_model_f(use_cache=True):
+    if use_cache:
+        try:
+            cached = _load_tablea_scan_meta().get("modelFDetectedFromScan")
+            if isinstance(cached, bool):
+                return cached
+        except Exception:
+            pass
+
     scan_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "smallTable",
@@ -349,7 +357,38 @@ def _save_tablea_scan_meta(payload: dict) -> None:
         pass
 
 
-def _set_tablea_scan_meta(signature=None, model=None, door_models=None):
+def _get_tablea_scan_revision():
+    try:
+        if os.path.exists(TABLEA_SCAN_RESULTS_PATH):
+            return os.path.getmtime(TABLEA_SCAN_RESULTS_PATH)
+    except Exception:
+        pass
+    return None
+
+
+def _normalize_tablea_door_numbers(values):
+    if not isinstance(values, list):
+        return None
+    detected = []
+    for value in values:
+        try:
+            door_number = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= door_number <= 4:
+            detected.append(door_number)
+    return sorted(set(detected))
+
+
+def _set_tablea_scan_meta(
+    signature=None,
+    model=None,
+    door_models=None,
+    detected_door_numbers=None,
+    door_detection_available=None,
+    scan_revision=None,
+    model_f_detected=None,
+):
     payload = {
         "hasScan": True,
         "scannedAt": datetime.now().isoformat(timespec="seconds"),
@@ -357,6 +396,14 @@ def _set_tablea_scan_meta(signature=None, model=None, door_models=None):
         "model": model or "",
         "doorModels": door_models or [],
     }
+    if detected_door_numbers is not None:
+        payload["detectedDoorNumbers"] = _normalize_tablea_door_numbers(detected_door_numbers) or []
+    if door_detection_available is not None:
+        payload["doorDetectionAvailable"] = bool(door_detection_available)
+    if scan_revision is not None:
+        payload["scanRevision"] = scan_revision
+    if model_f_detected is not None:
+        payload["modelFDetectedFromScan"] = bool(model_f_detected)
     _save_tablea_scan_meta(payload)
 
 
@@ -437,12 +484,7 @@ def _get_tablea_scan_status():
     meta = _load_tablea_scan_meta()
     has_scan_file = os.path.exists(TABLEA_SCAN_RESULTS_PATH)
     has_scan = bool(has_scan_file or meta.get("hasScan"))
-    scan_revision = None
-    if has_scan_file:
-        try:
-            scan_revision = os.path.getmtime(TABLEA_SCAN_RESULTS_PATH)
-        except Exception:
-            scan_revision = None
+    scan_revision = _get_tablea_scan_revision()
     if not has_scan:
         return {
             "hasScan": False,
@@ -454,13 +496,25 @@ def _get_tablea_scan_status():
             "doorDetectionAvailable": False,
             "isScanning": _inline_scan_active.is_set(),
             "scanRevision": scan_revision,
+            "modelFDetectedFromScan": False,
         }
     if not meta.get("scannedAt"):
         try:
             meta["scannedAt"] = datetime.fromtimestamp(scan_revision).isoformat(timespec="seconds")
         except Exception:
             meta["scannedAt"] = None
-    detected_door_numbers = _get_detected_tablea_door_numbers()
+
+    cached_detected = _normalize_tablea_door_numbers(meta.get("detectedDoorNumbers"))
+    cached_detection_available = meta.get("doorDetectionAvailable")
+    if isinstance(cached_detection_available, bool) and cached_detected is not None:
+        detected_door_numbers = cached_detected
+        door_detection_available = cached_detection_available
+    else:
+        # Fallback only for old scan metadata. New scans cache this once at scan completion,
+        # so Start Task does not re-read scan_results.json in the hot path.
+        detected_door_numbers = _get_detected_tablea_door_numbers()
+        door_detection_available = detected_door_numbers is not None
+
     return {
         "hasScan": True,
         "scannedAt": meta.get("scannedAt"),
@@ -468,9 +522,10 @@ def _get_tablea_scan_status():
         "model": meta.get("model", ""),
         "doorModels": meta.get("doorModels", []),
         "detectedDoorNumbers": detected_door_numbers or [],
-        "doorDetectionAvailable": detected_door_numbers is not None,
+        "doorDetectionAvailable": door_detection_available,
         "isScanning": _inline_scan_active.is_set(),
         "scanRevision": scan_revision,
+        "modelFDetectedFromScan": bool(meta.get("modelFDetectedFromScan", False)),
     }
 
 
@@ -1000,10 +1055,15 @@ def start_TableB_process():
 def start_TableA_process():
     global client_process, client_thread
     global j7_home_confirmed
-    data = request.json
     route_start = time.monotonic()
-    route_timings = {}
+    step_start = time.monotonic()
+    data = request.json
+    route_timings = {"requestJsonSeconds": time.monotonic() - step_start}
     print("Received data in start_TableA_process:", data)
+    app.logger.info(
+        "[TableA Start][pre-worker] request entered; requestJsonSeconds=%.3fs",
+        route_timings["requestJsonSeconds"],
+    )
 
     if (client_process and client_process.is_alive()) or (client_thread and client_thread.is_alive()):
         return jsonify({'status': 'error', 'message': 'Process already running'})
@@ -1015,9 +1075,17 @@ def start_TableA_process():
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
 
     tableData = data['TableA']
+    app.logger.info("[TableA Start][pre-worker] scan_status begin")
     step_start = time.monotonic()
     scan_status = _get_tablea_scan_status()
     route_timings["scanStatusSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] scan_status done in %.3fs; hasScan=%s detected=%s detectionAvailable=%s",
+        route_timings["scanStatusSeconds"],
+        scan_status.get("hasScan"),
+        scan_status.get("detectedDoorNumbers"),
+        scan_status.get("doorDetectionAvailable"),
+    )
     if not scan_status.get("hasScan"):
         return jsonify(
             {
@@ -1026,10 +1094,20 @@ def start_TableA_process():
             }
         ), 409
 
+    app.logger.info("[TableA Start][pre-worker] active-door validation begin")
+    step_start = time.monotonic()
     if scan_status.get("doorDetectionAvailable"):
         detected_doors = set(scan_status.get("detectedDoorNumbers") or [])
         requested_doors = _get_requested_tablea_task_doors(tableData)
         unavailable_doors = sorted(requested_doors - detected_doors)
+        route_timings["activeDoorValidationSeconds"] = time.monotonic() - step_start
+        app.logger.info(
+            "[TableA Start][pre-worker] active-door validation done in %.3fs; requested=%s detected=%s unavailable=%s",
+            route_timings["activeDoorValidationSeconds"],
+            sorted(requested_doors),
+            sorted(detected_doors),
+            unavailable_doors,
+        )
         if unavailable_doors:
             return jsonify(
                 {
@@ -1042,10 +1120,18 @@ def start_TableA_process():
                     "invalidDoorNumbers": unavailable_doors,
                 }
             ), 409
+    else:
+        route_timings["activeDoorValidationSeconds"] = time.monotonic() - step_start
+        app.logger.info(
+            "[TableA Start][pre-worker] active-door validation skipped in %.3fs",
+            route_timings["activeDoorValidationSeconds"],
+        )
 
     # Support both payload formats:
     # 1) Legacy: TableA.model + task objects
     # 2) Door-based: TableA.doors[] where each door can include model + task objects
+    app.logger.info("[TableA Start][pre-worker] model resolve begin")
+    step_start = time.monotonic()
     selected_model = tableData.get('model')
     if not selected_model or selected_model == 'None':
         doors = tableData.get('doors')
@@ -1060,7 +1146,15 @@ def start_TableA_process():
                 return jsonify({"error": "Invalid request, no model found for TableA"}), 400
         # Make it available to any downstream code that still expects TableA.model
         tableData['model'] = selected_model
+    route_timings["modelResolveSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] model resolve done in %.3fs; selected_model=%s",
+        route_timings["modelResolveSeconds"],
+        selected_model,
+    )
 
+    app.logger.info("[TableA Start][pre-worker] signature validation begin")
+    step_start = time.monotonic()
     current_signature = _build_tablea_signature(tableData)
     previous_signature = str(scan_status.get("signature") or "").strip()
     if previous_signature and current_signature and previous_signature != current_signature:
@@ -1078,10 +1172,23 @@ def start_TableA_process():
         and previous_signature == current_signature
         and _tablea_scan_recent(scan_status)
     )
+    route_timings["signatureValidationSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] signature validation done in %.3fs; recentMatching=%s",
+        route_timings["signatureValidationSeconds"],
+        recent_matching_scan,
+    )
 
+    app.logger.info("[TableA Start][pre-worker] load_config begin")
     step_start = time.monotonic()
     runtime_config = load_config()
     route_timings["loadConfigSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] load_config done in %.3fs",
+        route_timings["loadConfigSeconds"],
+    )
+    app.logger.info("[TableA Start][pre-worker] modelF guard begin")
+    step_start = time.monotonic()
     auto_model_f_from_scan = bool(
         runtime_config.get("settings", {}).get("autoModelFFromScan", False)
     )
@@ -1093,19 +1200,40 @@ def start_TableA_process():
     if selected_model == "modelF":
         print("Applying backend Model F guard: only pocketzigzag is allowed; forcing Tool 4 workflow.")
         _enforce_model_f_tablea_payload(tableData)
+    route_timings["modelFGuardSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] modelF guard done in %.3fs; selected_model=%s autoModelF=%s",
+        route_timings["modelFGuardSeconds"],
+        selected_model,
+        auto_model_f_from_scan,
+    )
 
+    app.logger.info("[TableA Start][pre-worker] cycleData write begin")
     step_start = time.monotonic()
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
     route_timings["cycleDataWriteSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] cycleData write done in %.3fs",
+        route_timings["cycleDataWriteSeconds"],
+    )
 
+    app.logger.info("[TableA Start][pre-worker] clear_stop begin")
     step_start = time.monotonic()
     clear_stop()
     route_timings["clearStopSeconds"] = time.monotonic() - step_start
+    app.logger.info(
+        "[TableA Start][pre-worker] clear_stop done in %.3fs",
+        route_timings["clearStopSeconds"],
+    )
     launch_start = time.monotonic()
     thread_start = time.monotonic()
     process_state['status'] = 'in_progress'
     process_state['last_action'] = 'tableA_task'
+    app.logger.info(
+        "[TableA Start][pre-worker] worker timer setup begin; timings_so_far=%s",
+        route_timings,
+    )
     # Defer worker execution slightly so the HTTP response reaches the UI
     # before heavy model imports/CPS preparation can take the GIL or robot lock.
     client_thread = Timer(
@@ -1116,6 +1244,10 @@ def start_TableA_process():
     client_thread.daemon = True
     client_thread.start()
     thread_elapsed = time.monotonic() - thread_start
+    app.logger.info(
+        "[TableA Start][pre-worker] worker timer started in %.3fs",
+        thread_elapsed,
+    )
     total_elapsed = time.monotonic() - launch_start
     route_timings["workerStartSeconds"] = thread_elapsed
     route_timings["launchSeconds"] = total_elapsed
@@ -1325,7 +1457,7 @@ def _fast_detach_global_cps_for_child_start_locked():
     timeouts while still closing parent sockets and resetting the wrapper.
     """
     global CPS, _cps_last_connect_attempt
-  
+
     try:
         client = CPS.g_clients[0]
         for attr in ("tcp", "tcp_fast"):
@@ -1363,7 +1495,7 @@ def _fast_detach_global_cps_for_child_start_locked():
     except Exception:
         CPS = CPSClient()
     _cps_last_connect_attempt = 0.0
-        
+
 
 def _fast_detach_global_cps_for_child_start():
     """
@@ -1395,15 +1527,28 @@ def _post_scan_prepare_for_tablea_start():
 def _run_tablea_task_thread(model_key, recent_matching_scan=False):
     """Run Table A task in a background thread to avoid Windows process spawn delay."""
     global client_thread, _last_child_exit_ts, _cps_reconnect_grace_until
+    thread_start = time.monotonic()
     ok = False
     try:
+        app.logger.info(
+            "[TableA Thread] entered model=%s recentMatching=%s",
+            model_key,
+            bool(recent_matching_scan),
+        )
         detach_start = time.monotonic()
+        app.logger.info("[TableA Thread] parent CPS detach begin")
         _fast_detach_global_cps_for_child_start()
         app.logger.info(
             "[TableA Thread] parent CPS detached in %.3fs before worker connect.",
             time.monotonic() - detach_start,
         )
+        child_start = time.monotonic()
+        app.logger.info("[TableA Thread] run_tablea_task_child begin")
         run_tablea_task_child(model_key, recent_matching_scan)
+        app.logger.info(
+            "[TableA Thread] run_tablea_task_child returned in %.3fs",
+            time.monotonic() - child_start,
+        )
         ok = True
     except Exception as exc:
         try:
@@ -1416,11 +1561,22 @@ def _run_tablea_task_thread(model_key, recent_matching_scan=False):
         process_state['status'] = 'completed' if ok else 'failed'
         process_state['last_action'] = None
         client_thread = None
+        app.logger.info(
+            "[TableA Thread] exiting ok=%s totalThreadSeconds=%.3fs",
+            ok,
+            time.monotonic() - thread_start,
+        )
         socketio.emit(
             'flash_message',
             {"message": "Process finished" if ok else "Process failed"},
         )
+        cleanup_start = time.monotonic()
+        app.logger.info("[TableA Thread] final parent CPS detach begin")
         _fast_detach_global_cps_for_child_start()
+        app.logger.info(
+            "[TableA Thread] final parent CPS detach done in %.3fs",
+            time.monotonic() - cleanup_start,
+        )
 
 ############################################################################################
 # Start the handle_client process threads
@@ -2749,27 +2905,34 @@ def handle_action():
                 config["logger"].info(
                     "[scan] Post-scan scanhoming is disabled; using direct homing from scan_table."
                 )
+                detected_door_numbers = _get_detected_tablea_door_numbers()
+                model_f_detected = _scan_indicates_model_f(use_cache=False)
                 _set_tablea_scan_meta(
                     signature=scan_signature,
                     model=scan_model,
                     door_models=scan_door_models,
+                    detected_door_numbers=detected_door_numbers or [],
+                    door_detection_available=detected_door_numbers is not None,
+                    scan_revision=_get_tablea_scan_revision(),
+                    model_f_detected=model_f_detected,
                 )
+                scan_status = _get_tablea_scan_status()
                 detach_start = time.monotonic()
                 _fast_detach_global_cps_for_child_start_locked()
-                
+
                 config["logger"].info(
                     "[scan] CPS detached synchronously after scan in %.3fs; Table A start is ready.",
                     time.monotonic() - detach_start
                 )
-                
+
                 return jsonify(
                     {
                         'status': 'success',
                         'message': 'Table scan completed',
-                        'scanStatus': _get_tablea_scan_status(),
+                        'scanStatus': scan_status,
                     }
                 )
-                
+
         except Exception as exc:
             if stop_requested():
                 config['logger'].info("[scan] Scan cancelled by stop request: %s", exc)

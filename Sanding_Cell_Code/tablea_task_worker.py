@@ -45,15 +45,25 @@ def run_tablea_task_child(model_key, recent_matching_scan=False):
     Own CPS preparation inside the task child so Flask does not block the
     start-task request with parent CPS connect/table-state handoff work.
     """
+    child_start = time.monotonic()
+    print(
+        f"[TableA Child] entered model={model_key} "
+        f"recent_matching_scan={bool(recent_matching_scan)}"
+    )
+    config_start = time.monotonic()
     config = load_config()
+    config_elapsed = time.monotonic() - config_start
+    logger_start = time.monotonic()
     config["logger"] = setup_logger(config["settings"]["debug"])
     logger = config["logger"]
-    child_start = time.monotonic()
+    logger_elapsed = time.monotonic() - logger_start
 
     logger.info(
-        "[TableA Child] started model=%s recent_matching_scan=%s",
+        "[TableA Child] started model=%s recent_matching_scan=%s configLoad=%.3fs loggerSetup=%.3fs",
         model_key,
         bool(recent_matching_scan),
+        config_elapsed,
+        logger_elapsed,
     )
     model_fn = get_model_fn(model_key, logger=logger)
 
@@ -126,7 +136,16 @@ def run_tablea_task_child(model_key, recent_matching_scan=False):
         )
         model_fn(cps=cps)
     finally:
+        disconnect_start = time.monotonic()
         try:
             cps.HRIF_DisConnect(0)
+        except Exception:
+            pass
+        try:
+            logger.info(
+                "[TableA Child] CPS disconnect/final cleanup done in %.3fs totalChildSeconds=%.3fs",
+                time.monotonic() - disconnect_start,
+                time.monotonic() - child_start,
+            )
         except Exception:
             pass
