@@ -855,6 +855,8 @@ def _run_small_door_zigzag(
 
     config = load_config()
     json_config = load_json_config()
+    robot_speed = float(json_config.get("robotSpeed", 0.9))
+    sanding_speed = float(json_config.get("sandingSpeed", 0.75))
     config["logger"] = setup_logger(config["settings"]["debug"])
 
     p8 = get_inner_corner_point(door_num, 0)
@@ -949,7 +951,7 @@ def _run_small_door_zigzag(
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 seventh=-1,
-                speed=float(json_config["sandingSpeed"]),
+                speed=sanding_speed,
                 velocity_profile="sandingspeed",
                 wait=True,
             )
@@ -989,7 +991,7 @@ def _run_small_door_zigzag(
                     tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=float(json_config["sandingSpeed"]),
+                    speed=sanding_speed,
                     velocity_profile="sandingspeed",
                     speed_mode="linear",
                     wait=point_index == len(motion_points) - 1,
@@ -1019,8 +1021,9 @@ def _run_small_door_zigzag(
                 seventh=seventh_pos,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                speed=0.8,
-                wait=True,
+                speed=robot_speed,
+                velocity_profile="robotspeed",
+                wait=False,
                 require_seventh_ok=True,
             )
             if not split:
@@ -1031,7 +1034,8 @@ def _run_small_door_zigzag(
                     tcp=config["coords"]["tcptool4plane1"],
                     ucs=config["coords"]["ucsTable1"],
                     seventh=-1,
-                    speed=1.0,
+                    speed=robot_speed,
+                    velocity_profile="robotspeed",
                     wait=True,
                 )
 
@@ -1043,7 +1047,8 @@ def _run_small_door_zigzag(
             tcp=config["coords"]["tcptool4plane1"],
             ucs=config["coords"]["ucsTable1"],
             seventh=-1,
-            speed=0.8,
+            speed=robot_speed,
+            velocity_profile="robotspeed",
             wait=True,
         )
 

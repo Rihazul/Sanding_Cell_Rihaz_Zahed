@@ -377,7 +377,7 @@ def smalldoor1tool3(z, cps, force=None, cycles=1):
             
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
         perform_process_bottom(cps, config, points1=tpoints)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -496,7 +496,7 @@ def smalldoor1tool3(z, cps, force=None, cycles=1):
                 label="external_bottom",
                 cycles=cycles,
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
 
@@ -685,7 +685,7 @@ def smalldoor2tool3(z, cps, force=None, cycles=1):
             
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -806,7 +806,7 @@ def smalldoor2tool3(z, cps, force=None, cycles=1):
                 label="external_bottom",
                 cycles=cycles,
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
 
@@ -995,7 +995,7 @@ def smalldoor3tool3(z, cps, force=None, cycles=1):
             turn_vibration_off(cps)
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -1116,7 +1116,7 @@ def smalldoor3tool3(z, cps, force=None, cycles=1):
                 label="external_bottom",
                 cycles=cycles,
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
 
@@ -1304,7 +1304,7 @@ def smalldoor4tool3(z, cps, force=None, cycles=1):
             turn_vibration_off(cps)
             # Release Force Control
 
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
 
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False)
@@ -1424,7 +1424,7 @@ def smalldoor4tool3(z, cps, force=None, cycles=1):
                 label="external_bottom",
                 cycles=cycles,
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=tpoints)
         # cps.HRIF_DisConnect(0)
 

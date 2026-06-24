@@ -748,7 +748,7 @@ def smalldoor1side(force, cps, cycles=1):
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
-        communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=x1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
 
@@ -927,7 +927,7 @@ def smalldoor1side(force, cps, cycles=1):
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
 
-        communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=conx1 + bottom_axis_offset,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
@@ -1007,7 +1007,7 @@ def smalldoor2side(force, cps, cycles=1):
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         # cps.HRIF_DisConnect(0)
@@ -1183,7 +1183,7 @@ def smalldoor2side(force, cps, cycles=1):
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
 
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
@@ -1262,7 +1262,7 @@ def smalldoor3side(force, cps, cycles=1):
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         # cps.HRIF_DisConnect(0)
@@ -1439,7 +1439,7 @@ def smalldoor3side(force, cps, cycles=1):
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
 
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)
@@ -1517,7 +1517,7 @@ def smalldoor4side(force, cps, cycles=1):
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
             )
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottompoints,force=force)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=speed,velocity_profile="robot",wait=True)
         # cps.HRIF_DisConnect(0)
@@ -1694,7 +1694,7 @@ def smalldoor4side(force, cps, cycles=1):
                     f"J7 did not become idle after async move to {seventh_axis_point}"
                 )
 
-        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=True)
+        communicate(cps=cps,config=config,seventh=conx1,tcp=config['coords']['tcptool4plane1'],ucs=config['coords']['ucsTable1'],speed=speed,velocity_profile="robot",wait=False,require_seventh_ok=True)
         perform_process_bottom(cps, config, points1=bottomdoorpoints,force=force)
         run_single_movement(bottom5pre, conx2, toppoint5pre, cps, config)
         perform_process_top(cps, config, points1=upperdoorpoints,force=force)

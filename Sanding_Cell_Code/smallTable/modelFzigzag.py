@@ -414,7 +414,8 @@ def _perform_process_top(
             ucs=config["coords"]["ucsTable1"],
             speed=robot_speed,
             velocity_profile="robotspeed",
-            wait=True,
+            wait=False,
+            require_seventh_ok=True
         )
     communicate(
         cps=cps,

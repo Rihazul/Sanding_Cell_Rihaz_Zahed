@@ -516,8 +516,7 @@ def sandingModelDETableA(cps=None):
                     work_executed = True
 
                 if side_cycle > 0 and edge_cycle > 0:
-                    print(f"\n--- Tool 2 / Side-to-Edge Safe Transition / Door {door_number} ---")
-                    move_to_safe_point()
+                    print(f"\n--- Tool 2 / Side-to-Edge Continuous Transition / Door {door_number} ---")
 
                 if edge_cycle > 0:
                     run_tool2side_edgecycles(edge_cycle, int(edge_cfg.get("force", 0)), door_number, cps)

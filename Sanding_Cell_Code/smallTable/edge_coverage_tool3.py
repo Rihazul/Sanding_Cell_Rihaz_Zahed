@@ -376,7 +376,7 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation, cycles=1):
         ucs=config["coords"]["ucsTable1"],
         speed=robot_speed,
         velocity_profile="robot",
-        wait=True,
+        wait=False,
         require_seventh_ok=True,
     )
     communicate(
