@@ -2,6 +2,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from contextlib import suppress
@@ -12,6 +13,39 @@ BACKEND_DIR = os.path.join(ROOT, "Sanding_Cell_Code")
 FRONTEND_DIR = os.path.join(ROOT, "Create_Login_Dashboard_Analytics")
 FRONTEND_BUILD = os.path.join(FRONTEND_DIR, "build", "index.html")
 UI_URL = "http://localhost:5100"
+LAUNCHER_LOG = os.path.join(BACKEND_DIR, "launcher_startup.log")
+
+
+def _log(message: str) -> None:
+    try:
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(LAUNCHER_LOG, "a", encoding="utf-8") as f:
+            f.write(f"{stamp} {message}\n")
+    except Exception:
+        pass
+
+
+def _loading_html() -> str:
+    return """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #ecfeff 0%, #dbeafe 48%, #eef2ff 100%); font-family: Segoe UI, Tahoma, sans-serif; color: #0f172a; }
+    .card { width: min(460px, calc(100vw - 48px)); border-radius: 28px; background: rgba(255,255,255,.86); box-shadow: 0 30px 90px rgba(15,23,42,.20); border: 1px solid rgba(255,255,255,.85); padding: 38px 34px; text-align: center; backdrop-filter: blur(10px); }
+    .mark { width: 70px; height: 70px; margin: 0 auto 18px; border-radius: 22px; display: grid; place-items: center; color: white; font-size: 30px; font-weight: 900; background: linear-gradient(135deg, #0891b2, #2563eb); box-shadow: 0 14px 35px rgba(37,99,235,.28); }
+    .title { font-size: 26px; font-weight: 900; letter-spacing: -.03em; }
+    .sub { margin-top: 10px; color: #475569; font-size: 15px; }
+    .bar { margin: 26px auto 0; width: 220px; height: 8px; border-radius: 999px; overflow: hidden; background: #dbeafe; }
+    .bar span { display: block; width: 44%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #06b6d4, #2563eb); animation: slide 1.05s infinite ease-in-out; }
+    @keyframes slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+  </style>
+</head>
+<body><div class="card"><div class="mark">S</div><div class="title">Starting Sanding Cell</div><div class="sub">Preparing robot dashboard and local server...</div><div class="bar"><span></span></div></div></body>
+</html>
+"""
 
 
 def _is_ready(url: str, timeout_s: float = 0.5) -> bool:
@@ -92,37 +126,68 @@ foreach ($p in $targets) {{
         )
 
 
+def _load_when_ready(window) -> None:
+    wait_start = time.time()
+    _log("wait ready begin")
+    if _wait_ready(UI_URL, total_timeout_s=60.0):
+        _log(f"wait ready done elapsed={time.time() - wait_start:.3f}s")
+        with suppress(Exception):
+            window.load_url(UI_URL)
+    else:
+        _log(f"wait ready timeout elapsed={time.time() - wait_start:.3f}s")
+        with suppress(Exception):
+            window.load_html(
+                "<h2 style='font-family:Segoe UI;padding:32px'>Sanding Cell server did not become ready.</h2>"
+            )
+
+
 def main() -> int:
+    main_start = time.time()
+    _log("launcher main start")
     if not os.path.exists(os.path.join(BACKEND_DIR, "flask_app.py")):
-        print(f"[launcher] Backend not found: {BACKEND_DIR}\\flask_app.py")
+        print(f"[launcher] Backend not found: {os.path.join(BACKEND_DIR, 'flask_app.py')}")
+        _log("backend missing")
         return 1
     if not os.path.exists(FRONTEND_BUILD):
         print(f"[launcher] Compiled frontend not found: {FRONTEND_BUILD}")
         print("[launcher] Run npm run build in Create_Login_Dashboard_Analytics.")
+        _log("frontend build missing")
         return 1
 
     backend_proc = None
+    cleanup_start = time.time()
     _kill_stale_servers()
+    _log(f"stale cleanup elapsed={time.time() - cleanup_start:.3f}s")
     try:
+        backend_start = time.time()
         backend_proc = subprocess.Popen(
             [sys.executable, "flask_app.py"],
             cwd=BACKEND_DIR,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
-        # Importing PyWebView can take several seconds. Do it while Flask starts.
+        _log(f"backend popen elapsed={time.time() - backend_start:.3f}s pid={backend_proc.pid}")
+
+        webview_import_start = time.time()
         import webview
+        _log(f"webview import elapsed={time.time() - webview_import_start:.3f}s")
 
-        # Flask serves the compiled React build. Avoid starting Vite/Node in
-        # production because its cold start is expensive on Windows/OneDrive.
-        if not _wait_ready(UI_URL, total_timeout_s=60.0):
-            print("[launcher] Flask UI did not become ready in time.")
-            return 2
-
-        webview.create_window("Sanding Cell", UI_URL, width=1400, height=900)
-        webview.start()
+        window_start = time.time()
+        window = webview.create_window("Sanding Cell", html=_loading_html(), width=1400, height=900)
+        _log(f"webview create_window elapsed={time.time() - window_start:.3f}s")
+        _log(f"webview start begin totalBeforeStart={time.time() - main_start:.3f}s")
+        webview.start(
+            lambda: threading.Thread(
+                target=_load_when_ready,
+                args=(window,),
+                daemon=True,
+            ).start()
+        )
+        _log(f"webview closed total={time.time() - main_start:.3f}s")
         return 0
     finally:
+        stop_start = time.time()
         _stop_process(backend_proc)
+        _log(f"backend stop elapsed={time.time() - stop_start:.3f}s")
 
 
 if __name__ == "__main__":

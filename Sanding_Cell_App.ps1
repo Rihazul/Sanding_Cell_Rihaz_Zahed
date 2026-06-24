@@ -27,25 +27,37 @@ if (-not (Test-Path (Join-Path $backendDir "desktop_launcher.py"))) {
     exit 1
 }
 
+$venvPython = Join-Path $backendDir ".venv\Scripts\python.exe"
 $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
-if ($null -eq $uvCmd) {
-    Write-LauncherLog "uv not found on PATH"
-    [System.Windows.Forms.MessageBox]::Show(
-        "uv was not found on PATH. Cannot start Sanding Cell app.",
-        "Sanding Cell App",
-        [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Error
-    ) | Out-Null
-    exit 1
-}
-Write-LauncherLog "uv path=$($uvCmd.Source)"
 
 Set-Location $backendDir
-Write-LauncherLog "running uv run desktop_launcher.py"
-try {
-    uv run desktop_launcher.py
-    Write-LauncherLog "uv run desktop_launcher.py exited normally"
-} catch {
-    Write-LauncherLog "uv run desktop_launcher.py failed: $($_.Exception.Message)"
-    throw
+if (Test-Path $venvPython) {
+    Write-LauncherLog "running venv python desktop_launcher.py path=$venvPython"
+    try {
+        & $venvPython desktop_launcher.py
+        Write-LauncherLog "venv python desktop_launcher.py exited normally"
+    } catch {
+        Write-LauncherLog "venv python desktop_launcher.py failed: $($_.Exception.Message)"
+        throw
+    }
+} else {
+    if ($null -eq $uvCmd) {
+        Write-LauncherLog "uv not found on PATH and venv python missing"
+        [System.Windows.Forms.MessageBox]::Show(
+            "uv was not found on PATH and .venv Python is missing. Cannot start Sanding Cell app.",
+            "Sanding Cell App",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Error
+        ) | Out-Null
+        exit 1
+    }
+    Write-LauncherLog "uv path=$($uvCmd.Source)"
+    Write-LauncherLog "running uv run desktop_launcher.py"
+    try {
+        uv run desktop_launcher.py
+        Write-LauncherLog "uv run desktop_launcher.py exited normally"
+    } catch {
+        Write-LauncherLog "uv run desktop_launcher.py failed: $($_.Exception.Message)"
+        throw
+    }
 }
