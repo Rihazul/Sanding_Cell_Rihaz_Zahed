@@ -7753,8 +7753,8 @@ def moveOnlyJ6r(cps, J6, config, J1=0, wait=True):
 
     sTcpName = config["coords"]["tcpDefault"]  # Definetheusercoordinatesvariable
     sUcsName = config["coords"]["ucsDefault"]  # Definemovementspeed
-    dVelocity = 150  # Define the movement acceleration
-    dAcc = 170  # Define the transition radius
+    dVelocity = 100  # Define the movement acceleration
+    dAcc = 150  # Define the transition radius
     dRadius = config["coords"][
         "transitionRadius"
     ]  # Deine whether the joint angle is used
