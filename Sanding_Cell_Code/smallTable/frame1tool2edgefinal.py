@@ -342,10 +342,10 @@ def door1frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]+30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
-        extraleft=[p4[0]+20,p4[1],80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]+30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],110,0,0,0]
+        extraleft=[p4[0]+20,p4[1],110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
@@ -582,10 +582,10 @@ def door1frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,110,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
@@ -887,10 +887,10 @@ def door2frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1] + 30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
-        extraleft=[p4[0]+20,p4[1],80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1] + 30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],110,0,0,0]
+        extraleft=[p4[0]+20,p4[1],110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
@@ -1127,10 +1127,10 @@ def door2frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,110,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
@@ -1432,10 +1432,10 @@ def door3frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1] + 30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
-        extraleft=[p4[0]+20,p4[1],80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1] + 30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],110,0,0,0]
+        extraleft=[p4[0]+20,p4[1],110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
@@ -1672,10 +1672,10 @@ def door3frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,110,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
@@ -1977,10 +1977,10 @@ def door4frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1] + 30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1],80,0,0,0]
-        extraleft=[p4[0]+20,p4[1],80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1] + 30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1],110,0,0,0]
+        extraleft=[p4[0]+20,p4[1],110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-12,10,0,22,90]
@@ -2217,10 +2217,10 @@ def door4frametool2sideedge(force,cps):
         print("leftpoints:", leftpoints)
 
         #Extra left
-        extraleft0=[p4[0]+20,p4[1]-30,80,0,0,-180]
-        extraleft1=[p4[0]+20,p4[1]-30,80,0,0,-90]
-        extraleft2=[p4[0]+20,p4[1]-30,80,0,0,0]
-        extraleft=[p4[0]+20,p4[1]-30,80,0,0,90]
+        extraleft0=[p4[0]+20,p4[1]-30,110,0,0,-180]
+        extraleft1=[p4[0]+20,p4[1]-30,110,0,0,-90]
+        extraleft2=[p4[0]+20,p4[1]-30,110,0,0,0]
+        extraleft=[p4[0]+20,p4[1]-30,110,0,0,90]
 
         #Bottom Points
         bottompoint1=[p4[0],p4[1]-10,10,0,22,90]
