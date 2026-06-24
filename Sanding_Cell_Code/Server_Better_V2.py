@@ -2541,7 +2541,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                     message="Homing failed: controller did not return full position data.",
                 )
                 return False
-        
+
         dX = float(result[6])
         # config['logger'].info(f"[homing] current position: {result}")
         msg_to_frontend(
@@ -3608,7 +3608,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 measured_frame_2,
                 sizing_policy,
             )
-        
+
         def apply_pocket_detection_fallback(
             results,
             axis_label,
@@ -4099,11 +4099,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 msg_to_frontend(
                         api_url=config["server"]["frontEnd_messaging_url"],
                         message="Scan stopped by user.",
-                    )    
+                    )
                 return ([], [], [], [], [], [], [])
                 ###############################
                 ####### point calcu x     #####
-                ###############################        
+                ###############################
 
             first_non_nan = next(
                 item for item in xmeasurements if not np.isnan(item["height"])
@@ -4171,7 +4171,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
-            
+
             results = apply_pocket_detection_fallback(
                 results,
                 axis_label="x",
@@ -4431,13 +4431,13 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 three_d_compensation=scan_three_d_compensation,
                 config=config,
             )
-            
+
             results = apply_pocket_detection_fallback(
                 results,
                 axis_label="y",
                 door_number=door_number,
             )
-            
+
             # results = identify_gradient_change_points_dynamic(ymeasurements, thresholds=[0.2, 0.1])
             config["logger"].info("[scan] calculated y values for door: ", results)
             (
@@ -6235,7 +6235,7 @@ def communicate(
         robot_acceleration = config["coords"]["roboAcceleration"]
         sanding_velocity = config["coords"]["sandingVelocity"]
         sanding_acceleration = config["coords"]["sandingAcceleration"]
-        
+
         if profile == "sanding":
             base_velocity = sanding_velocity
             base_acceleration = sanding_acceleration
@@ -6393,7 +6393,7 @@ def communicate(
                     raise TypeError(f"customMoveL: robotRes is not list/tuple: {robotRes}")
                 if len(robotRes)<= 11:
                     raise IndexError(f"customMoveL: robotRes too short ({len(robotRes)}): {robotRes}")
-                
+
                 if robotRes[11] == "1":
                     break
                 if (time.time() - wait_start) >= move_wait_timeout_s:
@@ -7673,7 +7673,7 @@ def turn_tool_spin_on(cps, debug=False):
         print("Tool spin turned ON successfully.")
     else:
         print(f"Error turning ON tool spin. Error code: {nRet}")
-        
+
 def turn_tool_spin_off(cps, debug=False):
     """
     Turns the tool spin off by setting nBit=5 to nVal=1.
@@ -7740,7 +7740,7 @@ def moveOnlyJ6r(cps, J6, config, J1=0, wait=True):
         config (config): our config value
     """
     result = []  # Read the current actual location information
-    nret = cps.HRIF_ReadActPos(0, 0, result)  # Read the joint position variable
+    nret = cps.HRIF_ReadActJointPos(0, 0, result)  # Read the joint position variable
     dJ1 = float(result[0]) + J1
     dJ2 = float(result[1])
     dJ3 = float(result[2])
@@ -7791,20 +7791,15 @@ def moveOnlyJ6r(cps, J6, config, J1=0, wait=True):
             message=f"Cobot Reached Joint Position Limit. Perform Homing and Try Again. Exiting Cycle...",
         )
         exit(-1)
-    nret = -1
-    while wait:
-        nret = cps.HRIF_ReadRobotState(0, 0, robotRes)
-        config["logger"].info(robotRes)
-        if robotRes[11] == "1":
-            config["logger"].info(
-                f"[moveOnlyJ6] Success in moving to joint pos {[dJ1, dJ2, dJ3, dJ4, dJ5, dJ6]}"
-            )
-            return
+    if wait:
         config["logger"].info(
-            f"[moveOnlyJ6] Trying to move joints to {[dJ1, dJ2, dJ3, dJ4, dJ5, dJ6]}"
+            f"[moveOnlyJ6] Waiting for joint move to finish {[dJ1, dJ2, dJ3, dJ4, dJ5, dJ6]}"
         )
-        # time.sleep(0.2)
-
+        waitForBlending(cps, config)
+        config["logger"].info(
+            f"[moveOnlyJ6] Success in moving to joint pos {[dJ1, dJ2, dJ3, dJ4, dJ5, dJ6]}"
+        )
+        return
 
 def homingFunction1(cps, config):
     result = [-1, -1, -1, -1]
