@@ -42,6 +42,7 @@ def waitForBlending(cps, config, timeout_s=None):
                     nret_robot == 0
                     and isinstance(robot_state, (list, tuple))
                     and len(robot_state) > 11
+                    and str(robot_state[0]).strip() == "0"
                     and str(robot_state[11]).strip() == "1"
                 )
                 if robot_idle:
@@ -6394,7 +6395,7 @@ def communicate(
                 if len(robotRes)<= 11:
                     raise IndexError(f"customMoveL: robotRes too short ({len(robotRes)}): {robotRes}")
 
-                if robotRes[11] == "1":
+                if str(robotRes[0]).strip() == "0" and str(robotRes[11]).strip() == "1":
                     break
                 if (time.time() - wait_start) >= move_wait_timeout_s:
                     config["logger"].warning(
@@ -7414,7 +7415,8 @@ def keepTool11(
             nret_state == 0
             and isinstance(robot_state, (list, tuple))
             and len(robot_state) > 11
-            and str(robot_state[11]).strip() == "1"
+            and str(robot_state[0]).strip() == "0"
+                    and str(robot_state[11]).strip() == "1"
         )
         if not robot_idle:
             msg_to_frontend(
@@ -7452,7 +7454,8 @@ def keepTool11(
             nret_state == 0
             and isinstance(robot_state, (list, tuple))
             and len(robot_state) > 11
-            and str(robot_state[11]).strip() == "1"
+            and str(robot_state[0]).strip() == "0"
+                    and str(robot_state[11]).strip() == "1"
         )
         if not robot_idle:
             msg_to_frontend(
@@ -7796,6 +7799,25 @@ def moveOnlyJ6r(cps, J6, config, J1=0, wait=True):
             f"[moveOnlyJ6] Waiting for joint move to finish {[dJ1, dJ2, dJ3, dJ4, dJ5, dJ6]}"
         )
         waitForBlending(cps, config)
+        motion_wait_start = time.time()
+        motion_wait_timeout_s = float(config.get("door", {}).get("jointMoveDoneTimeoutSec", 8.0))
+        while True:
+            robot_state = []
+            nret_state = cps.HRIF_ReadRobotState(0, 0, robot_state)
+            if (
+                nret_state == 0
+                and isinstance(robot_state, (list, tuple))
+                and len(robot_state) > 11
+                and str(robot_state[0]).strip() == "0"
+                and str(robot_state[11]).strip() == "1"
+            ):
+                break
+            if time.time() - motion_wait_start >= motion_wait_timeout_s:
+                config["logger"].warning(
+                    "[moveOnlyJ6] Timed out waiting for moving state to clear after joint move."
+                )
+                break
+            time.sleep(0.01)
         config["logger"].info(
             f"[moveOnlyJ6] Success in moving to joint pos {[dJ1, dJ2, dJ3, dJ4, dJ5, dJ6]}"
         )
