@@ -861,10 +861,12 @@ export function CompactTableConfig({
       const rowLabel = rows[idx]?.label;
       if (!rowLabel) return;
       const targetDoor = rowActiveDoor[rowLabel] ?? selectedDoor;
+      const selectedForRow = rowDoorSelections[rowLabel] || [];
+      const targetDoors = selectedForRow.length ? selectedForRow : [targetDoor];
 
       setDoorConfigs(prev =>
         prev.map(dc => {
-          if (dc.doorNumber !== targetDoor) return dc;
+          if (!targetDoors.includes(dc.doorNumber)) return dc;
           const newRows = [...dc.rows];
           const updatedRow = { ...newRows[idx], [field]: value };
           if (rowLabel === 'Pocket ZigZag' && field === 'cycle' && Number(value) > 1) {
@@ -925,18 +927,11 @@ export function CompactTableConfig({
           const newRows = [...dc.rows];
           const targetRow = newRows[rowIndex];
           if (!targetRow) return dc;
-          const hasValues =
-            targetRow.force > 0 ||
-            targetRow.cycle > 0 ||
-            !!targetRow.verticalSpiral ||
-            !!targetRow.horizontalSpiral ||
-            !!targetRow.edgeCoverage;
-          if (hasValues) return dc;
           const sourceDoor = prev.find(d => d.doorNumber === sourceDoorNumber);
           const sourceRow = sourceDoor?.rows[rowIndex];
           if (!sourceRow) return dc;
-          // Keep Pocket ZigZag orientation owned by the target door.
-          // Only carry numeric task intensity defaults on door re-select.
+          // A multi-door row is one shared operation. When a door is added,
+          // copy the visible row intensity so it does not silently keep 5/1.
           newRows[rowIndex] = {
             ...targetRow,
             force: sourceRow.force,
@@ -980,20 +975,26 @@ export function CompactTableConfig({
     }
 
     if (!allCompatibleSelected) {
-      setDoorConfigs(prev =>
-        prev.map(dc => {
+      const sourceDoorNumber = rowActiveDoor[label] ?? selectedDoor;
+      setDoorConfigs(prev => {
+        const sourceDoor = prev.find(dc => dc.doorNumber === sourceDoorNumber);
+        const sourceRow = sourceDoor?.rows[rowIndex];
+        const sourceForce = sourceRow && sourceRow.force > 0 ? sourceRow.force : 5;
+        const sourceCycle = sourceRow && sourceRow.cycle > 0 ? sourceRow.cycle : 1;
+
+        return prev.map(dc => {
           if (!compatibleDoors.includes(dc.doorNumber)) return dc;
           const newRows = [...dc.rows];
           const currentRow = newRows[rowIndex];
           if (!currentRow) return dc;
           newRows[rowIndex] = {
             ...currentRow,
-            force: currentRow.force > 0 ? currentRow.force : 5,
-            cycle: currentRow.cycle > 0 ? currentRow.cycle : 1,
+            force: sourceForce,
+            cycle: sourceCycle,
           };
           return { ...dc, rows: newRows };
-        })
-      );
+        });
+      });
     }
   };
 
