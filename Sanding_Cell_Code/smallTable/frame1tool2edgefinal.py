@@ -193,7 +193,7 @@ def door1frametool2sideedge(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -234,15 +234,15 @@ def door1frametool2sideedge(force,cps,cycles=1):
         #UpRightPoints
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2-4,p2[1]/2,10,0,22,0]
+        uprightpoint4=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,10,0,22,0]
+        uprightpoint4pre=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-4,p2[1]/2+2,10,0,22,0]
+        uprightpoint4up=[-distance*2,p2[1]/2+2,10,0,22,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-4,p2[1],10,0,22,0]
+        uprightpoint2=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],10,0,22,0]
+        uprightpoint2pre=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -487,8 +487,6 @@ def door1frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        if not _wait_for_j7_idle(cps):
-            raise RuntimeError(f"J7 did not become idle after async move to {x2}")
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
@@ -741,7 +739,7 @@ def door2frametool2sideedge(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -782,15 +780,15 @@ def door2frametool2sideedge(force,cps,cycles=1):
         #UpRightPoints
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2-3,p2[1]/2,10,0,22,0]
+        uprightpoint4=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,10,0,22,0]
+        uprightpoint4pre=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-3,p2[1]/2+2,10,0,22,0]
+        uprightpoint4up=[-distance*2,p2[1]/2+2,10,0,22,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-3,p2[1],10,0,22,0]
+        uprightpoint2=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],10,0,22,0]
+        uprightpoint2pre=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -1289,7 +1287,7 @@ def door3frametool2sideedge(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -1330,15 +1328,15 @@ def door3frametool2sideedge(force,cps,cycles=1):
         #UpRightPoints
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2-3,p2[1]/2,10,0,22,0]
+        uprightpoint4=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,10,0,22,0]
+        uprightpoint4pre=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-3,p2[1]/2+2,10,0,22,0]
+        uprightpoint4up=[-distance*2,p2[1]/2+2,10,0,22,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-3,p2[1],10,0,22,0]
+        uprightpoint2=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],10,0,22,0]
+        uprightpoint2pre=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -1583,8 +1581,6 @@ def door3frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        if not _wait_for_j7_idle(cps):
-            raise RuntimeError(f"J7 did not become idle after async move to {x2}")
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
@@ -1837,7 +1833,7 @@ def door4frametool2sideedge(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,100,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -1878,15 +1874,15 @@ def door4frametool2sideedge(force,cps,cycles=1):
         #UpRightPoints
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2-3,p2[1]/2,10,0,22,0]
+        uprightpoint4=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,10,0,22,0]
+        uprightpoint4pre=[-distance*2,p2[1]/2,10,0,22,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-3,p2[1]/2+2,10,0,22,0]
+        uprightpoint4up=[-distance*2,p2[1]/2+2,10,0,22,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-3,p2[1],10,0,22,0]
+        uprightpoint2=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],10,0,22,0]
+        uprightpoint2pre=[-distance*2,p2[1],10,0,22,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -2130,8 +2126,6 @@ def door4frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
-        if not _wait_for_j7_idle(cps):
-            raise RuntimeError(f"J7 did not become idle after async move to {x2}")
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)

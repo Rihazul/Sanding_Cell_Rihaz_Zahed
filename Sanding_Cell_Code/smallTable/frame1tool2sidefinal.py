@@ -176,7 +176,7 @@ def door1frametool2side(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -219,13 +219,13 @@ def door1frametool2side(force,cps,cycles=1):
         print("distance:", distance)
         uprightpoint4=[-distance*2-4,p2[1]/2,5,0,0,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,5,0,0,0]
+        uprightpoint4pre=[-distance*2-2,p2[1]/2,5,0,0,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-4,p2[1]/2+2,5,0,0,0]
+        uprightpoint4up=[-distance*2-2,p2[1]/2+2,5,0,0,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-4,p2[1],5,0,0,0]
+        uprightpoint2=[-distance*2-2,p2[1],5,0,0,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],5,0,0,0]
+        uprightpoint2pre=[-distance*2-2,p2[1],5,0,0,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -731,7 +731,7 @@ def door2frametool2side(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -774,13 +774,13 @@ def door2frametool2side(force,cps,cycles=1):
         print("distance:", distance)
         uprightpoint4=[-distance*2-3,p2[1]/2,5,0,0,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,5,0,0,0]
+        uprightpoint4pre=[-distance*2-3,p2[1]/2,5,0,0,0]
         print("uprightpoint4pre:", uprightpoint4pre)
         uprightpoint4up=[-distance*2-3,p2[1]/2+2,5,0,0,0]
         print("uprightpoint4up:", uprightpoint4up)
         uprightpoint2=[-distance*2-3,p2[1],5,0,0,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],5,0,0,0]
+        uprightpoint2pre=[-distance*2-3,p2[1],5,0,0,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -1278,7 +1278,7 @@ def door3frametool2side(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -1321,13 +1321,13 @@ def door3frametool2side(force,cps,cycles=1):
         print("distance:", distance)
         uprightpoint4=[-distance*2-3,p2[1]/2,5,0,0,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,5,0,0,0]
+        uprightpoint4pre=[-distance*2-3,p2[1]/2,5,0,0,0]
         print("uprightpoint4pre:", uprightpoint4pre)
         uprightpoint4up=[-distance*2-3,p2[1]/2+2,5,0,0,0]
         print("uprightpoint4up:", uprightpoint4up)
         uprightpoint2=[-distance*2-3,p2[1],5,0,0,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],5,0,0,0]
+        uprightpoint2pre=[-distance*2-3,p2[1],5,0,0,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
@@ -1825,7 +1825,7 @@ def door4frametool2side(force,cps,cycles=1):
         print("x2:", x2)
 
         #prehoming
-        prehoming=[(p4[0]-p1[0]),0,120,0,0,-180]
+        prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
         print("prehoming:",prehoming)
 
         #Right Points
@@ -1868,13 +1868,13 @@ def door4frametool2side(force,cps,cycles=1):
         print("distance:", distance)
         uprightpoint4=[-distance*2-3,p2[1]/2,5,0,0,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-10,p2[1]/2,5,0,0,0]
+        uprightpoint4pre=[-distance*2-3,p2[1]/2,5,0,0,0]
         print("uprightpoint4pre:", uprightpoint4pre)
         uprightpoint4up=[-distance*2-3,p2[1]/2+2,5,0,0,0]
         print("uprightpoint4up:", uprightpoint4up)
         uprightpoint2=[-distance*2-3,p2[1],5,0,0,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-10,p2[1],5,0,0,0]
+        uprightpoint2pre=[-distance*2-3,p2[1],5,0,0,0]
         print("uprightpoint2pre:", uprightpoint2pre)
         
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
