@@ -3674,6 +3674,48 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 config.get("scanPocketFallbackMaxDepthMm", 14.0),
             )
         )
+        model_b_fixed_frame_mm = 26.0
+
+        def get_tablea_scan_model_for_door(door_number):
+            door_models = config.get("tableAScanDoorModels")
+            if isinstance(door_models, list):
+                for entry in door_models:
+                    if not isinstance(entry, dict):
+                        continue
+                    try:
+                        entry_door = int(entry.get("doorNumber"))
+                    except (TypeError, ValueError):
+                        continue
+                    if entry_door == int(door_number):
+                        return str(entry.get("model") or "").strip()
+            return str(config.get("tableAScanModel") or "").strip()
+
+        def is_model_b_scan_door(door_number):
+            return get_tablea_scan_model_for_door(door_number) == "modelB"
+
+        def get_fixed_frame_mm_for_door(door_number):
+            if is_model_b_scan_door(door_number):
+                return model_b_fixed_frame_mm
+            return fixed_pocket_frame_mm
+
+        def force_known_model_profile(results, axis_label, door_number):
+            if not isinstance(results, dict):
+                return results
+            if not is_model_b_scan_door(door_number):
+                return results
+
+            old_reason = str(results.get("reason", "model_b_fixed_frame"))
+            results["pocketDetected"] = True
+            results["profileType"] = "frame_and_pocket"
+            results["reason"] = f"{old_reason}_modelB_fixed_{model_b_fixed_frame_mm:g}mm_frame"
+            config["logger"].info(
+                "[scan-%s] Door %s Model B selected; forcing %.1fmm frame sizing.",
+                axis_label,
+                door_number,
+                model_b_fixed_frame_mm,
+            )
+            return results
+
         def apply_frame_sizing_policy(results, axis_label, door_number):
             measured_frame_1 = float(results["frame_1"]) + float(results["threeD_1"])
             measured_frame_2 = float(results["frame_2"]) + float(results["threeD_2"])
@@ -3686,23 +3728,28 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 )
             )
             pocket_detected = bool(results.get("pocketDetected", False))
+            model_b_fixed = is_model_b_scan_door(door_number)
+            frame_size_mm = get_fixed_frame_mm_for_door(door_number)
 
-            if pocket_detected and measured_total > (2.0 * fixed_pocket_frame_mm):
-                frame_1 = fixed_pocket_frame_mm
-                frame_2 = fixed_pocket_frame_mm
-                sizing_policy = f"fixed_{fixed_pocket_frame_mm:g}mm_pocket_frames"
+            if (pocket_detected or model_b_fixed) and measured_total > (2.0 * frame_size_mm):
+                frame_1 = frame_size_mm
+                frame_2 = frame_size_mm
+                if model_b_fixed:
+                    sizing_policy = f"fixed_{frame_size_mm:g}mm_modelB_frames"
+                else:
+                    sizing_policy = f"fixed_{frame_size_mm:g}mm_pocket_frames"
             else:
                 frame_1 = measured_frame_1
                 frame_2 = measured_frame_2
                 sizing_policy = "laser_measured_frames"
-                if pocket_detected:
+                if pocket_detected or model_b_fixed:
                     config["logger"].warning(
-                        "[scan-%s] Door %s detected a pocket but total length %.3fmm "
+                        "[scan-%s] Door %s detected/forced a pocket but total length %.3fmm "
                         "is too short for two %.1fmm frames. Keeping measured frames.",
                         axis_label,
                         door_number,
                         measured_total,
-                        fixed_pocket_frame_mm,
+                        frame_size_mm,
                     )
 
             config["logger"].info(
@@ -4306,6 +4353,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
                 axis_label="x",
                 door_number=door_number,
             )
+            results = force_known_model_profile(
+                results,
+                axis_label="x",
+                door_number=door_number,
+            )
 
             config["logger"].info("[scan] calculated x values for door: ", results)
 
@@ -4562,6 +4614,11 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             )
 
             results = apply_pocket_detection_fallback(
+                results,
+                axis_label="y",
+                door_number=door_number,
+            )
+            results = force_known_model_profile(
                 results,
                 axis_label="y",
                 door_number=door_number,
