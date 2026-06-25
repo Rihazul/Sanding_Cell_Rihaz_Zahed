@@ -6,6 +6,10 @@ settings:
   scanReturnToXStartAfterSection: false
   scanHomeImmediatelyAfterFinalDoorYEnd: true
   scanMoveSafePointAfterToolDrop: false
+  scanFixedPocketFrameMm: 57
+  scanPocketFallbackMinDepthMm: 2.5
+  scanPocketFallbackMaxDepthMm: 14
+  tableAWorkerStartDelaySeconds: 0.75
 
 server:
   ip: '192.168.0.104'

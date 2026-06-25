@@ -3655,8 +3655,25 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
         scan_three_d_compensation = float(
             config.get("scanThreeDDefault", config.get("model3D", {}).get("1", 0))
         )
-        fixed_pocket_frame_mm = 57.0
-
+        scan_settings = config.get("settings", {}) if isinstance(config, dict) else {}
+        fixed_pocket_frame_mm = float(
+            scan_settings.get(
+                "scanFixedPocketFrameMm",
+                config.get("scanFixedPocketFrameMm", 57.0),
+            )
+        )
+        pocket_fallback_min_depth_mm = float(
+            scan_settings.get(
+                "scanPocketFallbackMinDepthMm",
+                config.get("scanPocketFallbackMinDepthMm", 7.0),
+            )
+        )
+        pocket_fallback_max_depth_mm = float(
+            scan_settings.get(
+                "scanPocketFallbackMaxDepthMm",
+                config.get("scanPocketFallbackMaxDepthMm", 14.0),
+            )
+        )
         def apply_frame_sizing_policy(results, axis_label, door_number):
             measured_frame_1 = float(results["frame_1"]) + float(results["threeD_1"])
             measured_frame_2 = float(results["frame_2"]) + float(results["threeD_2"])
@@ -3673,7 +3690,7 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             if pocket_detected and measured_total > (2.0 * fixed_pocket_frame_mm):
                 frame_1 = fixed_pocket_frame_mm
                 frame_2 = fixed_pocket_frame_mm
-                sizing_policy = "fixed_57mm_pocket_frames"
+                sizing_policy = f"fixed_{fixed_pocket_frame_mm:g}mm_pocket_frames"
             else:
                 frame_1 = measured_frame_1
                 frame_2 = measured_frame_2
@@ -3714,8 +3731,8 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             axis_label,
             door_number,
             expected_pocket_depth_mm=10.0,
-            min_pocket_depth_mm=7.0,
-            max_pocket_depth_mm=14.0,
+            min_pocket_depth_mm=None,
+            max_pocket_depth_mm=None,
         ):
             """
             Fallback pocket detection for cases where the scanner clearly measured
@@ -3745,9 +3762,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             height_range = safe_float(results.get("heightRange", 0.0))
             depth_mm = safe_float(results.get("depthMm", 0.0))
             reason = str(results.get("reason", ""))
+            min_depth = (
+                pocket_fallback_min_depth_mm
+                if min_pocket_depth_mm is None
+                else float(min_pocket_depth_mm)
+            )
+            max_depth = (
+                pocket_fallback_max_depth_mm
+                if max_pocket_depth_mm is None
+                else float(max_pocket_depth_mm)
+            )
 
-            pocket_like_height = min_pocket_depth_mm <= height_range <= max_pocket_depth_mm
-
+            pocket_like_height = min_depth <= height_range <= max_depth
             classifier_failed_but_depth_exists = (
                 not pocket_detected
                 and pocket_like_height
@@ -3768,11 +3794,14 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
 
                 config["logger"].warning(
                     "[scan-%s] Door %s pocket fallback applied: "
-                    "heightRange=%.3fmm depthMm=%.3fmm original_reason=%s",
+                    "heightRange=%.3fmm depthMm=%.3fmm limits=(%.3f, %.3f) "
+                    "original_reason=%s",
                     axis_label,
                     door_number,
                     height_range,
                     depth_mm,
+                    min_depth,
+                    max_depth,
                     reason,
                 )
 

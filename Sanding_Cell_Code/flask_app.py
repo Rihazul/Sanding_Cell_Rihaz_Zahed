@@ -1234,10 +1234,13 @@ def start_TableA_process():
         "[TableA Start][pre-worker] worker timer setup begin; timings_so_far=%s",
         route_timings,
     )
-    # Defer worker execution slightly so the HTTP response reaches the UI
-    # before heavy model imports/CPS preparation can take the GIL or robot lock.
+    # Defer worker execution long enough for the HTTP response to reach the UI
+    # before model imports/CPS preparation can take the GIL or robot lock.
+    worker_delay_seconds = float(
+        runtime_config.get("settings", {}).get("tableAWorkerStartDelaySeconds", 0.75)
+    )
     client_thread = Timer(
-        0.05,
+        max(0.0, worker_delay_seconds),
         _run_tablea_task_thread,
         args=(tableData['model'], recent_matching_scan),
     )
@@ -2863,6 +2866,8 @@ def handle_action():
                     configured_door_numbers = sorted(set(configured_door_numbers))
 
                     runtime_scan_config = copy.deepcopy(config)
+                    runtime_scan_config["tableAScanModel"] = scan_model
+                    runtime_scan_config["tableAScanDoorModels"] = scan_door_models
                     table_cfg = runtime_scan_config.get("table", {})
                     configured_door_count = len(configured_door_numbers)
                     if configured_door_count > 0:

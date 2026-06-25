@@ -653,6 +653,27 @@ export function CompactTableConfig({
           return;
         }
 
+        const timings = result?.timings && typeof result.timings === 'object'
+          ? result.timings as Record<string, unknown>
+          : null;
+        if (timings) {
+          const numericTimings = Object.entries(timings)
+            .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
+            .map(([key, value]) => [key, value as number] as const)
+            .sort((a, b) => b[1] - a[1]);
+          const routeTotal = typeof timings.routeTotalSeconds === 'number'
+            ? timings.routeTotalSeconds
+            : undefined;
+          const slowest = numericTimings.find(([key]) => key !== 'routeTotalSeconds');
+          if (routeTotal !== undefined && slowest) {
+            const level = routeTotal > 2 ? 'warning' : 'info';
+            addActivity(
+              `Table ${tableName}: Start route ${routeTotal.toFixed(2)}s, slowest ${slowest[0]}=${slowest[1].toFixed(2)}s`,
+              level
+            );
+          }
+        }
+
         addActivity(`Table ${tableName}: Task started`, 'info');
         const finalStatus = await waitForBackendProcessCompletion();
         if (finalStatus === 'completed') {
