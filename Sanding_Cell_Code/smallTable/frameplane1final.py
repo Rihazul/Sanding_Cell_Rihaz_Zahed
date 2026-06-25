@@ -567,6 +567,23 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     )
     print(f"[FrameDebug] communicate force approach DONE point={force_approach_point}")
 
+    force_start_point = list(sanding_points[0])
+    force_start_point[3:6] = [0, 0, 0]
+    print(f"[FrameDebug] communicate force start START point={force_start_point}")
+    communicate(
+        cps=cps,
+        config=config,
+        point=force_start_point,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=sanding_speed,
+        velocity_profile="sanding",
+        speed_mode="linear",
+        wait=True,
+    )
+    print(f"[FrameDebug] communicate force start DONE point={force_start_point}")
+
     print(
         f"[FrameDebug] putForceZminus START force={force} "
         "search_linear_velocity=5.0"
@@ -585,7 +602,7 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         raise RuntimeError("[Frame] Failed to establish stable Z- force contact.")
 
     contact_sanding_points = [list(point) for point in sanding_points]
-    force_control_z = float(force_approach_point[2])
+    force_control_z = float(force_start_point[2])
     for point in contact_sanding_points:
         point[2] = force_control_z
         point[3:6] = [0, 0, 0]

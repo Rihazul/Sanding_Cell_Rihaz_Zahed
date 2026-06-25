@@ -121,6 +121,22 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
         wait=True,
     )
 
+    force_start_point = list(contact_points[0])
+    force_start_point[3:6] = [0, 0, 0]
+    print(f"[Tool1ForcePath] {label}: force start {force_start_point}")
+    communicate(
+        cps=cps,
+        config=config,
+        point=force_start_point,
+        tcp=config['coords']['tcptool1plane1'],
+        ucs=config['coords']['ucsTable1'],
+        seventh=-1,
+        speed=sanding_speed,
+        velocity_profile="sandingspeed",
+        speed_mode="linear",
+        wait=True,
+    )
+
     force_applied = False
     vibration_on = False
     try:
@@ -141,13 +157,14 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
         vibration_on = True
 
         cycle_count = max(1, int(cycles))
+        sanding_points = contact_points[1:]
         for cycle_index in range(cycle_count):
             if stop_requested():
                 raise RuntimeError("[Tool1] Stop requested.")
             print(f"[Tool1ForcePath] {label}: continuous cycle {cycle_index + 1}/{cycle_count}")
-            for index, point in enumerate(contact_points, start=1):
-                is_last = index == len(contact_points)
-                print(f"[Tool1ForcePath] {label}: move {index}/{len(contact_points)} {point}")
+            for index, point in enumerate(sanding_points, start=1):
+                is_last = index == len(sanding_points)
+                print(f"[Tool1ForcePath] {label}: move {index}/{len(sanding_points)} {point}")
                 communicate(
                     cps=cps,
                     config=config,

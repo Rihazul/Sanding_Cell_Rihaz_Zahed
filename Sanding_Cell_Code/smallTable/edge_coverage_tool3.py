@@ -251,7 +251,7 @@ def execute_edge_coverage(
             if stop_requested():
                 raise RuntimeError("[Edge Coverage] Stop requested.")
             print(f"[Edge Coverage] Continuous cycle {cycle_index + 1}/{cycle_count}")
-            cycle_points = edge_points if cycle_index == 0 else edge_points[1:]
+            cycle_points = edge_points[1:]
             for point in cycle_points:
                 communicate(
                     cps=cps,
@@ -388,6 +388,20 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation, cycles=1):
         seventh=-1,
         speed=robot_speed,
         velocity_profile="robot",
+        wait=True,
+    )
+    edge_speed = _resolve_edge_speed(config)
+    print("[Edge Coverage] Moving to first edge point before force:", edge_points[0])
+    communicate(
+        cps=cps,
+        config=config,
+        point=edge_points[0],
+        tcp=config["coords"]["tcptool3plane1"],
+        ucs=config["coords"]["ucsTable1"],
+        seventh=-1,
+        speed=edge_speed,
+        velocity_profile="sanding",
+        speed_mode="linear",
         wait=True,
     )
     execute_edge_coverage(
