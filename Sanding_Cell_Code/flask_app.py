@@ -106,7 +106,68 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def _scan_indicates_model_f(use_cache=True):
+def _scan_summary_from_data(scan_data):
+    detected_door_numbers = None
+    physical_numbers = scan_data.get("physicalDoorNumbers")
+    if isinstance(physical_numbers, list):
+        detected = []
+        for value in physical_numbers:
+            try:
+                door_number = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= door_number <= 4:
+                detected.append(door_number)
+        detected_door_numbers = sorted(set(detected))
+
+    door_profiles = scan_data.get("doorProfiles")
+    model_f_detected = False
+    if isinstance(door_profiles, list) and door_profiles:
+        if detected_door_numbers is None:
+            detected = []
+            for profile in door_profiles:
+                if not isinstance(profile, dict):
+                    continue
+                try:
+                    door_number = int(profile.get("doorNumber"))
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= door_number <= 4:
+                    detected.append(door_number)
+            detected_door_numbers = sorted(set(detected)) if detected else None
+
+        considered = 0
+        all_uniform = True
+        for entry in door_profiles:
+            if not isinstance(entry, dict):
+                continue
+            profile = entry.get("profile")
+            if profile is None:
+                continue
+            considered += 1
+            if profile != "uniform_depth_no_pocket":
+                all_uniform = False
+                break
+        model_f_detected = bool(considered and all_uniform)
+
+    if detected_door_numbers is None and isinstance(physical_numbers, list):
+        detected_door_numbers = []
+
+    return detected_door_numbers, model_f_detected
+
+
+def _load_tablea_scan_summary_from_results():
+    try:
+        with open(TABLEA_SCAN_RESULTS_PATH, "r", encoding="utf-8") as file:
+            data = json.load(file)
+    except Exception:
+        return None, False
+    if not isinstance(data, dict):
+        return None, False
+    return _scan_summary_from_data(data)
+
+
+def _scan_indicates_model_f(use_cache=True, allow_scan_results_fallback=True):
     if use_cache:
         try:
             cached = _load_tablea_scan_meta().get("modelFDetectedFromScan")
@@ -115,36 +176,10 @@ def _scan_indicates_model_f(use_cache=True):
         except Exception:
             pass
 
-    scan_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "smallTable",
-        "static",
-        "scan_results.json",
-    )
-    try:
-        with open(scan_path, "r") as file:
-            data = json.load(file)
-    except Exception:
+    if not allow_scan_results_fallback:
         return False
 
-    door_profiles = data.get("doorProfiles")
-    if not isinstance(door_profiles, list) or not door_profiles:
-        return False
-
-    considered = 0
-    for entry in door_profiles:
-        if not isinstance(entry, dict):
-            continue
-        profile = entry.get("profile")
-        if profile is None:
-            continue
-        considered += 1
-        if profile != "uniform_depth_no_pocket":
-            return False
-
-    if considered == 0:
-        return False
-    return True
+    return bool(_load_tablea_scan_summary_from_results()[1])
 
 
 def _build_tablea_signature(table_data):
@@ -409,44 +444,7 @@ def _set_tablea_scan_meta(
 
 def _get_detected_tablea_door_numbers():
     """Return physical door slots explicitly reported by the latest scan."""
-    try:
-        with open(TABLEA_SCAN_RESULTS_PATH, "r", encoding="utf-8") as f:
-            scan_data = json.load(f)
-    except Exception:
-        return None
-
-    physical_numbers = scan_data.get("physicalDoorNumbers")
-    if isinstance(physical_numbers, list):
-        detected = []
-        for value in physical_numbers:
-            try:
-                door_number = int(value)
-            except (TypeError, ValueError):
-                continue
-            if 1 <= door_number <= 4:
-                detected.append(door_number)
-        if detected:
-            return sorted(set(detected))
-
-    door_profiles = scan_data.get("doorProfiles")
-    if isinstance(door_profiles, list):
-        detected = []
-        for profile in door_profiles:
-            if not isinstance(profile, dict):
-                continue
-            try:
-                door_number = int(profile.get("doorNumber"))
-            except (TypeError, ValueError):
-                continue
-            if 1 <= door_number <= 4:
-                detected.append(door_number)
-        if detected:
-            return sorted(set(detected))
-
-    if isinstance(physical_numbers, list):
-        return []
-
-    return None
+    return _load_tablea_scan_summary_from_results()[0]
 
 
 def _get_requested_tablea_task_doors(table_data):
@@ -480,7 +478,7 @@ def _get_requested_tablea_task_doors(table_data):
     return requested
 
 
-def _get_tablea_scan_status():
+def _get_tablea_scan_status(allow_scan_results_fallback=True):
     meta = _load_tablea_scan_meta()
     has_scan_file = os.path.exists(TABLEA_SCAN_RESULTS_PATH)
     has_scan = bool(has_scan_file or meta.get("hasScan"))
@@ -509,11 +507,14 @@ def _get_tablea_scan_status():
     if isinstance(cached_detection_available, bool) and cached_detected is not None:
         detected_door_numbers = cached_detected
         door_detection_available = cached_detection_available
-    else:
-        # Fallback only for old scan metadata. New scans cache this once at scan completion,
-        # so Start Task does not re-read scan_results.json in the hot path.
+    elif allow_scan_results_fallback:
+        # Fallback only for old scan metadata. Start Task disables this so it never
+        # parses scan_results.json in the hot path after a scan.
         detected_door_numbers = _get_detected_tablea_door_numbers()
         door_detection_available = detected_door_numbers is not None
+    else:
+        detected_door_numbers = []
+        door_detection_available = False
 
     return {
         "hasScan": True,
@@ -1077,7 +1078,7 @@ def start_TableA_process():
     tableData = data['TableA']
     app.logger.info("[TableA Start][pre-worker] scan_status begin")
     step_start = time.monotonic()
-    scan_status = _get_tablea_scan_status()
+    scan_status = _get_tablea_scan_status(allow_scan_results_fallback=False)
     route_timings["scanStatusSeconds"] = time.monotonic() - step_start
     app.logger.info(
         "[TableA Start][pre-worker] scan_status done in %.3fs; hasScan=%s detected=%s detectionAvailable=%s",
@@ -1140,7 +1141,7 @@ def start_TableA_process():
             selected_model = next((d.get('model') for d in doors if isinstance(d, dict) and d.get('model')), None)
             # If the frontend sends model keys like modelA/modelB..., use that.
         if not selected_model or selected_model == 'None':
-            if _scan_indicates_model_f():
+            if _scan_indicates_model_f(allow_scan_results_fallback=False):
                 selected_model = "modelF"
             else:
                 return jsonify({"error": "Invalid request, no model found for TableA"}), 400
@@ -1192,7 +1193,7 @@ def start_TableA_process():
     auto_model_f_from_scan = bool(
         runtime_config.get("settings", {}).get("autoModelFFromScan", False)
     )
-    if auto_model_f_from_scan and selected_model != "modelF" and _scan_indicates_model_f():
+    if auto_model_f_from_scan and selected_model != "modelF" and _scan_indicates_model_f(allow_scan_results_fallback=False):
         print("Scan indicates no pocket; switching to modelF (autoModelFFromScan=True).")
         selected_model = "modelF"
         tableData["model"] = selected_model
@@ -2910,8 +2911,14 @@ def handle_action():
                 config["logger"].info(
                     "[scan] Post-scan scanhoming is disabled; using direct homing from scan_table."
                 )
-                detected_door_numbers = _get_detected_tablea_door_numbers()
-                model_f_detected = _scan_indicates_model_f(use_cache=False)
+                summary_start = time.monotonic()
+                detected_door_numbers, model_f_detected = _load_tablea_scan_summary_from_results()
+                config["logger"].info(
+                    "[scan] Scan summary loaded once in %.3fs; detected=%s modelF=%s",
+                    time.monotonic() - summary_start,
+                    detected_door_numbers,
+                    model_f_detected,
+                )
                 _set_tablea_scan_meta(
                     signature=scan_signature,
                     model=scan_model,
@@ -2921,7 +2928,7 @@ def handle_action():
                     scan_revision=_get_tablea_scan_revision(),
                     model_f_detected=model_f_detected,
                 )
-                scan_status = _get_tablea_scan_status()
+                scan_status = _get_tablea_scan_status(allow_scan_results_fallback=False)
                 detach_start = time.monotonic()
                 _fast_detach_global_cps_for_child_start_locked()
 
