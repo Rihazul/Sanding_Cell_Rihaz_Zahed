@@ -119,6 +119,9 @@ door:
   seventhAxisEarlyDoneRetries: 0
   seventhAxisSettleWindowSec: 0.02
   seventhAxisSettleStableSamples: 1
+  seventhAxisForceBarrierGraceSec: 0.0
+  seventhAxisForceBarrierStableSamples: 1
+  seventhAxisPollIntervalSec: 0.01
   # homingSpeed: 1.0
 
 point:

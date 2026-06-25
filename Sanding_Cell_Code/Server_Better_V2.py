@@ -1193,8 +1193,6 @@ def putForceZminus(
 
     result = []
 
-    if not waitForSeventhAxisIdle(cps, config, context="putForceZminus"):
-        return False
     waitForBlending(cps, config, timeout_s=blending_timeout_s)
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
