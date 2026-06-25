@@ -1,4 +1,4 @@
- import React, { useEffect, useState } from 'react';
+ import React, { useEffect, useRef, useState } from 'react';
 import { DashboardHeader } from './dashboard/DashboardHeader';
 import { StatusBanner } from './dashboard/StatusBanner';
 import { RobotControlPanel } from './dashboard/RobotControlPanel';
@@ -48,6 +48,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [t2Pending, setT2Pending] = useState<ToolPending | null>(null);
   const [t3Pending, setT3Pending] = useState<ToolPending | null>(null);
   const [t4Pending, setT4Pending] = useState<ToolPending | null>(null);
+  const hardwarePollInFlightRef = useRef(false);
 
   // Initialize basic settings from backend (if available)
   useEffect(() => {
@@ -84,6 +85,9 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     let cancelled = false;
 
     const refreshHardwareStatus = async () => {
+      if (hardwarePollInFlightRef.current) return;
+      hardwarePollInFlightRef.current = true;
+
       const results = await Promise.allSettled([
         getRobotStatus(),
         getTableState('tableAOpenClose'),
@@ -95,6 +99,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         checkToolStatus(3),
         checkToolStatus(4),
       ]);
+      hardwarePollInFlightRef.current = false;
 
       if (cancelled) return;
 

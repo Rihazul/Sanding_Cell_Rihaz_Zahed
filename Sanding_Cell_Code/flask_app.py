@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from threading import Thread, Timer
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
@@ -282,6 +282,60 @@ client_thread = None
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, async_mode='threading')
+
+TIMED_REQUEST_PATHS = (
+    "/start_TableA_process",
+    "/robot_status",
+    "/table_state/",
+    "/stopper_state/",
+    "/check_tool1_status",
+    "/check_tool2_status",
+    "/check_tool3_status",
+    "/check_tool4_status",
+)
+
+
+def _should_time_request_path(path):
+    return any(path == item or path.startswith(item) for item in TIMED_REQUEST_PATHS)
+
+
+@app.before_request
+def _log_timed_request_entry():
+    path = request.path
+    if not _should_time_request_path(path):
+        return
+    g._timed_request_start = time.monotonic()
+    g._timed_request_wall = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    app.logger.info(
+        "[RequestTiming] ENTER %s %s tid=%s process=%s lastAction=%s scanActive=%s",
+        request.method,
+        path,
+        threading.get_ident(),
+        process_state.get('status'),
+        process_state.get('last_action'),
+        _inline_scan_active.is_set() if '_inline_scan_active' in globals() else None,
+    )
+
+
+@app.after_request
+def _log_timed_request_exit(response):
+    path = request.path
+    if not _should_time_request_path(path):
+        return response
+    start = getattr(g, '_timed_request_start', None)
+    elapsed = time.monotonic() - start if start is not None else -1.0
+    app.logger.info(
+        "[RequestTiming] EXIT %s %s status=%s elapsed=%.3fs tid=%s process=%s lastAction=%s scanActive=%s",
+        request.method,
+        path,
+        response.status_code,
+        elapsed,
+        threading.get_ident(),
+        process_state.get('status'),
+        process_state.get('last_action'),
+        _inline_scan_active.is_set() if '_inline_scan_active' in globals() else None,
+    )
+    return response
 
 ######################################################f######################################
 default_data = {
@@ -2760,6 +2814,8 @@ def handle_action():
         if _inline_scan_active.is_set():
             return jsonify({'status': 'error', 'message': 'Scan is already running'}), 409
         _inline_scan_active.set()
+        process_state['status'] = 'in_progress'
+        process_state['last_action'] = 'scan'
         scan_x_start_offset = float(config.get("offset", {}).get("scannerOffsetInLeft", 0.0))
         scan_y_start_offset = float(config.get("offset", {}).get("scannerOffsetInBottom", 0.0))
         config['logger'].info(
@@ -2953,6 +3009,9 @@ def handle_action():
             return jsonify({'status': 'error', 'message': f'Scan failed: {exc}'}), 500
         finally:
             _inline_scan_active.clear()
+            if process_state.get('last_action') == 'scan':
+                process_state['status'] = 'completed'
+                process_state['last_action'] = None
 
     return jsonify({'status': 'error', 'message': 'Invalid action provided'}), 400
 
