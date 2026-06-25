@@ -970,36 +970,47 @@ def _run_small_door_zigzag(
                 raise RuntimeError("[ZigZag] Failed to establish Z- force contact.")
             turn_vibration_on(cps)
 
-            motion_points = []
+
             total_cycles = max(int(item[0]) for item in valid_cycle_paths)
-            for cycle_number, cycle_orientation, cycle_points in valid_cycle_paths:
+
+            # Send each orientation chunk explicitly while keeping force contact.
+            # Batching prevents very large horizontal paths from overfilling the motion queue.
+            BATCH_WAIT_EVERY = 8
+            sent_points = 0
+            for path_index, (cycle_number, cycle_orientation, cycle_points) in enumerate(valid_cycle_paths):
                 if stop_requested():
                     raise RuntimeError("[ZigZag] Stop requested.")
                 print(
-                    f"[ZigZag] Continuous cycle {cycle_number}/{total_cycles} "
-                    f"orientation={cycle_orientation}"
+                    f"[ZigZag] Running cycle {cycle_number}/{total_cycles} "
+                    f"orientation={cycle_orientation}, points={len(cycle_points)}"
                 )
-                # The next orientation's first point is the in-contact connector.
-                if motion_points:
-                    motion_points.extend(cycle_points)
-                else:
-                    motion_points.extend(cycle_points[1:])
 
-            for point_index, point_b in enumerate(motion_points):
-                if stop_requested():
-                    raise RuntimeError("[ZigZag] Stop requested.")
-                communicate(
-                    cps=cps,
-                    config=config,
-                    point=point_b,
-                    tcp=config["coords"]["tcptool4plane1"],
-                    ucs=config["coords"]["ucsTable1"],
-                    seventh=-1,
-                    speed=sanding_speed,
-                    velocity_profile="sandingspeed",
-                    speed_mode="linear",
-                    wait=point_index == len(motion_points) - 1,
-                )
+                if path_index == 0:
+                    points_to_send = cycle_points[1:]  # Skip first point (already at it)
+                else:
+                    points_to_send = cycle_points
+
+                for point_index, point_b in enumerate(points_to_send):
+                    if stop_requested():
+                        raise RuntimeError("[ZigZag] Stop requested.")
+                    sent_points += 1
+                    is_last_path = path_index == len(valid_cycle_paths) - 1
+                    is_last_point = is_last_path and point_index == len(points_to_send) - 1
+                    is_batch_end = sent_points % BATCH_WAIT_EVERY == 0
+
+                    communicate(
+                        cps=cps,
+                        config=config,
+                        point=point_b,
+                        tcp=config["coords"]["tcptool4plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        seventh=-1,
+                        speed=sanding_speed,
+                        velocity_profile="sandingspeed",
+                        speed_mode="linear",
+                        wait=is_last_point or is_batch_end,
+                    )
+
             waitForBlending(
                 cps=cps,
                 config=config,

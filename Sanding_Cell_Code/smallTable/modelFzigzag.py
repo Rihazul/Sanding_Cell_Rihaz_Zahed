@@ -439,35 +439,39 @@ def _perform_process_top(
         raise RuntimeError("Force seek failed before Model F sanding start point.")
 
     turn_vibration_on(cps)
-    motion_points = []
     total_cycles = max(int(item[0]) for item in valid_cycle_paths)
-    for cycle_number, cycle_orientation, cycle_points in valid_cycle_paths:
+    BATCH_WAIT_EVERY = 8
+    sent_points = 0
+    for path_index, (cycle_number, cycle_orientation, cycle_points) in enumerate(valid_cycle_paths):
         if stop_requested():
             raise RuntimeError("[ModelF] Stop requested.")
         print(
             f"[ModelF] Continuous cycle {cycle_number}/{total_cycles} "
-            f"orientation={cycle_orientation}"
+            f"orientation={cycle_orientation}, points={len(cycle_points)}"
         )
-        # Keep contact while connecting to the first point of the next orientation.
-        if motion_points:
-            motion_points.extend(cycle_points)
+        if path_index == 0:
+            points_to_send = cycle_points[1:]
         else:
-            motion_points.extend(cycle_points[1:])
+            points_to_send = cycle_points
 
-    for point_index, point in enumerate(motion_points):
-        if stop_requested():
-            raise RuntimeError("[ModelF] Stop requested.")
-        communicate(
-            cps=cps,
-            config=config,
-            point=point,
-            tcp=config["coords"]["tcptool4plane1"],
-            ucs=config["coords"]["ucsTable1"],
-            seventh=-1,
-            speed=sanding_speed,
-            velocity_profile="sandingspeed",
-            wait=point_index == len(motion_points) - 1,
-        )
+        for point_index, point in enumerate(points_to_send):
+            if stop_requested():
+                raise RuntimeError("[ModelF] Stop requested.")
+            sent_points += 1
+            is_last_path = path_index == len(valid_cycle_paths) - 1
+            is_last_point = is_last_path and point_index == len(points_to_send) - 1
+            is_batch_end = sent_points % BATCH_WAIT_EVERY == 0
+            communicate(
+                cps=cps,
+                config=config,
+                point=point,
+                tcp=config["coords"]["tcptool4plane1"],
+                ucs=config["coords"]["ucsTable1"],
+                seventh=-1,
+                speed=sanding_speed,
+                velocity_profile="sandingspeed",
+                wait=is_last_point or is_batch_end,
+            )
     waitForBlending(cps=cps, config=config)
     turn_vibration_off(cps)
     releaseForce(cps=cps, config=config)
@@ -491,8 +495,6 @@ def _split_big_door_zigzag(path_points, orientation):
         return [], []
 
     mode = str(orientation or "vertical").strip().lower()
-    axis = 0 if mode == "vertical" else 1
-    travel_axis = 1 if mode == "vertical" else 0
 
     strokes = []
     i = 0
@@ -503,6 +505,30 @@ def _split_big_door_zigzag(path_points, orientation):
         else:
             strokes.append([path_points[i]])
             i += 1
+
+    if mode == "horizontal":
+        first_half = []
+        second_half = []
+        for stroke in strokes:
+            if len(stroke) == 1:
+                first_half.extend(stroke)
+                second_half.extend(stroke)
+                continue
+
+            start = [float(value) for value in stroke[0]]
+            end = [float(value) for value in stroke[1]]
+            mid = [(start[idx] + end[idx]) / 2.0 for idx in range(6)]
+
+            if start[0] <= end[0]:
+                first_half.extend([start, mid])
+                second_half.extend([mid, end])
+            else:
+                first_half.extend([mid, end])
+                second_half.extend([start, mid])
+        return first_half, second_half
+
+    axis = 0
+    travel_axis = 1
 
     scored = []
     for stroke in strokes:
