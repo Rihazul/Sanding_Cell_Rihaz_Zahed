@@ -15,6 +15,104 @@ import json
 # from smallTable.scansmalltable import scanTableA
 
 
+def waitForSeventhAxisIdle(cps, config, timeout_s=None, context=""):
+    """Wait until an async J7 move has reported a stable stopped state.
+
+    MoveL wait=True only waits for the 6-axis arm. Z-force entry must also
+    ensure the 7th axis has stopped before force control starts.
+    """
+    door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
+    poll_s = max(0.005, float(door_cfg.get("seventhAxisPollIntervalSec", 0.02)))
+    if timeout_s is None:
+        timeout_s = float(door_cfg.get("seventhAxisForceBarrierTimeoutSec", 45.0))
+    timeout_s = max(0.2, float(timeout_s))
+    stable_samples_required = max(
+        1, int(door_cfg.get("seventhAxisForceBarrierStableSamples", 4))
+    )
+    initial_grace_s = max(
+        0.0, float(door_cfg.get("seventhAxisForceBarrierGraceSec", 0.05))
+    )
+
+    def _motion_state(state):
+        if not isinstance(state, (list, tuple)) or len(state) < 3:
+            return None
+        return str(state[2]).strip().lower()
+
+    def _is_running(state):
+        return _motion_state(state) in ("1", "true", "running")
+
+    def _is_stopped(state):
+        motion = _motion_state(state)
+        if motion is None:
+            return False
+        if motion in ("idle", "done", "false", "stop", "stopped"):
+            return True
+        try:
+            return float(motion) == 0.0
+        except (TypeError, ValueError):
+            return False
+
+    if isinstance(config, dict) and config.get("logger"):
+        config["logger"].info(
+            "[J7 Barrier] waiting before Z-force context=%s timeout=%.2fs samples=%s",
+            context,
+            timeout_s,
+            stable_samples_required,
+        )
+
+    start = time.time()
+    stable_samples = 0
+    saw_running = False
+    last_state = []
+
+    while True:
+        if stop_requested():
+            try:
+                cps.HRIF_HRApp(0, "HR_Motor", "MotorStop", ["J7"], [])
+            except Exception:
+                pass
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].warning("[J7 Barrier] stop requested; J7 stop issued.")
+            return False
+
+        state = []
+        nret = cps.HRIF_HRApp(0, "HR_Motor", "MotorGetState", ["J7"], state)
+        last_state = state
+        if nret not in (0, None) or _motion_state(state) is None:
+            stable_samples = 0
+        elif _is_running(state):
+            saw_running = True
+            stable_samples = 0
+        elif _is_stopped(state):
+            if (not saw_running) and (time.time() - start) < initial_grace_s:
+                stable_samples = 0
+            else:
+                stable_samples += 1
+                if stable_samples >= stable_samples_required:
+                    if isinstance(config, dict) and config.get("logger"):
+                        config["logger"].info(
+                            "[J7 Barrier] stable stopped before Z-force context=%s elapsed=%.3fs state=%s",
+                            context,
+                            time.time() - start,
+                            state,
+                        )
+                    return True
+        else:
+            stable_samples = 0
+
+        if (time.time() - start) >= timeout_s:
+            if isinstance(config, dict) and config.get("logger"):
+                config["logger"].error(
+                    "[J7 Barrier] timeout before Z-force context=%s timeout=%.2fs last_state=%s",
+                    context,
+                    timeout_s,
+                    last_state,
+                )
+            return False
+
+        time.sleep(poll_s)
+
+
 def waitForBlending(cps, config, timeout_s=None):
     door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
     if timeout_s is None:
@@ -1095,6 +1193,8 @@ def putForceZminus(
 
     result = []
 
+    if not waitForSeventhAxisIdle(cps, config, context="putForceZminus"):
+        return False
     waitForBlending(cps, config, timeout_s=blending_timeout_s)
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)

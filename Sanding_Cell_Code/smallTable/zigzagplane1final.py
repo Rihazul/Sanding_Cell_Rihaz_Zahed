@@ -378,13 +378,15 @@ def finalize_spiral_path(
     try:
         if force is not None and config is not None:
             # Apply force *after* path is ready
-            putForceZminus(
+            force_ok = putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool3plane1"],
                 ucs=config["coords"]["ucsTable1"],
                 config=config,
             )
+            if not force_ok:
+                raise RuntimeError("[ZigZag] Failed to establish Z- force contact.")
             force_applied = True
             time.sleep(force_settle_s)
 
@@ -955,7 +957,7 @@ def _run_small_door_zigzag(
                 velocity_profile="sandingspeed",
                 wait=True,
             )
-            putForceZminus(
+            force_ok = putForceZminus(
                 cps=cps,
                 force=force,
                 tcp=config["coords"]["tcptool4plane1"],
@@ -964,6 +966,8 @@ def _run_small_door_zigzag(
                 search_linear_velocity=force_seek_linear,
                 blending_timeout_s=force_blending_timeout,
             )
+            if not force_ok:
+                raise RuntimeError("[ZigZag] Failed to establish Z- force contact.")
             turn_vibration_on(cps)
 
             motion_points = []
