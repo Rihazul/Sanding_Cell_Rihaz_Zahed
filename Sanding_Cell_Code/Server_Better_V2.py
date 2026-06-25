@@ -18,8 +18,8 @@ import json
 def waitForSeventhAxisIdle(cps, config, timeout_s=None, context=""):
     """Wait until an async J7 move has reported a stable stopped state.
 
-    MoveL wait=True only waits for the 6-axis arm. Z-force entry must also
-    ensure the 7th axis has stopped before force control starts.
+    MoveL wait=True only waits for the 6-axis arm. When the 7th axis was
+    started asynchronously, callers need this barrier before the next path step.
     """
     door_cfg = config.get("door", {}) if isinstance(config, dict) else {}
     poll_s = max(0.005, float(door_cfg.get("seventhAxisPollIntervalSec", 0.02)))
@@ -54,7 +54,7 @@ def waitForSeventhAxisIdle(cps, config, timeout_s=None, context=""):
 
     if isinstance(config, dict) and config.get("logger"):
         config["logger"].info(
-            "[J7 Barrier] waiting before Z-force context=%s timeout=%.2fs samples=%s",
+            "[J7 Barrier] waiting for async J7 idle context=%s timeout=%.2fs samples=%s",
             context,
             timeout_s,
             stable_samples_required,
@@ -91,7 +91,7 @@ def waitForSeventhAxisIdle(cps, config, timeout_s=None, context=""):
                 if stable_samples >= stable_samples_required:
                     if isinstance(config, dict) and config.get("logger"):
                         config["logger"].info(
-                            "[J7 Barrier] stable stopped before Z-force context=%s elapsed=%.3fs state=%s",
+                            "[J7 Barrier] stable stopped context=%s elapsed=%.3fs state=%s",
                             context,
                             time.time() - start,
                             state,
@@ -103,7 +103,7 @@ def waitForSeventhAxisIdle(cps, config, timeout_s=None, context=""):
         if (time.time() - start) >= timeout_s:
             if isinstance(config, dict) and config.get("logger"):
                 config["logger"].error(
-                    "[J7 Barrier] timeout before Z-force context=%s timeout=%.2fs last_state=%s",
+                    "[J7 Barrier] timeout waiting for async J7 idle context=%s timeout=%.2fs last_state=%s",
                     context,
                     timeout_s,
                     last_state,
@@ -7241,6 +7241,8 @@ def communicate(
             setSpeed(cps, 1.0, config=config)
     # time.sleep(0.1)
 
+    effective_wait = wait if wait is not None else bool(1 - doMeasure)
+
     if seventh != -1:
         if stop_requested():
             return measurements
@@ -7254,7 +7256,7 @@ def communicate(
                 config["logger"].info(
                     "[J7 Target] target=%.3f wait=%s require_ok=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     float(seventh),
-                    wait if wait is not None else bool(1 - doMeasure),
+                    effective_wait,
                     bool(require_seventh_ok),
                     bool(require_seventh_run_transition),
                     selected_profile,
@@ -7266,7 +7268,7 @@ def communicate(
                 config["logger"].info(
                     "[J7 Target] target=%s wait=%s require_ok=%s strict_transition=%s profile=%s speed_arg=%s tcp=%s ucs=%s",
                     seventh,
-                    wait if wait is not None else bool(1 - doMeasure),
+                    effective_wait,
                     bool(require_seventh_ok),
                     bool(require_seventh_run_transition),
                     selected_profile,
@@ -7280,7 +7282,7 @@ def communicate(
             position=seventh,
             speed=seventh_speed,
             config=config,
-            wait=wait if wait is not None else bool(1 - doMeasure),
+            wait=effective_wait,
             strict_run_transition=bool(require_seventh_run_transition),
         )
         if isinstance(config, dict) and config.get("logger"):
@@ -7290,7 +7292,12 @@ def communicate(
                 bool(ok),
                 time.time() - j7_wait_start,
             )
-        if not ok:
+        if ok:
+            if isinstance(config, dict):
+                config["_j7_async_pending"] = not bool(effective_wait)
+        else:
+            if isinstance(config, dict):
+                config["_j7_async_pending"] = False
             return None if require_seventh_ok else measurements
 
     if point:
@@ -7307,9 +7314,26 @@ def communicate(
             speed=linear_speed,
             profile=selected_profile,
             config=config,
-            wait=wait if wait is not None else bool(1 - doMeasure),
+            wait=effective_wait,
             ratio_for_log=motion_ratio_log,
         )
+        if (
+            effective_wait
+            and isinstance(config, dict)
+            and bool(config.get("_j7_async_pending", False))
+            and bool(config.get("door", {}).get("seventhAxisPointBarrierEnabled", True))
+        ):
+            barrier_ok = waitForSeventhAxisIdle(
+                cps,
+                config,
+                context="point_wait_after_async_j7",
+            )
+            config["_j7_async_pending"] = False
+            if not barrier_ok:
+                config["logger"].error(
+                    "[J7 Barrier] Async J7 did not finish before next point path step."
+                )
+                return None if require_seventh_ok else measurements
 
     # the list to collect values in
     if doMeasure:
