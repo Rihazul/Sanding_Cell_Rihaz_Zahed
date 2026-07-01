@@ -485,7 +485,7 @@ def testmodel4tool2sidesmallfunction(force,cps,section=None,return_home=True,pas
                     perform_process_left(cps, config, points1=pointsleft, force=force)
                     communicate(cps=cps,config=config,point=pointLeftExtra,tcp=config['coords']['tcpSideTool'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot", wait=True)
                 elif selected_section == "top":
-                    top_passes = [tcx1]
+                    top_passes = [tcx1, tcx]
                     if current_pass_index >= len(top_passes):
                         return False
                     cx_val = top_passes[current_pass_index]

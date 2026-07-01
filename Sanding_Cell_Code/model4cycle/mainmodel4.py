@@ -105,7 +105,7 @@ def run_tool2sideoutedge_cycles(count,force,cps,section=None,return_home=True,pa
 def run_tool2_combined_cycles(side_count, side_force, edge_count, edge_force, cps):
     """Run Tool 2 side and outside-edge on each 7th-axis pass before advancing."""
     sections = ("bottom", "left", "top", "right")
-    max_passes_by_section = {"bottom": 8, "left": 1, "top": 8, "right": 1}
+    max_passes_by_section = {"bottom": 5, "left": 1, "top": 5, "right": 1}
     total_steps = max(side_count, edge_count)
     for step in range(total_steps):
         if stop_requested():
