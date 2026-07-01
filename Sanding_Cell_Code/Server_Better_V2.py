@@ -1039,93 +1039,113 @@ def putForce(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
     # input("Proceed with force?")
 
 
-def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
-    # Initialize parameters
-    boxID = 0  # Control box ID
-    rbtID = 0  # Robot ID
+def putForceZplus(
+    cps,
+    force,
+    tcp,
+    ucs,
+    config,
+    goal=[0, 0, 1],
+    search_linear_velocity=7.0,
+    search_angular_velocity=1.0,
+    blending_timeout_s=7.0,
+    contact_force_threshold=None,
+):
+    # Same stabilized pattern as Z-; goal is the enabled axis mask, force_goal carries direction.
+    boxID = 0
+    rbtID = 0
 
     result = []
-    nret = 0
 
-    waitForBlending(cps, config)
+    waitForBlending(cps, config, timeout_s=blending_timeout_s)
     setUCS_TCP(cps=cps, tcp=tcp, ucs=ucs, config=config)
     setSpeed(cps, speed=config["UI"]["sandSpeed"], config=config)
 
     nRet = cps.HRIF_SetForceZero(0, 0)
     if nRet != 0:
         config["logger"].error(f"Failed to set force zero: {nRet}")
-        return
+        return False
 
-    # Set tool coordinate system mode for force control
     nret = cps.HRIF_SetForceToolCoordinateMotion(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"forcetoolcoordinate: {nret}, result: {result}")
     if nret != 0:
         config["logger"].error(f"Failed to set force tool coordinate motion: {nret}")
-        return
+        return False
 
-    # Set the force control strategy to constant force mode
     nret = cps.HRIF_SetForceControlStrategy(boxID, rbtID, 0)
     time.sleep(0.0001)
     config["logger"].info(f"force strategy: {nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set force control strategy: {nret}")
-        return
+        return False
 
-    # Define the target force control values (e.g., maintain fixed force in y and z axis)
     freedom = goal + [0, 0, 0]
     time.sleep(0.0001)
-    cps.HRIF_SetControlFreedom(0, 0, freedom)  # force control degree of freedom
+    nret = cps.HRIF_SetControlFreedom(0, 0, freedom)
+    if nret != 0:
+        config["logger"].error(f"Failed to set Z+ control freedom: {nret}")
+        return False
 
-    # Set maximum search velocities for force control
-    linear_velocity = 7  # 100 mm/s
-    angular_velocity = 1  # 10 °/s
+    linear_velocity = max(1.0, float(search_linear_velocity))
+    angular_velocity = max(0.1, float(search_angular_velocity))
+    force_abs = abs(float(force))
+    detection_threshold = force_abs
+    if contact_force_threshold is not None:
+        # This threshold only controls when our Python contact-search loop
+        # returns. The controller still receives force_abs as the force goal.
+        # Never wait for more contact force than the operator requested.
+        detection_threshold = min(force_abs, max(0.1, abs(float(contact_force_threshold))))
+
     nret = cps.HRIF_SetMaxSearchVelocities(
         boxID, rbtID, linear_velocity, angular_velocity
     )
     time.sleep(0.0001)
-    config["logger"].info(f"search velocities: {nret}")
+    config["logger"].info(
+        "[forceControl] search velocities: %s (linear=%.3f, angular=%.3f, "
+        "force_goal=%.3fN, contact_threshold=%.3fN)",
+        nret,
+        linear_velocity,
+        angular_velocity,
+        float(force),
+        detection_threshold,
+    )
     if nret != 0:
         config["logger"].error(f"Failed to set max search velocities: {nret}")
-        return
+        return False
 
-    # Set PID parameters to ensure stability in force control
     dFp = 0.8
     dFi = 0.001
     dFd = 0.02
     dTp = 0.8
     dTi = 0.001
     dTd = 0.02
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set PID control params: {nRet}")
+        return False
 
-    # nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    # time.sleep(0.1)
-    # if nRet != 0:
-    # config['logger'].error(f"Failed to set PID control params: {nRet}")
-    # return
+    Mass = [80, 80, 80, 10, 10, 10]
+    nRet = cps.HRIF_SetMassParams(0, 0, Mass)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set mass params: {nRet}")
+        return False
 
-    # # Set the Mass parameter
-    # Mass = [80, 80, 80, 10, 10, 10]
-    # nRet = cps.HRIF_SetMassParams(0, 0, Mass)
-    # time.sleep(0.0001)
-    # #if nRet != 0:
-    #     #config['logger'].error(f"Failed to set mass params: {nRet}")
-    #     #return
+    Stiff = [1000, 1000, 1000, 100, 100, 100]
+    nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set stiff params: {nRet}")
+        return False
 
-    # #Stiffness
-    # Stiff = [1500, 1500, 1500, 100, 100, 100]
-    # nRet = cps.HRIF_SetStiffParams(0,0,Stiff)
-    # time.sleep(0.0001)
-    # if nRet != 0:
-    #     config['logger'].error(f"Failed to set PID control params: {nRet}")
-    #     return
-
-    # Set the damp parameter
-    damp = [4000, 4000, 4000, 40, 40, 40]
+    damp = [2000, 2000, 2000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
         config["logger"].error(f"Failed to set damp params: {nRet}")
-        return
+        return False
 
     force_goal = [
         force * goal[0],
@@ -1134,17 +1154,19 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
         0,
         0,
         0
-    ]  # Target force: [X, Y, Z, Rx, Ry, Rz]
+    ]
     nret = cps.HRIF_SetForceControlGoal(boxID, rbtID, force_goal)
     time.sleep(0.0001)
     config["logger"].info(f"[forceControl] force control goal: {nret}")
     if nret != 0:
         config["logger"].error(f"Failed to set force control goal: {nret}")
-        return
+        return False
 
-    # Enable force control
-    cps.HRIF_SetForceControlState(boxID, rbtID, 1)
+    nret = cps.HRIF_SetForceControlState(boxID, rbtID, 1)
     time.sleep(0.0001)
+    if nret != 0:
+        config["logger"].error(f"Failed to enable force control: {nret}")
+        return False
 
     notFound = True
     while notFound:
@@ -1154,15 +1176,23 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
             except Exception:
                 pass
             config["logger"].info("[forceControl] Stop requested during force seek; aborting.")
-            return
+            return False
+
         result = []
         nRet = cps.HRIF_ReadFTCabData(0, 0, result)
-        config["logger"].info(f"[forceControl] Force that is coming is: {result}")
+        if nRet != 0 or len(result) < len(goal):
+            time.sleep(0.0001)
+            continue
 
+        config["logger"].info(f"[forceControl] Force that is coming is: {result}")
         for i, val in enumerate(goal):
-            if val and abs(float(result[i])) > abs(force):
+            if val and abs(float(result[i])) > detection_threshold:
                 config["logger"].info(
-                    f"[forceControl] Force condition met: Axis {i}, Force {result[i]}"
+                    "[forceControl] Force condition met: Axis %s, Force %s, "
+                    "threshold %.3fN",
+                    i,
+                    result[i],
+                    detection_threshold,
                 )
                 time.sleep(0.0001)
                 notFound = False
@@ -1171,9 +1201,8 @@ def putForceZplus(cps, force, tcp, ucs, config, goal=[0, 0, 1]):
         time.sleep(0.0001)
 
     config["logger"].info(f"[forceControl] applying force: {force}N")
-    # time.sleep(0.1)
-    config["logger"].info(f"[forceControl] Turned on vibration")
-
+    config["logger"].info("[forceControl] Turned on vibration")
+    return True
 
 def putForceZminus(
     cps,

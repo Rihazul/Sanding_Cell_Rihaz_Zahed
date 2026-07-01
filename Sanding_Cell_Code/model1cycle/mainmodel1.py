@@ -276,7 +276,14 @@ def startingRobotToSandmodel1():
     
     
     json_config = load_json_config()
-    innerSandingOffset = get_inverse_overlap_step(json_config)
+    # UI stores pocket overlap in mm: 0 = no overlap, 100 = high overlap.
+    # Model 1 Tool 4 zigzag uses 73 mm pocket tool offset, so diameter is 146 mm.
+    innerSandingOffset = get_inverse_overlap_step(
+        json_config,
+        tool_diameter_mm=146.0,
+        max_overlap_mm=100.0,
+        min_step_mm=1.0,
+    )
     json_config_TableB = json_config['TableB']
 
     spiral_settings = get_spiral_settings(json_config)

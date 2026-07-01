@@ -332,17 +332,80 @@ def model1bottomsmall(force,cps):
             velocity_profile="robot",
             wait=True,
         )
+    def perform_bottom_u_pass(cps, config, force):
+        """Sand B then A as one continuous contact pass at the current J7 station."""
+        if not bottompointsb or not bottompointsa:
+            return
+
+        communicate(
+            cps=cps,
+            config=config,
+            point=bottompointsb[0],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['approach'],
+            velocity_profile="robot",
+            wait=True
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            point=bottompointsb[1],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['contact'],
+            velocity_profile="sanding",
+            wait=True
+        )
+        putForceZplus(
+            cps=cps,
+            force=force,
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            config=config
+        )
+        turn_vibration_on(cps)
+
+        continuous_points = bottompointsb[2:-1] + bottompointsa[1:-1]
+        for idx, point in enumerate(continuous_points):
+            communicate(
+                cps=cps,
+                config=config,
+                point=point,
+                tcp=config['coords']['tcptool4plane2'],
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=speed_profile['contact'],
+                velocity_profile="sanding",
+                wait=(idx == len(continuous_points) - 1)
+            )
+
+        waitForBlending(cps=cps, config=config)
+        turn_vibration_off(cps)
+        releaseForce(cps=cps, config=config, wait_for_blending=False)
+        communicate(
+            cps=cps,
+            config=config,
+            point=bottompointsa[-1],
+            tcp=config['coords']['tcptool4plane2'],
+            ucs=config['coords']['ucsTable2'],
+            seventh=-1,
+            speed=speed_profile['return'],
+            velocity_profile="robot",
+            wait=True
+        )
+
     if not bigger:
         #Bottom Cycle at x2 (U pattern: bottom -> top)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=False)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        perform_bottom_u_pass(cps, config, force)
 
         #Shift to x1 and repeat U pattern
         run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        perform_bottom_u_pass(cps, config, force)
 
         #Last cycle
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
@@ -351,18 +414,15 @@ def model1bottomsmall(force,cps):
         #Bottom Cycle at x3 (U pattern: bottom -> top)
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
         communicate(cps=cps,config=config,seventh=x3,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot",wait=False)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        perform_bottom_u_pass(cps, config, force)
         
         #Shift to x2 and repeat U pattern
         run_single_movement(robot_point=prehoming, seventh_axis_point=x2, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        perform_bottom_u_pass(cps, config, force)
         
         #Shift to x1 and repeat U pattern
         run_single_movement(robot_point=prehoming, seventh_axis_point=x1, cps=cps, config=config)
-        perform_process_bottom(cps, config, points1=bottompointsb,force=force)
-        perform_process_bottoma(cps, config, points1=bottompointsa,force=force)
+        perform_bottom_u_pass(cps, config, force)
         
         #Last cycle
         communicate(cps=cps,config=config,point=prehoming,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)  
