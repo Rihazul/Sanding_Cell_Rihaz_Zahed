@@ -319,16 +319,19 @@ def model1pocket1side(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
         )
-        time.sleep(0.2)  # Match zigzag: let force control settle before vibration/path motion.
         turn_vibration_on(cps)
         force_active = True
 
+    force_approach_lift = 20.0
+
     def move_to_contact_point(first_point):
-        # Command the first contact point before force/vibration.
+        # Table B Z+ searches downward, so prepoint lift is negative Z.
+        force_prepoint = list(first_point)
+        force_prepoint[2] = first_point[2] - force_approach_lift
         communicate(
             cps=cps,
             config=config,
-            point=first_point,
+            point=force_prepoint,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
@@ -343,9 +346,9 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -366,9 +369,9 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -389,9 +392,9 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -412,9 +415,9 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -815,16 +818,19 @@ def model1pocket2side(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
         )
-        time.sleep(0.2)  # Match zigzag: let force control settle before vibration/path motion.
         turn_vibration_on(cps)
         force_active = True
 
+    force_approach_lift = 20.0
+
     def move_to_contact_point(first_point):
-        # Command the first contact point before force/vibration.
+        # Table B Z+ searches downward, so prepoint lift is negative Z.
+        force_prepoint = list(first_point)
+        force_prepoint[2] = first_point[2] - force_approach_lift
         communicate(
             cps=cps,
             config=config,
-            point=first_point,
+            point=force_prepoint,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
@@ -839,9 +845,9 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -862,9 +868,9 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -885,9 +891,9 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -908,9 +914,9 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1360,16 +1366,19 @@ def model1pocket3side(force,cps):
             ucs=config['coords']['ucsTable2'],
             config=config
         )
-        time.sleep(0.2)  # Match zigzag: let force control settle before vibration/path motion.
         turn_vibration_on(cps)
         force_active = True
 
+    force_approach_lift = 20.0
+
     def move_to_contact_point(first_point):
-        # Command the first contact point before force/vibration.
+        # Table B Z+ searches downward, so prepoint lift is negative Z.
+        force_prepoint = list(first_point)
+        force_prepoint[2] = first_point[2] - force_approach_lift
         communicate(
             cps=cps,
             config=config,
-            point=first_point,
+            point=force_prepoint,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             seventh=-1,
@@ -1384,9 +1393,9 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1407,9 +1416,9 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1430,9 +1439,9 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
@@ -1453,9 +1462,9 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled only after we reach the first contact point.
+        # Force is enabled from the lifted prepoint; the first path point is reached under force.
         start_force_if_needed()
-        for idx, point in enumerate(points1[1:], start=1):
+        for idx, point in enumerate(points1):
             communicate(
                 cps=cps,
                 config=config,
