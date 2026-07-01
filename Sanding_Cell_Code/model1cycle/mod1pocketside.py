@@ -317,7 +317,8 @@ def model1pocket1side(force,cps):
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
-            config=config
+            config=config,
+            contact_force_threshold=1.5,
         )
         turn_vibration_on(cps)
         force_active = True
@@ -550,6 +551,7 @@ def model1pocket1side(force,cps):
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
     releaseForce(cps=cps, config=config)
+    turn_vibration_off(cps)
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2, centered)
@@ -558,9 +560,9 @@ def model1pocket1side(force,cps):
     perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
+    turn_vibration_off(cps)
     force_active = False
     waitForBlending(cps=cps, config=config)
-    turn_vibration_off(cps)
     communicate(cps=cps,config=config,point=pretpointmiddle_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=htoppoints_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     # turn_tool_spin_off(cps)
@@ -836,7 +838,8 @@ def model1pocket2side(force,cps):
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
-            config=config
+            config=config,
+            contact_force_threshold=1.5,
         )
         turn_vibration_on(cps)
         force_active = True
@@ -1117,6 +1120,7 @@ def model1pocket2side(force,cps):
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
     releaseForce(cps=cps, config=config)
+    turn_vibration_off(cps)
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2, centered)
@@ -1125,9 +1129,9 @@ def model1pocket2side(force,cps):
     perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
+    turn_vibration_off(cps)
     force_active = False
     waitForBlending(cps=cps, config=config)
-    turn_vibration_off(cps)
     communicate(cps=cps,config=config,point=pretpointmiddle_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=htoppoints_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     # turn_tool_spin_off(cps)
@@ -1404,7 +1408,8 @@ def model1pocket3side(force,cps):
             force=force,
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
-            config=config
+            config=config,
+            contact_force_threshold=1.5,
         )
         turn_vibration_on(cps)
         force_active = True
@@ -1683,6 +1688,7 @@ def model1pocket3side(force,cps):
     perform_process_right(cps, config, points1=rightpoints,force=force)
     perform_process_bottom(cps, config, points1=bottom_right_to_mid,force=force)
     releaseForce(cps=cps, config=config)
+    turn_vibration_off(cps)
     force_active = False
 
     # Pass 2: bottom -> left -> top (x2, centered)
@@ -1691,9 +1697,9 @@ def model1pocket3side(force,cps):
     perform_process_left(cps, config, points1=leftpoints_shifted,force=force)
     perform_process_top(cps, config, points1=top_left_to_mid_shifted,force=force)
     releaseForce(cps=cps, config=config)
+    turn_vibration_off(cps)
     force_active = False
     waitForBlending(cps=cps, config=config)
-    turn_vibration_off(cps)
     communicate(cps=cps,config=config,point=pretpointmiddle_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     communicate(cps=cps,config=config,point=htoppoints_shifted,tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['travel'],velocity_profile="robot",wait=True)
     # turn_tool_spin_off(cps)
