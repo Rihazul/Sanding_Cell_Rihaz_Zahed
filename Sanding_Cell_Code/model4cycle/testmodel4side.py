@@ -60,6 +60,11 @@ def testmodel4sidesmallfunctionbig(force,cps):
 
     json_config = load_json_config()
     speeed = float(json_config['robotSpeed'])
+    sanding_speed = float(json_config.get('sandingSpeed', speeed))
+    speed_profile = {
+        "travel": speeed,
+        "contact": sanding_speed,
+    }
     print(speeed)
 
     print("p1=",p1)
@@ -231,8 +236,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=speed_profile['contact'],
+                velocity_profile="sanding", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -272,8 +277,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=speed_profile['contact'],
+                velocity_profile="sanding", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -313,8 +318,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=speed_profile['contact'],
+                velocity_profile="sanding", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -354,8 +359,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=speed_profile['contact'],
+                velocity_profile="sanding", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -395,8 +400,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,
-                speed=0.6,
-                wait=False
+                speed=speed_profile['contact'],
+                velocity_profile="sanding", wait=False
             )
         
         # Wait for blending and turn off vibration
@@ -427,8 +432,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
                 seventh=-1,   # or whatever parameter is needed for robot movement
-                speed=0.8,
-                wait=True
+                speed=speed_profile['travel'],
+                velocity_profile="robot", wait=True
             )
         
         #time.sleep(0.1)
@@ -441,8 +446,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
                 seventh=seventh_axis_point,
                 tcp=config['coords']['tcpReal'],
                 ucs=config['coords']['ucsTable2'],
-                speed=0.5,
-                wait=True
+                speed=speed_profile['travel'],
+                velocity_profile="robot", wait=True
             )
 
         # Start each movement in its own thread
@@ -456,8 +461,8 @@ def testmodel4sidesmallfunctionbig(force,cps):
         robot_thread.join()
         axis_thread.join()
     #Bottom Cycle
-    communicate(cps=cps,config=config,seventh=x0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-    communicate(cps=cps,config=config,point=pointbottomair,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,seventh=x0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot", wait=True)
+    communicate(cps=cps,config=config,point=pointbottomair,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot", wait=True)
     #Bottom Cycle 1
     perform_process_bottom(cps, config, points1=pointsbottom)
     # run_single_movement(robot_point=pointbottomair, seventh_axis_point=x1, cps=cps, config=config)
@@ -483,7 +488,7 @@ def testmodel4sidesmallfunctionbig(force,cps):
     run_single_movement(robot_point=pointrightair, seventh_axis_point=x0, cps=cps, config=config)
     #communicate(cps=cps,config=config,seventh=x0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.7,wait=True)
     perform_process_right(cps, config, points1=pointsrights)
-    communicate(cps=cps,config=config,point=phome,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+    communicate(cps=cps,config=config,point=phome,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot", wait=True)
     
 
     # #turn_vibration_on(cps)

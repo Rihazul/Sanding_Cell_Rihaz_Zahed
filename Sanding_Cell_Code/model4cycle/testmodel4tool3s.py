@@ -67,6 +67,11 @@ def testmodel4tool3s(force,cps):
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
+        sanding_speed = float(json_config.get('sandingSpeed', speeed))
+        speed_profile = {
+            "travel": speeed,
+            "contact": sanding_speed,
+        }
         print(speeed)
 
 
@@ -270,8 +275,8 @@ def testmodel4tool3s(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=speed_profile['contact'],
+                    velocity_profile="sanding", wait=False
                 )
             
             # Wait for blending and turn off vibration
@@ -311,8 +316,8 @@ def testmodel4tool3s(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=speed_profile['contact'],
+                    velocity_profile="sanding", wait=False
                 )
             
             # Wait for blending and turn off vibration
@@ -352,8 +357,8 @@ def testmodel4tool3s(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=speed_profile['contact'],
+                    velocity_profile="sanding", wait=False
                 )
             
             # Wait for blending and turn off vibration
@@ -393,8 +398,8 @@ def testmodel4tool3s(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=speed_profile['contact'],
+                    velocity_profile="sanding", wait=False
                 )
             
             # Wait for blending and turn off vibration
@@ -426,8 +431,8 @@ def testmodel4tool3s(force,cps):
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,   # or whatever parameter is needed for robot movement
-                    speed=0.8,
-                    wait=True
+                    speed=speed_profile['travel'],
+                    velocity_profile="robot", wait=True
                 )
 
             #time.sleep(0.1)
@@ -440,8 +445,8 @@ def testmodel4tool3s(force,cps):
                     seventh=seventh_axis_point,
                     tcp=config['coords']['tcptool1plane2'],
                     ucs=config['coords']['ucsTable2'],
-                    speed=0.5,
-                    wait=True
+                    speed=speed_profile['travel'],
+                    velocity_profile="robot", wait=True
                 )
 
             # Start each movement in its own thread
@@ -456,8 +461,8 @@ def testmodel4tool3s(force,cps):
             axis_thread.join()
     
         # #Bottom Cycles
-        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,wait=True)
-        communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,wait=True)
+        communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],speed=speeed,velocity_profile="robot", wait=True)
+        communicate(cps=cps,config=config,point=hbpoint1st,tcp=config['coords']['tcptool1plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speeed,velocity_profile="robot", wait=True)
         perform_process_bottom(cps, config, points1=bpoints,force=force)
 
         # # # #Cycles With Loops

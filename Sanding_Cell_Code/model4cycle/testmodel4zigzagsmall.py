@@ -26,8 +26,8 @@ def load_json_config():
         config = json.load(file)
     return config
 
-def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
-    def testmodel4zigzagsmallfunctionsmall(force,innerSandingOffset,cps):
+def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal",direct_prepoint=False,edge_coverage_override=None):
+    def testmodel4zigzagsmallfunctionsmall(force,innerSandingOffset,cps,movement="both",tcp_name="tcpReal",direct_prepoint=False,edge_coverage_override=None):
 
 
         # Load configuration
@@ -48,7 +48,7 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         # p10 = exported_points["p10"]
         # p11 = exported_points["p11"]
         # p12= exported_points["p12"]
-        
+
         p5 = exported_points["p5"]
         p6 = exported_points["p6"]
         p7 = exported_points["p7"]
@@ -56,6 +56,12 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
 
         json_config = load_json_config()
         speeed = float(json_config['robotSpeed'])
+        sanding_speed = float(json_config.get('sandingSpeed', speeed))
+        speed_profile = {
+            "travel": speeed,
+            "contact": sanding_speed,
+        }
+        active_tcp = config['coords'].get(tcp_name, config['coords']['tcpReal'])
         pocketzigzag_cfg = json_config.get("TableB", {}).get("pocketzigzag", {})
         zigzag_orientation = str(pocketzigzag_cfg.get("orientation", "vertical")).lower()
         if pocketzigzag_cfg.get("horizontalSpiral"):
@@ -65,6 +71,8 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         if zigzag_orientation not in ("horizontal", "vertical"):
             zigzag_orientation = "vertical"
         edge_coverage = bool(pocketzigzag_cfg.get("edgeCoverage", pocketzigzag_cfg.get("edge", False)))
+        if edge_coverage_override is not None:
+            edge_coverage = bool(edge_coverage_override)
         edge_offset = float(pocketzigzag_cfg.get("edgeOffset", 1.75))
         print(speeed)
 
@@ -151,7 +159,7 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         # cx3=cx2+thirdcdistance
         # print("cx3=",cx3)
 
-        
+
         #Converyer For ROBOT Movement Pocket 2
         tcx0=abs(point8[0])
         print("tcx=",tcx0)
@@ -202,7 +210,7 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         def generate_zigzag_path(x_coords, y_coords, z_coords, innerOffset,innerOffsetX,innerSandingOffset, orientation="vertical"):
             prepoint = None
             zigzag_coords = []
-            
+
             # Parameters (adjust as needed)
             tool3y = 50.8   # Tool offset in Y
             tool3x = 38.1   # Tool offset in X
@@ -304,7 +312,7 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
                 for point in zigzag_coords:
                     point[1] = abs(point[1])
                     point[0] = abs(point[0])
-            
+
                 if zigzag_coords:
                     start_point = zigzag_coords[0]
                     prepoint = [
@@ -317,9 +325,9 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
                     ]
             return zigzag_coords,prepoint
 
-        def generate_edge_path(x_coords, y_coords, z_coords, edge_offset=1.75, orientation="vertical"):
+        def generate_edge_section_paths(x_coords, y_coords, z_coords, edge_offset=1.75):
             if not (x_coords and y_coords and z_coords):
-                return [], None
+                return {}
 
             tool3y = 50.8
             tool3x = 38.1
@@ -327,54 +335,38 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
             rx, ry, rz = 180, 0, 0
 
             edge_Point2 = [
-                (x_coords[1]) / 2 + tool3x + edge_offset,
-                y_coords[1] - tool3y - edge_offset,
+                (x_coords[1]) / 2 + tool3x + 3,
+                y_coords[1] - tool3y - 20,
             ]
             edge_Point3 = [
-                x_coords[2] - tool3x - edge_offset,
-                y_coords[2] - tool3y - edge_offset,
+                x_coords[2] - tool3x - 3,
+                y_coords[2] - tool3y - 20,
             ]
             edge_Point1 = [
-                (x_coords[0]) / 2 + tool3x + edge_offset,
-                y_coords[0] + tool3y + edge_offset ,
+                (x_coords[0]) / 2 + tool3x + 3,
+                y_coords[0] + tool3y + 8,
             ]
             edge_Point4 = [
-                x_coords[3] - tool3x - edge_offset,
-                y_coords[3] + tool3y + edge_offset,
+                x_coords[3] - tool3x - 3,
+                y_coords[3] + tool3y + 8,
             ]
 
-            x_min = min(edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0])
-            x_max = max(edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0])
-            y_min = min(edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1])
-            y_max = max(edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1])
+            x_min = abs(min(edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0]))
+            x_max = abs(max(edge_Point1[0], edge_Point2[0], edge_Point3[0], edge_Point4[0]))
+            y_min = abs(min(edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1]))
+            y_max = abs(max(edge_Point1[1], edge_Point2[1], edge_Point3[1], edge_Point4[1]))
 
-            orientation_mode = (orientation or "vertical").lower()
-            if orientation_mode not in ("horizontal", "vertical"):
-                orientation_mode = "vertical"
+            top_left = [x_min, y_max, z_edge, rx, ry, rz]
+            top_right = [x_max, y_max, z_edge, rx, ry, rz]
+            bottom_left = [x_min, y_min, z_edge, rx, ry, rz]
+            bottom_right = [x_max, y_min, z_edge, rx, ry, rz]
 
-            if orientation_mode == "horizontal":
-                edge_points = [
-                    [x_min, y_max, z_edge, rx, ry, rz],
-                    [x_max, y_max, z_edge, rx, ry, rz],
-                    [x_max, y_min, z_edge, rx, ry, rz],
-                    [x_min, y_min, z_edge, rx, ry, rz],
-                    [x_min, y_max, z_edge, rx, ry, rz],
-                ]
-            else:
-                edge_points = [
-                    [x_max, y_min, z_edge, rx, ry, rz],
-                    [x_min, y_min, z_edge, rx, ry, rz],
-                    [x_min, y_max, z_edge, rx, ry, rz],
-                    [x_max, y_max, z_edge, rx, ry, rz],
-                    [x_max, y_min, z_edge, rx, ry, rz],
-                ]
-
-            for point in edge_points:
-                point[0] = abs(point[0])
-                point[1] = abs(point[1])
-
-            start_point = edge_points[0] if edge_points else None
-            return edge_points, start_point
+            return {
+                "bottom": [bottom_left, bottom_right],
+                "right": [bottom_right, top_right],
+                "top": [top_right, top_left],
+                "left": [top_left, bottom_left],
+            }
         #3rd Cycle for Door 1
         # zigzag_path,prepoint= generate_zigzag_path(x_coords=x_coords, y_coords=y_coords, z_coords=z_coords, innerOffset=5,innerOffsetX=5)
         # print("zigzag_path=",zigzag_path)
@@ -412,56 +404,131 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         # zigzag_pathp6,prepointp6= generate_zigzag_path(x_coords=x_coords1, y_coords=y_coords1, z_coords=z_coords1, innerOffset=5,innerOffsetX=5)
         # print("zigzag_pathp6=",zigzag_pathp6)
         # print("prepointp6:", prepointp6)
-        edge_pathp, edge_startp = generate_edge_path(
+        edge_sections = generate_edge_section_paths(
             x_coords=x_coords1,
             y_coords=y_coords1,
             z_coords=z_coords1,
             edge_offset=edge_offset,
-            orientation=zigzag_orientation,
         )
-        
+
 
 
         def perform_process_top(cps, config, points1,force):
             # Vibration on
-            
-            
+
+
             # Force Control Activated
             putForceZplus(
                 cps=cps,
                 force=force,
-                tcp=config['coords']['tcpReal'],
+                tcp=active_tcp,
                 ucs=config['coords']['ucsTable2'],
                 config=config
             )
             turn_vibration_on(cps)
-            
+
             # Communicate to each point in points1
             for point in points1:
                 communicate(
                     cps=cps,
                     config=config,
                     point=point,
-                    tcp=config['coords']['tcpReal'],
+                    tcp=active_tcp,
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=0.6,
-                    wait=False
+                    speed=speed_profile['contact'],
+                    velocity_profile="sanding", wait=False
                 )
-            
+
             # Wait for blending and turn off vibration
             waitForBlending(cps=cps, config=config)
             turn_vibration_off(cps)
             #Release force
             releaseForce(cps=cps, config=config)
-        
-        for i in range(1, 3):  # Loop from 1 to 6 (for p1-p6)
+
+        def run_section_at_j7(section_name, current_tcx, path_points):
+            if not path_points:
+                return
+            start_point = path_points[0]
+            current_prepoint = [
+                start_point[0] + 0.5,
+                start_point[1],
+                start_point[2],
+                start_point[3],
+                start_point[4],
+                start_point[5],
+            ]
+            print(f"Model 4 Tool 3 small edge {section_name}: J7={current_tcx}, points={len(path_points)}")
+            communicate(
+                cps=cps, config=config,
+                seventh=current_tcx,
+                tcp=active_tcp,
+                ucs=config['coords']['ucsTable2'],
+                speed=speeed, velocity_profile="robot", wait=True
+            )
+            if not direct_prepoint:
+                communicate(
+                    cps=cps, config=config,
+                    point=spoint,
+                    tcp=active_tcp,
+                    ucs=config['coords']['ucsTable2'],
+                    seventh=-1,
+                    speed=speeed, velocity_profile="robot", wait=True
+                )
+            communicate(
+                cps=cps, config=config,
+                point=current_prepoint,
+                tcp=active_tcp,
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=speeed, velocity_profile="robot", wait=True
+            )
+            perform_process_top(cps, config, points1=path_points, force=force)
+            communicate(
+                cps=cps, config=config,
+                point=spoint,
+                tcp=active_tcp,
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=speeed, velocity_profile="robot", wait=True
+            )
+
+        mode = (movement or "both").lower()
+        j7_passes = [tcx0, tcx1]
+        if mode == "edge_only":
+            if edge_coverage and edge_sections:
+                for idx, current_tcx in enumerate(j7_passes, start=1):
+                    run_section_at_j7(f"bottom pass {idx}/{len(j7_passes)}", current_tcx, edge_sections.get("bottom", []))
+                run_section_at_j7("right side", j7_passes[-1], edge_sections.get("right", []))
+                for idx, current_tcx in enumerate(reversed(j7_passes), start=1):
+                    run_section_at_j7(f"top pass {idx}/{len(j7_passes)}", current_tcx, edge_sections.get("top", []))
+                run_section_at_j7("left side", j7_passes[0], edge_sections.get("left", []))
+            communicate(cps=cps,config=config,seventh=0,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot", wait=True)
+            return
+
+        for i in range(1, 3):  # Loop from 1 to 2 (for p1-p2)
         # Get the current tcx (0-indexed)
             current_tcx = eval(f"tcx{i-1}")  # Maps tcx0 for i=1, tcx1 for i=2, etc.
-            
+
             # Get the current prepoint and zigzag path (1-indexed)
             current_prepoint = eval(f"prepointp{i}")
-            current_zigzag = eval(f"zigzag_pathp{i}")
+            full_zigzag = eval(f"zigzag_pathp{i}")
+            current_edge = []
+
+            if mode == "zigzag_only":
+                current_zigzag = full_zigzag
+                if current_zigzag:
+                    first_point = current_zigzag[0]
+                    current_prepoint = [
+                        abs(first_point[0]) + 0.5,
+                        first_point[1],
+                        first_point[2],
+                        first_point[3],
+                        first_point[4],
+                        first_point[5],
+                    ]
+            else:
+                current_zigzag = full_zigzag
 
             # Apply overlap offsets to hide seam line between passes
             seam_offset = -25.0 if i == 1 else 25.0
@@ -484,130 +551,113 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
 
             # Original sequence with dynamic variables
             communicate(
-                cps=cps, config=config, 
-                seventh=current_tcx, 
-                tcp=config['coords']['tcpReal'], 
-                ucs=config['coords']['ucsTable2'], 
-                speed=speeed, wait=True
+                cps=cps, config=config,
+                seventh=current_tcx,
+                tcp=active_tcp,
+                ucs=config['coords']['ucsTable2'],
+                speed=speeed, velocity_profile="robot", wait=True
             )
-            communicate(
-                cps=cps, config=config, 
-                point=spoint, 
-                tcp=config['coords']['tcpReal'], 
-                ucs=config['coords']['ucsTable2'], 
-                seventh=-1, 
-                speed=speeed, wait=True
-            )
-            # # turn_vibration_on(cps)
-            if edge_coverage and edge_startp:
-                edge_prepoint = [
-                    edge_startp[0] + 0.5,
-                    edge_startp[1],
-                    edge_startp[2],
-                    edge_startp[3],
-                    edge_startp[4],
-                    edge_startp[5],
-                ]
+            if not direct_prepoint:
                 communicate(
-                    cps=cps,
-                    config=config,
-                    point=edge_prepoint,
-                    tcp=config['coords']['tcpReal'],
+                    cps=cps, config=config,
+                    point=spoint,
+                    tcp=active_tcp,
                     ucs=config['coords']['ucsTable2'],
                     seventh=-1,
-                    speed=speeed,
-                    wait=True,
+                    speed=speeed, velocity_profile="robot", wait=True
                 )
-                perform_process_top(cps, config, points1=edge_pathp, force=force)
-            communicate(
-                cps=cps, config=config, 
-                point=current_prepoint,  # Dynamic prepoint
-                tcp=config['coords']['tcpReal'], 
-                ucs=config['coords']['ucsTable2'], 
-                seventh=-1, 
-                speed=speeed, wait=True
-            )
-            # # turn_vibration_on(cps)
-            perform_process_top(cps, config, points1=current_zigzag,force=force)  # Dynamic zigzag path
+            if current_prepoint and (current_edge or current_zigzag):
+                communicate(
+                    cps=cps, config=config,
+                    point=current_prepoint,
+                    tcp=active_tcp,
+                    ucs=config['coords']['ucsTable2'],
+                    seventh=-1,
+                    speed=speeed, velocity_profile="robot", wait=True
+                )
+            if current_edge:
+                perform_process_top(cps, config, points1=current_edge, force=force)
+            if current_zigzag:
+                perform_process_top(cps, config, points1=current_zigzag,force=force)
             # # turn_vibration_off(cps)
             communicate(
-                cps=cps, config=config, 
-                point=spoint, 
-                tcp=config['coords']['tcpReal'], 
-                ucs=config['coords']['ucsTable2'], 
-                seventh=-1, 
-                speed=speeed, wait=True
+                cps=cps, config=config,
+                point=spoint,
+                tcp=active_tcp,
+                ucs=config['coords']['ucsTable2'],
+                seventh=-1,
+                speed=speeed, velocity_profile="robot", wait=True
             )
-        communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+        communicate(cps=cps,config=config,seventh=0,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=speed_profile['travel'],velocity_profile="robot", wait=True)
 
         # # ------------------------------------------------------
         # # 3) Move the robot through the zigzag points
         # # ------------------------------------------------------
         # # Assuming 'cps' and 'config' are defined elsewhere in your code
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
-        # communicate(cps=cps,config=config,seventh=cx,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,seventh=cx,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # # turn_vibration_on(cps)
-        # communicate(cps=cps,config=config,point=prepoint2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=prepoint2,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #turn_vibration_on(cps)
         # perform_process_top(cps, config, points1=zigzag_path2)
         # #turn_vibration_off(cps)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #Second Cycle for First Pocket
-        # communicate(cps=cps,config=config,seventh=cx1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,seventh=cx1,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # # turn_vibration_on(cps)
-        # communicate(cps=cps,config=config,point=prepoint1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=prepoint1,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #turn_vibration_on(cps)
         # perform_process_top(cps, config, points1=zigzag_path1)
         # #turn_vibration_off(cps)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #Third Cycle of First Pocket
-        # communicate(cps=cps,config=config,seventh=cx2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,seventh=cx2,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # # turn_vibration_on(cps)
-        # communicate(cps=cps,config=config,point=prepoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=prepoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #turn_vibration_on(cps)
         # perform_process_top(cps, config, points1=zigzag_path)
         # #turn_vibration_off(cps)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
 
         # #Second Pocket
         # #Second Pocket First Cycle
-        # #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
-        # communicate(cps=cps,config=config,seventh=tcx0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+        # #communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,seventh=tcx0,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
         # # # turn_vibration_on(cps)
-        # communicate(cps=cps,config=config,point=prepointp1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,point=prepointp1,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
         # # #turn_vibration_on(cps)
         # perform_process_top(cps, config, points1=zigzag_pathp1)
         # # #turn_vibration_off(cps)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
 
         # #Second Pocket Second Cycle
-        # #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
-        # communicate(cps=cps,config=config,seventh=tcx1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # #communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,seventh=tcx1,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # # turn_vibration_on(cps)
-        # communicate(cps=cps,config=config,point=prepointp2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=prepointp2,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #turn_vibration_on(cps)
         # perform_process_top(cps, config, points1=zigzag_pathp2)
         # #turn_vibration_off(cps)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
 
         # #Second Pocket Third Cycle
-        # #communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
-        # communicate(cps=cps,config=config,seventh=tcx2,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # #communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,seventh=tcx2,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #turn_vibration_on(cps)
-        # communicate(cps=cps,config=config,point=prepointp3,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=prepointp3,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
         # #turn_vibration_on(cps)
         # perform_process_top(cps, config, points1=zigzag_pathp3)
         # #turn_vibration_off(cps)
-        # communicate(cps=cps,config=config,point=spoint,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
+        # communicate(cps=cps,config=config,point=spoint,tcp=active_tcp,ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.8,wait=True)
 
         # #Home Position
-        # communicate(cps=cps,config=config,seventh=0,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)
+        # communicate(cps=cps,config=config,seventh=0,tcp=active_tcp,ucs=config['coords']['ucsTable2'],speed=0.2,wait=True)
      #Main Cycle
     p1 = exported_points["p1"]
     xlen = p1[0]
@@ -617,11 +667,11 @@ def testmodel4zigzagsmallfunction(force,innerSandingOffset,cps):
         print("No door data available - skipping operations")
     elif isinstance(xlen, (int, float)):  # Ensure it's numeric
         if xlen > 1000:
-            testmodel4zigzagfunction(force,innerSandingOffset,cps)
+            testmodel4zigzagfunction(force,innerSandingOffset,cps,movement=movement,tcp_name=tcp_name,direct_prepoint=direct_prepoint,edge_coverage_override=edge_coverage_override)
         else:
-            testmodel4zigzagsmallfunctionsmall(force,innerSandingOffset,cps)
+            testmodel4zigzagsmallfunctionsmall(force,innerSandingOffset,cps,movement=movement,tcp_name=tcp_name,direct_prepoint=direct_prepoint,edge_coverage_override=edge_coverage_override)
     else:
         print(f"Invalid ylen value type: {type(xlen)} - expected number or 'null'")
-    
+
 if __name__ == "__main__":
     testmodel4zigzagsmallfunction(force=20,innerSandingOffset=20)

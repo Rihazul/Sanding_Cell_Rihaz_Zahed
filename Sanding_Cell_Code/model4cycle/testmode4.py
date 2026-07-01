@@ -48,9 +48,9 @@ def main():
 
     # Call the communicate function with parameters from config
     
-    communicate(cps=cps,config=config,seventh=x,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.6,wait=True)
-    communicate(cps=cps,config=config,point=shome,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.6,wait=True)
-    communicate(cps=cps,config=config,point=spoint1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.6,wait=True)
+    communicate(cps=cps,config=config,seventh=x,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.6,velocity_profile="robot", wait=True)
+    communicate(cps=cps,config=config,point=shome,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.6,velocity_profile="robot", wait=True)
+    communicate(cps=cps,config=config,point=spoint1,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=0.6,velocity_profile="robot", wait=True)
     putForceZplus(
             cps=cps,
             force=10,
@@ -61,7 +61,7 @@ def main():
     print("force Executed Rafat",putForceZplus)
     turn_vibration_on(cps)
     print("Vibration Executed",turn_vibration_on)
-    communicate(cps=cps,config=config,seventh=2200,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.6,wait=True)
+    communicate(cps=cps,config=config,seventh=2200,tcp=config['coords']['tcpReal'],ucs=config['coords']['ucsTable2'],speed=0.6,velocity_profile="robot", wait=True)
     print("Seventh Movement to 50 Executed Rafat",communicate)
     turn_vibration_off(cps)
     releaseForce(cps=cps, config=config)
