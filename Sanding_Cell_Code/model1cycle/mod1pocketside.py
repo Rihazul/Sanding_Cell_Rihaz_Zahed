@@ -318,7 +318,6 @@ def model1pocket1side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config,
-            contact_force_threshold=1.5,
         )
         turn_vibration_on(cps)
         force_active = True
@@ -839,7 +838,6 @@ def model1pocket2side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config,
-            contact_force_threshold=1.5,
         )
         turn_vibration_on(cps)
         force_active = True
@@ -1409,7 +1407,6 @@ def model1pocket3side(force,cps):
             tcp=config['coords']['tcptool4plane2'],
             ucs=config['coords']['ucsTable2'],
             config=config,
-            contact_force_threshold=1.5,
         )
         turn_vibration_on(cps)
         force_active = True
