@@ -346,9 +346,14 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -358,7 +363,7 @@ def model1pocket1side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -369,9 +374,14 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -381,7 +391,7 @@ def model1pocket1side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -392,9 +402,14 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -404,7 +419,7 @@ def model1pocket1side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -415,9 +430,14 @@ def model1pocket1side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -427,7 +447,7 @@ def model1pocket1side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -523,7 +543,7 @@ def model1pocket1side(force,cps):
 
     # Pass 1: top -> right -> bottom (x1)
     move_axis_then_robot(to_point=pretpointmiddle, seventh_axis_point=x1, cps=cps, config=config)
-    communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
+    # First contact is handled inside perform_process_top from a lifted force prepoint.
     # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
@@ -845,9 +865,14 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -857,7 +882,7 @@ def model1pocket2side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -868,9 +893,14 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -880,7 +910,7 @@ def model1pocket2side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -891,9 +921,14 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -903,7 +938,7 @@ def model1pocket2side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -914,9 +949,14 @@ def model1pocket2side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -926,7 +966,7 @@ def model1pocket2side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -1070,7 +1110,7 @@ def model1pocket2side(force,cps):
 
     # Pass 1: top -> right -> bottom (x1)
     move_axis_then_robot(to_point=pretpointmiddle, seventh_axis_point=x1, cps=cps, config=config)
-    communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
+    # First contact is handled inside perform_process_top from a lifted force prepoint.
     # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
@@ -1393,9 +1433,14 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -1405,7 +1450,7 @@ def model1pocket3side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -1416,9 +1461,14 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -1428,7 +1478,7 @@ def model1pocket3side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -1439,9 +1489,14 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -1451,7 +1506,7 @@ def model1pocket3side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -1462,9 +1517,14 @@ def model1pocket3side(force,cps):
         first_point = points1[0]
         if not move_to_contact_point(first_point):
             return
-        # Force is enabled from the lifted prepoint; the first path point is reached under force.
+        # Keep commanded Z at the lifted force-control height; force control owns surface contact.
+        force_control_z = first_point[2] - force_approach_lift
+        contact_points = [list(point) for point in points1]
+        for point in contact_points:
+            point[2] = force_control_z
         start_force_if_needed()
-        for idx, point in enumerate(points1):
+        path_points = contact_points[1:] if len(contact_points) > 1 else contact_points
+        for idx, point in enumerate(path_points):
             communicate(
                 cps=cps,
                 config=config,
@@ -1474,7 +1534,7 @@ def model1pocket3side(force,cps):
                 seventh=-1,
                 speed=safe_contact_speed,
                 velocity_profile="sanding",
-                wait=(idx == len(points1) - 1)
+                wait=(idx == len(path_points) - 1)
             )
 
         waitForBlending(cps=cps, config=config)
@@ -1616,7 +1676,7 @@ def model1pocket3side(force,cps):
 
     # Pass 1: top -> right -> bottom (x1)
     move_axis_then_robot(to_point=pretpointmiddle, seventh_axis_point=x1, cps=cps, config=config)
-    communicate(cps=cps,config=config,point=top_mid_to_right[0],tcp=config['coords']['tcptool4plane2'],ucs=config['coords']['ucsTable2'],seventh=-1,speed=speed_profile['approach'],velocity_profile="robot",wait=True)
+    # First contact is handled inside perform_process_top from a lifted force prepoint.
     # Vibration is enabled on first real contact inside start_force_if_needed().
     # turn_tool_spin_on(cps)
     perform_process_top(cps, config, points1=top_mid_to_right,force=force)
