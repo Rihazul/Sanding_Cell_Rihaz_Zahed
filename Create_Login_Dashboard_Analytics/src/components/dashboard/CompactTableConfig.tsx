@@ -1517,7 +1517,7 @@ export function CompactTableConfig({
                             className="px-2 py-1 border border-gray-300 rounded-md text-sm w-16 focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                           >
                             <option value={0}>-</option>
-                            {Array.from({ length: 100 }, (_, i) => i + 1).map((n) => (
+                            {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
                               <option key={n} value={n}>
                                 {n}
                               </option>

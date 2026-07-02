@@ -248,7 +248,7 @@ export function TableConfiguration({
                         }}
                         className="px-2 py-1 border rounded-md text-sm w-16 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {Array.from({ length: 100 }, (_, i) => i + 1).map((n) => (
+                        {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
                           <option key={n} value={n}>
                             {n}
                           </option>
