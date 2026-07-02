@@ -8,7 +8,6 @@ from Server_Better_V2 import set_table_state, setup_logger, stopper_statusmod
 
 MODEL_METHOD_MAP_TABLE_A = {
     "modelA": ("smallTable.smallmodelfinal", "sandingModelATableA"),
-    "modelB": ("smallTable.smallmodelfinal2", "sandingModelBTableA"),
     "modelC": ("smallTable.smallmodelfinal3", "sandingModelCTableA"),
     "modelD": ("smallTable.smallmodelfinal4", "sandingModelDETableA"),
     "modelE": ("smallTable.smallmodelfinal5", "sandingModelETableA"),
@@ -22,7 +21,13 @@ def load_config():
         return yaml.safe_load(file)
 
 
+
+def normalize_tablea_model_key(model_key):
+    return "modelA" if model_key == "modelB" else model_key
+
+
 def get_model_fn(model_key, logger=None):
+    model_key = normalize_tablea_model_key(model_key)
     model_entry = MODEL_METHOD_MAP_TABLE_A.get(model_key)
     if model_entry is None:
         raise RuntimeError(f"Invalid Table A model key in child: {model_key}")
@@ -41,6 +46,7 @@ def get_model_fn(model_key, logger=None):
 
 
 def run_tablea_task_child(model_key, recent_matching_scan=False):
+    model_key = normalize_tablea_model_key(model_key)
     """
     Own CPS preparation inside the task child so Flask does not block the
     start-task request with parent CPS connect/table-state handoff work.

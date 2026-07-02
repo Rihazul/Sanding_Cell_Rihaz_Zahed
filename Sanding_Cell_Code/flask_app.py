@@ -182,10 +182,26 @@ def _scan_indicates_model_f(use_cache=True, allow_scan_results_fallback=True):
     return bool(_load_tablea_scan_summary_from_results()[1])
 
 
+def _normalize_tablea_model_key(model_key):
+    return "modelA" if model_key == "modelB" else model_key
+
+
+def _normalize_tablea_payload_models(table_data):
+    if not isinstance(table_data, dict):
+        return
+    if table_data.get("model") == "modelB":
+        table_data["model"] = "modelA"
+    doors = table_data.get("doors")
+    if not isinstance(doors, list):
+        return
+    for door in doors:
+        if isinstance(door, dict) and door.get("model") == "modelB":
+            door["model"] = "modelA"
+
 def _build_tablea_signature(table_data):
     if not isinstance(table_data, dict):
         return ""
-    base_model = str(table_data.get("model", "") or "").strip()
+    base_model = _normalize_tablea_model_key(str(table_data.get("model", "") or "").strip())
     door_parts = []
     doors = table_data.get("doors")
     if isinstance(doors, list):
@@ -193,7 +209,7 @@ def _build_tablea_signature(table_data):
             if not isinstance(door, dict):
                 continue
             door_num = door.get("doorNumber")
-            door_model = str(door.get("model", "") or "").strip()
+            door_model = _normalize_tablea_model_key(str(door.get("model", "") or "").strip())
             door_parts.append(f"{door_num}:{door_model}")
     door_sig = "|".join(sorted(door_parts))
     return f"{base_model}::{door_sig}"
@@ -1136,6 +1152,7 @@ def start_TableA_process():
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
 
     tableData = data['TableA']
+    _normalize_tablea_payload_models(tableData)
     app.logger.info("[TableA Start][pre-worker] scan_status begin")
     step_start = time.monotonic()
     scan_status = _get_tablea_scan_status(allow_scan_results_fallback=False)
@@ -1198,7 +1215,7 @@ def start_TableA_process():
         doors = tableData.get('doors')
         if isinstance(doors, list) and doors:
             # Infer the model from the first door that has one.
-            selected_model = next((d.get('model') for d in doors if isinstance(d, dict) and d.get('model')), None)
+            selected_model = next((_normalize_tablea_model_key(d.get('model')) for d in doors if isinstance(d, dict) and d.get('model')), None)
             # If the frontend sends model keys like modelA/modelB..., use that.
         if not selected_model or selected_model == 'None':
             if _scan_indicates_model_f(allow_scan_results_fallback=False):
@@ -1206,7 +1223,10 @@ def start_TableA_process():
             else:
                 return jsonify({"error": "Invalid request, no model found for TableA"}), 400
         # Make it available to any downstream code that still expects TableA.model
+        selected_model = _normalize_tablea_model_key(selected_model)
         tableData['model'] = selected_model
+    selected_model = _normalize_tablea_model_key(selected_model)
+    tableData["model"] = selected_model
     route_timings["modelResolveSeconds"] = time.monotonic() - step_start
     app.logger.info(
         "[TableA Start][pre-worker] model resolve done in %.3fs; selected_model=%s",

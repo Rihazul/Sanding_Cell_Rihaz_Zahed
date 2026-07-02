@@ -75,12 +75,11 @@ export function TableConfiguration({
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">Select a Model</option>
-                <option value="modelA">Model A</option>
-                <option value="modelB">Model B</option>
-                <option value="modelC">Model C</option>
-                <option value="modelD">Model D</option>
-                <option value="modelE">Model E</option>
-                <option value="modelF">Model F</option>
+                <option value="modelA">Model A - Shaker</option>
+                <option value="modelC">Model B - Moulure Externe</option>
+                <option value="modelD">Model C - Moulure Interne</option>
+                <option value="modelE">Model D - Moulure Interne et Externe</option>
+                <option value="modelF">Model E - Flat</option>
               </select>
 
               <div className="mt-4 space-y-3">

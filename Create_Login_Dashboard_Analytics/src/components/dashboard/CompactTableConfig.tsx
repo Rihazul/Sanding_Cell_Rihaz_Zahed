@@ -25,7 +25,6 @@ export type DoorConfig = {
 const MODEL_IMAGE_MAP: Record<'A' | 'B', Record<string, string[]>> = {
   A: {
     modelA: ['table_1/model1.jpg'],
-    modelB: ['table_1/model2.jpg'],
     modelD: ['table_1/model4.jpg'],
     modelE: ['table_1/model5.jpeg', 'table_1/model_5.jpg', 'table_1/model5_a.jpg', 'table_1/model5_c.jpeg'],
     modelF: ['table_1/modelf.jpg', 'table_1/modelF.jpg', 'table_1/modelf.jpeg'],
@@ -135,12 +134,19 @@ export function CompactTableConfig({
   });
 
   const formatModelName = (value: string) => {
-    if (value === 'modelA') return 'Model A - Shaker A';
-    if (value === 'modelB') return 'Model B - Shaker B';
-    if (value === 'modelC') return 'Model C - Moulure Externe';
-    if (value === 'modelD') return 'Model D - Moulure Interne';
-    if (value === 'modelE') return 'Model E - Moulure Interne et Externe';
-    if (value === 'modelF') return 'Model F - Flat';
+    if (tableName === 'A') {
+      if (value === 'modelA' || value === 'modelB') return 'Model A - Shaker';
+      if (value === 'modelC') return 'Model B - Moulure Externe';
+      if (value === 'modelD') return 'Model C - Moulure Interne';
+      if (value === 'modelE') return 'Model D - Moulure Interne et Externe';
+      if (value === 'modelF') return 'Model E - Flat';
+    }
+    if (value === 'modelA') return 'Model A';
+    if (value === 'modelB') return 'Model B';
+    if (value === 'modelC') return 'Model C';
+    if (value === 'modelD') return 'Model D';
+    if (value === 'modelE') return 'Model E';
+    if (value === 'modelF') return 'Model F';
     return value || 'No model selected';
   };
 
@@ -540,6 +546,7 @@ export function CompactTableConfig({
 
         const normalizedDoorConfigs = doorConfigs.map(dc => ({
           ...dc,
+          model: normalizeTableAModelKey(dc.model || model),
           rows: dc.rows.map(r => ({ ...r })),
         }));
 
@@ -842,17 +849,20 @@ export function CompactTableConfig({
     !!lastScanSignature &&
     getTableAScanSignature() !== lastScanSignature;
 
+  const normalizeTableAModelKey = (value: string) =>
+    tableName === 'A' && value === 'modelB' ? 'modelA' : value;
   const handleModelChange = (newModel: string) => {
-    if (tableName === 'A' && newModel !== model && scanCompleted) {
+    const normalizedModel = normalizeTableAModelKey(newModel);
+    if (tableName === 'A' && normalizedModel !== model && scanCompleted) {
       addActivity(
         `Table ${tableName}: Model changed. Saved scan remains on record and will be validated before the task starts.`,
         'warning'
       );
     }
-    setModel(newModel);
+    setModel(normalizedModel);
 
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
-      setDoorConfigs(prev => prev.map(cfg => ({ ...cfg, model: newModel })));
+      setDoorConfigs(prev => prev.map(cfg => ({ ...cfg, model: normalizedModel })));
     }
   };
 
@@ -1109,12 +1119,11 @@ export function CompactTableConfig({
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
                   <option value="">Select a Model</option>
-                  <option value="modelA">Model A - Shaker A</option>
-                  <option value="modelB">Model B - Shaker B</option>
-                  <option value="modelC">Model C - Moulure Externe</option>
-                  <option value="modelD">Model D - Moulure Interne</option>
-                  <option value="modelE">Model E - Moulure Interne et Externe</option>
-                  <option value="modelF">Model F - Flat</option>
+                  <option value="modelA">Model A - Shaker</option>
+                  <option value="modelC">Model B - Moulure Externe</option>
+                  <option value="modelD">Model C - Moulure Interne</option>
+                  <option value="modelE">Model D - Moulure Interne et Externe</option>
+                  <option value="modelF">Model E - Flat</option>
                 </select>
                 {getModelPreviewDisplaySrcs('A', tableAPreviewModel, previewAttemptIndexA).length > 0 && (
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
