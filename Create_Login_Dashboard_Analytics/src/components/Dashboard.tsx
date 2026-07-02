@@ -291,7 +291,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
         onNavigateToAnalytics={onNavigateToAnalytics}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-8">
         {homingRequired && (
           <div className="mb-6 rounded-xl border-2 border-amber-300 bg-white px-5 py-4 shadow-sm">
             <div className="flex items-start gap-3">
