@@ -93,7 +93,7 @@ export function CompactTableConfig({
 }: CompactTableConfigProps) {
   console.log('CompactTableConfig rendering:', tableName, 'rows:', rows.length, 'addActivity:', !!addActivity);
   const POCKET_MAX_OVERLAP_MM = 100;
-  
+
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
   const [lastScanSignature, setLastScanSignature] = React.useState<string | null>(null);
@@ -237,7 +237,7 @@ export function CompactTableConfig({
   React.useEffect(() => {
     setPreviewAttemptIndexB(0);
   }, [tableBPreviewModel]);
-  
+
   React.useEffect(() => {
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
   }, [addActivity, tableName]);
@@ -279,10 +279,10 @@ export function CompactTableConfig({
 
   const getSwal = () => (window as any).Swal;
   const getTableADoorModels = () => {
-    if (tableName !== 'A') return [] as string[];
+    if (tableName !== 'A') return [] as { doorNumber: number; model: string }[];
     return (doorConfigs || [])
-      .map((d) => `${d.doorNumber}:${(d.model || '').trim()}`)
-      .filter(Boolean);
+      .map((d) => ({ doorNumber: d.doorNumber, model: (d.model || '').trim() }))
+      .filter((d) => !!d.model);
   };
 
   const getTableAScanSignature = () => {
@@ -482,7 +482,7 @@ export function CompactTableConfig({
     });
     return !!result.isConfirmed;
   };
-  
+
   const handleStartScan = async () => {
     console.log('Start Scan clicked for Table', tableName);
     if (isOperating || isScanning) return;
@@ -529,8 +529,8 @@ export function CompactTableConfig({
         throw new Error('Scan action completed, but no scan result was returned.');
       }
       setScanCompleted(!!status?.hasScan);
-      setLastScanSignature(getTableAScanSignature());
-      setLastScannedAt(new Date().toISOString());
+      setLastScanSignature((status?.signature || getTableAScanSignature()).trim());
+      setLastScannedAt(status?.scannedAt || new Date().toISOString());
       applyDetectedDoorsFromScanStatus(status);
       addActivity(`Table ${tableName}: Scan completed successfully`, 'success');
       showCompletionPopup('Scan Completed', 'Table A scan completed');
@@ -541,7 +541,7 @@ export function CompactTableConfig({
       setIsOperating(false);
     }
   };
-  
+
   const handleStartTask = async () => {
     console.log('Start Task clicked for Table', tableName);
 
@@ -576,7 +576,7 @@ export function CompactTableConfig({
     }
 
     setIsOperating(true);
-    
+
     // For Table A, process all doors with their configurations
     if (tableName === 'A' && doorConfigs) {
       const configuredDoors = doorConfigs.filter(d => d.model && d.model !== '');
@@ -589,7 +589,7 @@ export function CompactTableConfig({
         setIsOperating(false);
         return;
       }
-      
+
       try {
         const selectedDoorsByRow = Object.fromEntries(
           Object.entries(rowDoorSelections).map(([label, doors]) => [
@@ -709,8 +709,9 @@ export function CompactTableConfig({
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: overlapMm,
           spiralSettings,
+          tableAFrameSize: getTableAFrameSizeValues(),
         };
-        
+
         // Send all door configurations to the backend
         const result = await startTableAProcess(taskData);
 
@@ -748,7 +749,7 @@ export function CompactTableConfig({
         } else {
           addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }
-        
+
       } catch (error) {
         addActivity(`Table ${tableName}: Task failed - ${error}`, 'error');
       } finally {
@@ -768,9 +769,9 @@ export function CompactTableConfig({
       }
 
       const modelName = formatModelName(model);
-      
+
       addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');
-      
+
       try {
         // Build payload from rows
         const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
@@ -792,9 +793,7 @@ export function CompactTableConfig({
           inverseOverlapping: overlapMm,
           spiralSettings,
         };
-        
         const result = await startTableBProcess(taskData);
-
         if (!result?.success) {
           addActivity(`Table ${tableName}: Task failed to start (${result?.status || 'unknown'})`, 'error');
           return;
@@ -807,7 +806,7 @@ export function CompactTableConfig({
         } else {
           addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }
-        
+
       } catch (error) {
         addActivity(`Table ${tableName}: Task failed - ${error}`, 'error');
       } finally {
@@ -815,22 +814,22 @@ export function CompactTableConfig({
       }
     }
   };
-  
+
   const handleUpload3DFile = async () => {
     console.log('Upload 3D File clicked for Table', tableName);
-    
+
     // Create file input element
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.stp,.step';
-    
+
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      
+
       setIsOperating(true);
       addActivity(`Table ${tableName}: Uploading 3D file "${file.name}"...`, 'info');
-      
+
       try {
         const result = await upload3DFile(file);
         if (result.success) {
@@ -844,10 +843,10 @@ export function CompactTableConfig({
         setIsOperating(false);
       }
     };
-    
+
     input.click();
   };
-  
+
   // Get current door configuration
   const currentDoorConfig = doorConfigs?.find(d => d.doorNumber === selectedDoor);
   const resolveActiveDoorForRow = (
@@ -1558,8 +1557,8 @@ export function CompactTableConfig({
                         <span className="text-sm text-gray-500 font-medium">Pattern:</span>
                         <div className="flex items-center gap-3">
                           <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                            row.verticalSpiral 
-                              ? 'bg-blue-500 border-blue-500 text-white' 
+                            row.verticalSpiral
+                              ? 'bg-blue-500 border-blue-500 text-white'
                               : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
                           }`}>
                             <input
@@ -1572,8 +1571,8 @@ export function CompactTableConfig({
                             <span className="text-sm font-medium">↕ Vertical</span>
                           </label>
                           <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                            row.horizontalSpiral 
-                              ? 'bg-blue-500 border-blue-500 text-white' 
+                            row.horizontalSpiral
+                              ? 'bg-blue-500 border-blue-500 text-white'
                               : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
                           }`}>
                             <input
@@ -1598,15 +1597,15 @@ export function CompactTableConfig({
             <div className={`grid gap-3 ${tableName === 'A' ? 'grid-cols-2' : 'grid-cols-2'}`}>
               {tableName === 'A' ? (
                 <>
-                  <Button 
-                    onClick={handleStartScan} 
+                  <Button
+                    onClick={handleStartScan}
                     disabled={isOperating || isScanning || (tableName === 'A' && homingRequired)}
                     className={`scan-button ${isScanning ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-purple-600'} text-white disabled:bg-green-600 disabled:text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed`}
                   >
                     {isScanning ? 'Scanning...' : (tableName === 'A' && homingRequired ? 'Home First' : 'Scan')}
                   </Button>
-                  <Button 
-                    onClick={handleStartTask} 
+                  <Button
+                    onClick={handleStartTask}
                     disabled={isOperating}
                     className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                   >
@@ -1615,15 +1614,15 @@ export function CompactTableConfig({
                 </>
               ) : (
                 <>
-                  <Button 
-                    onClick={handleUpload3DFile} 
+                  <Button
+                    onClick={handleUpload3DFile}
                     disabled={isOperating}
                     className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                   >
                     {isOperating ? 'Operating...' : 'Upload 3D File'}
                   </Button>
-                  <Button 
-                    onClick={handleStartTask} 
+                  <Button
+                    onClick={handleStartTask}
                     disabled={isOperating}
                     className="bg-blue-500 hover:bg-purple-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                   >

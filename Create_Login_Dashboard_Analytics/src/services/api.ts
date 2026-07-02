@@ -100,6 +100,7 @@ export async function startTableAProcess(data: {
   sandingSpeed: string;
   inverseOverlapping: number;
   spiralSettings?: SpiralSettingsPayload;
+  tableAFrameSize?: { x: number | null; y: number | null };
 }) {
   const inferredModel =
     data.doorConfigs.find(d => d.model && d.model !== '')?.model || '';
@@ -219,6 +220,7 @@ export async function startTableAProcess(data: {
       side: buildRowPayload('Side'),
       // New per-door format (supports unique settings per door)
       doors: doorsPayload,
+      tableAFrameSize: data.tableAFrameSize,
     },
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,

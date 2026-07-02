@@ -198,6 +198,16 @@ def _normalize_tablea_payload_models(table_data):
         if isinstance(door, dict) and door.get("model") == "modelB":
             door["model"] = "modelA"
 
+def _format_tablea_frame_signature_value(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return str(int(number)) if number.is_integer() else f"{number:g}"
+
+
 def _build_tablea_signature(table_data):
     if not isinstance(table_data, dict):
         return ""
@@ -212,7 +222,15 @@ def _build_tablea_signature(table_data):
             door_model = _normalize_tablea_model_key(str(door.get("model", "") or "").strip())
             door_parts.append(f"{door_num}:{door_model}")
     door_sig = "|".join(sorted(door_parts))
-    return f"{base_model}::{door_sig}"
+    signature = f"{base_model}::{door_sig}"
+
+    frame_size = table_data.get("tableAFrameSize") or table_data.get("frameSize") or {}
+    if isinstance(frame_size, dict):
+        frame_x = _format_tablea_frame_signature_value(frame_size.get("x"))
+        frame_y = _format_tablea_frame_signature_value(frame_size.get("y"))
+        if frame_x is not None and frame_y is not None:
+            signature = f"{signature}::frameX={frame_x};frameY={frame_y}"
+    return signature
 
 
 def _zero_task_payload(task_cfg):
