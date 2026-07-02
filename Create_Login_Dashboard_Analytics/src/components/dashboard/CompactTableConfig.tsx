@@ -296,29 +296,20 @@ export function CompactTableConfig({
 
   const formatScanSignatureSummary = (signature: string) => {
     const [baseModel = '', doorSig = '', frameSig = ''] = String(signature || '').split('::');
-    const doorParts = doorSig
+    const firstDoorModel = doorSig
       .split('|')
-      .map((part) => {
-        const [doorNumber, doorModel] = part.split(':');
-        if (!doorNumber || !doorModel) return '';
-        return `Door ${doorNumber}: ${formatModelName(doorModel)}`;
-      })
-      .filter(Boolean);
-
+      .map((part) => part.split(':')[1])
+      .find(Boolean);
+    const modelText = baseModel || firstDoorModel ? formatModelName(baseModel || firstDoorModel || '') : 'No model recorded';
     const frameText = frameSig
-      ? `, ${frameSig.replace('frameX=', 'X frame ').replace(';frameY=', ' mm, Y frame ')} mm`
+      ? ` ${frameSig.replace('frameX=', 'X frame ').replace(';frameY=', ' mm, Y frame ')} mm`
       : '';
-    if (baseModel) {
-      return `${formatModelName(baseModel)}${doorParts.length ? ` (${doorParts.join(', ')})` : ''}${frameText}`;
-    }
-    if (doorParts.length) return `${doorParts.join(', ')}${frameText}`;
-    return `No model recorded${frameText}`;
+    return `${modelText}${frameText}`;
   };
 
-  const buildScanMismatchWarning = (scanSignature: string, currentSignature: string) =>
-    `The saved scan was made for ${formatScanSignatureSummary(scanSignature)}. ` +
-    `Current setup is ${formatScanSignatureSummary(currentSignature)}. ` +
-    'Select the scanned model/setup again or run Scan for the current setup.';
+  const buildScanMismatchWarning = (scanSignature: string, _currentSignature: string) =>
+    `Saved scan was made for ${formatScanSignatureSummary(scanSignature)}. ` +
+    'Re-scan or select the scanned setup before starting.';
 
   const applyDetectedDoorsFromScanStatus = (status: any) => {
     if (!status?.hasScan || !status?.doorDetectionAvailable) {
@@ -1161,8 +1152,8 @@ export function CompactTableConfig({
           </div>,
           document.body
         )}
-      <Card className="shadow-xl border border-slate-300 bg-white/95 backdrop-blur-sm">
-      <CardHeader className="bg-gradient-to-r from-indigo-50 to-cyan-50">
+      <Card className="gap-0 shadow-xl border border-slate-300 bg-white/95 backdrop-blur-sm">
+      <CardHeader className="bg-gradient-to-r from-indigo-50 to-cyan-50 px-4 py-3">
         <CardTitle className="flex items-center justify-between">
           Table {tableName} Configuration
           <Badge variant={isActive ? 'default' : 'secondary'} className={isActive ? 'bg-green-500' : ''}>
@@ -1170,16 +1161,12 @@ export function CompactTableConfig({
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-6 bg-white rounded-b-lg">
-        <div className="border-2 border-indigo-300 rounded-xl p-5 bg-white shadow-[0_8px_24px_rgba(30,64,175,0.08)]">
+      <CardContent className="px-2 pt-1 pb-2 bg-white rounded-b-lg">
+        <div>
           {tableName === 'A' && doorConfigs ? (
             <>
               {/* Door Selection Tabs */}
-              <div className="bg-white rounded-md p-4 border border-gray-200 mb-4">
-                <label className="text-sm text-gray-600 mb-2 flex items-center gap-1">
-                  Model for all doors
-                  <span className="text-gray-400 text-xs">ⓘ</span>
-                </label>
+              <div className="bg-white rounded-md p-2 border border-gray-200 mb-2">
                 <select
                   value={model}
                   onChange={(e) => handleModelChange(e.target.value)}
@@ -1195,7 +1182,6 @@ export function CompactTableConfig({
                 </select>
                 {getModelPreviewDisplaySrcs('A', tableAPreviewModel, previewAttemptIndexA).length > 0 && (
                   <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
-                    <div className="text-xs text-slate-600 mb-2">Selected model preview</div>
                     <div className="flex flex-wrap items-center justify-center gap-2">
                       {getModelPreviewDisplaySrcs('A', tableAPreviewModel, previewAttemptIndexA).map((src, index) => (
                         <img
@@ -1220,9 +1206,9 @@ export function CompactTableConfig({
                 {tableAPreviewModel && getCanonicalModelKey(tableAPreviewModel) !== 'modelF' && (
                   <div className="mt-3 rounded-md border border-red-200 bg-red-50/50 p-3">
                     <div className="mb-2 text-xs font-semibold text-red-700">Frame size used by scan</div>
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
-                      <label className="text-xs text-slate-700">
-                        X Frame Size (mm)
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-slate-700 whitespace-nowrap">
+                        <span>X Frame Size (mm)</span>
                         <input
                           type="number"
                           min="1"
@@ -1234,11 +1220,11 @@ export function CompactTableConfig({
                             setTableAFrameSizeX(e.target.value);
                             setTableAFrameSizeConfirmed(false);
                           }}
-                          className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
+                          className="w-24 rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
                         />
                       </label>
-                      <label className="text-xs text-slate-700">
-                        Y Frame Size (mm)
+                      <label className="flex items-center gap-2 text-xs text-slate-700 whitespace-nowrap">
+                        <span>Y Frame Size (mm)</span>
                         <input
                           type="number"
                           min="1"
@@ -1250,7 +1236,7 @@ export function CompactTableConfig({
                             setTableAFrameSizeY(e.target.value);
                             setTableAFrameSizeConfirmed(false);
                           }}
-                          className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
+                          className="w-24 rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
                         />
                       </label>
                       <Button
@@ -1258,7 +1244,7 @@ export function CompactTableConfig({
                         variant="outline"
                         disabled={isOperating}
                         onClick={confirmTableAFrameSizes}
-                        className="border-red-300 text-red-700 hover:bg-red-100"
+                        className="h-8 border-red-300 px-4 text-red-700 hover:bg-red-100"
                       >
                         Confirm Values
                       </Button>
@@ -1273,7 +1259,7 @@ export function CompactTableConfig({
                 <div className="mt-2 text-xs">
                   {scanCompleted && scanConfigMismatch ? (
                     <span className="text-amber-700">
-                      Saved scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}, but it was made for {formatScanSignatureSummary(lastScanSignature || '')}. Current setup is {formatScanSignatureSummary(getTableAScanSignature())}. Re-scan or select the scanned setup before starting.
+                      Saved scan on record{lastScannedAt ? ` (${lastScannedAt})` : ''}, but it was made for {formatScanSignatureSummary(lastScanSignature || '')}. Re-scan or select the scanned setup before starting.
                     </span>
                   ) : scanCompleted ? (
                     <span className="text-green-700">
@@ -1285,18 +1271,10 @@ export function CompactTableConfig({
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                {detectedDoorNumbers !== null && (
-                  <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                    Available from latest scan: {detectedDoorNumbers.length
-                      ? detectedDoorNumbers.map(doorNumber => `Door ${doorNumber}`).join(', ')
-                      : 'No doors detected'}
-                    . Undetected doors are locked.
-                  </div>
-                )}
-                <div className="mt-2 space-y-3">
+              <div className="mb-2">
+                <div className="space-y-1">
                   {currentDisplayRows.map(({ row, idx }) => (
-                    <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                    <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                       {/* Main row: Label + Door buttons + Force + Cycle */}
                       <div className="flex flex-wrap items-center gap-3 justify-between">
                         <div className="text-sm font-medium text-gray-700 flex items-center gap-1 whitespace-nowrap">
@@ -1480,11 +1458,7 @@ export function CompactTableConfig({
               </div>
             </>
           ) : (
-            <div className="bg-gray-50 rounded-lg p-4 mb-4">
-              <label className="text-sm text-gray-500 mb-2 flex items-center gap-1">
-                Model
-                <span className="text-gray-400 text-xs">ⓘ</span>
-              </label>
+            <div className="mb-2">
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -1501,7 +1475,6 @@ export function CompactTableConfig({
               </select>
               {getModelPreviewSrc('B', tableBPreviewModel, previewAttemptIndexB) && (
                 <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <div className="text-xs text-slate-600 mb-2">Selected model preview</div>
                   <img
                     src={getModelPreviewSrc('B', tableBPreviewModel, previewAttemptIndexB)}
                     alt={`Table B ${formatModelName(tableBPreviewModel)}`}
@@ -1515,9 +1488,9 @@ export function CompactTableConfig({
                 </div>
               )}
 
-              <div className="mt-6 space-y-3">
+              <div className="mt-2 space-y-1">
                 {tableBDisplayRows.map(({ row, idx }) => (
-                  <div key={row.label} className={`bg-white rounded-md p-3 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                  <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                     {/* Main row: Label + Force + Cycle */}
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-sm font-medium text-gray-700 flex items-center gap-1">

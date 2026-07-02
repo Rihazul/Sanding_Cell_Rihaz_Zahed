@@ -1,6 +1,5 @@
  import React, { useEffect, useRef, useState } from 'react';
 import { DashboardHeader } from './dashboard/DashboardHeader';
-import { StatusBanner } from './dashboard/StatusBanner';
 import { RobotControlPanel } from './dashboard/RobotControlPanel';
 import { RobotStatusCard } from './dashboard/RobotStatusCard';
 import { SettingsPanel } from './dashboard/SettingsPanel';
@@ -293,11 +292,6 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <StatusBanner 
-          robotEnabled={robotEnabled}
-          robotSpeed={robotSpeed}
-        />
-
         {homingRequired && (
           <div className="mb-6 rounded-xl border-2 border-amber-300 bg-white px-5 py-4 shadow-sm">
             <div className="flex items-start gap-3">
