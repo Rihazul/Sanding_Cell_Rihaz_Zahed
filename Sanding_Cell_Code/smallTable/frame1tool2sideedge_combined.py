@@ -334,7 +334,8 @@ def _run_big_combined(door_num, side_force, side_cycles, edge_force, edge_cycles
     _move_robot(cps, config, transitions["after_upleft"], robot_speed)
 
 
-def run_tool2_side_edge_combined(door_num, side_force, side_cycles, edge_force, edge_cycles, cps):
+def run_tool2_side_edge_combined(door_number, side_force, side_cycles, edge_force, edge_cycles, cps):
+    door_num = int(door_number)
     side_cycles = max(0, int(side_cycles))
     edge_cycles = max(0, int(edge_cycles))
     if side_cycles <= 0 and edge_cycles <= 0:
