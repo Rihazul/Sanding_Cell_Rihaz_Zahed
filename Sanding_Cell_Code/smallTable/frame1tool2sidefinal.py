@@ -43,6 +43,7 @@ def _run_tool2_side_process(
     force_point=None,
     force_func=None,
     vibration_point=None,
+    cycles=1,
 ):
     def abort_if_stopped():
         if not stop_requested():
@@ -61,35 +62,73 @@ def _run_tool2_side_process(
         raise RuntimeError("Tool 2 side operation stopped by emergency stop")
 
     robot_speed = float(load_json_config().get("robotSpeed", 0.9))
+    cycle_count = max(1, int(cycles))
+    path_points = list(points or [])
+    if not path_points:
+        return
+
+    approach_point = path_points[0]
+    active_points = path_points[1:-1] if len(path_points) > 2 else path_points
+    start_prepoint = approach_point
+    end_prepoint = path_points[-1] if len(path_points) > 1 else approach_point
+    force_active = False
+    vibration_active = False
+
+    def maybe_start_force(point):
+        nonlocal force_active
+        if force_active or force_func is None or force_point is None or point is not force_point:
+            return
+        force_func(
+            cps=cps,
+            force=force,
+            tcp=tcp,
+            ucs=ucs,
+            config=config,
+        )
+        force_active = True
+        abort_if_stopped()
+
+    def maybe_start_vibration(point):
+        nonlocal vibration_active
+        if vibration_active or vibration_point is None or point is not vibration_point:
+            return
+        abort_if_stopped()
+        turn_vibration_on(cps)
+        vibration_active = True
+        abort_if_stopped()
+
+    def move_point(point, speed, profile):
+        communicate(
+            cps=cps,
+            config=config,
+            point=point,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=speed,
+            velocity_profile=profile,
+            wait=True,
+        )
+        abort_if_stopped()
+
     abort_if_stopped()
     try:
-        for point_index, point in enumerate(points):
-            abort_if_stopped()
-            if force_func is not None and force_point is not None and point is force_point:
-                force_func(
-                    cps=cps,
-                    force=force,
-                    tcp=tcp,
-                    ucs=ucs,
-                    config=config,
-                )
-                abort_if_stopped()
-            if vibration_point is not None and point is vibration_point:
-                abort_if_stopped()
-                turn_vibration_on(cps)
-                abort_if_stopped()
-            communicate(
-                cps=cps,
-                config=config,
-                point=point,
-                tcp=tcp,
-                ucs=ucs,
-                seventh=-1,
-                speed=robot_speed if point_index == 0 else sanding_speed,
-                velocity_profile="robotspeed" if point_index == 0 else "sandingspeed",
-                wait=True,
+        move_point(approach_point, robot_speed, "robotspeed")
+
+        for cycle_index in range(cycle_count):
+            segment = active_points if cycle_index % 2 == 0 else list(reversed(active_points))
+            print(
+                f"[tool2-side] continuous segment cycle {cycle_index + 1}/{cycle_count} "
+                f"points={len(segment)} direction={'forward' if cycle_index % 2 == 0 else 'reverse'}"
             )
-            abort_if_stopped()
+            for point in segment:
+                abort_if_stopped()
+                maybe_start_force(point)
+                maybe_start_vibration(point)
+                move_point(point, sanding_speed, "sandingspeed")
+
+        final_prepoint = end_prepoint if cycle_count % 2 == 1 else start_prepoint
+        move_point(final_prepoint, robot_speed, "robotspeed")
 
         waitForBlending(cps=cps, config=config)
         abort_if_stopped()
@@ -125,12 +164,11 @@ def _run_tool2_side_by_ylen(door_num, force, cps, cycles, small_runner, big_runn
     cycle_count = max(1, int(cycles))
     runner = big_runner if ylen > 600 else small_runner
     door_size = "big" if ylen > 600 else "small"
-    for cycle_index in range(cycle_count):
-        print(
-            f"\n=== Tool 2 side {door_size}-door internal cycle "
-            f"{cycle_index + 1}/{cycle_count} (Door {door_num}) ==="
-        )
-        runner(force, cps)
+    print(
+        f"\n=== Tool 2 side {door_size}-door continuous cycles "
+        f"{cycle_count} (Door {door_num}) ==="
+    )
+    runner(force, cps)
     return
 
 
@@ -370,6 +408,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=rightpoint14,
                 force_func=putForceXplus,
                 vibration_point=rightpoint4,
+                cycles=cycles,
             )
         def perform_process_upright(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -383,6 +422,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=uprightpoint4up,
                 force_func=putForceXplus,
                 vibration_point=uprightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -396,6 +436,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_topup(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -409,6 +450,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=uptoppoint12,
                 force_func=putForceYminus1,
                 vibration_point=uptoppoint2,
+                cycles=cycles,
             )
         def perform_process_upleft(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -422,6 +464,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=upleftpoint3down,
                 force_func=putForceXminus,
                 vibration_point=upleftpoint5,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -435,6 +478,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=leftpoint5down,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -448,6 +492,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         #Cycles for Big Door
         # #Bottom Cycles
@@ -609,6 +654,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=rightpoint12,
                 force_func=putForceXplus,
                 vibration_point=rightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -622,6 +668,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -635,6 +682,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=leftpoint12,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -648,6 +696,7 @@ def door1frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
@@ -925,6 +974,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=rightpoint14,
                 force_func=putForceXplus,
                 vibration_point=rightpoint4,
+                cycles=cycles,
             )
         def perform_process_upright(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -938,6 +988,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=uprightpoint4up,
                 force_func=putForceXplus,
                 vibration_point=uprightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -951,6 +1002,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_topup(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -964,6 +1016,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=uptoppoint12,
                 force_func=putForceYminus1,
                 vibration_point=uptoppoint2,
+                cycles=cycles,
             )
         def perform_process_upleft(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -977,6 +1030,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=upleftpoint3down,
                 force_func=putForceXminus,
                 vibration_point=upleftpoint5,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -990,6 +1044,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=leftpoint5down,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1003,6 +1058,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         #Cycles for Big Door
         # #Bottom Cycles
@@ -1159,6 +1215,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=rightpoint12,
                 force_func=putForceXplus,
                 vibration_point=rightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1172,6 +1229,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1185,6 +1243,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=leftpoint12,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1198,6 +1257,7 @@ def door2frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
@@ -1472,6 +1532,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=rightpoint14,
                 force_func=putForceXplus,
                 vibration_point=rightpoint4,
+                cycles=cycles,
             )
         def perform_process_upright(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1485,6 +1546,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=uprightpoint4up,
                 force_func=putForceXplus,
                 vibration_point=uprightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1498,6 +1560,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_topup(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1511,6 +1574,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=uptoppoint12,
                 force_func=putForceYminus1,
                 vibration_point=uptoppoint2,
+                cycles=cycles,
             )
         def perform_process_upleft(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1524,6 +1588,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=upleftpoint3down,
                 force_func=putForceXminus,
                 vibration_point=upleftpoint5,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1537,6 +1602,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=leftpoint5down,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1550,6 +1616,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         #Cycles for Big Door
         # #Bottom Cycles
@@ -1706,6 +1773,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=rightpoint12,
                 force_func=putForceXplus,
                 vibration_point=rightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1719,6 +1787,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1732,6 +1801,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=leftpoint12,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -1745,6 +1815,7 @@ def door3frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
@@ -2019,6 +2090,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=rightpoint14,
                 force_func=putForceXplus,
                 vibration_point=rightpoint4,
+                cycles=cycles,
             )
         def perform_process_upright(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2032,6 +2104,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=uprightpoint4up,
                 force_func=putForceXplus,
                 vibration_point=uprightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2045,6 +2118,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_topup(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2058,6 +2132,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=uptoppoint12,
                 force_func=putForceYminus1,
                 vibration_point=uptoppoint2,
+                cycles=cycles,
             )
         def perform_process_upleft(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2071,6 +2146,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=upleftpoint3down,
                 force_func=putForceXminus,
                 vibration_point=upleftpoint5,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2084,6 +2160,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=leftpoint5down,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2097,6 +2174,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         #Cycles for Big Door
         # #Bottom Cycles
@@ -2253,6 +2331,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=rightpoint12,
                 force_func=putForceXplus,
                 vibration_point=rightpoint2,
+                cycles=cycles,
             )
         def perform_process_top(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2266,6 +2345,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=toppoint12,
                 force_func=putForceYminus1,
                 vibration_point=toppoint2,
+                cycles=cycles,
             )
         def perform_process_left(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2279,6 +2359,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=leftpoint12,
                 force_func=putForceXminus,
                 vibration_point=leftpoint2,
+                cycles=cycles,
             )
         def perform_process_bottom(cps, config, points1,force):
             return _run_tool2_side_process(
@@ -2292,6 +2373,7 @@ def door4frametool2side(force,cps,cycles=1):
                 force_point=bottompoint12,
                 force_func=putForceYplus1,
                 vibration_point=bottompoint2,
+                cycles=cycles,
             )
         # #Right Cycle
         communicate(cps=cps,config=config,seventh=x1,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)

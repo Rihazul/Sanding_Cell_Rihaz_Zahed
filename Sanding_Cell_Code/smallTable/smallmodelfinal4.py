@@ -13,6 +13,7 @@ from smallTable.zigzagplane1final import smalldoor1zizag,smalldoor2zizag,smalldo
 from smallTable.edge_coverage_tool3 import run_tool3_pocket_edge_cycles
 from smallTable.frame1tool2sidefinal import door1frametool2side,door2frametool2side,door3frametool2side,door4frametool2side
 from smallTable.frame1tool2edgefinal import door1frametool2sideedge,door2frametool2sideedge,door3frametool2sideedge,door4frametool2sideedge
+from smallTable.frame1tool2sideedge_combined import run_tool2_side_edge_combined
 from smallTable.tool1_modelD_internal import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
 
 from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested,moveOnlyJ6r
@@ -511,16 +512,37 @@ def sandingModelDETableA(cps=None):
                     )
                     move_to_safe_point()
 
-                if side_cycle > 0:
-                    run_tool2side_cycles(side_cycle, int(side_cfg.get("force", 0)), door_number, cps)
-                    work_executed = True
-
                 if side_cycle > 0 and edge_cycle > 0:
-                    print(f"\n--- Tool 2 / Side-to-Edge Continuous Transition / Door {door_number} ---")
-
-                if edge_cycle > 0:
-                    run_tool2side_edgecycles(edge_cycle, int(edge_cfg.get("force", 0)), door_number, cps)
+                    print(f"\n--- Tool 2 / Side+Edge Combined Passes / Door {door_number} ---")
+                    run_tool2_side_edge_combined(
+                        door_number=door_number,
+                        side_force=int(side_cfg.get("force", 0)),
+                        side_cycles=side_cycle,
+                        edge_force=int(edge_cfg.get("force", 0)),
+                        edge_cycles=edge_cycle,
+                        cps=cps,
+                    )
                     work_executed = True
+                else:
+                    if side_cycle > 0:
+                        print(f"\n--- Tool 2 / Side / Door {door_number} ---")
+                        run_tool2side_cycles(
+                            side_cycle,
+                            int(side_cfg.get("force", 0)),
+                            door_number,
+                            cps,
+                        )
+                        work_executed = True
+
+                    if edge_cycle > 0:
+                        print(f"\n--- Tool 2 / EdgeOutside / Door {door_number} ---")
+                        run_tool2side_edgecycles(
+                            edge_cycle,
+                            int(edge_cfg.get("force", 0)),
+                            door_number,
+                            cps,
+                        )
+                        work_executed = True
 
                 previous_tool2_door = door_number
 
