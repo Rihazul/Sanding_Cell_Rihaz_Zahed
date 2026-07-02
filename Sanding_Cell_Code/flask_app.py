@@ -2844,6 +2844,14 @@ def handle_action():
         process_state['last_action'] = 'scan'
         scan_x_start_offset = float(config.get("offset", {}).get("scannerOffsetInLeft", 0.0))
         scan_y_start_offset = float(config.get("offset", {}).get("scannerOffsetInBottom", 0.0))
+        posted_frame_size = request_data.get("tableAFrameSize") or {}
+        try:
+            posted_frame_size_x = float(posted_frame_size.get("x"))
+            posted_frame_size_y = float(posted_frame_size.get("y"))
+        except (TypeError, ValueError, AttributeError):
+            return jsonify({"status": "error", "message": "Invalid Table A frame size values for X/Y."}), 400
+        if not (0.0 < posted_frame_size_x <= 200.0 and 0.0 < posted_frame_size_y <= 200.0):
+            return jsonify({"status": "error", "message": "Table A frame size X/Y must be between 1 mm and 200 mm."}), 400
         config['logger'].info(
             "[scan] Runtime source=%s | scan start offsets: X=-%.3fmm Y=-%.3fmm, normal endpoints, no X-start return, home after Door1 Y-end",
             os.path.abspath(__file__),
@@ -2951,6 +2959,15 @@ def handle_action():
                     runtime_scan_config = copy.deepcopy(config)
                     runtime_scan_config["tableAScanModel"] = scan_model
                     runtime_scan_config["tableAScanDoorModels"] = scan_door_models
+                    runtime_scan_config["tableAScanFrameSize"] = {
+                        "x": posted_frame_size_x,
+                        "y": posted_frame_size_y,
+                    }
+                    config["logger"].info(
+                        "[scan] Runtime frame size override from UI: X=%.3fmm Y=%.3fmm",
+                        posted_frame_size_x,
+                        posted_frame_size_y,
+                    )
                     table_cfg = runtime_scan_config.get("table", {})
                     configured_door_count = len(configured_door_numbers)
                     if configured_door_count > 0:

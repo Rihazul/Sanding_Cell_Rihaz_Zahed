@@ -103,8 +103,25 @@ export function CompactTableConfig({
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   const [previewAttemptIndexA, setPreviewAttemptIndexA] = React.useState<number>(0);
   const [previewAttemptIndexB, setPreviewAttemptIndexB] = React.useState<number>(0);
+  const [tableAFrameSizeX, setTableAFrameSizeX] = React.useState<string>('57');
+  const [tableAFrameSizeY, setTableAFrameSizeY] = React.useState<string>('57');
+  const [tableAFrameSizeConfirmed, setTableAFrameSizeConfirmed] = React.useState<boolean>(false);
   const completionTimerRef = React.useRef<number | null>(null);
   const isModelF = model === 'modelF';
+  const parsePositiveFrameSize = (value: string) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 && parsed <= 200 ? parsed : null;
+  };
+  const getTableAFrameSizeValues = () => ({
+    x: parsePositiveFrameSize(tableAFrameSizeX),
+    y: parsePositiveFrameSize(tableAFrameSizeY),
+  });
+  const getTableAFrameSizeSignature = () => {
+    const values = getTableAFrameSizeValues();
+    return values.x !== null && values.y !== null
+      ? `frameX=${values.x};frameY=${values.y}`
+      : 'frameX=invalid;frameY=invalid';
+  };
   const isModelFAllowedRow = (label: string) => label === 'Pocket ZigZag';
   const isTableAOperationAllowed = (selectedModel: string, operationLabel: string) => {
     if (selectedModel === 'modelA' || selectedModel === 'modelB') {
@@ -274,11 +291,11 @@ export function CompactTableConfig({
     const doorModelSig = (doorConfigs || [])
       .map((d) => `${d.doorNumber}:${(d.model || '').trim()}`)
       .join('|');
-    return `${baseModel}::${doorModelSig}`;
+    return `${baseModel}::${doorModelSig}::${getTableAFrameSizeSignature()}`;
   };
 
   const formatScanSignatureSummary = (signature: string) => {
-    const [baseModel = '', doorSig = ''] = String(signature || '').split('::');
+    const [baseModel = '', doorSig = '', frameSig = ''] = String(signature || '').split('::');
     const doorParts = doorSig
       .split('|')
       .map((part) => {
@@ -288,11 +305,14 @@ export function CompactTableConfig({
       })
       .filter(Boolean);
 
+    const frameText = frameSig
+      ? `, ${frameSig.replace('frameX=', 'X frame ').replace(';frameY=', ' mm, Y frame ')} mm`
+      : '';
     if (baseModel) {
-      return `${formatModelName(baseModel)}${doorParts.length ? ` (${doorParts.join(', ')})` : ''}`;
+      return `${formatModelName(baseModel)}${doorParts.length ? ` (${doorParts.join(', ')})` : ''}${frameText}`;
     }
-    if (doorParts.length) return doorParts.join(', ');
-    return 'No model recorded';
+    if (doorParts.length) return `${doorParts.join(', ')}${frameText}`;
+    return `No model recorded${frameText}`;
   };
 
   const buildScanMismatchWarning = (scanSignature: string, currentSignature: string) =>
@@ -358,8 +378,50 @@ export function CompactTableConfig({
     };
   }, [tableName]);
 
+  const confirmTableAFrameSizes = async () => {
+    if (tableName !== 'A') return true;
+    const frameSizes = getTableAFrameSizeValues();
+    const warning = 'Enter valid Table A frame sizes for X and Y between 1 mm and 200 mm.';
+    if (frameSizes.x === null || frameSizes.y === null) {
+      addActivity(`Table ${tableName}: ${warning}`, 'warning');
+      const swal = getSwal();
+      if (swal?.fire) {
+        await swal.fire({
+          title: 'Frame Size Required',
+          text: warning,
+          icon: 'warning',
+          confirmButtonText: 'OK',
+        });
+      }
+      return false;
+    }
+
+    const text = `Confirm Table A frame sizes: X = ${frameSizes.x} mm, Y = ${frameSizes.y} mm. These values will be used to calculate scan frame and inner corner points.`;
+    const swal = getSwal();
+    const confirmed = swal?.fire
+      ? !!(await swal.fire({
+          title: 'Confirm Frame Sizes',
+          text,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Confirm Values',
+          cancelButtonText: 'Edit Values',
+          reverseButtons: true,
+        })).isConfirmed
+      : window.confirm(text);
+    if (confirmed) {
+      setTableAFrameSizeConfirmed(true);
+      addActivity(`Table ${tableName}: Frame sizes confirmed X=${frameSizes.x} mm, Y=${frameSizes.y} mm`, 'success');
+    }
+    return confirmed;
+  };
+
   const confirmScanForTableA = async () => {
     if (tableName !== 'A') return true;
+    const frameSizes = getTableAFrameSizeValues();
+    if (frameSizes.x === null || frameSizes.y === null) {
+      return confirmTableAFrameSizes();
+    }
     const hasAnyModel =
       !!(model || '').trim() ||
       (doorConfigs || []).some((d) => !!(d.model || '').trim());
@@ -383,12 +445,13 @@ export function CompactTableConfig({
     const selectedModelText = (model || '').trim()
       ? `Selected model: ${formatModelName(model)}.`
       : 'Model selected per-door configuration.';
+    const frameSizeText = `Frame sizes: X = ${frameSizes.x} mm, Y = ${frameSizes.y} mm.`;
     const rescanText = scanCompleted
       ? `A previous scan exists${lastScannedAt ? ` (${lastScannedAt})` : ''}. Do you want to run scan again?`
       : 'No previous scan found. Start a new scan?';
     const text = scanCompleted
-      ? `${rescanText} ${selectedModelText}`
-      : `Confirm scan for Table A. ${selectedModelText} Ensure the area is clear and setup is correct.`;
+      ? `${rescanText} ${selectedModelText} ${frameSizeText}`
+      : `Confirm scan for Table A. ${selectedModelText} ${frameSizeText} Ensure the area is clear and setup is correct.`;
     if (!swal?.fire) {
       return window.confirm(text);
     }
@@ -456,10 +519,15 @@ export function CompactTableConfig({
     setIsScanning(true);
     addActivity(`Table ${tableName}: Scan in progress...`, 'warning');
     try {
+      const frameSizes = getTableAFrameSizeValues();
       const scanResponse = await performAction('scan', {
         tableAScanSignature: getTableAScanSignature(),
         tableAModel: model || '',
         tableADoorModels: getTableADoorModels(),
+        tableAFrameSize: {
+          x: frameSizes.x,
+          y: frameSizes.y,
+        },
       });
       if (scanResponse?.status === 'cancelled') {
         addActivity(`Table ${tableName}: Scan stopped by user`, 'warning');
@@ -1146,6 +1214,59 @@ export function CompactTableConfig({
                           className="object-contain rounded-md bg-white border border-slate-200"
                         />
                       ))}
+                    </div>
+                  </div>
+                )}
+                {tableAPreviewModel && getCanonicalModelKey(tableAPreviewModel) !== 'modelF' && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50/50 p-3">
+                    <div className="mb-2 text-xs font-semibold text-red-700">Frame size used by scan</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+                      <label className="text-xs text-slate-700">
+                        X Frame Size (mm)
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          step="0.1"
+                          value={tableAFrameSizeX}
+                          disabled={isOperating}
+                          onChange={(e) => {
+                            setTableAFrameSizeX(e.target.value);
+                            setTableAFrameSizeConfirmed(false);
+                          }}
+                          className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
+                        />
+                      </label>
+                      <label className="text-xs text-slate-700">
+                        Y Frame Size (mm)
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          step="0.1"
+                          value={tableAFrameSizeY}
+                          disabled={isOperating}
+                          onChange={(e) => {
+                            setTableAFrameSizeY(e.target.value);
+                            setTableAFrameSizeConfirmed(false);
+                          }}
+                          className="mt-1 w-full rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isOperating}
+                        onClick={confirmTableAFrameSizes}
+                        className="border-red-300 text-red-700 hover:bg-red-100"
+                      >
+                        Confirm Values
+                      </Button>
+                    </div>
+                    <div className={`mt-2 text-xs ${tableAFrameSizeConfirmed ? 'text-green-700' : 'text-amber-700'}`}>
+                      {tableAFrameSizeConfirmed
+                        ? `Confirmed: X=${tableAFrameSizeX} mm, Y=${tableAFrameSizeY} mm.`
+                        : 'Confirm these values before scanning. They override laser frame-size classification for Table A scan geometry.'}
                     </div>
                   </div>
                 )}
