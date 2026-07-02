@@ -283,6 +283,8 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, async_mode='threading')
 
+REQUEST_TIMING_LOGS_ENABLED = False
+
 TIMED_REQUEST_PATHS = (
     "/start_TableA_process",
     "/robot_status",
@@ -301,6 +303,8 @@ def _should_time_request_path(path):
 
 @app.before_request
 def _log_timed_request_entry():
+    if not REQUEST_TIMING_LOGS_ENABLED:
+        return
     path = request.path
     if not _should_time_request_path(path):
         return
@@ -319,6 +323,8 @@ def _log_timed_request_entry():
 
 @app.after_request
 def _log_timed_request_exit(response):
+    if not REQUEST_TIMING_LOGS_ENABLED:
+        return response
     path = request.path
     if not _should_time_request_path(path):
         return response
