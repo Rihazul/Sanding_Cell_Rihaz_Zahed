@@ -96,6 +96,27 @@ def _run_edge_section(cps, config, section, force, cycles, sanding_speed):
     )
 
 
+SAFETY_LIFT_Z_MM = 85
+
+
+def _final_prepoint_for_cycles(section, cycles):
+    points = section["points"]
+    if not points:
+        return None
+    cycle_count = max(1, int(cycles))
+    return points[-1] if cycle_count % 2 == 1 else points[0]
+
+
+def _lift_from_section_endpoint(cps, config, section, cycles, robot_speed):
+    endpoint = _final_prepoint_for_cycles(section, cycles)
+    if endpoint is None:
+        return
+    lift_point = list(endpoint)
+    lift_point[2] = max(float(lift_point[2]), SAFETY_LIFT_Z_MM)
+    print(f"[Tool 2 Combined] Safety lift after edge pass to {lift_point}")
+    _move_robot(cps, config, lift_point, robot_speed)
+
+
 def _run_combined_section(
     name,
     cps,
@@ -107,6 +128,7 @@ def _run_combined_section(
     edge_force,
     edge_cycles,
     sanding_speed,
+    robot_speed,
 ):
     print(f"\n--- Tool 2 combined pass: {name} side then edge ---")
     _run_side_section(cps, config, side_section, side_force, side_cycles, sanding_speed)
@@ -115,6 +137,7 @@ def _run_combined_section(
     _run_edge_section(cps, config, edge_section, edge_force, edge_cycles, sanding_speed)
     if stop_requested():
         raise RuntimeError("[Tool 2 Combined] Stop requested after edge pass.")
+    _lift_from_section_endpoint(cps, config, edge_section, edge_cycles, robot_speed)
 
 
 def _get_points(door_num):
@@ -294,7 +317,7 @@ def _run_small_combined(door_num, side_force, side_cycles, edge_force, edge_cycl
         ("left", "after_left"),
         ("bottom", "posthoming"),
     ):
-        _run_combined_section(name, cps, config, side[name], edge[name], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+        _run_combined_section(name, cps, config, side[name], edge[name], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
         if name == "left":
             _move_robot(cps, config, transitions[transition_name], robot_speed)
             moveOnlyJ6r(cps, -270, config, wait=True)
@@ -311,26 +334,26 @@ def _run_big_combined(door_num, side_force, side_cycles, edge_force, edge_cycles
     _move_j7(cps, config, x1, robot_speed)
     _move_robot(cps, config, transitions["prehoming"], robot_speed)
 
-    _run_combined_section("left lower", cps, config, side["left_down"], edge["left_down"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+    _run_combined_section("left lower", cps, config, side["left_down"], edge["left_down"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_left_down"], robot_speed)
     moveOnlyJ6r(cps, -270, config, wait=True)
 
-    _run_combined_section("bottom", cps, config, side["bottom"], edge["bottom"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+    _run_combined_section("bottom", cps, config, side["bottom"], edge["bottom"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_bottom"], robot_speed)
 
-    _run_combined_section("right lower", cps, config, side["right_down"], edge["right_down"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+    _run_combined_section("right lower", cps, config, side["right_down"], edge["right_down"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_right_down"], robot_speed)
 
     _move_j7(cps, config, x2, robot_speed, transition=True)
     _move_robot(cps, config, transitions["prehome_upright"], robot_speed)
 
-    _run_combined_section("right upper", cps, config, side["upright"], edge["upright"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+    _run_combined_section("right upper", cps, config, side["upright"], edge["upright"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_upright"], robot_speed)
 
-    _run_combined_section("top", cps, config, side["topup"], edge["topup"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+    _run_combined_section("top", cps, config, side["topup"], edge["topup"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_topup"], robot_speed)
 
-    _run_combined_section("left upper", cps, config, side["upleft"], edge["upleft"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed)
+    _run_combined_section("left upper", cps, config, side["upleft"], edge["upleft"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_upleft"], robot_speed)
 
 
