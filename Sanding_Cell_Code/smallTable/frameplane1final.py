@@ -612,14 +612,22 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         for cycle_index in range(cycle_count):
             if stop_requested():
                 raise RuntimeError("[Frame] Stop requested.")
-            print(f"[FrameDebug] continuous cycle {cycle_index + 1}/{cycle_count}")
-            for move_idx, end_pose in enumerate(contact_sanding_points[1:], start=1):
-                is_last_segment = move_idx == len(contact_sanding_points[1:])
-                original_point = sanding_points[move_idx]
+            reverse_cycle = cycle_index % 2 == 1
+            cycle_points = (
+                contact_sanding_points[-2::-1]
+                if reverse_cycle
+                else contact_sanding_points[1:]
+            )
+            direction = "reverse" if reverse_cycle else "forward"
+            print(
+                f"[FrameDebug] continuous cycle {cycle_index + 1}/{cycle_count} "
+                f"direction={direction}"
+            )
+            for move_idx, end_pose in enumerate(cycle_points, start=1):
+                is_last_segment = move_idx == len(cycle_points)
                 print(
                     f"[FrameDebug][VERIFY_SEND] cycle={cycle_index + 1}/{cycle_count} "
-                    f"segment={move_idx}/{len(contact_sanding_points[1:])} "
-                    f"original_point={original_point} original_z={original_point[2]} "
+                    f"direction={direction} segment={move_idx}/{len(cycle_points)} "
                     f"sent_end_pose={end_pose} sent_z={end_pose[2]} wait={is_last_segment}"
                 )
                 communicate(
@@ -677,9 +685,7 @@ def _run_smalldoor_side_by_ylen(door_num, force, cps, small_runner, big_runner, 
 
     if ylen > 600:
         print(f"[FrameDebug] door={door_num} selecting BIG runner ylen={ylen}")
-        for cycle_index in range(max(1, int(cycles))):
-            print(f"[FrameDebug] big-door full cycle {cycle_index + 1}/{cycles}")
-            big_runner(force, cps, speed, sanding_speed, 1)
+        big_runner(force, cps, speed, sanding_speed, max(1, int(cycles)))
     else:
         print(f"[FrameDebug] door={door_num} selecting SMALL runner ylen={ylen}")
         small_runner(force, cps, speed, sanding_speed, max(1, int(cycles)))

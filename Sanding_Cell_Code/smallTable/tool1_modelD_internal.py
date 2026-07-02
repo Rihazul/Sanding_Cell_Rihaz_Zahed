@@ -190,21 +190,11 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None, cycles=1):
         )
 
     numbered_passes = list(enumerate(zip(pass_targets, passes), start=1))
-    if split_path:
-        operation_cycles = max(1, int(cycles))
-        pass_sequence = []
-        for operation_cycle in range(1, operation_cycles + 1):
-            cycle_passes = list(numbered_passes)
-            if operation_cycle % 2 == 0:
-                cycle_passes.reverse()
-            for pass_number, pass_data in cycle_passes:
-                pass_sequence.append((operation_cycle, pass_number, pass_data))
-    else:
-        operation_cycles = 1
-        pass_sequence = [
-            (1, pass_number, pass_data)
-            for pass_number, pass_data in numbered_passes
-        ]
+    operation_cycles = max(1, int(cycles))
+    pass_sequence = [
+        (1, pass_number, pass_data)
+        for pass_number, pass_data in numbered_passes
+    ]
 
     print(
         f"[ModelD] entering pass loop door={door_number} "
@@ -338,20 +328,26 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None, cycles=1):
                 f"[ModelD] sanding path start door={door_number} "
                 f"pass={pass_number} points={len(force_path_points)}"
             )
-            cycle_count = 1 if split_path else max(1, int(cycles))
+            cycle_count = max(1, int(cycles))
             for cycle_index in range(cycle_count):
                 if stop_requested():
                     raise RuntimeError("[ModelD] Stop requested.")
+                reverse_cycle = cycle_index % 2 == 1
+                cycle_points = (
+                    force_path_points[-2::-1]
+                    if reverse_cycle
+                    else force_path_points[1:]
+                )
+                direction = "reverse" if reverse_cycle else "forward"
                 print(
                     f"[ModelD] continuous cycle {cycle_index + 1}/{cycle_count} "
-                    f"door={door_number} pass={pass_number}"
+                    f"door={door_number} pass={pass_number} direction={direction}"
                 )
-                cycle_points = force_path_points[1:]
                 for point_index, point in enumerate(cycle_points, start=1):
                     print(
                         f"[ModelD] sanding point start door={door_number} "
                         f"pass={pass_number} cycle={cycle_index + 1}/{cycle_count} "
-                        f"point={point_index}/{len(cycle_points)} value={point}"
+                        f"direction={direction} point={point_index}/{len(cycle_points)} value={point}"
                     )
                     communicate(
                         cps=cps,

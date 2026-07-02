@@ -157,14 +157,22 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
         vibration_on = True
 
         cycle_count = max(1, int(cycles))
-        sanding_points = contact_points[1:]
         for cycle_index in range(cycle_count):
             if stop_requested():
                 raise RuntimeError("[Tool1] Stop requested.")
-            print(f"[Tool1ForcePath] {label}: continuous cycle {cycle_index + 1}/{cycle_count}")
+            reverse_cycle = cycle_index % 2 == 1
+            sanding_points = contact_points[-2::-1] if reverse_cycle else contact_points[1:]
+            direction = "reverse" if reverse_cycle else "forward"
+            print(
+                f"[Tool1ForcePath] {label}: continuous cycle "
+                f"{cycle_index + 1}/{cycle_count} direction={direction}"
+            )
             for index, point in enumerate(sanding_points, start=1):
                 is_last = index == len(sanding_points)
-                print(f"[Tool1ForcePath] {label}: move {index}/{len(sanding_points)} {point}")
+                print(
+                    f"[Tool1ForcePath] {label}: move {index}/{len(sanding_points)} "
+                    f"direction={direction} {point}"
+                )
                 communicate(
                     cps=cps,
                     config=config,
@@ -224,11 +232,6 @@ def _is_big_door(door_number):
 
 
 def smalldoor1tool3(z, cps, force=None, cycles=1):
-    if cycles > 1 and _is_big_door(1):
-        for cycle_index in range(int(cycles)):
-            print(f"[Tool1] Door 1 big-door full cycle {cycle_index + 1}/{cycles}")
-            smalldoor1tool3(z=z, cps=cps, force=force, cycles=1)
-        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -533,11 +536,6 @@ def smalldoor1tool3(z, cps, force=None, cycles=1):
             pass
 
 def smalldoor2tool3(z, cps, force=None, cycles=1):
-    if cycles > 1 and _is_big_door(2):
-        for cycle_index in range(int(cycles)):
-            print(f"[Tool1] Door 2 big-door full cycle {cycle_index + 1}/{cycles}")
-            smalldoor2tool3(z=z, cps=cps, force=force, cycles=1)
-        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -843,11 +841,6 @@ def smalldoor2tool3(z, cps, force=None, cycles=1):
             pass
 
 def smalldoor3tool3(z, cps, force=None, cycles=1):
-    if cycles > 1 and _is_big_door(3):
-        for cycle_index in range(int(cycles)):
-            print(f"[Tool1] Door 3 big-door full cycle {cycle_index + 1}/{cycles}")
-            smalldoor3tool3(z=z, cps=cps, force=force, cycles=1)
-        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -1153,11 +1146,6 @@ def smalldoor3tool3(z, cps, force=None, cycles=1):
             pass
 
 def smalldoor4tool3(z, cps, force=None, cycles=1):
-    if cycles > 1 and _is_big_door(4):
-        for cycle_index in range(int(cycles)):
-            print(f"[Tool1] Door 4 big-door full cycle {cycle_index + 1}/{cycles}")
-            smalldoor4tool3(z=z, cps=cps, force=force, cycles=1)
-        return
     applied_force = _resolve_force(force)
     def smalldoortool3big(z,cps):
         # Load configuration from YAML
@@ -1465,4 +1453,3 @@ if __name__ == "__main__":
     smalldoor2tool3(z=-10)
     smalldoor3tool3(z=-10)
     smalldoor4tool3(z=-10)
-
