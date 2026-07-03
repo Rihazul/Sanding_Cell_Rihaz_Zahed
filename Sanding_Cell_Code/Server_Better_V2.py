@@ -1297,14 +1297,14 @@ def putForceZminus(
         config["logger"].error(f"Failed to set mass params: {nRet}")
         return False
 
-    Stiff = [1000, 1000, 1000, 100, 100, 100]
+    Stiff = [1000, 1000, 300, 100, 100, 100]
     nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
     if nRet != 0:
         config["logger"].error(f"Failed to set stiff params: {nRet}")
         return False
 
-    damp = [2000, 2000, 2000, 40, 40, 40]
+    damp = [1000, 1000, 8000, 40, 40, 40]
     nRet = cps.HRIF_SetDampParams(0, 0, damp)
     time.sleep(0.0001)
     if nRet != 0:
