@@ -87,16 +87,28 @@ def _run_tool2_edge_process(
         return
 
     approach_point = path_points[0]
-    active_points = path_points[1:-1] if len(path_points) > 2 else path_points
-    start_prepoint = approach_point
-    end_prepoint = path_points[-1] if len(path_points) > 1 else approach_point
+    start_point = path_points[1]
+    end_point = path_points[-2]
+    exit_point = path_points[-1]
+
     force_active = False
     vibration_active = False
+    last_sent_point = None
+    
+    def same_pose(a, b, tol=0.001):
+        if a is None or b is None:
+            return False
+        if len(a) != len(b):
+            return False
+        return all(abs(float(x) - float(y)) <= tol for x, y in zip(a, b))
 
     def maybe_start_force(point):
         nonlocal force_active
-        if force_active or force_func is None or force_point is None or point is not force_point:
+        if force_active or force_func is None :
             return
+        if force_point is not None and not same_pose(point, force_point):
+            return
+        
         force_func(
             cps=cps,
             force=force,
@@ -109,14 +121,23 @@ def _run_tool2_edge_process(
 
     def maybe_start_vibration(point):
         nonlocal vibration_active
-        if vibration_active or vibration_point is None or point is not vibration_point:
+        if vibration_active or vibration_point is None :
             return
+        if not same_pose(point, vibration_point):
+            return
+        
         abort_if_stopped()
         turn_vibration_on(cps)
         vibration_active = True
         abort_if_stopped()
 
-    def move_point(point, speed, profile):
+    def move_point(point, speed, profile, skip_duplicate=True):
+        nonlocal last_sent_point
+        
+        if skip_duplicate and same_pose(point, last_sent_point):
+            config["logger"].info(f"[tool2-edge] Skipping duplicate point: {point}")
+            return
+        
         communicate(
             cps=cps,
             config=config,
@@ -128,29 +149,55 @@ def _run_tool2_edge_process(
             velocity_profile=profile,
             wait=True,
         )
+        last_sent_point = list(point)
         abort_if_stopped()
 
     abort_if_stopped()
     try:
-        move_point(approach_point, robot_speed, "robotspeed")
+        # 1. Move to approach/pre-point
+        move_point(approach_point, robot_speed, "robotspeed", skip_duplicate=False)
 
-        for cycle_index in range(cycle_count):
-            segment = active_points if cycle_index % 2 == 0 else list(reversed(active_points))
-            print(
-                f"[tool2-edge] continuous segment cycle {cycle_index + 1}/{cycle_count} "
-                f"points={len(segment)} direction={'forward' if cycle_index % 2 == 0 else 'reverse'}"
+        # 2. Move to true sanding start
+        move_point(start_point, sanding_speed, "sandingspeed", skip_duplicate=False)
+
+        # 3. Start force once
+        if force_func is not None and not force_active:
+            force_func(
+                cps=cps,
+                force=force,
+                tcp=tcp,
+                ucs=ucs,
+                config=config,
             )
-            for point in segment:
-                abort_if_stopped()
-                maybe_start_force(point)
-                maybe_start_vibration(point)
-                move_point(point, sanding_speed, "sandingspeed")
+            force_active = True
+            abort_if_stopped()
 
-        final_prepoint = end_prepoint if cycle_count % 2 == 1 else start_prepoint
+        # 4. Start vibration once
+        if not vibration_active:
+            turn_vibration_on(cps)
+            vibration_active = True
+            abort_if_stopped()
+
+        # 5. Ping-pong only between real start and real end
+        for cycle_index in range(cycle_count):
+            target = end_point if cycle_index % 2 == 0 else start_point
+
+            config["logger"].info(
+                "[tool2-side] sanding pass %s/%s target=%s",
+                cycle_index + 1,
+                cycle_count,
+                target,
+            )
+
+            move_point(target, sanding_speed, "sandingspeed")
+
+        # 6. Exit from the correct side
+        final_prepoint = exit_point if cycle_count % 2 == 1 else approach_point
         move_point(final_prepoint, robot_speed, "robotspeed")
 
         waitForBlending(cps=cps, config=config)
         abort_if_stopped()
+    
     finally:
         try:
             turn_vibration_off(cps)
