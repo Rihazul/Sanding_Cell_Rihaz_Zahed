@@ -7414,6 +7414,62 @@ def toolValve1(cps, valveState: str, config):  # Tool valve for grabbing or thro
     time.sleep(post_delay)
 
 
+
+def move_to_task_safe_point(cps, config, speed, *, velocity_profile="robotspeed"):
+    """Move to normal task safe point, exiting tool-home area through safePointTool first."""
+    tcp = config["coords"]["tcpDefault"]
+    ucs = config["coords"]["ucsDefault"]
+    safe_point = config["point"]["safePoint"]
+    safe_tool = config["point"].get("safePointTool")
+
+    should_route_via_tool_safe = False
+    if safe_tool:
+        result = []
+        nret = cps.HRIF_ReadActPos(0, 0, result)
+        try:
+            current_x = float(result[6]) if nret == 0 and len(result) > 6 else None
+        except (TypeError, ValueError):
+            current_x = None
+        if current_x is None:
+            config["logger"].warning(
+                "[taskSafeStart] Could not read current X; using direct safePoint move. ret=%s data=%s",
+                nret,
+                result,
+            )
+        else:
+            should_route_via_tool_safe = current_x > float(safe_tool[0])
+            config["logger"].info(
+                "[taskSafeStart] current_x=%.3f safePointTool_x=%.3f route_via_tool_safe=%s",
+                current_x,
+                float(safe_tool[0]),
+                should_route_via_tool_safe,
+            )
+
+    if should_route_via_tool_safe:
+        communicate(
+            cps=cps,
+            point=safe_tool,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            config=config,
+            speed=speed,
+            velocity_profile=velocity_profile,
+            wait=True,
+        )
+
+    communicate(
+        cps=cps,
+        point=safe_point,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        config=config,
+        speed=speed,
+        velocity_profile=velocity_profile,
+        wait=True,
+    )
+
 def getTool11(
     cps, toolNumber, config, startFromSafe=True, exitToSafe=True
 ):  # Tool postion dile nibe

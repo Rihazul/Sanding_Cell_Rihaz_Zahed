@@ -15,7 +15,7 @@ from smallTable.modelFzigzag import (
     smalldoor4zizag,
 )
 
-from Server_Better_V2 import keepTool11, setup_logger, getTool11, communicate
+from Server_Better_V2 import keepTool11, setup_logger, getTool11, communicate, move_to_task_safe_point
 from modules.CPS import CPSClient
 
 from cycle_data_utils import any_cycles, doors_with_cycles, get_spiral_settings, get_tableA_task_by_door
@@ -203,30 +203,22 @@ def sandingModelFTableA(cps=None):
                 cps=cps, config=config, tool_num=4, ci0=ci0, ci1=ci1, ci2=ci2
             )
 
-            communicate(
+            move_to_task_safe_point(
                 cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
                 config=config,
                 speed=speeed,
-                wait=True,
+                velocity_profile="robotspeed",
             )
 
             if not has_tool4:
                 getTool11(cps, toolNumber=4, config=config)
                 if not wait_tool4_in_hand(timeout_s=3.0, poll_s=0.1):
                     raise RuntimeError("Tool 4 was not confirmed in hand after pick.")
-            communicate(
+            move_to_task_safe_point(
                 cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
                 config=config,
                 speed=speeed,
-                wait=True,
+                velocity_profile="robotspeed",
             )
 
             for door_number in zig_zag_cycle_doors:
@@ -286,15 +278,11 @@ def sandingModelFTableA(cps=None):
                     "Check cycle/door selection payload."
                 )
 
-            communicate(
+            move_to_task_safe_point(
                 cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
                 config=config,
                 speed=speeed,
-                wait=True,
+                velocity_profile="robotspeed",
             )
 
             if keep_tool_after_task:

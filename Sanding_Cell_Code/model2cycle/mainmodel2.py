@@ -16,7 +16,7 @@ from model2cycle.testmodel2tool2sides import testmodel2tool2sidesrun
 from model2cycle.testmodeltool2edgesm import testmodel2tool2edgerun
 from model2cycle.testmodel2thirdtool import model2thirdtoolrun
 
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate, stop_requested
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate, stop_requested, move_to_task_safe_point
 from modules.CPS import CPSClient
 import time
 
@@ -310,16 +310,11 @@ def startingRobotToSandmodel2():
         raise RuntimeError(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
 
     def move_to_safe_point():
-        communicate(
+        move_to_task_safe_point(
             cps=cps,
-            point=config['point']['safePoint'],
-            tcp=config['coords']['tcpDefault'],
-            ucs=config['coords']['ucsDefault'],
-            seventh=-1,
             config=config,
             speed=speed_profile['travel'],
             velocity_profile="robot",
-            wait=True,
         )
 
     def move_seventh_to_tool_station():

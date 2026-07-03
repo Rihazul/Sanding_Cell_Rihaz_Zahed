@@ -54,6 +54,7 @@ from Server_Better_V2 import (
     communicate,
     stop_requested,
     moveOnlyJ6r,
+    move_to_task_safe_point,
 )
 from modules.CPS import CPSClient
 import time
@@ -387,16 +388,11 @@ def sandingModelATableA(cps=None):
         )
 
     def move_to_safe_point():
-        communicate(
+        move_to_task_safe_point(
             cps=cps,
-            point=config["point"]["safePoint"],
-            tcp=config["coords"]["tcpDefault"],
-            ucs=config["coords"]["ucsDefault"],
-            seventh=-1,
             config=config,
             speed=speeed,
             velocity_profile="robotspeed",
-            wait=True,
         )
 
     def move_seventh_to_tool_station():

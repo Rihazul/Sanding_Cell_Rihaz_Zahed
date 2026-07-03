@@ -15,7 +15,7 @@ from model3cycle.mod3tool2b import model3tool2big
 from model3cycle.mod3tool2edgeb import mod3tool2edgesbig
 from model3cycle.mod3tool3b import mod3tool3bigrun
 from modules.CPS import CPSClient
-from Server_Better_V2 import communicate, getTool11, keepTool11, setup_logger, stop_requested
+from Server_Better_V2 import communicate, getTool11, keepTool11, move_to_task_safe_point, setup_logger, stop_requested
 
 
 def load_config():
@@ -309,16 +309,11 @@ def startingRobotToSandmodel3():
             raise RuntimeError(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
 
         def move_to_safe_point():
-            communicate(
+            move_to_task_safe_point(
                 cps=cps,
-                point=config["point"]["safePoint"],
-                tcp=config["coords"]["tcpDefault"],
-                ucs=config["coords"]["ucsDefault"],
-                seventh=-1,
                 config=config,
                 speed=speed_profile["travel"],
                 velocity_profile="robotspeed",
-                wait=True,
             )
 
         def move_seventh_to_tool_station():

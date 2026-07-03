@@ -15,7 +15,7 @@ from model4cycle.testmodel4zigzagsmall import testmodel4zigzagsmallfunction
 from model4cycle.testmodel4tool2sidesmall import testmodel4tool2sidesmallfunction
 from model4cycle.testmodel4tooloutedgesmall import testmodel4tooloutedgesmallfunction
 from model4cycle.testmodel4tool3s import testmodel4tool3s
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepToolupdated,getToolUpdated, stop_requested
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,keepToolupdated,getToolUpdated, stop_requested, move_to_task_safe_point
 from modules.CPS import CPSClient
 import time
 
@@ -294,16 +294,11 @@ def startingRobotToSandmodel4():
             raise RuntimeError(f"Unrecognized CI combination: CI0={ci0}, CI1={ci1}, CI2={ci2}")
 
         def move_to_safe_point():
-            communicate(
+            move_to_task_safe_point(
                 cps=cps,
-                point=config['point']['safePoint'],
-                tcp=config['coords']['tcpDefault'],
-                ucs=config['coords']['ucsDefault'],
-                seventh=-1,
                 config=config,
                 speed=speed_profile['travel'],
                 velocity_profile="robot",
-                wait=True,
             )
 
         def move_seventh_to_tool_station():

@@ -15,7 +15,7 @@ from smallTable.frame1tool2sidefinal import door1frametool2side,door2frametool2s
 from smallTable.frame1tool2edgefinal import door1frametool2sideedge,door2frametool2sideedge,door3frametool2sideedge,door4frametool2sideedge
 from smallTable.frame1tool2sideedge_combined import run_tool2_side_edge_combined
 from smallTable.frame1tool3 import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested,moveOnlyJ6r
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested,moveOnlyJ6r,move_to_task_safe_point
 from modules.CPS import CPSClient
 import time
 
@@ -350,15 +350,11 @@ def sandingModelCTableA(cps=None):
         )
 
     def move_to_safe_point():
-        communicate(
+        move_to_task_safe_point(
             cps=cps,
-            point=config["point"]["safePoint"],
-            tcp=config["coords"]["tcpDefault"],
-            ucs=config["coords"]["ucsDefault"],
-            seventh=-1,
             config=config,
             speed=speeed,
-            wait=True,
+            velocity_profile="robotspeed",
         )
 
     def move_seventh_to_tool_station():
