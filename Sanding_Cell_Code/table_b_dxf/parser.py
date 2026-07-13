@@ -1,0 +1,441 @@
+from __future__ import annotations
+
+import json
+import logging
+import math
+from pathlib import Path
+from typing import Any
+
+import ezdxf
+
+from .jobs import get_table_b_dxf_job_paths
+
+logger = logging.getLogger(__name__)
+
+_CIRCLE_SEGMENTS = 72
+_MAX_INSERT_DEPTH = 6
+_FLATTEN_DISTANCE = 0.5
+
+# Machine-frame normalization. The sanding cell expects the part in a fixed frame:
+# origin at the bottom-right of the model bbox, +X pointing left, +Y pointing up.
+# The long dimension must run along X: if the uploaded part is taller than wide
+# (Y > X), rotate it 90 degrees first. The Y (short) dimension of the table maxes
+# out at ~37 inches (918 mm) — parts beyond that are flagged.
+_MAX_Y_MM = 918.0
+
+# $INSUNITS code -> inches per drawing unit (used only to decide the 36" rotation).
+_UNITS_TO_INCHES = {
+    1: 1.0,        # inches
+    2: 12.0,       # feet
+    4: 1.0 / 25.4,  # millimeters
+    5: 1.0 / 2.54,  # centimeters
+    6: 1000.0 / 25.4,  # meters
+}
+
+
+def _inches_per_unit(doc: Any, all_points: list[list[float]] | None = None) -> float:
+    """Inches per drawing unit.
+
+    Uses $INSUNITS when it is set to a real unit. When it is unitless/unknown — or
+    tagged inches/feet but the part is implausibly large for that (a sanity check) —
+    the units are inferred from the model size: manufacturing frames are hundreds
+    to thousands of units in millimeters but only tens in inches. Getting this right
+    matters because the fixed-mm toolpath offsets/steps are scaled by it.
+    """
+    try:
+        code = int(doc.header.get("$INSUNITS", 0))
+    except Exception:  # noqa: BLE001
+        code = 0
+    explicit = _UNITS_TO_INCHES.get(code)
+
+    max_dim = 0.0
+    if all_points:
+        xs = [p[0] for p in all_points]
+        ys = [p[1] for p in all_points]
+        max_dim = max(max(xs) - min(xs), max(ys) - min(ys))
+
+    mm_per_unit = 1.0 / 25.4  # inches-per-unit value for a millimeter drawing
+
+    if explicit is None:
+        # Unitless: >100 units is far too big for an inch-scale part → millimeters.
+        return mm_per_unit if max_dim > 100 else 1.0
+    if explicit >= 1.0 and max_dim > 200:
+        # Tagged inches/feet but >200 units (>5 m) — mislabeled; treat as millimeters.
+        return mm_per_unit
+    return explicit
+
+
+def _all_points(loops: list[dict[str, Any]], open_paths: list[dict[str, Any]]) -> list[list[float]]:
+    pts: list[list[float]] = []
+    for loop in loops:
+        pts.extend(loop["points"])
+    for path in open_paths:
+        pts.extend(path["points"])
+    return pts
+
+
+def _normalize_geometry(
+    loops: list[dict[str, Any]],
+    open_paths: list[dict[str, Any]],
+    inches_per_unit: float,
+) -> dict[str, Any]:
+    """Transform parsed geometry into the machine frame, in place.
+
+    Steps (exactly as specified for Table B):
+      1. If the uploaded part is taller than wide (Y size > X size), rotate every
+         point 90 degrees first so the long side runs along X, then recompute the
+         bounding box. A part already wider than tall is kept as-is.
+      2. Re-origin to the bottom-right of the bbox with axes flipped:
+             normalized_x = max_x - raw_x   (origin on the right, +X points left)
+             normalized_y = raw_y - min_y   (+Y points up)
+      3. Scale everything to MILLIMETERS (inch drawings are multiplied by 25.4), so
+         the stored geometry — and the viewer's coordinate readout — is always mm.
+
+    Rigid rotation + reflection preserve area and length, but per-item bbox /
+    width / height / aspect are recomputed from the transformed points.
+    """
+    pts = _all_points(loops, open_paths)
+    if not pts:
+        return {"applied": False, "rotated": False}
+
+    raw_min_x = min(p[0] for p in pts)
+    raw_max_x = max(p[0] for p in pts)
+    raw_min_y = min(p[1] for p in pts)
+    raw_max_y = max(p[1] for p in pts)
+    # Rotate only when the part is portrait (taller than wide) so the long
+    # dimension ends up along X.
+    rotated = (raw_max_y - raw_min_y) > (raw_max_x - raw_min_x)
+
+    def rotate(p: list[float]) -> list[float]:
+        # 90 degrees CCW: (x, y) -> (-y, x). Turns a tall part into a wide one.
+        return [-p[1], p[0]] if rotated else [p[0], p[1]]
+
+    rotated_pts = [rotate(p) for p in pts]
+    min_x = min(p[0] for p in rotated_pts)
+    max_x = max(p[0] for p in rotated_pts)
+    min_y = min(p[1] for p in rotated_pts)
+    max_y = max(p[1] for p in rotated_pts)
+
+    # Millimeters per drawing unit — inch drawings scale by 25.4, mm drawings by 1.
+    mm_per_unit = inches_per_unit * 25.4
+
+    def transform(p: list[float]) -> list[float]:
+        rx, ry = rotate(p)
+        return [(max_x - rx) * mm_per_unit, (ry - min_y) * mm_per_unit]
+
+    for loop in loops:
+        loop["points"] = [transform(p) for p in loop["points"]]
+        bbox = _bbox(loop["points"])
+        loop["bbox"] = bbox
+        loop["area"] = _polygon_area(loop["points"])
+        width = bbox["max_x"] - bbox["min_x"]
+        height = bbox["max_y"] - bbox["min_y"]
+        shorter = max(min(width, height), 1e-9)
+        loop["width"] = width
+        loop["height"] = height
+        loop["aspect_ratio"] = max(width, height) / shorter
+
+    for path in open_paths:
+        path["points"] = [transform(p) for p in path["points"]]
+        path["bbox"] = _bbox(path["points"])
+        path["length"] = _polyline_length(path["points"])
+
+    # Stored geometry is now in millimeters, so sizes are mm directly.
+    final_x = (max_x - min_x) * mm_per_unit
+    final_y = (max_y - min_y) * mm_per_unit
+    y_size_mm = final_y
+    return {
+        "applied": True,
+        "rotated": rotated,
+        # Stored geometry is millimeters (inch drawings were converted).
+        "units": "mm",
+        "mm_per_unit": 1.0,
+        "source_inches_per_unit": inches_per_unit,
+        "size": [final_x, final_y],
+        "y_size_mm": y_size_mm,
+        "max_y_mm": _MAX_Y_MM,
+        # The Y (short) side must fit the table; flag parts that exceed the limit.
+        "y_within_limit": y_size_mm < _MAX_Y_MM,
+    }
+
+# Keep every real closed loop, including thin strips. Only genuinely degenerate
+# (near-zero-area / collinear) loops are dropped. Configurable if needed.
+MIN_LOOP_AREA = 1e-6
+# A loop counts as "narrow" (thin strip) when its long side is this many times
+# its short side — used for diagnostics/logging only, never to filter.
+NARROW_ASPECT_RATIO = 3.0
+
+
+def _polygon_area(points: list[list[float]]) -> float:
+    """Absolute polygon area via the shoelace formula."""
+    n = len(points)
+    if n < 3:
+        return 0.0
+    total = 0.0
+    for i in range(n):
+        x1, y1 = points[i]
+        x2, y2 = points[(i + 1) % n]
+        total += (x1 * y2) - (x2 * y1)
+    return abs(total) / 2.0
+
+
+def _polyline_length(points: list[list[float]]) -> float:
+    """Total length along an (open) polyline."""
+    total = 0.0
+    for i in range(len(points) - 1):
+        (x0, y0), (x1, y1) = points[i], points[i + 1]
+        total += math.hypot(x1 - x0, y1 - y0)
+    return total
+
+
+def _bbox(points: list[list[float]]) -> dict[str, float] | None:
+    if not points:
+        return None
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return {"min_x": min(xs), "min_y": min(ys), "max_x": max(xs), "max_y": max(ys)}
+
+
+def _size(points: list[list[float]]) -> float:
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    return max(max(xs) - min(xs), max(ys) - min(ys), 1.0)
+
+
+def _looks_closed(points: list[list[float]]) -> bool:
+    """True if the first and last points coincide within a size-relative tolerance."""
+    if len(points) < 3:
+        return False
+    (x0, y0), (x1, y1) = points[0], points[-1]
+    return math.hypot(x1 - x0, y1 - y0) <= _size(points) * 1e-4
+
+
+def _dedupe_closing_point(points: list[list[float]]) -> list[list[float]]:
+    """Drop a duplicated final point so a closed ring is not doubled."""
+    if (
+        len(points) >= 2
+        and math.isclose(points[0][0], points[-1][0], abs_tol=1e-9)
+        and math.isclose(points[0][1], points[-1][1], abs_tol=1e-9)
+    ):
+        return points[:-1]
+    return points
+
+
+def _iter_entities(container: Any, depth: int = 0):
+    """Yield entities, exploding INSERT block references into their contents."""
+    for entity in container:
+        if entity.dxftype() == "INSERT" and depth < _MAX_INSERT_DEPTH:
+            try:
+                yield from _iter_entities(entity.virtual_entities(), depth + 1)
+                continue
+            except Exception as error:  # noqa: BLE001 - a bad block must not fail the whole parse
+                logger.warning("Table B DXF Assisted could not explode INSERT: %s", error)
+                continue
+        yield entity
+
+
+def _flatten(entity: Any) -> list[list[float]] | None:
+    """Sample a curved/spline entity into [x, y] points (ezdxf flattening)."""
+    try:
+        return [[float(p.x), float(p.y)] for p in entity.flattening(_FLATTEN_DISTANCE)]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _entity_polyline(entity: Any) -> tuple[list[list[float]] | None, bool]:
+    """Return (points, is_closed) for a supported entity, else (None, False).
+
+    Closure is detected from the entity's closed flag OR coincident endpoints,
+    which covers DXFs that close a shape by repeating the first vertex.
+    """
+    dxftype = entity.dxftype()
+
+    if dxftype == "LWPOLYLINE":
+        pts = [[float(x), float(y)] for x, y in entity.get_points("xy")]
+        closed = bool(entity.closed) or _looks_closed(pts)
+        return _dedupe_closing_point(pts), closed
+
+    if dxftype == "POLYLINE":
+        pts = [[float(v.dxf.location.x), float(v.dxf.location.y)] for v in entity.vertices]
+        closed = bool(getattr(entity, "is_closed", False)) or _looks_closed(pts)
+        return _dedupe_closing_point(pts), closed
+
+    if dxftype == "CIRCLE":
+        center = entity.dxf.center
+        radius = float(entity.dxf.radius)
+        pts = [
+            [
+                float(center.x + radius * math.cos(2 * math.pi * i / _CIRCLE_SEGMENTS)),
+                float(center.y + radius * math.sin(2 * math.pi * i / _CIRCLE_SEGMENTS)),
+            ]
+            for i in range(_CIRCLE_SEGMENTS)
+        ]
+        return pts, True
+
+    if dxftype == "ELLIPSE":
+        pts = _flatten(entity)
+        if not pts:
+            return None, False
+        span = abs(
+            float(getattr(entity.dxf, "end_param", 0.0)) - float(getattr(entity.dxf, "start_param", 0.0))
+        )
+        closed = abs(span - 2 * math.pi) < 1e-3 or _looks_closed(pts)
+        return _dedupe_closing_point(pts), closed
+
+    if dxftype == "SPLINE":
+        pts = _flatten(entity)
+        if not pts:
+            return None, False
+        closed = bool(getattr(entity, "closed", False)) or _looks_closed(pts)
+        return _dedupe_closing_point(pts), closed
+
+    if dxftype == "ARC":
+        pts = _flatten(entity)
+        if not pts:
+            return None, False
+        return pts, False
+
+    if dxftype == "LINE":
+        start = entity.dxf.start
+        end = entity.dxf.end
+        return [[float(start.x), float(start.y)], [float(end.x), float(end.y)]], False
+
+    return None, False
+
+
+def parse_dxf_loops(job_id: str) -> dict[str, Any]:
+    """Parse a job's uploaded DXF into selectable closed loops + open display paths.
+
+    Closed loops (LWPOLYLINE/POLYLINE closed by flag or coincident endpoints,
+    plus CIRCLE / ELLIPSE / closed SPLINE) are selectable regions. Open geometry
+    (lines, arcs, open polylines) is returned separately so the whole 2D drawing
+    can be shown for context. Blocks (INSERT) are exploded. Persists the result
+    to parsed/{job_id}/parsed_loops.json.
+    """
+    paths = get_table_b_dxf_job_paths(job_id)
+    source_path = Path(paths["source_dxf"])
+    if not source_path.exists():
+        raise FileNotFoundError(f"Uploaded DXF not found for job {job_id}: {source_path}")
+
+    try:
+        doc = ezdxf.readfile(str(source_path))
+    except ezdxf.DXFStructureError as error:
+        raise ValueError(f"Invalid or corrupt DXF file: {error}") from error
+
+    logger.info("Table B DXF Assisted DXF loaded: job_id=%s file=%s", job_id, source_path)
+
+    msp = doc.modelspace()
+
+    loops: list[dict[str, Any]] = []
+    open_paths: list[dict[str, Any]] = []
+    total_scanned = 0
+    unsupported_ignored = 0
+    degenerate_filtered = 0
+    entity_types: set[str] = set()
+
+    for index, entity in enumerate(_iter_entities(msp)):
+        total_scanned += 1
+        dxftype = entity.dxftype()
+        entity_types.add(dxftype)
+
+        try:
+            points, closed = _entity_polyline(entity)
+        except Exception as error:  # noqa: BLE001 - never let one bad entity fail the parse
+            logger.warning("Table B DXF Assisted skipped unreadable %s: %s", dxftype, error)
+            unsupported_ignored += 1
+            continue
+
+        if not points:
+            unsupported_ignored += 1
+            continue
+
+        handle = entity.dxf.get("handle", None)
+        entity_id = str(handle) if handle else f"{dxftype}-{index}"
+        layer = str(entity.dxf.get("layer", "0"))
+
+        if closed and len(points) >= 3:
+            area = _polygon_area(points)
+            if area <= MIN_LOOP_AREA:
+                # Degenerate / near-zero-area (collinear) — not a real region.
+                degenerate_filtered += 1
+                continue
+            bbox = _bbox(points)
+            width = bbox["max_x"] - bbox["min_x"]
+            height = bbox["max_y"] - bbox["min_y"]
+            shorter = max(min(width, height), 1e-9)
+            longer = max(width, height)
+            loops.append({
+                "loop_id": entity_id,
+                "entity_id": entity_id,
+                "type": dxftype,
+                "layer": layer,
+                "points": points,
+                "closed": True,
+                "bbox": bbox,
+                "area": area,
+                "width": width,
+                "height": height,
+                "aspect_ratio": longer / shorter,
+            })
+        elif len(points) >= 2:
+            # Open selectable guide geometry (lines / arcs / open polylines).
+            open_paths.append({
+                "entity_id": entity_id,
+                "type": "line_entity",
+                "dxf_type": dxftype,
+                "layer": layer,
+                "points": points,
+                "bbox": _bbox(points),
+                "length": _polyline_length(points),
+                "closed": False,
+            })
+        else:
+            unsupported_ignored += 1
+
+    # Transform everything into the machine frame (origin bottom-right, +X left,
+    # +Y up, with a 90-degree rotation when the part is taller than wide). Units are
+    # resolved from $INSUNITS with a size-based fallback so mm/inch parts scale right.
+    inches_per_unit = _inches_per_unit(doc, _all_points(loops, open_paths))
+    normalization = _normalize_geometry(loops, open_paths, inches_per_unit)
+
+    narrow_loops = sum(1 for loop in loops if loop["aspect_ratio"] >= NARROW_ASPECT_RATIO)
+
+    result = {
+        "job_id": job_id,
+        "status": "parsed",
+        "loops": loops,
+        "open_paths": open_paths,
+        "normalization": normalization,
+        "summary": {
+            "total_entities_scanned": total_scanned,
+            "closed_loops_found": len(loops),
+            "closed_loops_count": len(loops),
+            "narrow_loops_found": narrow_loops,
+            "open_paths_found": len(open_paths),
+            "open_line_entities_count": len(open_paths),
+            "loops_filtered_out": degenerate_filtered,
+            "unsupported_entities_count": unsupported_ignored,
+            "open_entities_ignored": len(open_paths) + unsupported_ignored,
+            "entity_types_found": sorted(entity_types),
+        },
+    }
+
+    parsed_path = Path(paths["parsed_loops"])
+    parsed_path.parent.mkdir(parents=True, exist_ok=True)
+    parsed_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+
+    logger.info(
+        "Table B DXF Assisted parse complete: job_id=%s scanned=%s total_loops=%s narrow_loops=%s loops_filtered_out=%s open_paths=%s unsupported=%s normalized=%s rotated=%s saved=%s",
+        job_id,
+        total_scanned,
+        len(loops),
+        narrow_loops,
+        degenerate_filtered,
+        len(open_paths),
+        unsupported_ignored,
+        normalization.get("applied"),
+        normalization.get("rotated"),
+        parsed_path,
+    )
+
+    return result

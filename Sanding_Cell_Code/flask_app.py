@@ -318,6 +318,11 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app, async_mode='threading')
 
+# Table B DXF (2D CAD Assisted) viewer/toolpath backend. Self-contained blueprint
+# under /api/table-b-dxf; does not touch existing routes or legacy Table B execution.
+from table_b_dxf import table_b_dxf_bp
+app.register_blueprint(table_b_dxf_bp)
+
 REQUEST_TIMING_LOGS_ENABLED = False
 
 TIMED_REQUEST_PATHS = (
