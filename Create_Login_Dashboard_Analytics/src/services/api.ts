@@ -108,6 +108,7 @@ export async function startTableAProcess(data: {
   const rowKeyMap: Record<string, string> = {
     'Frame': 'frame',
     'Pocket ZigZag': 'pocketzigzag',
+    'Pocket Edge': 'pocketedge',
     'Pocket Square': 'pocketsquare',
     '3D': '3D',
     'Edge Inside': 'edgeInside',
@@ -154,7 +155,7 @@ export async function startTableAProcess(data: {
           : horizontalSpiral
             ? 'horizontal'
             : 'vertical';
-      const edge = !!row?.edgeCoverage;
+      const edge = false;
       return { orientation, edge };
     };
 
@@ -184,7 +185,7 @@ export async function startTableAProcess(data: {
             : horizontalSpiral
               ? 'horizontal'
               : 'vertical';
-        const edgeCoverage = !!row.edgeCoverage;
+        const edgeCoverage = false;
         tasks[key] = {
           ...base,
           verticalSpiral,
@@ -213,6 +214,7 @@ export async function startTableAProcess(data: {
       model: inferredModel,
       frame: buildRowPayload('Frame'),
       pocketzigzag: { ...buildRowPayload('Pocket ZigZag'), ...getPocketZigZagMeta() },
+      pocketedge: buildRowPayload('Pocket Edge'),
       pocketsquare: buildRowPayload('Pocket Square'),
       '3D': buildRowPayload('3D'),
       edgeInside: buildRowPayload('Edge Inside'),

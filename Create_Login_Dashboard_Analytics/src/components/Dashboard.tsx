@@ -252,8 +252,17 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     { label: 'Side', selection: '', force: 0, cycle: 0 },
   ];
 
+  const tableADefaultRows: RowConfig[] = [
+    { label: 'Frame', selection: '', force: 0, cycle: 0 },
+    { label: 'Pocket ZigZag', selection: '', force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false },
+    { label: 'Pocket Edge', selection: '', force: 0, cycle: 0 },
+    { label: '3D', selection: '', force: 0, cycle: 0 },
+    { label: 'Edge Outside', selection: '', force: 0, cycle: 0 },
+    { label: 'Side', selection: '', force: 0, cycle: 0 },
+  ];
+
   const makeRowSet = () => defaultRows.map(r => ({ ...r }));
-  const makeTableARowSet = () => defaultRows.map(r => ({ ...r, force: 5, cycle: 1 }));
+  const makeTableARowSet = () => tableADefaultRows.map(r => ({ ...r, force: 5, cycle: 1 }));
 
   const [tableARows, setTableARows] = useState<RowConfig[]>(makeTableARowSet());
   const [tableBRows, setTableBRows] = useState<RowConfig[]>(makeRowSet());

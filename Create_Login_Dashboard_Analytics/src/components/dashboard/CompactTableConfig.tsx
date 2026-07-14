@@ -702,6 +702,7 @@ export function CompactTableConfig({
   const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
     Frame: [],
     'Pocket ZigZag': [],
+    'Pocket Edge': [],
     '3D': [],
     'Edge Outside': [],
     Side: [],
@@ -709,6 +710,7 @@ export function CompactTableConfig({
   const [rowActiveDoor, setRowActiveDoor] = React.useState<Record<string, number>>({
     Frame: 1,
     'Pocket ZigZag': 1,
+    'Pocket Edge': 1,
     '3D': 1,
     'Edge Outside': 1,
     Side: 1,
@@ -1468,6 +1470,7 @@ export function CompactTableConfig({
           if (rowLabel === 'Pocket ZigZag' && field === 'cycle' && Number(value) > 1) {
             updatedRow.verticalSpiral = true;
             updatedRow.horizontalSpiral = true;
+            updatedRow.edgeCoverage = false;
           }
           newRows[idx] = updatedRow;
           return { ...dc, rows: newRows };
