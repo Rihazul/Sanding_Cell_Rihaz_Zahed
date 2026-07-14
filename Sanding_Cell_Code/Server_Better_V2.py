@@ -1133,7 +1133,7 @@ def putForceZplus(
         config["logger"].error(f"Failed to set mass params: {nRet}")
         return False
 
-    Stiff = [1000, 1000, 1000, 100, 100, 100]
+    Stiff = [1000, 1000, 300, 100, 100, 100]
     nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
     if nRet != 0:

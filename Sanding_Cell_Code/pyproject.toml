@@ -3,7 +3,7 @@ name = "sanding-cell-code"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
     "cadquery>=2.4.0",
     "ezdxf>=1.4,<2.0",
