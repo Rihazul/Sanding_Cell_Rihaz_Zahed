@@ -819,6 +819,13 @@ def _track_process(proc: Process) -> None:
         # Only clear process_state/client_process if this watcher belongs to the current process slot.
         if client_process is proc:
             exit_code = proc.exitcode
+            # Diagnostic: capture the child exit code that decides completed/failed, so a
+            # child that did the work but exited non-zero on teardown is visible in the log.
+            logging.getLogger(__name__).info(
+                "[_track_process] child exited: exit_code=%s last_action=%s",
+                exit_code,
+                process_state.get('last_action'),
+            )
             process_state['status'] = 'completed' if exit_code == 0 else 'failed'
             if exit_code == 0 and process_state.get('last_action') == 'homing':
                 _set_j7_home_confirmed(True)
