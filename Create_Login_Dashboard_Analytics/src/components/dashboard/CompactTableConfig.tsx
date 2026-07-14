@@ -1334,21 +1334,28 @@ export function CompactTableConfig({
       addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');
 
       try {
-        // Build payload from rows
+        // Build payload from labels so UI-only rows do not shift backend mappings.
+        const findRow = (label: string): RowConfig =>
+          rows.find((row) => row.label === label) || { label, selection: '', force: 0, cycle: 0 };
+        const frameRow = findRow('Frame');
+        const zigzagRow = findRow('Pocket ZigZag');
+        const threeDRow = findRow('3D');
+        const edgeOutsideRow = findRow('Edge Outside');
+        const sideRow = findRow('Side');
         const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
         const taskData = {
           model,
-          frame: { cycle: rows[0].cycle, force: rows[0].force },
+          frame: { cycle: frameRow.cycle, force: frameRow.force },
           pocketzigzag: {
-            cycle: rows[1].cycle,
-            force: rows[1].force,
-            verticalSpiral: !!rows[1].verticalSpiral,
-            horizontalSpiral: !!rows[1].horizontalSpiral,
-            edgeCoverage: !!rows[1].edgeCoverage,
+            cycle: zigzagRow.cycle,
+            force: zigzagRow.force,
+            verticalSpiral: !!zigzagRow.verticalSpiral,
+            horizontalSpiral: !!zigzagRow.horizontalSpiral,
+            edgeCoverage: !!zigzagRow.edgeCoverage,
           },
-          '3D': { cycle: rows[2].cycle, force: rows[2].force },
-          edgeOutside: { cycle: rows[3].cycle, force: rows[3].force },
-          side: { cycle: rows[4].cycle, force: rows[4].force },
+          '3D': { cycle: threeDRow.cycle, force: threeDRow.force },
+          edgeOutside: { cycle: edgeOutsideRow.cycle, force: edgeOutsideRow.force },
+          side: { cycle: sideRow.cycle, force: sideRow.force },
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: overlapMm,

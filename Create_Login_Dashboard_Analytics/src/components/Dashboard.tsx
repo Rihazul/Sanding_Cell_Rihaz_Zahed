@@ -247,6 +247,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const defaultRows: RowConfig[] = [
     { label: 'Frame', selection: '', force: 0, cycle: 0 },
     { label: 'Pocket ZigZag', selection: '', force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false },
+    { label: 'Pocket Edge', selection: '', force: 0, cycle: 0 },
     { label: '3D', selection: '', force: 0, cycle: 0 },
     { label: 'Edge Outside', selection: '', force: 0, cycle: 0 },
     { label: 'Side', selection: '', force: 0, cycle: 0 },
