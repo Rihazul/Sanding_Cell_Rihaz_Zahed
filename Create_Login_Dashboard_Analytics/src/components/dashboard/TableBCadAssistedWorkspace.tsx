@@ -1649,11 +1649,7 @@ export function TableBCadAssistedWorkspace({
 
     let frameZig: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
     let frameChunks: DxfFrameChunk[] = [];
-    let frameSectionPaths: {
-      path_id: string;
-      points: number[][];
-      [key: string]: unknown;
-    }[] = [];
+    let frameSectionPaths: ReturnType<typeof computeDxfFrameSectionPaths> = [];
 
     if (scope) {
       // The frame is a GLOBAL region (Outer − Pocket − 3D), not a per-region toolpath.
@@ -2184,46 +2180,8 @@ export function TableBCadAssistedWorkspace({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-cyan-50 via-white to-orange-50 p-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Table B Workflow</div>
-            <div className="text-xs text-slate-600">
-              2D DXF Assisted Mode adds 2D DXF region assignment, preview review, and revision before run.
-            </div>
-          </div>
-          <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
-            <button
-              type="button"
-              onClick={() => onModeChange('legacy')}
-              disabled={isOperating}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mode === 'legacy'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              Legacy Model Mode
-            </button>
-            <button
-              type="button"
-              onClick={() => onModeChange('cad_assisted')}
-              disabled={isOperating}
-              className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                mode === 'cad_assisted'
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              2D DXF Assisted Mode
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* --- CAD Assisted Mode: active workspace begins --- */}
-      {mode === 'cad_assisted' && (
-        <>
+      {/* --- CAD Assisted Mode: active workspace (Table B is always DXF Assisted) --- */}
+      <>
         <div
           className="rounded-2xl border border-slate-200 bg-white shadow-sm"
           style={{ padding: '10px 12px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px' }}
@@ -2730,8 +2688,7 @@ export function TableBCadAssistedWorkspace({
             </div>,
             document.body,
           )}
-        </>
-      )}
+      </>
       {/* --- CAD Assisted Mode: active workspace ends --- */}
     </div>
   );

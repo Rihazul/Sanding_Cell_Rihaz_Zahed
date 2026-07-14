@@ -7,13 +7,11 @@ import {
   startTableAProcess,
   startTableBProcess,
   performAction,
-  upload3DFile,
   getProcessStatus,
   getScanStatus,
   // --- Table B DXF (2D CAD Assisted) additions ---
   uploadTableB3DStepFile,
   convertTableB3DModel,
-  loadTableB3DFaceMetadata,
   saveTableB3DMapping,
   loadTableB3DMapping,
   generateTableB3DToolpath,
@@ -156,7 +154,6 @@ export function CompactTableConfig({
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   const [previewAttemptIndexA, setPreviewAttemptIndexA] = React.useState<number>(0);
-  const [previewAttemptIndexB, setPreviewAttemptIndexB] = React.useState<number>(0);
   const [tableAFrameSizeX, setTableAFrameSizeX] = React.useState<string>('57');
   const [tableAFrameSizeY, setTableAFrameSizeY] = React.useState<string>('57');
   const [tableAFrameSizeConfirmed, setTableAFrameSizeConfirmed] = React.useState<boolean>(false);
@@ -193,7 +190,9 @@ export function CompactTableConfig({
   const [tableBPreviewSignature, setTableBPreviewSignature] = React.useState<string | null>(null);
   const [tableBRevisionNote, setTableBRevisionNote] = React.useState('');
 
-  const isTableBCadAssistedMode = tableName === 'B' && tableBWorkflowMode === 'cad_assisted';
+  // Table B is now always DXF Assisted — the legacy model workflow was removed.
+  // Kept as a derived constant so all existing tableBCad* guards keep working unchanged.
+  const isTableBCadAssistedMode = tableName === 'B';
   const tableBEnabledRows = rows.filter((row) => row.force > 0 && row.cycle > 0);
   // --- CAD Assisted Mode: isolated Table B state ends ---
 
@@ -278,33 +277,6 @@ export function CompactTableConfig({
       !tableBCadHasUnreachableSegments &&
       tableBCadConfirmationStatus === 'confirmed';
 
-  const buildTableBPreviewPlan = () => {
-    const issues: string[] = [];
-    if (!tableBCadFile || tableBCadUploadStatus !== 'uploaded') issues.push('Upload a STEP/STP file before generating preview.');
-    if (!tableBEnabledRows.length) issues.push('Set force and cycle on at least one Table B operation.');
-    if (tableBEnabledRows.some((row) => row.label === 'Pocket ZigZag')) {
-      if (!tableBSelections.pocketBottomFace) issues.push('Select the pocket floor face.');
-      if (!tableBSelections.pocketBoundaryLoop) issues.push('Select the pocket contour loop.');
-    }
-    if (tableBEnabledRows.some((row) => row.label === 'Frame') && !tableBSelections.frameOuterLoop) {
-      issues.push('Select the outer frame contour.');
-    }
-    if (tableBEnabledRows.some((row) => row.label === '3D') && !tableBSelections.bevelFaces) {
-      issues.push('Select the Tool 1 bevel faces.');
-    }
-    if (tableBEnabledRows.some((row) => row.label === 'Edge Outside' || row.label === 'Side') && !tableBSelections.sideReference) {
-      issues.push('Select the side / edge reference geometry.');
-    }
-
-    const operations: TableBPreviewOperation[] = tableBEnabledRows.map((row) => ({
-      id: row.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      label: row.label,
-      tool: row.label === '3D' ? 'Tool 1' : 'Tool 4',
-      detail: `${row.cycle} cycle(s), force ${row.force}`,
-    }));
-
-    return { issues, operations };
-  };
 
   const handleUploadTableBCadFile = async (file: File) => {
     if (!isTableBCadAssistedMode) return;
@@ -637,20 +609,6 @@ export function CompactTableConfig({
       setIsOperating(false);
     }
   };
-  const handleGenerateTableBPreview = () => {
-    const plan = buildTableBPreviewPlan();
-    if (plan.issues.length) {
-      setTableBPreviewStatus('needs_revision');
-      addActivity(`Table B: Preview blocked - ${plan.issues[0]}`, 'warning');
-      return;
-    }
-    setTableBPreviewOperations(plan.operations);
-    setTableBPreviewGeneratedAt(new Date().toLocaleTimeString());
-    setTableBPreviewSignature(getCurrentTableBPreviewSignature());
-    setTableBPreviewStatus('draft');
-    addActivity(`Table B: Preview generated for ${plan.operations.length} operation(s)`, 'success');
-  };
-
   const handleApproveTableBPreview = async () => {
     if (isTableBCadAssistedMode) {
       // DXF flow: approve the generated toolpath preview.
@@ -834,15 +792,10 @@ export function CompactTableConfig({
     (selectedDoorModel || '').trim() ||
     (model || '').trim() ||
     (tableName === 'A' ? (doorConfigs || []).find((d) => (d.model || '').trim())?.model || '' : '');
-  const tableBPreviewModel = (model || '').trim();
 
   React.useEffect(() => {
     setPreviewAttemptIndexA(0);
   }, [tableAPreviewModel]);
-
-  React.useEffect(() => {
-    setPreviewAttemptIndexB(0);
-  }, [tableBPreviewModel]);
 
   React.useEffect(() => {
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
@@ -1421,37 +1374,6 @@ export function CompactTableConfig({
     }
   };
 
-  const handleUpload3DFile = async () => {
-    console.log('Upload 3D File clicked for Table', tableName);
-
-    // Create file input element
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.stp,.step';
-
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      setIsOperating(true);
-      addActivity(`Table ${tableName}: Uploading 3D file "${file.name}"...`, 'info');
-
-      try {
-        const result = await upload3DFile(file);
-        if (result.success) {
-          addActivity(`Table ${tableName}: 3D file uploaded successfully`, 'success');
-        } else {
-          addActivity(`Table ${tableName}: Upload failed - ${result.message || 'Unknown error'}`, 'error');
-        }
-      } catch (error) {
-        addActivity(`Table ${tableName}: Upload failed - ${error}`, 'error');
-      } finally {
-        setIsOperating(false);
-      }
-    };
-
-    input.click();
-  };
 
   // Get current door configuration
   const currentDoorConfig = doorConfigs?.find(d => d.doorNumber === selectedDoor);
@@ -2064,30 +1986,7 @@ export function CompactTableConfig({
             </>
           ) : (
             <div className="mb-2">
-              {/* --- CAD Assisted Mode: Table B workflow toggle (Table B only) --- */}
-              {tableName === 'B' && (
-                <div className="mb-3 flex items-center gap-2">
-                  <Button
-                    onClick={() => setTableBWorkflowMode('legacy')}
-                    disabled={isOperating}
-                    className={tableBWorkflowMode === 'legacy'
-                      ? 'flex-1 bg-blue-500 text-white hover:bg-blue-600'
-                      : 'flex-1 bg-white text-slate-700 border border-slate-300 hover:border-blue-400'}
-                  >
-                    Legacy Model
-                  </Button>
-                  <Button
-                    onClick={() => setTableBWorkflowMode('cad_assisted')}
-                    disabled={isOperating}
-                    className={tableBWorkflowMode === 'cad_assisted'
-                      ? 'flex-1 bg-blue-500 text-white hover:bg-blue-600'
-                      : 'flex-1 bg-white text-slate-700 border border-slate-300 hover:border-blue-400'}
-                  >
-                    DXF Assisted
-                  </Button>
-                </div>
-              )}
-              {/* --- CAD Assisted Mode: DXF workspace mount (renders only in CAD-assisted mode) --- */}
+              {/* Table B is always DXF Assisted — the legacy/DXF toggle was removed. */}
               {isTableBCadAssistedMode && (
                 <div className="mb-3">
                   <TableBCadAssistedWorkspace
@@ -2150,38 +2049,7 @@ export function CompactTableConfig({
                   />
                 </div>
               )}
-              {/* Legacy Table B UI (model select + operation rows) — hidden in DXF Assisted mode */}
-              {!isTableBCadAssistedMode && (
-              <>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                disabled={isOperating}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-              >
-                <option value="">Select Model</option>
-                <option value="modelA">Model A</option>
-                <option value="modelB">Model B</option>
-                <option value="modelC">Model C</option>
-                <option value="modelD">Model D</option>
-                <option value="modelE">Model E</option>
-                <option value="modelF">Model F</option>
-              </select>
-              {getModelPreviewSrc('B', tableBPreviewModel, previewAttemptIndexB) && (
-                <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <img
-                    src={getModelPreviewSrc('B', tableBPreviewModel, previewAttemptIndexB)}
-                    alt={`Table B ${formatModelName(tableBPreviewModel)}`}
-                    onError={() => {
-                      const maxIdx = getModelPreviewCandidates('B', tableBPreviewModel).length - 1;
-                      setPreviewAttemptIndexB((prev) => (prev < maxIdx ? prev + 1 : prev));
-                    }}
-                    style={{ width: '11.25rem', height: '7.5rem' }}
-                    className="mx-auto object-contain rounded-md bg-white border border-slate-200"
-                  />
-                </div>
-              )}
-
+              {/* Operation rows (Force/Cycle) for the DXF Assisted run */}
               <div className="mt-2 space-y-1">
                 {tableBDisplayRows.map(({ row, idx }) => (
                   <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
@@ -2285,8 +2153,6 @@ export function CompactTableConfig({
                   </div>
                 ))}
               </div>
-              </>
-              )}
             </div>
           )}
 
@@ -2311,19 +2177,31 @@ export function CompactTableConfig({
                 </>
               ) : (
                 <>
+                  {/* Table B is always DXF Assisted. DXF preview/approval happens inside the 2D viewer; this shows its state. */}
                   <Button
-                    onClick={handleUpload3DFile}
-                    disabled={isOperating}
-                    className="bg-pink-500 hover:bg-pink-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
+                    disabled
+                    className={`w-full text-white disabled:opacity-100 disabled:cursor-default ${
+                      tableBPreviewStatus === 'approved' && !tableBPreviewIsStale
+                        ? 'bg-emerald-500'
+                        : tableBPreviewIsStale && dxfHasToolpath
+                        ? 'bg-amber-500'
+                        : 'bg-slate-400'
+                    }`}
                   >
-                    {isOperating ? 'Operating...' : 'Upload 3D File'}
+                    {!dxfHasToolpath
+                      ? 'Preview in 2D Viewer'
+                      : tableBPreviewIsStale
+                      ? 'Preview Changed — Re-approve'
+                      : tableBPreviewStatus === 'approved'
+                      ? 'Preview Approved ✓'
+                      : 'Preview Ready — Approve in Viewer'}
                   </Button>
                   <Button
                     onClick={handleStartTask}
-                    disabled={isOperating}
+                    disabled={isOperating || !tableBCanStartTask}
                     className="bg-blue-500 hover:bg-purple-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                   >
-                    {isOperating ? 'Operating...' : 'Start Task'}
+                    {isOperating ? 'Operating...' : tableBCanStartTask ? 'Start Task' : 'Approve Preview First'}
                   </Button>
                 </>
               )}
@@ -2331,6 +2209,11 @@ export function CompactTableConfig({
             {tableName === 'A' && homingRequired && (
               <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 Homing required before scan after app/server restart.
+              </div>
+            )}
+            {tableName === 'B' && isTableBCadAssistedMode && !tableBCanStartTask && (
+              <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                Upload a DXF file, generate and approve the preview to unlock Start Task.
               </div>
             )}
           </div>
