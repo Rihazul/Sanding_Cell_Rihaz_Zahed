@@ -1438,6 +1438,7 @@ export function CompactTableConfig({
       });
   const currentDisplayRows = buildDisplayRows(currentRows);
   const tableBDisplayRows = buildDisplayRows(rows);
+  const shouldShowTableAOperations = tableName !== 'A' || !!(model || '').trim();
   const scanConfigMismatch =
     tableName === 'A' &&
     scanCompleted &&
@@ -1808,9 +1809,10 @@ export function CompactTableConfig({
                 </div>
               </div>
 
-              <div className="mb-2">
-                <div className="space-y-1">
-                  {currentDisplayRows.map(({ row, idx }) => (
+              {shouldShowTableAOperations && (
+                <div className="mb-2">
+                  <div className="space-y-1">
+                    {currentDisplayRows.map(({ row, idx }) => (
                     <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                       {/* Main row: Label + Door buttons + Force + Cycle */}
                       <div className="flex flex-wrap items-center gap-3 justify-between">
@@ -1990,9 +1992,10 @@ export function CompactTableConfig({
                         </div>
                       )}
                     </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             <div className="mb-2">
