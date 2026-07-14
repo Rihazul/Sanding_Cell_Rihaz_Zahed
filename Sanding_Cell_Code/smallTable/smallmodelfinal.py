@@ -321,12 +321,16 @@ def sandingModelATableA(cps=None):
 
     frame_by_door = get_tableA_task_by_door(json_config_TableA, "frame")
     zigzag_by_door = get_tableA_task_by_door(json_config_TableA, "pocketzigzag")
+
+    pocketedge_by_door = get_tableA_task_by_door(json_config_TableA, 'pocketedge')
     tool2edge_by_door = get_tableA_task_by_door(json_config_TableA, "edgeOutside")
     tool2side_by_door = get_tableA_task_by_door(json_config_TableA, "side")
     tool3_by_door = get_tableA_task_by_door(json_config_TableA, "3D")
 
     side_cycles_doors = doors_with_cycles(frame_by_door)
     zig_zag_cycle_doors = doors_with_cycles(zigzag_by_door)
+
+    pocket_edge_cycle_doors = doors_with_cycles(pocketedge_by_door)
     tool2sideedge_cycle_doors = doors_with_cycles(tool2edge_by_door)
     tool2side_cycle_doors = doors_with_cycles(tool2side_by_door)
     tl3sideedge_door = doors_with_cycles(tool3_by_door)
@@ -454,6 +458,7 @@ def sandingModelATableA(cps=None):
         has_any_task = (
             any_cycles(frame_by_door)
             or any_cycles(zigzag_by_door)
+            or any_cycles(pocketedge_by_door)
             or any_cycles(tool2edge_by_door)
             or any_cycles(tool2side_by_door)
             or any_cycles(tool3_by_door)
@@ -467,48 +472,39 @@ def sandingModelATableA(cps=None):
         # - Keep batching by tool to reduce tool switches
         # - Within each tool batch, execute each door's selected functions together
 
-        # Tool 3 batch: pocket zigzag edge-coverage pre-pass (runs before all other tool batches).
-        # Edge coverage is tied to Pocket ZigZag selection only:
-        # if a door has Pocket ZigZag cycle > 0, run edge coverage for that door.
-        # This prevents unnecessary Tool 3 edge runs for frame/side/other-only jobs.
-        tool3_edge_doors = []
-        for door_number in zig_zag_cycle_doors:
-            zigzag_cfg = zigzag_by_door.get(door_number, {})
-            zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
-            if zigzag_cycle > 0:
-                tool3_edge_doors.append(door_number)
-        tool3_edge_doors = unique_sorted_doors(tool3_edge_doors)
-        if tool3_edge_doors:
-            print("\n=== TOOL 3 EDGE BATCH START ===")
+        tool3_edge_doors = unique_sorted_doors(pocket_edge_cycle_doors)
+        has_tool3_batch = len(tool3_edge_doors) > 0
+
+        # Tool 3 batch: pocket edge operation selected from the UI.
+        if has_tool3_batch and is_door_available(tool3_edge_doors):
+            print("\n=== TOOL 3 POCKET EDGE BATCH START ===")
             ensure_tool_in_hand(3)
 
             for door_number in tool3_edge_doors:
-                zigzag_cfg = zigzag_by_door.get(door_number, {})
-                zigzag_cycle = int(zigzag_cfg.get("cycle", 0))
-                edge_cycle = zigzag_cycle
+                edge_cfg = pocketedge_by_door.get(int(door_number), {})
+                edge_cycle = int(edge_cfg.get("cycle", 0))
                 if edge_cycle <= 0:
                     continue
 
-                pocket_orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
-                edge_force = int(zigzag_cfg.get("force") or 0)
+                edge_force = int(edge_cfg.get("force") or 0)
                 if edge_force <= 0:
                     raise RuntimeError(
-                        f"Tool 3 edge force is not configured for door {door_number}. "
-                        "Set Pocket ZigZag force to a value > 0."
+                        f"Tool 3 pocket edge force is not configured for door {door_number}. "
+                        "Set Pocket Edge force to a value > 0."
                     )
-                print(f"\n--- Tool 3 / PocketEdge / Door {door_number} ---")
+                print(f"\n--- Tool 3 / Pocket Edge / Door {door_number} ---")
                 run_tool3_pocket_edge_cycles(
                     edge_cycle,
                     edge_force,
-                    door_number,
+                    int(door_number),
                     z,
                     cps,
-                    orientation=pocket_orientation,
+                    orientation="horizontal",
                     spiral_settings=spiral_settings,
                 )
                 work_executed = True
 
-            print("\n=== TOOL 3 EDGE BATCH COMPLETE ===")
+            print("\n=== TOOL 3 POCKET EDGE BATCH COMPLETE ===")
 
         # Tool 4 batch: frame + pocket zigzag
         tool4_doors = unique_sorted_doors(side_cycles_doors, zig_zag_cycle_doors)

@@ -257,7 +257,7 @@ def _enforce_model_f_tablea_payload(table_data):
 
     table_data["model"] = "modelF"
 
-    disallowed_legacy_tasks = ["frame", "pocketsquare", "3D", "edgeInside", "edgeOutside", "side"]
+    disallowed_legacy_tasks = ["frame", "pocketedge", "pocketsquare", "3D", "edgeInside", "edgeOutside", "side"]
     for task_key in disallowed_legacy_tasks:
         table_data[task_key] = _zero_task_payload(table_data.get(task_key))
 
@@ -276,7 +276,7 @@ def _enforce_model_f_tablea_payload(table_data):
         tasks = door_entry.get("tasks")
         if not isinstance(tasks, dict):
             continue
-        for key in ["frame", "pocketsquare", "3D", "edgeInside", "edgeOutside", "side"]:
+        for key in ["frame", "pocketedge", "pocketsquare", "3D", "edgeInside", "edgeOutside", "side"]:
             tasks[key] = _zero_task_payload(tasks.get(key))
 
 
