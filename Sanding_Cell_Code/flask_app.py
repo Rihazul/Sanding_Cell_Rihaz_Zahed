@@ -821,7 +821,7 @@ def _track_process(proc: Process) -> None:
             exit_code = proc.exitcode
             # Diagnostic: capture the child exit code that decides completed/failed, so a
             # child that did the work but exited non-zero on teardown is visible in the log.
-            logging.getLogger(__name__).info(
+            setup_logger().info(
                 "[_track_process] child exited: exit_code=%s last_action=%s",
                 exit_code,
                 process_state.get('last_action'),
@@ -901,6 +901,11 @@ def _run_homing_inline(config_data_UI):
         except Exception:
             print(f"[homing inline] Exception: {e}")
     finally:
+        # Diagnostic: capture the inline homing outcome that decides completed/failed.
+        setup_logger().info(
+            "[homing inline] finished: homing_ok=%s last_action=%s",
+            homing_ok, process_state.get("last_action"),
+        )
         if homing_ok and process_state.get("last_action") == "homing":
             _set_j7_home_confirmed(True)
         process_state["status"] = "completed" if homing_ok else "failed"
@@ -2810,6 +2815,12 @@ def handle_action():
         process_state['last_action'] = 'homing'
         _set_j7_home_confirmed(False)
         socketio.emit('flash_message', {"message": f"Homing Process Started"})
+
+        # Diagnostic: which homing path runs (inline thread vs child process).
+        setup_logger().info(
+            "[homing dispatch] can_inline=%s (j7_home_confirmed=%s recent_stop_or_child=%s)",
+            can_inline, j7_home_confirmed, recent_stop_or_child,
+        )
 
         if can_inline:
             client_thread = Thread(target=_run_homing_inline, args=(config_data_UI,), daemon=True)
