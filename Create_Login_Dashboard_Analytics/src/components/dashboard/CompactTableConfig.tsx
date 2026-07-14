@@ -3,7 +3,43 @@ import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import { startTableAProcess, startTableBProcess, performAction, upload3DFile, getProcessStatus, getScanStatus } from '../../services/api';
+import {
+  startTableAProcess,
+  startTableBProcess,
+  performAction,
+  upload3DFile,
+  getProcessStatus,
+  getScanStatus,
+  // --- Table B DXF (2D CAD Assisted) additions ---
+  uploadTableB3DStepFile,
+  convertTableB3DModel,
+  loadTableB3DFaceMetadata,
+  saveTableB3DMapping,
+  loadTableB3DMapping,
+  generateTableB3DToolpath,
+  confirmTableB3DToolpath,
+  getTableB3DExecutionPreview,
+  API_BASE_URL,
+  saveTableBDxfApprovedToolpath,
+  type TableB3DGeneratedToolpaths,
+  type TableB3DExecutionPreview,
+} from '../../services/api';
+// --- Table B DXF (2D CAD Assisted) workspace + panels ---
+import {
+  TableBCadAssistedWorkspace,
+  type TableBCadFileSummary,
+  type TableBCadSelectionKey,
+  type TableBCadSelections,
+  type TableBPreviewOperation,
+  type TableBPreviewStatus,
+  type TableBCadUploadStatus,
+  type TableBCadConversionStatus,
+  type TableBCadToolpathStatus,
+  type TableBCadConfirmationStatus,
+  type DxfToolpathPreviewPayload,
+} from './TableBCadAssistedWorkspace';
+import type { TableBCadRegion } from './RegionSelectionPanel';
+import type { TableBFaceMetadata } from './FaceMetadataPanel';
 
 export type RowConfig = {
   label: string;
@@ -48,6 +84,24 @@ const MODEL_KEY_ALIAS: Record<string, string> = {
 };
 
 const PREVIEW_CACHE_BUST = 'v=20260514_modelfix';
+
+// --- Table B DXF (2D CAD Assisted) module constants ---
+const createEmptyTableBSelections = (): TableBCadSelections => ({
+  pocketBottomFace: false,
+  pocketBoundaryLoop: false,
+  bevelFaces: false,
+  frameOuterLoop: false,
+  sideReference: false,
+});
+
+const TABLE_B_FORCE_OPTIONS = Array.from({ length: 50 }, (_, i) => i + 1);
+const TABLE_B_CYCLE_OPTIONS = Array.from({ length: 25 }, (_, i) => i + 1);
+
+const formatFileSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return `${Math.max(bytes / 1024, 0.1).toFixed(1)} KB`;
+};
 
 interface CompactTableConfigProps {
   tableName: 'A' | 'B';
@@ -107,6 +161,558 @@ export function CompactTableConfig({
   const [tableAFrameSizeY, setTableAFrameSizeY] = React.useState<string>('57');
   const [tableAFrameSizeConfirmed, setTableAFrameSizeConfirmed] = React.useState<boolean>(false);
   const completionTimerRef = React.useRef<number | null>(null);
+
+  // --- CAD Assisted Mode: isolated Table B state begins ---
+  const [tableBWorkflowMode, setTableBWorkflowMode] = React.useState<'cad_assisted' | 'legacy'>('legacy');
+  const [tableBCadFile, setTableBCadFile] = React.useState<TableBCadFileSummary | null>(null);
+  const [tableBCadUploadStatus, setTableBCadUploadStatus] = React.useState<TableBCadUploadStatus>('idle');
+  const [tableBCadJobId, setTableBCadJobId] = React.useState<string | null>(null);
+  const [tableBCadConversionStatus, setTableBCadConversionStatus] = React.useState<TableBCadConversionStatus>('not started');
+  const [tableBCadConversionMessage, setTableBCadConversionMessage] = React.useState('');
+  const [tableBCadBackendTestMode, setTableBCadBackendTestMode] = React.useState(false);
+  const [tableBCadTestMeshCounter, setTableBCadTestMeshCounter] = React.useState(1);
+  const [tableBCadGlbUrl, setTableBCadGlbUrl] = React.useState<string | null>(null);
+  const [tableBCadFaceMetadata, setTableBCadFaceMetadata] = React.useState<TableBFaceMetadata | null>(null);
+  const [tableBCadFaceMetadataStatus, setTableBCadFaceMetadataStatus] = React.useState('not loaded');
+  const [tableBCadToolpaths, setTableBCadToolpaths] = React.useState<TableB3DGeneratedToolpaths | null>(null);
+  const [tableBCadToolpathStatus, setTableBCadToolpathStatus] = React.useState<TableBCadToolpathStatus>('no toolpath');
+  const [tableBCadConfirmationStatus, setTableBCadConfirmationStatus] = React.useState<TableBCadConfirmationStatus>('not confirmed');
+  const [tableBCadExecutionPreview, setTableBCadExecutionPreview] = React.useState<TableB3DExecutionPreview | null>(null);
+  const [tableBCadExecutionPreviewStatus, setTableBCadExecutionPreviewStatus] = React.useState('no preview');
+  const [tableBCadSelectedMeshNames, setTableBCadSelectedMeshNames] = React.useState<string[]>([]);
+  const [tableBCadRegions, setTableBCadRegions] = React.useState<TableBCadRegion[]>([]);
+  const [tableBCadMappingStatus, setTableBCadMappingStatus] = React.useState('not saved');
+  const [tableBActiveSelection, setTableBActiveSelection] = React.useState<TableBCadSelectionKey>('pocketBottomFace');
+  const [tableBSelections, setTableBSelections] = React.useState<TableBCadSelections>(createEmptyTableBSelections);
+  const [tableBPreviewStatus, setTableBPreviewStatus] = React.useState<TableBPreviewStatus>('idle');
+  const [tableBPreviewOperations, setTableBPreviewOperations] = React.useState<TableBPreviewOperation[]>([]);
+  // Latest DXF toolpath payload reported by the 2D viewer (drives the DXF approve /
+  // Start Task gate; independent of the legacy STEP flow).
+  const [dxfToolpathPayload, setDxfToolpathPayload] = React.useState<DxfToolpathPreviewPayload | null>(null);
+  const [tableBPreviewGeneratedAt, setTableBPreviewGeneratedAt] = React.useState<string | null>(null);
+  const [tableBPreviewSignature, setTableBPreviewSignature] = React.useState<string | null>(null);
+  const [tableBRevisionNote, setTableBRevisionNote] = React.useState('');
+
+  const isTableBCadAssistedMode = tableName === 'B' && tableBWorkflowMode === 'cad_assisted';
+  const tableBEnabledRows = rows.filter((row) => row.force > 0 && row.cycle > 0);
+  // --- CAD Assisted Mode: isolated Table B state ends ---
+
+  // --- CAD Assisted Mode: isolated Table B handlers begin ---
+  const resetTableBPreview = () => {
+    setTableBPreviewStatus('idle');
+    setTableBPreviewOperations([]);
+    setTableBPreviewGeneratedAt(null);
+    setTableBPreviewSignature(null);
+    setTableBRevisionNote('');
+  };
+
+  // Signature over what defines a DXF preview: the generated TOOLPATHS only. Force /
+  // cycle are NOT part of it — the operator can set them after approving without
+  // invalidating the toolpath approval. Only re-generating the toolpaths makes it stale.
+  const dxfSignatureOf = (payload: DxfToolpathPreviewPayload | null) =>
+    JSON.stringify({
+      jobId: payload?.job_id || '',
+      scoped: payload?.scoped || false,
+      counts: payload?.counts || null,
+    });
+
+  const getCurrentTableBPreviewSignature = () =>
+    isTableBCadAssistedMode
+      ? dxfSignatureOf(dxfToolpathPayload)
+      : JSON.stringify({
+          file: tableBCadFile?.name || '',
+          jobId: tableBCadJobId || '',
+          conversionStatus: tableBCadConversionStatus,
+          glbUrl: tableBCadGlbUrl || '',
+          selectedMeshes: tableBCadSelectedMeshNames,
+          regions: tableBCadRegions,
+          mappingStatus: tableBCadMappingStatus,
+          rows: rows.map((row) => ({
+            label: row.label,
+            force: row.force,
+            cycle: row.cycle,
+            verticalSpiral: !!row.verticalSpiral,
+            horizontalSpiral: !!row.horizontalSpiral,
+            edgeCoverage: !!row.edgeCoverage,
+          })),
+          selections: tableBSelections,
+        });
+
+  const tableBPreviewIsStale =
+    tableBPreviewSignature !== null &&
+    tableBPreviewSignature !== getCurrentTableBPreviewSignature();
+
+  const tableBCadReachReport = tableBCadToolpaths?.reach_report || null;
+  const tableBCadHasUnreachableSegments = Number(tableBCadReachReport?.unreachable_segments || 0) > 0;
+  const tableBCadMappingExists = tableBCadMappingStatus === 'saved' || tableBCadMappingStatus === 'loaded';
+  const tableBCadCanConfirmToolpath =
+    tableBCadMappingExists &&
+    tableBCadToolpathStatus === 'generated' &&
+    !!tableBCadToolpaths &&
+    !tableBCadHasUnreachableSegments;
+
+  React.useEffect(() => {
+    if (tableBCadConfirmationStatus !== 'confirmed') {
+      setTableBCadExecutionPreview(null);
+      setTableBCadExecutionPreviewStatus('no preview');
+    }
+  }, [tableBCadConfirmationStatus]);
+  // A DXF preview exists once the 2D viewer has generated at least one toolpath.
+  const dxfHasToolpath =
+    !!dxfToolpathPayload &&
+    (dxfToolpathPayload.counts.pocket_tool3 +
+      dxfToolpathPayload.counts.pocket_tool4_zigzag +
+      dxfToolpathPayload.counts.contour_3d +
+      dxfToolpathPayload.counts.frame_zigzag +
+      dxfToolpathPayload.counts.frame_section_passes) > 0;
+
+  const tableBCanStartTask = isTableBCadAssistedMode
+    ? // DXF flow: a toolpath preview exists, was approved, and hasn't changed since.
+      // Force/cycle is validated at start time, not here — so the button stays usable.
+      dxfHasToolpath && tableBPreviewStatus === 'approved' && !tableBPreviewIsStale
+    : // Legacy STEP flow (unchanged).
+      !!tableBCadFile &&
+      tableBCadUploadStatus === 'uploaded' &&
+      tableBPreviewStatus === 'approved' &&
+      !tableBPreviewIsStale &&
+      !tableBCadHasUnreachableSegments &&
+      tableBCadConfirmationStatus === 'confirmed';
+
+  const buildTableBPreviewPlan = () => {
+    const issues: string[] = [];
+    if (!tableBCadFile || tableBCadUploadStatus !== 'uploaded') issues.push('Upload a STEP/STP file before generating preview.');
+    if (!tableBEnabledRows.length) issues.push('Set force and cycle on at least one Table B operation.');
+    if (tableBEnabledRows.some((row) => row.label === 'Pocket ZigZag')) {
+      if (!tableBSelections.pocketBottomFace) issues.push('Select the pocket floor face.');
+      if (!tableBSelections.pocketBoundaryLoop) issues.push('Select the pocket contour loop.');
+    }
+    if (tableBEnabledRows.some((row) => row.label === 'Frame') && !tableBSelections.frameOuterLoop) {
+      issues.push('Select the outer frame contour.');
+    }
+    if (tableBEnabledRows.some((row) => row.label === '3D') && !tableBSelections.bevelFaces) {
+      issues.push('Select the Tool 1 bevel faces.');
+    }
+    if (tableBEnabledRows.some((row) => row.label === 'Edge Outside' || row.label === 'Side') && !tableBSelections.sideReference) {
+      issues.push('Select the side / edge reference geometry.');
+    }
+
+    const operations: TableBPreviewOperation[] = tableBEnabledRows.map((row) => ({
+      id: row.label.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      label: row.label,
+      tool: row.label === '3D' ? 'Tool 1' : 'Tool 4',
+      detail: `${row.cycle} cycle(s), force ${row.force}`,
+    }));
+
+    return { issues, operations };
+  };
+
+  const handleUploadTableBCadFile = async (file: File) => {
+    if (!isTableBCadAssistedMode) return;
+
+    const extension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!['.step', '.stp'].includes(extension)) {
+      setTableBCadUploadStatus('failed');
+      addActivity('Table B: CAD Assisted upload failed - only .step and .stp files are supported.', 'error');
+      return;
+    }
+
+    setIsOperating(true);
+    setTableBCadUploadStatus('uploading');
+    setTableBCadJobId(null);
+    setTableBCadConversionStatus('not started');
+    setTableBCadConversionMessage('');
+    setTableBCadBackendTestMode(false);
+    setTableBCadTestMeshCounter(1);
+    setTableBCadGlbUrl(null);
+    setTableBCadFaceMetadata(null);
+    setTableBCadFaceMetadataStatus('not loaded');
+    setTableBCadToolpaths(null);
+    setTableBCadToolpathStatus('no toolpath');
+    setTableBCadConfirmationStatus('not confirmed');
+    setTableBCadSelectedMeshNames([]);
+    setTableBCadRegions([]);
+    setTableBCadMappingStatus('not saved');
+    addActivity(`Table B: Uploading CAD Assisted file "${file.name}"...`, 'info');
+
+    try {
+      const result = await uploadTableB3DStepFile(file);
+      if (!result?.success || !result.job_id) {
+        throw new Error(result?.error || 'Upload endpoint did not return a job_id.');
+      }
+
+      setTableBCadFile({
+        name: file.name,
+        sizeLabel: formatFileSize(file.size),
+        uploadedAt: new Date().toLocaleTimeString(),
+      });
+      setTableBCadJobId(result.job_id);
+      setTableBCadUploadStatus('uploaded');
+      setTableBSelections(createEmptyTableBSelections());
+      setTableBActiveSelection('pocketBottomFace');
+      resetTableBPreview();
+      addActivity(`Table B: CAD Assisted file uploaded with job ${result.job_id}`, 'success');
+
+      setTableBCadConversionStatus('converting');
+      setTableBCadConversionMessage('Upload complete. Converting STEP/STP to viewer model...');
+      addActivity(`Table B: CAD Assisted auto-conversion started for job ${result.job_id}`, 'info');
+
+      const conversionResult = await convertTableB3DModel(result.job_id);
+      const nextStatus = conversionResult?.status === 'converted'
+        ? 'converted'
+        : conversionResult?.status === 'conversion_not_implemented'
+          ? 'conversion_not_implemented'
+          : 'failed';
+      setTableBCadConversionStatus(nextStatus);
+      setTableBCadConversionMessage(
+        conversionResult?.message ||
+        (nextStatus === 'converted'
+          ? '3D model converted successfully and is ready in the CAD viewer.'
+          : 'Backend could not convert the STEP/STP file. Install the CAD conversion dependency or use backend test mode.')
+      );
+      setTableBCadGlbUrl(
+        nextStatus === 'converted' && conversionResult?.glb_url
+          ? (conversionResult.glb_url.startsWith('http') ? conversionResult.glb_url : API_BASE_URL + conversionResult.glb_url)
+          : null
+      );
+      addActivity(
+        `Table B: CAD Assisted auto-conversion ${nextStatus}`,
+        nextStatus === 'converted' ? 'success' : 'warning'
+      );
+    } catch (error) {
+      setTableBCadFile(null);
+      setTableBCadJobId(null);
+      setTableBCadUploadStatus('failed');
+      setTableBCadConversionStatus('not started');
+      setTableBCadConversionMessage('');
+      setTableBCadGlbUrl(null);
+      setTableBCadFaceMetadata(null);
+      setTableBCadFaceMetadataStatus('not loaded');
+      setTableBCadSelectedMeshNames([]);
+      setTableBCadRegions([]);
+      setTableBCadMappingStatus('not saved');
+      resetTableBPreview();
+      addActivity(`Table B: CAD Assisted upload failed - ${error}`, 'error');
+    } finally {
+      setIsOperating(false);
+    }
+  };
+
+  const handleConvertTableBCadModel = async () => {
+    if (!isTableBCadAssistedMode) return;
+    if (!tableBCadJobId) {
+      setTableBCadConversionStatus('failed');
+      setTableBCadConversionMessage('Upload a STEP/STP file before converting the 3D model.');
+      addActivity('Table B: CAD Assisted conversion blocked - missing job_id.', 'warning');
+      return;
+    }
+
+    setIsOperating(true);
+    setTableBCadConversionStatus('converting');
+    setTableBCadBackendTestMode(false);
+    setTableBCadConversionMessage('Conversion request sent to backend.');
+    setTableBCadFaceMetadata(null);
+    setTableBCadFaceMetadataStatus('not loaded');
+    setTableBCadToolpaths(null);
+    setTableBCadToolpathStatus('no toolpath');
+    setTableBCadConfirmationStatus('not confirmed');
+    setTableBCadSelectedMeshNames([]);
+    setTableBCadRegions([]);
+    setTableBCadMappingStatus('not saved');
+    addActivity(`Table B: CAD Assisted conversion requested for job ${tableBCadJobId}`, 'info');
+
+    try {
+      const result = await convertTableB3DModel(tableBCadJobId);
+      const nextStatus = result?.status === 'converted' ? 'converted' : result?.status === 'conversion_not_implemented' ? 'conversion_not_implemented' : 'failed';
+      setTableBCadConversionStatus(nextStatus);
+      setTableBCadConversionMessage(result?.message || (nextStatus === 'converted' ? '3D model converted successfully.' : 'Backend returned no conversion message.'));
+      setTableBCadGlbUrl(nextStatus === 'converted' && result?.glb_url ? (result.glb_url.startsWith('http') ? result.glb_url : API_BASE_URL + result.glb_url) : null);
+      addActivity(`Table B: CAD Assisted conversion status ${nextStatus}`, nextStatus === 'failed' ? 'error' : 'warning');
+    } catch (error) {
+      setTableBCadConversionStatus('failed');
+      setTableBCadConversionMessage(String(error));
+      setTableBCadGlbUrl(null);
+      setTableBCadFaceMetadata(null);
+      setTableBCadFaceMetadataStatus('not loaded');
+      setTableBCadSelectedMeshNames([]);
+      setTableBCadRegions([]);
+      setTableBCadMappingStatus('not saved');
+      addActivity(`Table B: CAD Assisted conversion failed - ${error}`, 'error');
+    } finally {
+      setIsOperating(false);
+    }
+  };
+
+  const handleEnableTableBCadBackendTestMode = () => {
+    if (!isTableBCadAssistedMode || !tableBCadJobId || tableBCadUploadStatus !== 'uploaded') {
+      addActivity('Table B: Upload a STEP/STP file before enabling backend test mode.', 'warning');
+      return;
+    }
+    setTableBCadBackendTestMode(true);
+    setTableBCadConversionMessage('Backend test mode is active. GLB conversion and real mesh picking are bypassed for toolpath testing.');
+    addActivity(`Table B: Backend test mode enabled for CAD Assisted job ${tableBCadJobId}`, 'info');
+  };
+
+  const handleAddTableBCadTestMesh = () => {
+    if (!isTableBCadAssistedMode || !tableBCadBackendTestMode) return;
+    const meshName = `test_mesh_${String(tableBCadTestMeshCounter).padStart(3, '0')}`;
+    setTableBCadSelectedMeshNames((prev) => [...prev, meshName]);
+    setTableBCadTestMeshCounter((prev) => prev + 1);
+  };
+  const handleTableBCadMeshSelected = (meshName: string) => {
+    if (!isTableBCadAssistedMode || !meshName) return;
+    setTableBCadSelectedMeshNames((prev) => {
+      if (prev.includes(meshName)) {
+        console.log('Table B CAD selected ID removed', { selectedId: meshName });
+        return prev.filter((name) => name !== meshName);
+      }
+
+      console.log('Table B CAD selected ID added', { selectedId: meshName });
+      return [...prev, meshName];
+    });
+  };
+
+  const handleClearTableBCadMeshSelection = () => {
+    console.log('Table B CAD clear selection clicked');
+    setTableBCadSelectedMeshNames([]);
+  };
+
+  const handleRemoveLastTableBCadMeshSelection = () => {
+    setTableBCadSelectedMeshNames((prev) => {
+      const removedSelection = prev[prev.length - 1] || null;
+      console.log('Table B CAD last selection removed', { selectedId: removedSelection });
+      return prev.slice(0, -1);
+    });
+  };
+
+  const handleAddTableBCadRegion = (region: Omit<TableBCadRegion, 'id'>) => {
+    setTableBCadRegions((prev) => [
+      ...prev,
+      {
+        ...region,
+        id: `region-${String(prev.length + 1).padStart(3, '0')}`,
+      },
+    ]);
+    setTableBCadMappingStatus('unsaved changes');
+    setTableBCadToolpaths(null);
+    setTableBCadToolpathStatus('no toolpath');
+    setTableBCadConfirmationStatus('not confirmed');
+  };
+  const handleSaveTableBCadMapping = async () => {
+    if (!isTableBCadAssistedMode || !tableBCadJobId) {
+      setTableBCadMappingStatus('missing job_id');
+      return;
+    }
+    setTableBCadMappingStatus('saving');
+    try {
+      const result = await saveTableB3DMapping(tableBCadJobId, tableBCadRegions);
+      setTableBCadMappingStatus(result?.success ? 'saved' : result?.message || 'save failed');
+      setTableBCadToolpaths(null);
+      setTableBCadToolpathStatus('no toolpath');
+    setTableBCadConfirmationStatus('not confirmed');
+      addActivity(`Table B: CAD Assisted mapping ${result?.success ? 'saved' : 'save failed'}`, result?.success ? 'success' : 'error');
+    } catch (error) {
+      setTableBCadMappingStatus(`save failed - ${error}`);
+      addActivity(`Table B: CAD Assisted mapping save failed - ${error}`, 'error');
+    }
+  };
+
+  const handleLoadTableBCadMapping = async () => {
+    if (!isTableBCadAssistedMode || !tableBCadJobId) {
+      setTableBCadMappingStatus('missing job_id');
+      return;
+    }
+    setTableBCadMappingStatus('loading');
+    try {
+      const result = await loadTableB3DMapping(tableBCadJobId);
+      const loadedRegions = Array.isArray(result?.mapping?.regions) ? result.mapping.regions : [];
+      setTableBCadRegions(loadedRegions.map((region: any) => ({
+        id: region.region_id || region.id || '',
+        regionType: region.region_type || region.regionType || 'ignore',
+        meshNames: region.selected_mesh_names || region.meshNames || [],
+        tool: region.tool || 'Tool 4',
+        force: Number(region.force || 0),
+        cycle: Number(region.cycle || 0),
+        pathType: region.path_type || region.pathType || 'zigzag_fill',
+      })));
+      setTableBCadMappingStatus(result?.success ? 'loaded' : result?.message || 'load failed');
+      setTableBCadToolpaths(null);
+      setTableBCadToolpathStatus('no toolpath');
+    setTableBCadConfirmationStatus('not confirmed');
+      addActivity(`Table B: CAD Assisted mapping ${result?.success ? 'loaded' : 'load failed'}`, result?.success ? 'success' : 'error');
+    } catch (error) {
+      setTableBCadMappingStatus(`load failed - ${error}`);
+      addActivity(`Table B: CAD Assisted mapping load failed - ${error}`, 'error');
+    }
+  };
+
+  const handleGenerateTableBCadToolpath = async () => {
+    if (!isTableBCadAssistedMode || !tableBCadJobId) {
+      setTableBCadToolpathStatus('failed');
+      setTableBCadConfirmationStatus('failed');
+      addActivity('Table B: CAD Assisted toolpath generation blocked - missing job_id.', 'warning');
+      return;
+    }
+
+    setTableBCadToolpathStatus('generating');
+    setTableBCadConfirmationStatus('not confirmed');
+    setTableBCadToolpaths(null);
+    addActivity(`Table B: CAD Assisted toolpath generation requested for job ${tableBCadJobId}`, 'info');
+
+    try {
+      const result = await generateTableB3DToolpath(tableBCadJobId);
+      if (!result?.success || !result.toolpaths) {
+        throw new Error(result?.message || 'Backend did not return toolpaths.');
+      }
+      setTableBCadToolpaths(result.toolpaths);
+      setTableBCadToolpathStatus('generated');
+      const pathCount = result.toolpaths.paths?.length || 0;
+      const segmentCount = result.toolpaths.paths?.reduce((total, path) => total + (path.segments?.length || 0), 0) || 0;
+      const unreachableCount = result.toolpaths.reach_report?.unreachable_segments || 0;
+      addActivity(`Table B: CAD Assisted toolpath generated (${pathCount} path(s), ${segmentCount} segment(s), ${unreachableCount} unreachable)`, unreachableCount > 0 ? 'warning' : 'success');
+    } catch (error) {
+      setTableBCadToolpaths(null);
+      setTableBCadToolpathStatus('failed');
+      setTableBCadConfirmationStatus('failed');
+      addActivity(`Table B: CAD Assisted toolpath generation failed - ${error}`, 'error');
+    }
+  };
+
+
+  const handleLoadTableBCadExecutionPreview = async (allowPendingConfirmedState = false) => {
+    if (!isTableBCadAssistedMode || !tableBCadJobId) {
+      setTableBCadExecutionPreviewStatus('failed');
+      addActivity('Table B: CAD Assisted execution preview blocked - missing job_id.', 'warning');
+      return;
+    }
+    if (!allowPendingConfirmedState && tableBCadConfirmationStatus !== 'confirmed') {
+      setTableBCadExecutionPreviewStatus('failed');
+      addActivity('Table B: Confirm the CAD Assisted toolpath before loading execution preview.', 'warning');
+      return;
+    }
+
+    setTableBCadExecutionPreviewStatus('loading');
+    try {
+      const result = await getTableB3DExecutionPreview(tableBCadJobId);
+      if (!result?.success || !result.execution_preview) {
+        throw new Error(result?.message || 'Backend did not return an execution preview.');
+      }
+      setTableBCadExecutionPreview(result.execution_preview);
+      setTableBCadExecutionPreviewStatus('ready');
+      const summary = result.execution_preview.summary;
+      addActivity(`Table B: CAD Assisted execution preview ready (${summary.group_count} group(s), ${summary.sanding_moves} sanding move(s))`, 'success');
+    } catch (error) {
+      setTableBCadExecutionPreview(null);
+      setTableBCadExecutionPreviewStatus(`failed - ${error}`);
+      addActivity(`Table B: CAD Assisted execution preview failed - ${error}`, 'error');
+    }
+  };
+  const handleConfirmTableBCadToolpath = async () => {
+    if (!isTableBCadAssistedMode || !tableBCadJobId) {
+      setTableBCadConfirmationStatus('failed');
+      addActivity('Table B: CAD Assisted toolpath confirmation blocked - missing job_id.', 'warning');
+      return;
+    }
+    if (!tableBCadCanConfirmToolpath) {
+      setTableBCadConfirmationStatus('failed');
+      addActivity('Table B: CAD Assisted toolpath confirmation blocked - save/load mapping, generate toolpath, and resolve reach issues first.', 'warning');
+      return;
+    }
+
+    setIsOperating(true);
+    setTableBCadConfirmationStatus('confirming');
+    addActivity(`Table B: CAD Assisted toolpath confirmation requested for job ${tableBCadJobId}`, 'info');
+
+    try {
+      const result = await confirmTableB3DToolpath(tableBCadJobId);
+      if (!result?.success || !result.confirmed) {
+        throw new Error(result?.message || 'Backend did not confirm the CAD Assisted toolpath.');
+      }
+      setTableBCadConfirmationStatus('confirmed');
+      addActivity(`Table B: CAD Assisted toolpath confirmed for job ${tableBCadJobId}`, 'success');
+      await handleLoadTableBCadExecutionPreview(true);
+    } catch (error) {
+      setTableBCadConfirmationStatus('failed');
+      addActivity(`Table B: CAD Assisted toolpath confirmation failed - ${error}`, 'error');
+    } finally {
+      setIsOperating(false);
+    }
+  };
+  const handleGenerateTableBPreview = () => {
+    const plan = buildTableBPreviewPlan();
+    if (plan.issues.length) {
+      setTableBPreviewStatus('needs_revision');
+      addActivity(`Table B: Preview blocked - ${plan.issues[0]}`, 'warning');
+      return;
+    }
+    setTableBPreviewOperations(plan.operations);
+    setTableBPreviewGeneratedAt(new Date().toLocaleTimeString());
+    setTableBPreviewSignature(getCurrentTableBPreviewSignature());
+    setTableBPreviewStatus('draft');
+    addActivity(`Table B: Preview generated for ${plan.operations.length} operation(s)`, 'success');
+  };
+
+  const handleApproveTableBPreview = async () => {
+    if (isTableBCadAssistedMode) {
+      // DXF flow: approve the generated toolpath preview.
+      if (!dxfHasToolpath) {
+        addActivity('Table B: Generate a toolpath preview before approval.', 'warning');
+        return;
+      }
+      if (tableBPreviewIsStale) {
+        addActivity('Table B: Preview changed since it was generated — press Preview Toolpath again before approving.', 'warning');
+        return;
+      }
+      // Persist the approved toolpath + region corner points as JSON on the backend
+      // job. Re-approving a changed preview overwrites the file so the operation
+      // always runs the operator's latest choice.
+      const jobId = dxfToolpathPayload?.job_id;
+      if (jobId) {
+        try {
+          const result = await saveTableBDxfApprovedToolpath(jobId, {
+            job_id: jobId,
+            file_name: dxfToolpathPayload?.file_name ?? null,
+            scoped: dxfToolpathPayload?.scoped ?? false,
+            units: dxfToolpathPayload?.units ?? 'mm',
+            counts: dxfToolpathPayload?.counts ?? null,
+            regions: dxfToolpathPayload?.regions ?? [],
+            paths: dxfToolpathPayload?.paths ?? [],
+          });
+          console.log('[DXF Approve] approved toolpath saved', result);
+        } catch (error) {
+          addActivity(`Table B: Failed to save approved toolpath — ${(error as Error).message}`, 'error');
+          return;
+        }
+      } else {
+        addActivity('Table B: No job id for the toolpath preview — cannot save the approval.', 'warning');
+        return;
+      }
+      setTableBPreviewStatus('approved');
+      addActivity('Table B: DXF toolpath preview approved and saved for Start Task.', 'success');
+      return;
+    }
+    if (!tableBPreviewOperations.length) {
+      addActivity('Table B: Generate a preview before approval.', 'warning');
+      return;
+    }
+    if (tableBPreviewIsStale) {
+      addActivity('Table B: Preview is stale. Regenerate it before approval.', 'warning');
+      return;
+    }
+    if (tableBCadHasUnreachableSegments) {
+      addActivity(`Table B: Preview approval blocked - ${tableBCadReachReport?.unreachable_segments || 0} unreachable segment(s).`, 'error');
+      return;
+    }
+    setTableBPreviewStatus('approved');
+    addActivity('Table B: Preview approved and ready for Start Task.', 'success');
+  };
+
+  const handleRequestTableBRevision = () => {
+    setTableBPreviewStatus('needs_revision');
+    const note = tableBRevisionNote.trim() ? ` Note: ${tableBRevisionNote.trim()}` : '';
+    addActivity(`Table B: Preview marked for revision.${note}`, 'warning');
+  };
+  // --- CAD Assisted Mode: isolated Table B handlers end ---
+
   const isModelF = model === 'modelF';
   const parsePositiveFrameSize = (value: string) => {
     const parsed = Number(value);
@@ -1458,6 +2064,95 @@ export function CompactTableConfig({
             </>
           ) : (
             <div className="mb-2">
+              {/* --- CAD Assisted Mode: Table B workflow toggle (Table B only) --- */}
+              {tableName === 'B' && (
+                <div className="mb-3 flex items-center gap-2">
+                  <Button
+                    onClick={() => setTableBWorkflowMode('legacy')}
+                    disabled={isOperating}
+                    className={tableBWorkflowMode === 'legacy'
+                      ? 'flex-1 bg-blue-500 text-white hover:bg-blue-600'
+                      : 'flex-1 bg-white text-slate-700 border border-slate-300 hover:border-blue-400'}
+                  >
+                    Legacy Model
+                  </Button>
+                  <Button
+                    onClick={() => setTableBWorkflowMode('cad_assisted')}
+                    disabled={isOperating}
+                    className={tableBWorkflowMode === 'cad_assisted'
+                      ? 'flex-1 bg-blue-500 text-white hover:bg-blue-600'
+                      : 'flex-1 bg-white text-slate-700 border border-slate-300 hover:border-blue-400'}
+                  >
+                    DXF Assisted
+                  </Button>
+                </div>
+              )}
+              {/* --- CAD Assisted Mode: DXF workspace mount (renders only in CAD-assisted mode) --- */}
+              {isTableBCadAssistedMode && (
+                <div className="mb-3">
+                  <TableBCadAssistedWorkspace
+                    mode={tableBWorkflowMode}
+                    onModeChange={setTableBWorkflowMode}
+                    isOperating={isOperating}
+                    cadFile={tableBCadFile}
+                    cadUploadStatus={tableBCadUploadStatus}
+                    cadJobId={tableBCadJobId}
+                    onFileSelected={handleUploadTableBCadFile}
+                    conversionStatus={tableBCadConversionStatus}
+                    conversionMessage={tableBCadConversionMessage}
+                    backendTestMode={tableBCadBackendTestMode}
+                    onEnableBackendTestMode={handleEnableTableBCadBackendTestMode}
+                    onAddTestMesh={handleAddTableBCadTestMesh}
+                    onConvertModel={handleConvertTableBCadModel}
+                    convertedGlbUrl={tableBCadGlbUrl}
+                    faceMetadata={tableBCadFaceMetadata}
+                    faceMetadataStatus={tableBCadFaceMetadataStatus}
+                    toolpaths={tableBCadToolpaths}
+                    toolpathStatus={tableBCadToolpathStatus}
+                    onGenerateToolpath={handleGenerateTableBCadToolpath}
+                    confirmationStatus={tableBCadConfirmationStatus}
+                    canConfirmToolpath={tableBCadCanConfirmToolpath}
+                    onConfirmToolpath={handleConfirmTableBCadToolpath}
+                    executionPreview={tableBCadExecutionPreview}
+                    executionPreviewStatus={tableBCadExecutionPreviewStatus}
+                    onLoadExecutionPreview={handleLoadTableBCadExecutionPreview}
+                    selectedMeshNames={tableBCadSelectedMeshNames}
+                    onMeshSelected={handleTableBCadMeshSelected}
+                    onClearMeshSelection={handleClearTableBCadMeshSelection}
+                    onRemoveLastMeshSelection={handleRemoveLastTableBCadMeshSelection}
+                    regions={tableBCadRegions}
+                    mappingStatus={tableBCadMappingStatus}
+                    onAddRegion={handleAddTableBCadRegion}
+                    onSaveMapping={handleSaveTableBCadMapping}
+                    onLoadMapping={handleLoadTableBCadMapping}
+                    forceOptions={TABLE_B_FORCE_OPTIONS}
+                    cycleOptions={TABLE_B_CYCLE_OPTIONS}
+                    activeSelection={tableBActiveSelection}
+                    onActiveSelectionChange={setTableBActiveSelection}
+                    selections={tableBSelections}
+                    onToggleSelection={(key) => setTableBSelections((prev) => ({ ...prev, [key]: !prev[key] }))}
+                    previewStatus={tableBPreviewStatus}
+                    previewGeneratedAt={tableBPreviewGeneratedAt}
+                    previewStale={tableBPreviewIsStale}
+                    revisionNote={tableBRevisionNote}
+                    onRevisionNoteChange={setTableBRevisionNote}
+                    onRequestRevision={handleRequestTableBRevision}
+                    onApprovePreview={handleApproveTableBPreview}
+                    previewOperations={tableBPreviewOperations}
+                    onPreviewGenerated={(payload) => {
+                      // A fresh preview replaces any prior approval: store it, record the
+                      // signature, and drop back to 'draft' so the operator must re-approve.
+                      setDxfToolpathPayload(payload);
+                      setTableBPreviewSignature(dxfSignatureOf(payload));
+                      setTableBPreviewGeneratedAt(new Date().toISOString());
+                      setTableBPreviewStatus('draft');
+                    }}
+                  />
+                </div>
+              )}
+              {/* Legacy Table B UI (model select + operation rows) — hidden in DXF Assisted mode */}
+              {!isTableBCadAssistedMode && (
+              <>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
@@ -1590,6 +2285,8 @@ export function CompactTableConfig({
                   </div>
                 ))}
               </div>
+              </>
+              )}
             </div>
           )}
 
