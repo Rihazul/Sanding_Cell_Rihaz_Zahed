@@ -819,19 +819,30 @@ def _track_process(proc: Process) -> None:
         # Only clear process_state/client_process if this watcher belongs to the current process slot.
         if client_process is proc:
             exit_code = proc.exitcode
+            was_homing = process_state.get('last_action') == 'homing'
+            # A homing child persists homed=True to disk the moment homing physically
+            # succeeds, BEFORE its CPS teardown. On Windows that teardown can crash the
+            # child with a native access violation (exit_code=3221225477 / 0xC0000005)
+            # even though homing is complete. So treat homing as succeeded when the child
+            # persisted success, regardless of a non-zero teardown exit code.
+            homing_persisted_ok = was_homing and _load_j7_home_state()
+            succeeded = (exit_code == 0) or homing_persisted_ok
             # Diagnostic: capture the child exit code that decides completed/failed, so a
             # child that did the work but exited non-zero on teardown is visible in the log.
             setup_logger().info(
-                "[_track_process] child exited: exit_code=%s last_action=%s",
+                "[_track_process] child exited: exit_code=%s last_action=%s "
+                "homing_persisted_ok=%s succeeded=%s",
                 exit_code,
                 process_state.get('last_action'),
+                homing_persisted_ok,
+                succeeded,
             )
-            process_state['status'] = 'completed' if exit_code == 0 else 'failed'
-            if exit_code == 0 and process_state.get('last_action') == 'homing':
+            process_state['status'] = 'completed' if succeeded else 'failed'
+            if succeeded and was_homing:
                 _set_j7_home_confirmed(True)
             process_state['last_action'] = None
             client_process = None
-            if exit_code == 0:
+            if succeeded:
                 socketio.emit('flash_message', {"message": "Process finished"})
             else:
                 socketio.emit('flash_message', {"message": f"Process failed (exit={exit_code})"})
@@ -855,6 +866,12 @@ def _run_homing_child(config_data_UI):
         homing_ok = handle_client(config_data_UI, homingState=True, startSanding=False, cps=cps)
         if not homing_ok:
             raise RuntimeError("Homing sequence did not complete successfully")
+        # Homing physically succeeded. Persist the homed state to disk NOW, before the
+        # CPS teardown below — on Windows the CPS SDK can crash the child process with a
+        # native access violation (0xC0000005) during disconnect/finalize, which would
+        # otherwise make a genuine successful home look like a failure to the parent.
+        _persist_j7_home_state(True)
+        config_data_UI["logger"].info("[homing child] homed state persisted before teardown")
         # Optional legacy follow-up; disabled by default because handle_client(homingState=True)
         # already performs homing, and the extra move can cause unsafe transitions.
         if bool(config_data_UI.get("settings", {}).get("runHomingTotalAfterHandleClient", False)):
