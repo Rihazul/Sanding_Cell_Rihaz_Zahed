@@ -299,7 +299,9 @@ export async function startTableBProcess(data: {
 }) {
   return apiCall('/start_TableB_process', 'POST', {
     TableB: {
-      model: data.model,
+      // Identifies the approved DXF toolpath the backend loads from disk. This is
+      // what defines the run now — the legacy `model` preset is gone.
+      job_id: data.job_id,
       frame: data.frame,
       pocketzigzag: data.pocketzigzag,
       pocketsquare: data.pocketsquare || { cycle: 0, force: 0 },
