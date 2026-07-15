@@ -99,6 +99,31 @@ def _all_points(loops: list[dict[str, Any]], open_paths: list[dict[str, Any]]) -
     return pts
 
 
+# Layer holding the part outline. The machine origin is the part's bottom-right
+# corner, so the origin bbox must come from the outline alone: other layers can
+# legitimately overhang it (e.g. grooves drawn past the edge), and including them
+# drags the origin off the part by the overhang distance.
+_CONTOUR_LAYER_NAMES = {"contour", "outer", "outline"}
+
+
+def _origin_reference_points(
+    loops: list[dict[str, Any]],
+    open_paths: list[dict[str, Any]],
+) -> tuple[list[list[float]], str]:
+    """Points that define the machine-origin bbox, plus the source used.
+
+    Prefers the part-outline layer when the drawing has one; otherwise falls back
+    to every point (drawings without a named outline layer are unchanged).
+    """
+    outline: list[list[float]] = []
+    for item in (*loops, *open_paths):
+        if str(item.get("layer", "")).strip().lower() in _CONTOUR_LAYER_NAMES:
+            outline.extend(item["points"])
+    if outline:
+        return outline, "contour_layer"
+    return _all_points(loops, open_paths), "all_entities"
+
+
 def _normalize_geometry(
     loops: list[dict[str, Any]],
     open_paths: list[dict[str, Any]],
@@ -119,7 +144,10 @@ def _normalize_geometry(
     Rigid rotation + reflection preserve area and length, but per-item bbox /
     width / height / aspect are recomputed from the transformed points.
     """
-    pts = _all_points(loops, open_paths)
+    # The origin/bbox comes from the part outline when the drawing names one, so
+    # geometry that overhangs the part (grooves drawn past the edge) cannot shift
+    # the origin off the part's corner. All geometry is still transformed below.
+    pts, origin_source = _origin_reference_points(loops, open_paths)
     if not pts:
         return {"applied": False, "rotated": False}
 
@@ -176,6 +204,8 @@ def _normalize_geometry(
         "units": "mm",
         "mm_per_unit": 1.0,
         "source_inches_per_unit": inches_per_unit,
+        # Which geometry defined the origin bbox: the outline layer, or everything.
+        "origin_source": origin_source,
         "size": [final_x, final_y],
         "y_size_mm": y_size_mm,
         "max_y_mm": _MAX_Y_MM,
