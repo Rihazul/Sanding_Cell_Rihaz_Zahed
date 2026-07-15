@@ -14,7 +14,12 @@ logger = logging.getLogger(__name__)
 
 _CIRCLE_SEGMENTS = 72
 _MAX_INSERT_DEPTH = 6
-_FLATTEN_DISTANCE = 0.5
+# Curve flattening tolerance expressed in MILLIMETERS. ezdxf's flattening() works in
+# drawing units, so this is converted per-file via the drawing's units. Keeping it in
+# mm means an inch drawing and a mm drawing are approximated to the same real-world
+# precision; a fixed unit value would flatten an inch drawing 25.4x coarser (0.5 units
+# = 12.7 mm), skewing the bbox the machine origin is derived from.
+_FLATTEN_DISTANCE_MM = 0.5
 
 # Machine-frame normalization. The sanding cell expects the part in a fixed frame:
 # origin at the bottom-right of the model bbox, +X pointing left, +Y pointing up.
@@ -63,6 +68,26 @@ def _inches_per_unit(doc: Any, all_points: list[list[float]] | None = None) -> f
         # Tagged inches/feet but >200 units (>5 m) — mislabeled; treat as millimeters.
         return mm_per_unit
     return explicit
+
+
+def _flatten_distance_units(doc: Any) -> float:
+    """Curve flattening tolerance in DRAWING UNITS for this document.
+
+    Derived from $INSUNITS only — the size-based unit fallback needs points, which
+    do not exist until entities are flattened. An unset/unknown $INSUNITS keeps the
+    historical 0.5-unit behaviour, which is already correct for mm drawings.
+    """
+    try:
+        code = int(doc.header.get("$INSUNITS", 0))
+    except Exception:  # noqa: BLE001
+        code = 0
+    inches_per_unit = _UNITS_TO_INCHES.get(code)
+    if not inches_per_unit:
+        return _FLATTEN_DISTANCE_MM
+    mm_per_unit = inches_per_unit * 25.4
+    if mm_per_unit <= 0:
+        return _FLATTEN_DISTANCE_MM
+    return _FLATTEN_DISTANCE_MM / mm_per_unit
 
 
 def _all_points(loops: list[dict[str, Any]], open_paths: list[dict[str, Any]]) -> list[list[float]]:
@@ -234,19 +259,24 @@ def _iter_entities(container: Any, depth: int = 0):
         yield entity
 
 
-def _flatten(entity: Any) -> list[list[float]] | None:
-    """Sample a curved/spline entity into [x, y] points (ezdxf flattening)."""
+def _flatten(entity: Any, distance: float) -> list[list[float]] | None:
+    """Sample a curved/spline entity into [x, y] points (ezdxf flattening).
+
+    `distance` is the sagitta tolerance in drawing units for this document.
+    """
     try:
-        return [[float(p.x), float(p.y)] for p in entity.flattening(_FLATTEN_DISTANCE)]
+        return [[float(p.x), float(p.y)] for p in entity.flattening(distance)]
     except Exception:  # noqa: BLE001
         return None
 
 
-def _entity_polyline(entity: Any) -> tuple[list[list[float]] | None, bool]:
+def _entity_polyline(entity: Any, flatten_distance: float) -> tuple[list[list[float]] | None, bool]:
     """Return (points, is_closed) for a supported entity, else (None, False).
 
     Closure is detected from the entity's closed flag OR coincident endpoints,
     which covers DXFs that close a shape by repeating the first vertex.
+
+    `flatten_distance` is the curve tolerance in drawing units for this document.
     """
     dxftype = entity.dxftype()
 
@@ -273,7 +303,7 @@ def _entity_polyline(entity: Any) -> tuple[list[list[float]] | None, bool]:
         return pts, True
 
     if dxftype == "ELLIPSE":
-        pts = _flatten(entity)
+        pts = _flatten(entity, flatten_distance)
         if not pts:
             return None, False
         span = abs(
@@ -283,14 +313,14 @@ def _entity_polyline(entity: Any) -> tuple[list[list[float]] | None, bool]:
         return _dedupe_closing_point(pts), closed
 
     if dxftype == "SPLINE":
-        pts = _flatten(entity)
+        pts = _flatten(entity, flatten_distance)
         if not pts:
             return None, False
         closed = bool(getattr(entity, "closed", False)) or _looks_closed(pts)
         return _dedupe_closing_point(pts), closed
 
     if dxftype == "ARC":
-        pts = _flatten(entity)
+        pts = _flatten(entity, flatten_distance)
         if not pts:
             return None, False
         return pts, False
@@ -326,6 +356,15 @@ def parse_dxf_loops(job_id: str) -> dict[str, Any]:
 
     msp = doc.modelspace()
 
+    # Curve tolerance in this drawing's units, so inch and mm files are flattened to
+    # the same real-world precision. Curves feed the bbox the machine origin comes
+    # from, so a units-blind tolerance shifts the origin on inch drawings.
+    flatten_distance = _flatten_distance_units(doc)
+    logger.info(
+        "Table B DXF Assisted flatten tolerance: job_id=%s distance_units=%.6f (%.2f mm target)",
+        job_id, flatten_distance, _FLATTEN_DISTANCE_MM,
+    )
+
     loops: list[dict[str, Any]] = []
     open_paths: list[dict[str, Any]] = []
     total_scanned = 0
@@ -339,7 +378,7 @@ def parse_dxf_loops(job_id: str) -> dict[str, Any]:
         entity_types.add(dxftype)
 
         try:
-            points, closed = _entity_polyline(entity)
+            points, closed = _entity_polyline(entity, flatten_distance)
         except Exception as error:  # noqa: BLE001 - never let one bad entity fail the parse
             logger.warning("Table B DXF Assisted skipped unreadable %s: %s", dxftype, error)
             unsupported_ignored += 1
