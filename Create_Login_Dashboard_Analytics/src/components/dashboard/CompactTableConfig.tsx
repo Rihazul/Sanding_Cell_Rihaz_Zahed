@@ -1391,6 +1391,12 @@ export function CompactTableConfig({
         const edgeOutsideRow = findRow('Edge Outside');
         const sideRow = findRow('Side');
         const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
+        console.log('[DXF Start Task] payload at send', {
+          job_id: dxfToolpathPayload?.job_id,
+          file_name: dxfToolpathPayload?.file_name,
+          previewStatus: tableBPreviewStatus,
+          hasPayload: !!dxfToolpathPayload,
+        });
         const taskData = {
           // Table B runs the approved DXF toolpath for this job — the backend loads
           // approved_toolpath.json by job_id. `model` is gone; the DXF replaces it.
