@@ -1146,6 +1146,9 @@ def start_TableB_process():
         "job_id": job_id,
         "dry_run": TABLE_B_DXF_DRY_RUN,
         "paths": len(run_plan.get("steps", [])),
+        # Physical tools that will be mounted, in order (3 -> 4 -> 1 -> 2, skipping
+        # any tool whose operations the operator did not select).
+        "tool_sequence": run_plan.get("tool_sequence", []),
         "missing_motion_params": run_plan.get("missing_motion_params", []),
     })
 

@@ -1387,6 +1387,9 @@ export function CompactTableConfig({
           rows.find((row) => row.label === label) || { label, selection: '', force: 0, cycle: 0 };
         const frameRow = findRow('Frame');
         const zigzagRow = findRow('Pocket ZigZag');
+        // Pocket Edge drives Tool 3 and is configured separately from Pocket ZigZag
+        // (Tool 4) — the two operations never share force/cycle.
+        const pocketEdgeRow = findRow('Pocket Edge');
         const threeDRow = findRow('3D');
         const edgeOutsideRow = findRow('Edge Outside');
         const sideRow = findRow('Side');
@@ -1409,6 +1412,7 @@ export function CompactTableConfig({
             horizontalSpiral: !!zigzagRow.horizontalSpiral,
             edgeCoverage: !!zigzagRow.edgeCoverage,
           },
+          pocketedge: { cycle: pocketEdgeRow.cycle, force: pocketEdgeRow.force },
           '3D': { cycle: threeDRow.cycle, force: threeDRow.force },
           edgeOutside: { cycle: edgeOutsideRow.cycle, force: edgeOutsideRow.force },
           side: { cycle: sideRow.cycle, force: sideRow.force },

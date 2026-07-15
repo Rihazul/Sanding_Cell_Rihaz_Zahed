@@ -287,6 +287,8 @@ export async function startTableBProcess(data: {
     horizontalSpiral?: boolean;
     edgeCoverage?: boolean;
   };
+  // Pocket Edge drives Tool 3; it is configured separately from Pocket ZigZag (Tool 4).
+  pocketedge?: { cycle: number; force: number };
   pocketsquare?: { cycle: number; force: number };
   '3D': { cycle: number; force: number };
   edgeInside?: { cycle: number; force: number };
@@ -304,6 +306,7 @@ export async function startTableBProcess(data: {
       job_id: data.job_id,
       frame: data.frame,
       pocketzigzag: data.pocketzigzag,
+      pocketedge: data.pocketedge || { cycle: 0, force: 0 },
       pocketsquare: data.pocketsquare || { cycle: 0, force: 0 },
       '3D': data['3D'],
       edgeInside: data.edgeInside || { cycle: 0, force: 0 },
