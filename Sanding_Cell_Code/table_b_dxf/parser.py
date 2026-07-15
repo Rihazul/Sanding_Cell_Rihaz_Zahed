@@ -206,6 +206,11 @@ def _normalize_geometry(
         "source_inches_per_unit": inches_per_unit,
         # Which geometry defined the origin bbox: the outline layer, or everything.
         "origin_source": origin_source,
+        # The part's extent in the machine frame (mm). This is the authoritative
+        # frame/outer boundary: it comes from the outline alone, so consumers must use
+        # it rather than re-deriving a bbox from all geometry — layers such as grooves
+        # can overhang the part and would inflate that bbox.
+        "part_bbox": {"min_x": 0.0, "min_y": 0.0, "max_x": final_x, "max_y": final_y},
         "size": [final_x, final_y],
         "y_size_mm": y_size_mm,
         "max_y_mm": _MAX_Y_MM,

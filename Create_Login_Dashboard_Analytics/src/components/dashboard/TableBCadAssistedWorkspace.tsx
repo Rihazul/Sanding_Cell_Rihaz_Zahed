@@ -10,6 +10,7 @@ import {
   detectTableBDxfLoops,
   type TableBDxfLoop,
   type TableBDxfOpenPath,
+  type TableBDxfDetectedLoop,
   type TableBDxfFramePolygon,
   type TableBDxfFrameRectangle,
   type TableBDxfFrameToolpath,
@@ -960,6 +961,10 @@ export function TableBCadAssistedWorkspace({
     }[]
   >([]);
   const [dxfMmPerUnit, setDxfMmPerUnit] = React.useState(1);
+  // The part's extent in the machine frame, from parse-time normalization. It is
+  // derived from the outline layer alone, so it stays correct when other layers
+  // (e.g. grooves) overhang the part edge. Null until a DXF reports one.
+  const [dxfPartBBox, setDxfPartBBox] = React.useState<DxfBBox>(null);
   const [dxfFrameWarnings, setDxfFrameWarnings] = React.useState<TableBDxfFrameWarning[]>([]);
   const [dxfShowFrame, setDxfShowFrame] = React.useState(true);
   const [dxfShowToolpaths, setDxfShowToolpaths] = React.useState(true);
@@ -1035,8 +1040,23 @@ export function TableBCadAssistedWorkspace({
       });
       // Geometry is normalized to millimeters at parse time (inch drawings are
       // converted), so 1 drawing unit = 1 mm and the coordinate readout shows mm.
-      const mmPerUnit = (parsed as { normalization?: { mm_per_unit?: number } }).normalization?.mm_per_unit;
+      const normalization = (parsed as {
+        normalization?: {
+          mm_per_unit?: number;
+          origin_source?: string;
+          part_bbox?: { min_x: number; min_y: number; max_x: number; max_y: number };
+        };
+      }).normalization;
+      const mmPerUnit = normalization?.mm_per_unit;
       setDxfMmPerUnit(mmPerUnit ?? 1);
+      // Authoritative part extent (outline only). Frame toolpaths must use this rather
+      // than a bbox over all geometry, which overhanging layers would inflate.
+      setDxfPartBBox(normalization?.part_bbox ?? null);
+      console.log('[DXF Viewer] normalization', {
+        mm_per_unit: mmPerUnit,
+        origin_source: normalization?.origin_source,
+        part_bbox: normalization?.part_bbox,
+      });
       setDxfJobId(upload.job_id);
       setDxfLoops(loops);
       setDxfOpenPaths(openPaths);
@@ -1310,6 +1330,19 @@ export function TableBCadAssistedWorkspace({
     return segments;
   };
 
+  // Bounding box over every parsed entity. Only a fallback for drawings whose parse
+  // reports no part_bbox — overhanging layers inflate it, so prefer dxfPartBBox.
+  const dxfBoundsOfAllGeometry = (): DxfBBox => {
+    const pts: number[][] = [
+      ...dxfLoops.flatMap((l) => l.points),
+      ...dxfOpenPaths.flatMap((p) => p.points),
+    ];
+    if (pts.length === 0) return null;
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
+  };
+
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
   // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
   // it has NO offset and starts at the machine origin (0,0 = bottom-right corner),
@@ -1323,19 +1356,16 @@ export function TableBCadAssistedWorkspace({
       dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'frame' || dxfAssignments[l.entity_id] === 'outer');
     if (hasPocket || !hasFrameOrOuter) return [];
 
-    // Full frame extent = bounding box of all geometry. In the normalized machine
-    // frame this bottom-right corner is the origin (~0,0).
-    const pts: number[][] = [
-      ...dxfLoops.flatMap((l) => l.points),
-      ...dxfOpenPaths.flatMap((p) => p.points),
-    ];
-    if (pts.length === 0) return [];
-    const xs = pts.map((p) => p[0]);
-    const ys = pts.map((p) => p[1]);
-    const bxLo = Math.min(...xs);
-    const bxHi = Math.max(...xs);
-    const byLo = Math.min(...ys);
-    const byHi = Math.max(...ys);
+    // Full frame extent = the part's outline. Prefer the backend's part_bbox: it is
+    // derived from the outline layer alone, so layers that overhang the part edge
+    // (e.g. grooves) cannot inflate it. Fall back to all geometry for drawings that
+    // report no part_bbox.
+    const bounds = dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    if (!bounds) return [];
+    const bxLo = bounds.min_x;
+    const bxHi = bounds.max_x;
+    const byLo = bounds.min_y;
+    const byHi = bounds.max_y;
     const xinner = bxHi - bxLo;
     if (xinner <= 0 || byHi <= byLo) return [];
 
@@ -1949,7 +1979,7 @@ export function TableBCadAssistedWorkspace({
       // lines. If a preview is already showing, confirm it now with this operation.
       const nowLocked = dxfLockedOperation !== regionType;
       setDxfLockedOperation(nowLocked ? regionType : null);
-      const label = DXF_REGION_META[regionType]?.label ?? regionType;
+      const label = dxfRegionMeta(regionType).label;
       if (dxfDetectedSurface) {
         confirmDetectedSurface(dxfRegionToOperation(regionType));
       }
