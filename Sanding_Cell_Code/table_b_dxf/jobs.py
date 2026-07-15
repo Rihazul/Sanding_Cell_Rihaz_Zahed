@@ -33,6 +33,39 @@ def _validate_job_id(job_id: str) -> None:
         raise ValueError("Invalid Table B DXF job_id")
 
 
+# A job_id is used as a folder name and a URL path segment, so it is restricted to
+# characters that are safe in both. Operator-facing ids look like:
+#   PPte3PanL_CDP_REG_20260715_143255_a1b2
+# i.e. <sanitized file stem>_<local timestamp>_<short unique suffix>.
+_JOB_ID_SAFE_CHARS = set(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"
+)
+_JOB_ID_STEM_MAX = 40
+
+
+def _sanitize_job_id_stem(filename: str | None) -> str:
+    """Turn an uploaded filename into a safe, readable job_id stem."""
+    stem = Path(filename or "").stem
+    cleaned = "".join(char if char in _JOB_ID_SAFE_CHARS else "_" for char in stem)
+    # Collapse runs of underscores introduced by spaces/punctuation.
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    cleaned = cleaned.strip("_-")[:_JOB_ID_STEM_MAX].strip("_-")
+    return cleaned or "dxf"
+
+
+def build_table_b_dxf_job_id(filename: str | None = None) -> str:
+    """Build a readable, unique job id from the uploaded filename + a timestamp.
+
+    The timestamp is local time so it matches what the operator sees on the machine.
+    A short random suffix keeps two uploads of the same file in the same second from
+    colliding onto one job folder.
+    """
+    stem = _sanitize_job_id_stem(filename)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{stem}_{stamp}_{uuid4().hex[:4]}"
+
+
 def _ensure_job_folders(job_id: str) -> None:
     _validate_job_id(job_id)
     for folder in (
@@ -67,11 +100,15 @@ def prune_old_table_b_dxf_jobs(keep: int = MAX_KEPT_JOBS) -> None:
         logger.info("Pruned old Table B DXF job: %s", job_id)
 
 
-def create_table_b_dxf_job() -> dict[str, Any]:
-    """Create an isolated Table B DXF Assisted job workspace."""
+def create_table_b_dxf_job(filename: str | None = None) -> dict[str, Any]:
+    """Create an isolated Table B DXF Assisted job workspace.
+
+    `filename` is the uploaded DXF's name; it makes the job id readable for the
+    operator (file + timestamp) instead of an opaque uuid.
+    """
     _ensure_base_folders()
 
-    job_id = uuid4().hex
+    job_id = build_table_b_dxf_job_id(filename)
     _ensure_job_folders(job_id)
 
     metadata = {

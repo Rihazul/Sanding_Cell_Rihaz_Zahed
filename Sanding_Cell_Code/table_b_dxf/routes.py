@@ -62,7 +62,9 @@ def upload_table_b_dxf_file():
         logger.warning("Table B DXF Assisted upload validation failed: %s", validation_error)
         return jsonify({"success": False, "error": validation_error}), 400
 
-    job = create_table_b_dxf_job()
+    # Name the job after the uploaded file + a timestamp so operators can recognise
+    # it in the UI, the logs and the job folders.
+    job = create_table_b_dxf_job(safe_name)
     job_id = job["job_id"]
     logger.info("Table B DXF Assisted job_id created for upload: %s", job_id)
 
