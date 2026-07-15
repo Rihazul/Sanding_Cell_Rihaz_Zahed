@@ -1019,13 +1019,35 @@ export function CompactTableConfig({
     return !!result.isConfirmed;
   };
 
+  // Blocking "fix this first" dialog for Table B setup problems, so a misconfigured
+  // recipe is corrected before the robot starts rather than failing mid-run.
+  const showTableBSetupIssues = async (title: string, issues: string[]) => {
+    const swal = getSwal();
+    if (!swal?.fire) {
+      window.alert(`${title}\n\n${issues.map((i) => `• ${i}`).join('\n')}`);
+      return;
+    }
+    await swal.fire({
+      title,
+      icon: 'warning',
+      html: `<div style="text-align:left"><ul style="margin:0;padding-left:1.2em">${issues
+        .map((i) => `<li style="margin:.35em 0">${i}</li>`)
+        .join('')}</ul></div>`,
+      confirmButtonText: 'Review Settings',
+    });
+  };
+
   const confirmStartTask = async () => {
     const swal = getSwal();
     const scanState =
       tableName === 'A'
         ? (scanCompleted ? 'Scan status: Completed.' : 'Scan status: Not marked completed.')
         : 'Scan status: Not required for Table B.';
-    const modelState = model?.trim() ? `Model: ${formatModelName(model)}.` : 'Model: Not selected at table level.';
+    // Table B runs from the approved DXF toolpath, not a model selection.
+    const modelState =
+      tableName === 'A'
+        ? (model?.trim() ? `Model: ${formatModelName(model)}.` : 'Model: Not selected at table level.')
+        : 'Source: Approved 2D DXF toolpath.';
     const reminder = 'Please verify door selection, force/cycle values, and safety before continuing.';
     const text = `${scanState} ${modelState} ${reminder}`;
     const title = tableName === 'A' ? 'Confirm Start Task (Table A)' : 'Confirm Start Task (Table B)';
@@ -1317,21 +1339,47 @@ export function CompactTableConfig({
         setIsOperating(false);
       }
     } else {
-      // Table B logic (single model)
-      if (!model || model.trim() === '') {
-        addActivity(`Table ${tableName}: Select a model before starting the task.`, 'warning');
-        setIsOperating(false);
-        return;
-      }
-      if (!['modelA', 'modelB', 'modelC', 'modelD', 'modelE'].includes(model)) {
-        addActivity(`Table ${tableName}: Model ${formatModelName(model)} is not supported by backend yet.`, 'warning');
+      // Table B (DXF Assisted). The run is defined by the approved 2D DXF toolpath
+      // preview plus the operation recipe — there is no model to select anymore.
+      if (!dxfHasToolpath || tableBPreviewStatus !== 'approved' || tableBPreviewIsStale) {
+        const reason = !dxfHasToolpath
+          ? 'Generate a toolpath in the 2D DXF viewer first.'
+          : tableBPreviewIsStale
+            ? 'The toolpath changed since it was approved — press Preview Toolpath and approve it again.'
+            : 'Approve the toolpath preview in the 2D DXF viewer before starting the task.';
+        await showTableBSetupIssues('Toolpath not ready', [reason]);
+        addActivity(`Table ${tableName}: Start Task blocked - ${reason}`, 'warning');
         setIsOperating(false);
         return;
       }
 
-      const modelName = formatModelName(model);
+      // Operation recipe validation: every operation the operator touched must have
+      // BOTH force and cycle, and at least one operation must be configured.
+      const partialRows = rows.filter(
+        (row) => (row.force > 0) !== (row.cycle > 0),
+      );
+      if (partialRows.length) {
+        const issues = partialRows.map((row) =>
+          row.force > 0
+            ? `${row.label}: force is set (${row.force}) but cycle is 0 — set a cycle or clear the force.`
+            : `${row.label}: cycle is set (${row.cycle}) but force is 0 — set a force or clear the cycle.`,
+        );
+        await showTableBSetupIssues('Incomplete operation settings', issues);
+        addActivity(`Table ${tableName}: Start Task blocked - ${issues.length} incomplete operation(s).`, 'warning');
+        setIsOperating(false);
+        return;
+      }
+      if (!tableBEnabledRows.length) {
+        const issue = 'No operation is configured. Set force and cycle on at least one operation (Frame, Pocket ZigZag, 3D, Edge Outside or Side).';
+        await showTableBSetupIssues('No operation selected', [issue]);
+        addActivity(`Table ${tableName}: Start Task blocked - ${issue}`, 'warning');
+        setIsOperating(false);
+        return;
+      }
 
-      addActivity(`Table ${tableName}: Starting task with ${modelName}`, 'info');
+      const opsSummary = tableBEnabledRows.map((row) => row.label).join(', ');
+
+      addActivity(`Table ${tableName}: Starting DXF task (${opsSummary})`, 'info');
 
       try {
         // Build payload from labels so UI-only rows do not shift backend mappings.
@@ -1344,7 +1392,9 @@ export function CompactTableConfig({
         const sideRow = findRow('Side');
         const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
         const taskData = {
-          model,
+          // Table B runs the approved DXF toolpath for this job — the backend loads
+          // approved_toolpath.json by job_id. `model` is gone; the DXF replaces it.
+          job_id: dxfToolpathPayload?.job_id ?? '',
           frame: { cycle: frameRow.cycle, force: frameRow.force },
           pocketzigzag: {
             cycle: zigzagRow.cycle,
@@ -1367,10 +1417,10 @@ export function CompactTableConfig({
           return;
         }
 
-        addActivity(`Table ${tableName}: Task started with ${modelName}`, 'info');
+        addActivity(`Table ${tableName}: Task started (${opsSummary})`, 'info');
         const finalStatus = await waitForBackendProcessCompletion();
         if (finalStatus === 'completed') {
-          addActivity(`Table ${tableName}: Task completed successfully with ${modelName}`, 'success');
+          addActivity(`Table ${tableName}: Task completed successfully (${opsSummary})`, 'success');
         } else {
           addActivity(`Table ${tableName}: Task finished with status: ${finalStatus}`, 'warning');
         }

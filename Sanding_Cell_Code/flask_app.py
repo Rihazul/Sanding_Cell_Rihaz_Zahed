@@ -16,7 +16,6 @@ import sys
 from werkzeug.utils import secure_filename
 import logging
 import threading
-import importlib
 from contextlib import contextmanager
 import re
 from collections import deque
@@ -33,7 +32,6 @@ import math
 
 # for left table homing and sanding total
 # Heavy scan/homing modules are imported lazily so the desktop app can open faster.
-from cycle_data_utils import overlap_mm_to_step
 from tablea_task_worker import run_tablea_task_child
 
 
@@ -56,52 +54,25 @@ REACT_BUILD_DIR = os.path.join(PROJECT_ROOT, "Create_Login_Dashboard_Analytics",
 REACT_ASSETS_DIR = os.path.join(REACT_BUILD_DIR, "assets")
 
 
-#RightTable
-modelMethodmap = {
-    "modelA": ("model1cycle.mainmodel1", "startingRobotToSandmodel1"),
-    "modelB": ("model2cycle.mainmodel2", "startingRobotToSandmodel2"),
-    "modelC": ("model3cycle.mainmodel3", "startingRobotToSandmodel3"),
-    "modelD": ("model4cycle.mainmodel4", "startingRobotToSandmodel4"),
-    "modelE": ("model5cycle.mainmodel5", "startingRobotToSandmodel5"),
-}
-#RightTable
-modelMap = {
-    "modelA": ("Table1Model.plotexp", "plot_data"),
-    "modelB": ("Table2Model.plotexp", "plot_data"),
-    "modelC": ("Table3Model.plotexp", "plot_data"),
-    "modelD": ("Table4Model.plotexp", "plot_data"),
-    "modelE": ("Table5Model.plotexp", "plot_data"),
-}
+# Table B runs the operator-approved 2D DXF toolpath. The legacy model-preset
+# pipeline (Table<N>Model matplotlib dialog + model<N>cycle execution) was removed
+# from this app; those folders remain on disk for reference only.
+def _run_tableb_dxf_task_child(job_id, recipe):
+    """Run a Table B DXF job in a child process with a fresh CPS session.
 
-
-def _load_function(module_name, function_name):
-    module = importlib.import_module(module_name)
-    return getattr(module, function_name)
-
-
-def _run_tableb_plot_dialog(model_key, inverse_overlapping, conn):
+    While the executor is in dry-run it issues no motion: it resolves the approved
+    toolpath and logs every MoveL it would send.
     """
-    Run the matplotlib Start/Cancel dialog in a dedicated process so GUI code
-    executes on that process's main thread (avoids tkinter thread errors).
-    """
+    logger = setup_logger(True)
     try:
-        module_name, function_name = modelMap[model_key]
-        plot_fn = _load_function(module_name, function_name)
-        action = plot_fn(inverseOverlapping=inverse_overlapping)
-        conn.send({"ok": True, "action": action})
-    except Exception as e:
-        conn.send({"ok": False, "error": str(e)})
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        from table_b_dxf.executor import run_approved_toolpath
 
-
-def _run_tableb_task_child(model_key):
-    module_name, function_name = modelMethodmap[model_key]
-    task_fn = _load_function(module_name, function_name)
-    task_fn()
+        logger.info("[TableB DXF child] starting job=%s", job_id)
+        run_approved_toolpath(job_id, recipe, cps=None)
+        logger.info("[TableB DXF child] finished job=%s", job_id)
+    except Exception as error:  # noqa: BLE001
+        logger.error("[TableB DXF child] failed job=%s: %s", job_id, error)
+        raise
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -319,9 +290,17 @@ CORS(app)
 socketio = SocketIO(app, async_mode='threading')
 
 # Table B DXF (2D CAD Assisted) viewer/toolpath backend. Self-contained blueprint
-# under /api/table-b-dxf; does not touch existing routes or legacy Table B execution.
+# under /api/table-b-dxf.
 from table_b_dxf import table_b_dxf_bp
 app.register_blueprint(table_b_dxf_bp)
+
+# Table B execution now runs the operator-approved DXF toolpath instead of the legacy
+# model presets. DRY_RUN is re-read here so the route can report it to the UI.
+from table_b_dxf.executor import (
+    DRY_RUN as TABLE_B_DXF_DRY_RUN,
+    TableBDxfExecutionError,
+    resolve_run_plan as resolve_table_b_dxf_run_plan,
+)
 
 REQUEST_TIMING_LOGS_ENABLED = False
 
@@ -1098,6 +1077,13 @@ def get_logs_history():
 
 @app.route('/start_TableB_process', methods=['POST'])
 def start_TableB_process():
+    """Run Table B from the operator-approved 2D DXF toolpath.
+
+    The legacy model-preset flow (Table<N>Model plot dialog + model<N>cycle execution)
+    was removed from this app: a Table B run is defined by the approved toolpath JSON
+    for a DXF job plus the operator's force/cycle recipe. Those modules stay on disk
+    for reference but are no longer wired to any route.
+    """
     global client_process
     global j7_home_confirmed
     data = request.json
@@ -1112,45 +1098,25 @@ def start_TableB_process():
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
 
     tableData = data['TableB']
-    selected_model = tableData.get('model')
+    job_id = str(tableData.get('job_id') or '').strip()
 
-    if not selected_model:
-        return jsonify({"error": "Invalid request, model is required for TableB"}), 400
-    if selected_model not in modelMap or selected_model not in modelMethodmap:
-        valid_models = sorted(set(modelMap.keys()).intersection(set(modelMethodmap.keys())))
+    if not job_id:
         return jsonify({
-            "error": f"Invalid model '{selected_model}' for TableB",
-            "validModels": valid_models
+            "error": "Invalid request: job_id is required for TableB. Approve a DXF toolpath first."
         }), 400
 
-    inverse_overlapping = data.get('inverseOverlapping', 0)
-    inverse_overlapping_step = overlap_mm_to_step(inverse_overlapping)
-    parent_conn, child_conn = Pipe(duplex=False)
-    plot_process = Process(
-        target=_run_tableb_plot_dialog,
-        args=(selected_model, inverse_overlapping_step, child_conn),
-    )
-    plot_process.start()
-    child_conn.close()
-    plot_process.join()
+    # Resolve the approved toolpath up-front so setup problems surface before the
+    # table/stopper are moved.
+    try:
+        run_plan = resolve_table_b_dxf_run_plan(job_id, tableData)
+    except TableBDxfExecutionError as error:
+        return jsonify({"error": str(error)}), 400
+    except Exception as error:  # noqa: BLE001
+        logging.getLogger(__name__).exception("Table B DXF run plan failed")
+        return jsonify({"error": f"Could not load approved toolpath: {error}"}), 500
 
-    if not parent_conn.poll():
-        return jsonify({"error": "Plot dialog did not return an action"}), 500
-
-    plot_result = parent_conn.recv()
-    if not plot_result.get("ok", False):
-        return jsonify({"error": f"Failed to run plot dialog: {plot_result.get('error', 'unknown error')}"}), 500
-
-    buttonClicked = plot_result.get("action", "cancel")
     with open('./configs/cycleData.json', 'w') as f:
         json.dump(data, f)
-
-    if buttonClicked == "cancel":
-        return jsonify({
-            'success': False,
-            'process' : "cancelled",
-            "status": "Process is cancelled"
-        })
 
     clear_stop()
     with robot_lock:
@@ -1167,16 +1133,20 @@ def start_TableB_process():
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
     _disconnect_global_cps_for_child_start()
-    client_process = Process(target=_run_tableb_task_child, args=(selected_model,))
+    client_process = Process(target=_run_tableb_dxf_task_child, args=(job_id, tableData))
     process_state['status'] = 'in_progress'
+    process_state['last_action'] = 'tableb_dxf'
     client_process.start()
     Thread(target=_track_process, args=(client_process,), daemon=True).start()
 
-    # startingRobotToSand()
     return jsonify({
         'success': True,
-        'process' : "started",
-        "status": "Process started"
+        'process': "started",
+        "status": "Process started",
+        "job_id": job_id,
+        "dry_run": TABLE_B_DXF_DRY_RUN,
+        "paths": len(run_plan.get("steps", [])),
+        "missing_motion_params": run_plan.get("missing_motion_params", []),
     })
 
 ############################################################################################

@@ -276,7 +276,9 @@ export async function startTableAProcessLegacy(data: {
 
 // Start Table B process
 export async function startTableBProcess(data: {
-  model: string;
+  // Table B runs the operator-approved 2D DXF toolpath: the backend loads
+  // approved_toolpath.json for this job. The legacy `model` preset is gone.
+  job_id: string;
   frame: { cycle: number; force: number };
   pocketzigzag: {
     cycle: number;
