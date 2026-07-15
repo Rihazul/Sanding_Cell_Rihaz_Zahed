@@ -1407,11 +1407,12 @@ export function TableBCadAssistedWorkspace({
   // with a coordinate grid + greedy maximal-rectangle merge, so sections are unique,
   // non-overlapping, and never cover a Pocket or 3D Contour. No toolpaths yet.
   const computeDxfFrameSections = () => {
-    const allPts: number[][] = [...dxfLoops.flatMap((l) => l.points), ...dxfOpenPaths.flatMap((p) => p.points)];
-    if (allPts.length === 0) return [];
-    const oxs = allPts.map((p) => p[0]);
-    const oys = allPts.map((p) => p[1]);
-    const outer = { x0: Math.min(...oxs), x1: Math.max(...oxs), y0: Math.min(...oys), y1: Math.max(...oys) };
+    // The frame's outer boundary is the part's outline, not a bbox over every entity:
+    // overhanging layers (e.g. grooves) would otherwise stretch the sections past the
+    // part edge and shift every section corner.
+    const outerBounds = dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    if (!outerBounds) return [];
+    const outer = { x0: outerBounds.min_x, x1: outerBounds.max_x, y0: outerBounds.min_y, y1: outerBounds.max_y };
 
     const boxOf = (pts: number[][]) => {
       const xs = pts.map((p) => p[0]);
@@ -2148,16 +2149,12 @@ export function TableBCadAssistedWorkspace({
         toolpaths.push({ label: '3D contour ring', points: p.points }),
       );
     } else if (sourceType === 'computed_frame') {
-      // Overall door outer boundary = bounding box of all geometry (bottom-right is
-      // the machine-frame origin), listed CCW from the origin corner.
-      const allPts = [...dxfLoops.flatMap((l) => l.points), ...dxfOpenPaths.flatMap((p) => p.points)];
-      if (allPts.length) {
-        const xs = allPts.map((p) => p[0]);
-        const ys = allPts.map((p) => p[1]);
-        const xLo = Math.min(...xs);
-        const xHi = Math.max(...xs);
-        const yLo = Math.min(...ys);
-        const yHi = Math.max(...ys);
+      // Overall door outer boundary = the part's outline (bottom-right is the
+      // machine-frame origin), listed CCW from the origin corner. Uses the parse-time
+      // part_bbox so layers that overhang the part edge (e.g. grooves) do not inflate it.
+      const outerBounds = dxfPartBBox ?? dxfBoundsOfAllGeometry();
+      if (outerBounds) {
+        const { min_x: xLo, max_x: xHi, min_y: yLo, max_y: yHi } = outerBounds;
         shapes.push({
           label: 'Door outer corners',
           points: [
