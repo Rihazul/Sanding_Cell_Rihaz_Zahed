@@ -149,6 +149,84 @@ def _origin_reference_points(
     return _all_points(loops, open_paths), "all_entities"
 
 
+def _detect_outline_bbox(
+    loops: list[dict[str, Any]],
+    open_paths: list[dict[str, Any]],
+) -> dict[str, float] | None:
+    """Bbox of the door outline, stitched from line segments (largest closed polygon).
+
+    Runs on the transformed (mm, machine-frame) geometry. Feeds every loop/open-path
+    polyline into shapely polygonize with a small self-snap to weld hand-drawn gaps —
+    the same technique the operator's line-to-surface detection uses. The largest
+    resulting polygon is the outer door boundary; dangling fragments (e.g. prongs on
+    the outline's layer) never close into a polygon, so they are excluded here where
+    a layer or bbox filter cannot separate them.
+
+    Returns the outline bbox (mm) or None when nothing closes.
+    """
+    try:
+        from shapely.geometry import LineString
+        from shapely.ops import polygonize, snap, unary_union
+    except Exception as error:  # noqa: BLE001 — shapely should be installed; never fail the parse
+        logger.warning("Table B DXF outline detection: shapely unavailable: %s", error)
+        return None
+
+    segments = []
+    for item in (*loops, *open_paths):
+        pts = item.get("points") or []
+        if len(pts) >= 2:
+            segments.append([(float(p[0]), float(p[1])) for p in pts])
+    if not segments:
+        return None
+
+    # Snap tolerance scaled to the model size so it welds gaps without merging real
+    # features. Model spans hundreds of mm; ~0.5mm closes hand-drawn gaps.
+    all_pts = [p for seg in segments for p in seg]
+    span = max(
+        max(p[0] for p in all_pts) - min(p[0] for p in all_pts),
+        max(p[1] for p in all_pts) - min(p[1] for p in all_pts),
+        1.0,
+    )
+    snap_tol = max(0.5, span * 1e-3)
+
+    try:
+        lines = [LineString(seg) for seg in segments]
+        merged = unary_union(lines)
+        merged = snap(merged, merged, snap_tol)
+        polygons = list(polygonize(unary_union(merged)))
+    except Exception as error:  # noqa: BLE001 — a geometry hiccup must never fail the parse
+        logger.warning("Table B DXF outline detection: polygonize failed: %s", error)
+        return None
+
+    if not polygons:
+        return None
+
+    outline = max(polygons, key=lambda poly: poly.area)
+    min_x, min_y, max_x, max_y = outline.bounds
+
+    # Safety guard: a stray fragment can slice the outline so polygonize returns
+    # partial faces. If the largest polygon is much smaller than the overall geometry
+    # span in BOTH axes, the outline did not close cleanly — return None and let the
+    # caller fall back to part_bbox rather than shrink the door to a fragment.
+    geo_min_x = min(p[0] for p in all_pts)
+    geo_max_x = max(p[0] for p in all_pts)
+    geo_min_y = min(p[1] for p in all_pts)
+    geo_max_y = max(p[1] for p in all_pts)
+    geo_w = max(geo_max_x - geo_min_x, 1e-9)
+    geo_h = max(geo_max_y - geo_min_y, 1e-9)
+    covers_w = (max_x - min_x) >= 0.9 * geo_w
+    covers_h = (max_y - min_y) >= 0.9 * geo_h
+    if not covers_w and not covers_h:
+        logger.warning(
+            "Table B DXF outline detection: largest polygon (%.1f x %.1f) far smaller "
+            "than geometry span (%.1f x %.1f); treating as no clean outline.",
+            max_x - min_x, max_y - min_y, geo_w, geo_h,
+        )
+        return None
+
+    return {"min_x": float(min_x), "min_y": float(min_y), "max_x": float(max_x), "max_y": float(max_y)}
+
+
 def _normalize_geometry(
     loops: list[dict[str, Any]],
     open_paths: list[dict[str, Any]],
@@ -222,6 +300,11 @@ def _normalize_geometry(
     final_x = (max_x - min_x) * mm_per_unit
     final_y = (max_y - min_y) * mm_per_unit
     y_size_mm = final_y
+
+    # Stitch the transformed line geometry into closed polygons; the largest is the
+    # door outline. Dangling fragments (e.g. prongs on the outline's layer) never
+    # close into a polygon, so this excludes them where a layer/bbox filter cannot.
+    outline_bbox = _detect_outline_bbox(loops, open_paths)
     return {
         "applied": True,
         "rotated": rotated,
@@ -236,6 +319,11 @@ def _normalize_geometry(
         # it rather than re-deriving a bbox from all geometry — layers such as grooves
         # can overhang the part and would inflate that bbox.
         "part_bbox": {"min_x": 0.0, "min_y": 0.0, "max_x": final_x, "max_y": final_y},
+        # The door outline stitched from line segments (largest closed polygon), in
+        # the machine frame (mm). Excludes dangling fragments that a layer/bbox filter
+        # cannot (e.g. prongs sharing the outline's layer). null when nothing closed —
+        # consumers then fall back to part_bbox.
+        "outline_bbox": outline_bbox,
         "size": [final_x, final_y],
         "y_size_mm": y_size_mm,
         "max_y_mm": _MAX_Y_MM,

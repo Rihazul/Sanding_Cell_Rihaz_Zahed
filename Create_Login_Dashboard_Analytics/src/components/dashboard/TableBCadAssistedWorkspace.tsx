@@ -965,6 +965,10 @@ export function TableBCadAssistedWorkspace({
   // derived from the outline layer alone, so it stays correct when other layers
   // (e.g. grooves) overhang the part edge. Null until a DXF reports one.
   const [dxfPartBBox, setDxfPartBBox] = React.useState<DxfBBox>(null);
+  // The door outline stitched from line segments at parse time (largest closed
+  // polygon). Excludes dangling fragments that share the outline's layer (e.g.
+  // prongs on layer "0"), which part_bbox cannot. Null when nothing closed cleanly.
+  const [dxfOutlineBBox, setDxfOutlineBBox] = React.useState<DxfBBox>(null);
   const [dxfFrameWarnings, setDxfFrameWarnings] = React.useState<TableBDxfFrameWarning[]>([]);
   const [dxfShowFrame, setDxfShowFrame] = React.useState(true);
   const [dxfShowToolpaths, setDxfShowToolpaths] = React.useState(true);
@@ -1045,6 +1049,7 @@ export function TableBCadAssistedWorkspace({
           mm_per_unit?: number;
           origin_source?: string;
           part_bbox?: { min_x: number; min_y: number; max_x: number; max_y: number };
+          outline_bbox?: { min_x: number; min_y: number; max_x: number; max_y: number } | null;
         };
       }).normalization;
       const mmPerUnit = normalization?.mm_per_unit;
@@ -1052,10 +1057,14 @@ export function TableBCadAssistedWorkspace({
       // Authoritative part extent (outline only). Frame toolpaths must use this rather
       // than a bbox over all geometry, which overhanging layers would inflate.
       setDxfPartBBox(normalization?.part_bbox ?? null);
+      // Stitched door outline (largest closed polygon); excludes prongs sharing the
+      // outline's layer. Preferred over part_bbox for the frame when present.
+      setDxfOutlineBBox(normalization?.outline_bbox ?? null);
       console.log('[DXF Viewer] normalization', {
         mm_per_unit: mmPerUnit,
         origin_source: normalization?.origin_source,
         part_bbox: normalization?.part_bbox,
+        outline_bbox: normalization?.outline_bbox,
       });
       setDxfJobId(upload.job_id);
       setDxfLoops(loops);
@@ -1369,19 +1378,23 @@ export function TableBCadAssistedWorkspace({
   // that a layer filter cannot separate). Fall back to part_bbox / all-geometry when
   // no frame region is assigned.
   const dxfFrameBounds = (): DxfBBox => {
-    const framePts: number[][] = dxfManualSurfaces
-      .filter(
-        (s) =>
-          (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') &&
-          s.outer_points,
-      )
-      .flatMap((s) => s.outer_points as number[][]);
+    // 1. Prefer the operator's selected Frame Level / Outer Boundary region.
+    const frameSurfaces = dxfManualSurfaces.filter(
+      (s) =>
+        (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') &&
+        s.outer_points,
+    );
+    const framePts: number[][] = frameSurfaces.flatMap((s) => s.outer_points as number[][]);
     if (framePts.length > 0) {
       const xs = framePts.map((p) => p[0]);
       const ys = framePts.map((p) => p[1]);
       return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
     }
-    return dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    // 2. No selected frame region: use the stitched door outline (largest closed
+    //    polygon) when the parse produced one — it excludes dangling fragments that
+    //    share the outline's layer (e.g. prongs on layer "0") which part_bbox cannot.
+    //    Fall back to part_bbox / all-geometry when no clean outline closed.
+    return dxfOutlineBBox ?? dxfPartBBox ?? dxfBoundsOfAllGeometry();
   };
 
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
