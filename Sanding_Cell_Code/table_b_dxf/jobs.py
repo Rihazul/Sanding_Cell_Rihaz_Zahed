@@ -97,6 +97,11 @@ def prune_old_table_b_dxf_jobs(keep: int = MAX_KEPT_JOBS) -> None:
             target = root / job_id
             if target.exists():
                 shutil.rmtree(target, ignore_errors=True)
+        # DIAGNOSTIC ONLY (safe to remove with the origin_diagnostic feature): drop the
+        # per-job debug report too, so table_b_dxf/debug does not grow without bound.
+        debug_report = TABLE_B_DXF_ROOT / "debug" / f"origin_diagnostic_{job_id}.txt"
+        if debug_report.exists():
+            debug_report.unlink(missing_ok=True)
         logger.info("Pruned old Table B DXF job: %s", job_id)
 
 
