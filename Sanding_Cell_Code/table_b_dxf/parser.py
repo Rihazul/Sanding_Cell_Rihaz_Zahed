@@ -99,28 +99,53 @@ def _all_points(loops: list[dict[str, Any]], open_paths: list[dict[str, Any]]) -
     return pts
 
 
-# Layer holding the part outline. The machine origin is the part's bottom-right
-# corner, so the origin bbox must come from the outline alone: other layers can
-# legitimately overhang it (e.g. grooves drawn past the edge), and including them
-# drags the origin off the part by the overhang distance.
-_CONTOUR_LAYER_NAMES = {"contour", "outer", "outline"}
+# The machine origin is the part's bottom-right corner, so the origin bbox must come
+# from the door outline alone. Other layers can overhang it (e.g. grooves drawn past
+# the edge) and would drag the origin off the part by the overhang distance.
+#
+# Layer selection for the origin bbox (all matches case-insensitive):
+#   - _CONTOUR_LAYER_NAMES: layers that ARE the outline. "0" is AutoCAD's default
+#     layer, which many exports draw the outline on.
+#   - _NON_OUTLINE_LAYER_NAMES: layers that are never the outline (grooves, notes,
+#     dimensions, construction/center/hidden lines, text/annotation).
+# Rule: if any allowlisted layer is present, use only those. Otherwise use every
+# layer EXCEPT the excluded ones (so a file with just "0" + "Groove" keeps "0",
+# drops "Groove"). Only as a last resort (everything excluded) fall back to all.
+_CONTOUR_LAYER_NAMES = {"contour", "outer", "outline", "0"}
+_NON_OUTLINE_LAYER_NAMES = {
+    "groove", "notes", "dimensions", "dim", "center", "centerline",
+    "construction", "hidden", "text", "annotation",
+}
+
+
+def _select_origin_layers(layers: set[str]) -> tuple[set[str], str]:
+    """Decide which layer names define the origin bbox, plus the source label.
+
+    `layers` are the raw layer names present in the drawing.
+    """
+    allow = {ly for ly in layers if ly.strip().lower() in _CONTOUR_LAYER_NAMES}
+    if allow:
+        return allow, "contour_layer"
+    non_excluded = {ly for ly in layers if ly.strip().lower() not in _NON_OUTLINE_LAYER_NAMES}
+    if non_excluded:
+        return non_excluded, "non_excluded_layers"
+    return set(layers), "all_entities"
 
 
 def _origin_reference_points(
     loops: list[dict[str, Any]],
     open_paths: list[dict[str, Any]],
 ) -> tuple[list[list[float]], str]:
-    """Points that define the machine-origin bbox, plus the source used.
-
-    Prefers the part-outline layer when the drawing has one; otherwise falls back
-    to every point (drawings without a named outline layer are unchanged).
-    """
-    outline: list[list[float]] = []
-    for item in (*loops, *open_paths):
-        if str(item.get("layer", "")).strip().lower() in _CONTOUR_LAYER_NAMES:
-            outline.extend(item["points"])
-    if outline:
-        return outline, "contour_layer"
+    """Points that define the machine-origin bbox, plus the source used."""
+    items = (*loops, *open_paths)
+    layers = {str(item.get("layer", "")) for item in items}
+    selected, source = _select_origin_layers(layers)
+    pts: list[list[float]] = []
+    for item in items:
+        if str(item.get("layer", "")) in selected:
+            pts.extend(item["points"])
+    if pts:
+        return pts, source
     return _all_points(loops, open_paths), "all_entities"
 
 

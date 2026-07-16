@@ -1330,24 +1330,31 @@ export function TableBCadAssistedWorkspace({
     return segments;
   };
 
-  // Layers that hold the part outline. Other layers (e.g. grooves) can draw lines
-  // that overhang the part edge; those must never define the part bounds, or the
-  // origin / corner points / toolpaths pick up the overhang. Mirrors the backend
-  // _origin_reference_points contour preference.
-  const DXF_CONTOUR_LAYERS = new Set(['contour', 'outer', 'outline']);
+  // Layer selection for the part bounds. Other layers (e.g. grooves) can draw lines
+  // that overhang the part edge; those must never define the bounds, or the origin /
+  // corner points / toolpaths pick up the overhang. Mirrors the backend
+  // _select_origin_layers rule. All matching is case-insensitive.
+  //   - allowlist: layers that ARE the outline ("0" is AutoCAD's default layer).
+  //   - exclusion: layers that are never the outline.
+  const DXF_CONTOUR_LAYERS = new Set(['contour', 'outer', 'outline', '0']);
+  const DXF_NON_OUTLINE_LAYERS = new Set([
+    'groove', 'notes', 'dimensions', 'dim', 'center', 'centerline',
+    'construction', 'hidden', 'text', 'annotation',
+  ]);
 
-  // Part-boundary fallback for drawings whose parse reports no part_bbox. Prefers
-  // the contour/outline layer so overhanging layers cannot inflate the bounds; only
-  // when no outline layer exists does it fall back to every entity.
+  // Part-boundary fallback for drawings whose parse reports no part_bbox. Rule: if any
+  // allowlisted layer is present, use only those; otherwise use every layer EXCEPT the
+  // excluded ones; last resort, use all geometry.
   const dxfBoundsOfAllGeometry = (): DxfBBox => {
-    const onContour = (layer?: string) => !!layer && DXF_CONTOUR_LAYERS.has(layer.trim().toLowerCase());
-    const contourPts: number[][] = [
-      ...dxfLoops.filter((l) => onContour(l.layer)).flatMap((l) => l.points),
-      ...dxfOpenPaths.filter((p) => onContour(p.layer)).flatMap((p) => p.points),
+    const norm = (layer?: string) => (layer ?? '').trim().toLowerCase();
+    const all = [
+      ...dxfLoops.map((l) => ({ layer: l.layer, points: l.points })),
+      ...dxfOpenPaths.map((p) => ({ layer: p.layer, points: p.points })),
     ];
-    const pts: number[][] = contourPts.length > 0
-      ? contourPts
-      : [...dxfLoops.flatMap((l) => l.points), ...dxfOpenPaths.flatMap((p) => p.points)];
+    const allow = all.filter((e) => DXF_CONTOUR_LAYERS.has(norm(e.layer)));
+    const nonExcluded = all.filter((e) => !DXF_NON_OUTLINE_LAYERS.has(norm(e.layer)));
+    const selected = allow.length > 0 ? allow : (nonExcluded.length > 0 ? nonExcluded : all);
+    const pts: number[][] = selected.flatMap((e) => e.points);
     if (pts.length === 0) return null;
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);

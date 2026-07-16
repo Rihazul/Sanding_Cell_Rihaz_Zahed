@@ -107,24 +107,38 @@ def write_origin_diagnostic(
             w(f"    {layer:16s} n={s['count']:<4d} "
               f"x[{s['min_x']:.4f}, {s['max_x']:.4f}] y[{s['min_y']:.4f}, {s['max_y']:.4f}]")
 
-        # 2. Which layers _origin_reference_points KEEPS vs REJECTS.
+        # 2. Which layers define the origin bbox — allowlist matches, exclusion
+        #    matches, and the final selection, computed with the parser's own rule.
         w("")
         w("[2] _origin_reference_points layer decision")
-        w(f"    contour layer names (kept if matched): {sorted(contour_layer_names)}")
-        kept, rejected = [], []
-        for layer in sorted(stats):
-            if layer.strip().lower() in contour_layer_names:
-                kept.append(layer)
-            else:
-                rejected.append(layer)
+        try:
+            from .parser import (
+                _NON_OUTLINE_LAYER_NAMES as exclusion_names,
+                _select_origin_layers,
+            )
+        except Exception:  # noqa: BLE001
+            exclusion_names = set()
+            _select_origin_layers = None
+
+        w(f"    allowlist (kept if matched)   : {sorted(contour_layer_names)}")
+        w(f"    exclusion (never outline)     : {sorted(exclusion_names)}")
+
+        allow_hits = [ly for ly in sorted(stats) if ly.strip().lower() in contour_layer_names]
+        excl_hits = [ly for ly in sorted(stats) if ly.strip().lower() in exclusion_names]
+        w(f"    layers matching allowlist     : {allow_hits if allow_hits else '(none)'}")
+        w(f"    layers matching exclusion     : {excl_hits if excl_hits else '(none)'}")
+
         origin_source = normalization.get("origin_source", "unknown")
         w(f"    origin_source reported by parser : {origin_source}")
-        if origin_source == "contour_layer":
-            w(f"    KEPT     (define origin bbox)    : {kept if kept else '(none)'}")
-            w(f"    REJECTED (excluded from origin)  : {rejected if rejected else '(none)'}")
+
+        if _select_origin_layers is not None:
+            selected, sel_source = _select_origin_layers(set(stats.keys()))
+            rejected = [ly for ly in sorted(stats) if ly not in selected]
+            w(f"    selection rule outcome        : {sel_source}")
+            w(f"    FINAL layers used for origin bbox : {sorted(selected)}")
+            w(f"    layers REJECTED from origin bbox  : {rejected if rejected else '(none)'}")
         else:
-            w("    origin_source is NOT contour_layer -> ALL layers are used for the")
-            w("    origin bbox (no outline layer matched). KEPT = every layer above.")
+            w("    (could not import parser selection rule to report final layers)")
 
         # 3 + 4. Final origin and bbox (normalized frame, mm).
         w("")
@@ -193,17 +207,25 @@ def _raw_top_right_from_outline(
     Uses the contour-layer points when present (matching _origin_reference_points),
     else all points. Returns (x, y, source) or None.
     """
-    contour_pts: list[list[float]] = []
+    # Use the parser's own layer-selection rule so the reported corner matches what
+    # the origin bbox is actually derived from.
+    try:
+        from .parser import _select_origin_layers
+        layers = {str(item.get("layer", "")) for item in raw_layer_items}
+        selected, source = _select_origin_layers(layers)
+    except Exception:  # noqa: BLE001
+        selected, source = None, "all_entities"
+
     all_pts: list[list[float]] = []
+    sel_pts: list[list[float]] = []
     for item in raw_layer_items:
         pts = item.get("points") or []
         all_pts.extend(pts)
-        if str(item.get("layer", "")).strip().lower() in contour_layer_names:
-            contour_pts.extend(pts)
-    pts = contour_pts if contour_pts else all_pts
+        if selected is not None and str(item.get("layer", "")) in selected:
+            sel_pts.extend(pts)
+    pts = sel_pts if sel_pts else all_pts
     if not pts:
         return None
     max_x = max(p[0] for p in pts)
     max_y = max(p[1] for p in pts)
-    source = "contour_layer" if contour_pts else "all_entities"
-    return max_x, max_y, source
+    return max_x, max_y, source if sel_pts else "all_entities"
