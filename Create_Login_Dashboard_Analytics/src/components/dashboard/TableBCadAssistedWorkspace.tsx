@@ -1330,13 +1330,24 @@ export function TableBCadAssistedWorkspace({
     return segments;
   };
 
-  // Bounding box over every parsed entity. Only a fallback for drawings whose parse
-  // reports no part_bbox — overhanging layers inflate it, so prefer dxfPartBBox.
+  // Layers that hold the part outline. Other layers (e.g. grooves) can draw lines
+  // that overhang the part edge; those must never define the part bounds, or the
+  // origin / corner points / toolpaths pick up the overhang. Mirrors the backend
+  // _origin_reference_points contour preference.
+  const DXF_CONTOUR_LAYERS = new Set(['contour', 'outer', 'outline']);
+
+  // Part-boundary fallback for drawings whose parse reports no part_bbox. Prefers
+  // the contour/outline layer so overhanging layers cannot inflate the bounds; only
+  // when no outline layer exists does it fall back to every entity.
   const dxfBoundsOfAllGeometry = (): DxfBBox => {
-    const pts: number[][] = [
-      ...dxfLoops.flatMap((l) => l.points),
-      ...dxfOpenPaths.flatMap((p) => p.points),
+    const onContour = (layer?: string) => !!layer && DXF_CONTOUR_LAYERS.has(layer.trim().toLowerCase());
+    const contourPts: number[][] = [
+      ...dxfLoops.filter((l) => onContour(l.layer)).flatMap((l) => l.points),
+      ...dxfOpenPaths.filter((p) => onContour(p.layer)).flatMap((p) => p.points),
     ];
+    const pts: number[][] = contourPts.length > 0
+      ? contourPts
+      : [...dxfLoops.flatMap((l) => l.points), ...dxfOpenPaths.flatMap((p) => p.points)];
     if (pts.length === 0) return null;
     const xs = pts.map((p) => p[0]);
     const ys = pts.map((p) => p[1]);
