@@ -1361,6 +1361,29 @@ export function TableBCadAssistedWorkspace({
     return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
   };
 
+  // Bounds used for the frame (outer boundary, sections, zigzag).
+  //
+  // Prefer the operator's SELECTED Frame Level / Outer Boundary region: its
+  // outer_points are the door the operator drew a region around, so they exclude
+  // stray fragments that share a layer with the outline (e.g. prongs on layer "0"
+  // that a layer filter cannot separate). Fall back to part_bbox / all-geometry when
+  // no frame region is assigned.
+  const dxfFrameBounds = (): DxfBBox => {
+    const framePts: number[][] = dxfManualSurfaces
+      .filter(
+        (s) =>
+          (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') &&
+          s.outer_points,
+      )
+      .flatMap((s) => s.outer_points as number[][]);
+    if (framePts.length > 0) {
+      const xs = framePts.map((p) => p[0]);
+      const ys = framePts.map((p) => p[1]);
+      return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
+    }
+    return dxfPartBBox ?? dxfBoundsOfAllGeometry();
+  };
+
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
   // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
   // it has NO offset and starts at the machine origin (0,0 = bottom-right corner),
@@ -1376,9 +1399,9 @@ export function TableBCadAssistedWorkspace({
 
     // Full frame extent = the part's outline. Prefer the backend's part_bbox: it is
     // derived from the outline layer alone, so layers that overhang the part edge
-    // (e.g. grooves) cannot inflate it. Fall back to all geometry for drawings that
-    // report no part_bbox.
-    const bounds = dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    // (e.g. grooves) cannot inflate it, and the selected Frame region trims stray
+    // fragments that share the outline's layer.
+    const bounds = dxfFrameBounds();
     if (!bounds) return [];
     const bxLo = bounds.min_x;
     const bxHi = bounds.max_x;
@@ -1425,10 +1448,10 @@ export function TableBCadAssistedWorkspace({
   // with a coordinate grid + greedy maximal-rectangle merge, so sections are unique,
   // non-overlapping, and never cover a Pocket or 3D Contour. No toolpaths yet.
   const computeDxfFrameSections = () => {
-    // The frame's outer boundary is the part's outline, not a bbox over every entity:
-    // overhanging layers (e.g. grooves) would otherwise stretch the sections past the
-    // part edge and shift every section corner.
-    const outerBounds = dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    // The frame's outer boundary is the door outline, not a bbox over every entity:
+    // overhanging layers and stray fragments would otherwise stretch the sections
+    // past the part edge and shift every section corner.
+    const outerBounds = dxfFrameBounds();
     if (!outerBounds) return [];
     const outer = { x0: outerBounds.min_x, x1: outerBounds.max_x, y0: outerBounds.min_y, y1: outerBounds.max_y };
 
@@ -2186,10 +2209,11 @@ export function TableBCadAssistedWorkspace({
         );
       }
     } else if (sourceType === 'computed_frame') {
-      // Overall door outer boundary = the part's outline (bottom-right is the
-      // machine-frame origin), listed CCW from the origin corner. Uses the parse-time
-      // part_bbox so layers that overhang the part edge (e.g. grooves) do not inflate it.
-      const outerBounds = dxfPartBBox ?? dxfBoundsOfAllGeometry();
+      // Overall door outer boundary = the door outline (bottom-right is the
+      // machine-frame origin), listed CCW from the origin corner. Uses the selected
+      // Frame region when present so it matches the frame toolpath exactly, else the
+      // parse-time part_bbox.
+      const outerBounds = dxfFrameBounds();
       if (outerBounds) {
         const { min_x: xLo, max_x: xHi, min_y: yLo, max_y: yHi } = outerBounds;
         shapes.push({
