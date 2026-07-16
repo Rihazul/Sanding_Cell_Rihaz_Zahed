@@ -2131,12 +2131,16 @@ export function TableBCadAssistedWorkspace({
     const forRegion = (segs: { id: string }[]) => segs.filter((s) => s.id.startsWith(`${rowId}_`));
 
     if (sourceType === 'line_surface' || sourceType === 'closed_loop') {
+      // The region's assigned operation decides which toolpaths belong to it.
+      let assignedOperation: string | undefined;
       if (sourceType === 'line_surface') {
         const s = dxfManualSurfaces.find((x) => x.id === rowId);
+        assignedOperation = s?.assigned_operation;
         if (s?.outer_points) shapes.push({ label: 'Outer corners', points: s.outer_points });
         if (s?.holes?.[0]) shapes.push({ label: 'Inner corners', points: s.holes[0] });
       } else {
         const l = dxfLoops.find((x) => x.entity_id === rowId);
+        assignedOperation = dxfAssignments[rowId];
         if (l) shapes.push({ label: 'Corners', points: l.points });
       }
       dxfSegmentsToPolylines(forRegion(dxfPocketToolpaths) as never).forEach((p) =>
@@ -2148,6 +2152,21 @@ export function TableBCadAssistedWorkspace({
       dxfSegmentsToPolylines(forRegion(dxf3dContourToolpaths) as never).forEach((p) =>
         toolpaths.push({ label: '3D contour ring', points: p.points }),
       );
+      // Frame Level / Outer Boundary regions drive the global frame toolpath (it is
+      // computed over the whole part, not per-region), so surface it on this region.
+      const isFrameRegion =
+        assignedOperation === 'frame_level' ||
+        assignedOperation === 'outer_boundary' ||
+        assignedOperation === 'frame' ||
+        assignedOperation === 'outer';
+      if (isFrameRegion) {
+        dxfFrameSectionPaths.forEach((p, i) =>
+          toolpaths.push({ label: `Frame section pass ${i + 1}`, points: p.points }),
+        );
+        dxfSegmentsToPolylines(dxfFrameZigzag).forEach((p) =>
+          toolpaths.push({ label: 'Frame zigzag · Tool 4', points: p.points }),
+        );
+      }
     } else if (sourceType === 'computed_frame') {
       // Overall door outer boundary = the part's outline (bottom-right is the
       // machine-frame origin), listed CCW from the origin corner. Uses the parse-time
