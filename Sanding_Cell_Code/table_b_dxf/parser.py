@@ -466,11 +466,34 @@ def parse_dxf_loops(job_id: str) -> dict[str, Any]:
         else:
             unsupported_ignored += 1
 
+    # DIAGNOSTIC ONLY (safe to remove): snapshot raw layer + points BEFORE
+    # normalization mutates them in place, so the diagnostic can report the untouched
+    # drawing-unit geometry.
+    _diag_raw_items = [
+        {"layer": item.get("layer", "0"), "points": [list(p) for p in item.get("points", [])]}
+        for item in (*loops, *open_paths)
+    ]
+
     # Transform everything into the machine frame (origin bottom-right, +X left,
     # +Y up, with a 90-degree rotation when the part is taller than wide). Units are
     # resolved from $INSUNITS with a size-based fallback so mm/inch parts scale right.
     inches_per_unit = _inches_per_unit(doc, _all_points(loops, open_paths))
     normalization = _normalize_geometry(loops, open_paths, inches_per_unit)
+
+    # DIAGNOSTIC ONLY (safe to remove): write the origin/overhang report to
+    # table_b_dxf/debug/origin_diagnostic_<job_id>.txt. Never affects the parse.
+    try:
+        from .origin_diagnostic import write_origin_diagnostic
+
+        write_origin_diagnostic(
+            job_id=job_id,
+            doc=doc,
+            raw_layer_items=_diag_raw_items,
+            normalization=normalization,
+            contour_layer_names=_CONTOUR_LAYER_NAMES,
+        )
+    except Exception as _diag_error:  # noqa: BLE001 — diagnostics must never break a parse
+        logger.warning("origin_diagnostic hook failed for job %s: %s", job_id, _diag_error)
 
     narrow_loops = sum(1 for loop in loops if loop["aspect_ratio"] >= NARROW_ASPECT_RATIO)
 

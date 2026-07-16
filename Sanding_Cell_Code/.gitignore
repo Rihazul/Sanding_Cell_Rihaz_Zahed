@@ -3,3 +3,6 @@ __pycache__/*
 build/*
 dist/*
 logs
+
+# Table B DXF origin diagnostics (generated at parse time; diagnostic-only)
+table_b_dxf/debug/
