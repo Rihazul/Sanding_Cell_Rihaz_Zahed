@@ -1382,6 +1382,17 @@ export function TableBCadAssistedWorkspace({
     height: bbox ? bbox.max_y - bbox.min_y : 0,
   });
 
+  const dxfLargestClosedLoopBounds = (): DxfBBox => {
+    const largest = [...dxfLoops]
+      .filter((loop) => (loop.points || []).length >= 3)
+      .map((loop) => ({
+        loop,
+        area: Number.isFinite((loop as any).area) ? Number((loop as any).area) : dxfPolygonArea(loop.points || []),
+      }))
+      .sort((a, b) => b.area - a.area)[0]?.loop;
+    return largest ? dxfBBoxOfPoints(largest.points || []) : null;
+  };
+
   const dxfComputedFrameLoopBounds = (): DxfBBox => {
     const workRegions = [
       ...dxfManualSurfaces
@@ -1437,12 +1448,14 @@ export function TableBCadAssistedWorkspace({
     const selectedFrameBounds = dxfBBoxOfPoints([...framePts, ...assignedFrameLoopPts]);
     if (selectedFrameBounds) return selectedFrameBounds;
 
-    // 3. No selected frame/outer geometry: use the parser's normalized door
-    // outline first. This is the same bounded part outline used by the correct
-    // preview/corner data and avoids inferred loops extending the top Y.
-    // Loop inference stays as a fallback for DXFs that do not report an outline.
+    // 3. No selected frame/outer geometry: use the same automatic door boundary
+    // as the viewer background: the largest closed loop. Do not require
+    // dxfPolygonNested() here; line-built pocket/3D surfaces can sit on the border
+    // by tiny tolerances and falsely reject the real door loop, falling back to an
+    // inflated part bbox.
+    const largestClosedLoopBounds = dxfLargestClosedLoopBounds();
     const closedLoopBounds = dxfComputedFrameLoopBounds();
-    return dxfOutlineBBox ?? dxfPartBBox ?? closedLoopBounds ?? dxfBoundsOfAllGeometry();
+    return largestClosedLoopBounds ?? dxfOutlineBBox ?? dxfPartBBox ?? closedLoopBounds ?? dxfBoundsOfAllGeometry();
   };
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
   // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
