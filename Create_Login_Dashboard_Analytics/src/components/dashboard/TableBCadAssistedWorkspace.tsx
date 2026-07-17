@@ -1437,11 +1437,12 @@ export function TableBCadAssistedWorkspace({
     const selectedFrameBounds = dxfBBoxOfPoints([...framePts, ...assignedFrameLoopPts]);
     if (selectedFrameBounds) return selectedFrameBounds;
 
-    // 3. No selected frame/outer geometry: infer the smallest closed loop that
-    // contains the selected pocket / 3D regions. Fall back only when no usable
-    // loop exists.
+    // 3. No selected frame/outer geometry: use the parser's normalized door
+    // outline first. This is the same bounded part outline used by the correct
+    // preview/corner data and avoids inferred loops extending the top Y.
+    // Loop inference stays as a fallback for DXFs that do not report an outline.
     const closedLoopBounds = dxfComputedFrameLoopBounds();
-    return closedLoopBounds ?? dxfOutlineBBox ?? dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    return dxfOutlineBBox ?? dxfPartBBox ?? closedLoopBounds ?? dxfBoundsOfAllGeometry();
   };
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
   // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
