@@ -1382,15 +1382,72 @@ export function TableBCadAssistedWorkspace({
     height: bbox ? bbox.max_y - bbox.min_y : 0,
   });
 
-  const dxfLargestClosedLoopBounds = (): DxfBBox => {
-    const largest = [...dxfLoops]
-      .filter((loop) => (loop.points || []).length >= 3)
-      .map((loop) => ({
-        loop,
-        area: Number.isFinite((loop as any).area) ? Number((loop as any).area) : dxfPolygonArea(loop.points || []),
-      }))
-      .sort((a, b) => b.area - a.area)[0]?.loop;
-    return largest ? dxfBBoxOfPoints(largest.points || []) : null;
+  const dxfWorkRegionPoints = (): number[][][] => [
+    ...dxfManualSurfaces
+      .filter((s) => (s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area') && s.outer_points)
+      .map((s) => s.outer_points as number[][]),
+    ...dxfLoops
+      .filter((loop) => dxfAssignments[loop.entity_id] === 'pocket' || dxfAssignments[loop.entity_id] === 'surface3d')
+      .map((loop) => loop.points || []),
+  ].filter((pts) => pts.length >= 3);
+
+  const dxfBBoxContains = (outer: DxfBBox, inner: DxfBBox, tolerance = 1e-3) =>
+    !!outer &&
+    !!inner &&
+    outer.min_x <= inner.min_x + tolerance &&
+    outer.max_x >= inner.max_x - tolerance &&
+    outer.min_y <= inner.min_y + tolerance &&
+    outer.max_y >= inner.max_y - tolerance;
+
+  const dxfAutoOuterBoundaryLoopId = (): string | null => {
+    const workRegions = dxfWorkRegionPoints();
+    if (!workRegions.length) return null;
+    const workBounds = dxfBBoxOfPoints(workRegions.flat());
+    const excludedWorkLoopIds = new Set(
+      dxfLoops
+        .filter((loop) => dxfAssignments[loop.entity_id] === 'pocket' || dxfAssignments[loop.entity_id] === 'surface3d')
+        .map((loop) => loop.entity_id),
+    );
+    const candidates = dxfLoops
+      .filter((loop) => (loop.points || []).length >= 3 && !excludedWorkLoopIds.has(loop.entity_id))
+      .map((loop) => {
+        const bbox = dxfBBoxOfPoints(loop.points || []);
+        const area = Number.isFinite((loop as any).area) ? Number((loop as any).area) : dxfPolygonArea(loop.points || []);
+        const size = dxfBBoxSize(bbox);
+        const containsWork = workBounds ? dxfBBoxContains(bbox, workBounds, 1e-2) : true;
+        const containsByPolygon = workRegions.length > 0 && workRegions.every((region) => dxfPolygonNested(region, loop.points || []));
+        return { loop, bbox, area, size, containsWork, containsByPolygon };
+      })
+      .filter((candidate) => candidate.bbox && candidate.area > 1e-6 && candidate.containsWork)
+      .sort((a, b) => {
+        // Same intent as manual Outer Boundary: choose the closed loop that wraps
+        // the selected work. BBox containment is intentionally tolerant because
+        // line-built surfaces can sit exactly on edges and fail polygon nesting.
+        if (a.containsByPolygon !== b.containsByPolygon) return a.containsByPolygon ? -1 : 1;
+        return a.area - b.area;
+      });
+
+    if (candidates.length) {
+      const selected = candidates[0];
+      console.table(
+        candidates.slice(0, 10).map((c, index) => ({
+          rank: index + 1,
+          selected: c.loop.entity_id === selected.loop.entity_id,
+          entity_id: c.loop.entity_id,
+          layer: c.loop.layer,
+          area: Math.round(c.area * 1000) / 1000,
+          min_y: c.bbox ? Math.round(c.bbox.min_y * 1000) / 1000 : null,
+          max_y: c.bbox ? Math.round(c.bbox.max_y * 1000) / 1000 : null,
+          width: Math.round(c.size.width * 1000) / 1000,
+          height: Math.round(c.size.height * 1000) / 1000,
+          containsByPolygon: c.containsByPolygon,
+        })),
+      );
+      console.log('[DXF Auto Outer] selected', { entity_id: selected.loop.entity_id, layer: selected.loop.layer, bbox: selected.bbox });
+      return selected.loop.entity_id;
+    }
+
+    return null;
   };
 
   const dxfComputedFrameLoopBounds = (): DxfBBox => {
@@ -1438,24 +1495,25 @@ export function TableBCadAssistedWorkspace({
     );
     const framePts: number[][] = frameSurfaces.flatMap((s) => s.outer_points as number[][]);
 
-    // 2. Also honor closed loops explicitly assigned as Frame / Outer Boundary.
-    // Without this, selecting the correct closed loop can still fall through to
-    // dxfOutlineBBox/dxfPartBBox and reintroduce the extended top Y.
+    // 2. Honor closed loops explicitly assigned as Frame / Outer Boundary, plus
+    // the auto-detected outer loop. The auto path intentionally feeds the selected
+    // entity_id through the same points branch as manual Outer Boundary.
+    const autoOuterBoundaryLoopId = dxfAutoOuterBoundaryLoopId();
     const assignedFrameLoopPts: number[][] = dxfLoops
-      .filter((loop) => dxfAssignments[loop.entity_id] === 'frame' || dxfAssignments[loop.entity_id] === 'outer')
+      .filter(
+        (loop) =>
+          dxfAssignments[loop.entity_id] === 'frame' ||
+          dxfAssignments[loop.entity_id] === 'outer' ||
+          loop.entity_id === autoOuterBoundaryLoopId,
+      )
       .flatMap((loop) => loop.points || []);
 
     const selectedFrameBounds = dxfBBoxOfPoints([...framePts, ...assignedFrameLoopPts]);
     if (selectedFrameBounds) return selectedFrameBounds;
 
-    // 3. No selected frame/outer geometry: use the same automatic door boundary
-    // as the viewer background: the largest closed loop. Do not require
-    // dxfPolygonNested() here; line-built pocket/3D surfaces can sit on the border
-    // by tiny tolerances and falsely reject the real door loop, falling back to an
-    // inflated part bbox.
-    const largestClosedLoopBounds = dxfLargestClosedLoopBounds();
+    // 3. Fallbacks only when no manual or automatic boundary loop is available.
     const closedLoopBounds = dxfComputedFrameLoopBounds();
-    return largestClosedLoopBounds ?? dxfOutlineBBox ?? dxfPartBBox ?? closedLoopBounds ?? dxfBoundsOfAllGeometry();
+    return dxfOutlineBBox ?? dxfPartBBox ?? closedLoopBounds ?? dxfBoundsOfAllGeometry();
   };
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
   // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
