@@ -201,13 +201,22 @@ def _detect_outline_bbox(
     if not polygons:
         return None
 
-    outline = max(polygons, key=lambda poly: poly.area)
-    min_x, min_y, max_x, max_y = outline.bounds
+    # Use the UNION of all closed faces, not the single largest. Stray lines (e.g. a
+    # prong extending past the door) slice the outline so polygonize returns several
+    # partial faces — pockets plus the frame pieces around them — and the largest one
+    # alone is just a pocket. Those faces TILE the real door, so their union recovers
+    # the true outline. Dangling open lines never bound a face, so the prong is
+    # naturally excluded from the union.
+    try:
+        outline = unary_union(polygons)
+        min_x, min_y, max_x, max_y = outline.bounds
+    except Exception as error:  # noqa: BLE001
+        logger.warning("Table B DXF outline detection: union of faces failed: %s", error)
+        return None
 
-    # Safety guard: a stray fragment can slice the outline so polygonize returns
-    # partial faces. If the largest polygon is much smaller than the overall geometry
-    # span in BOTH axes, the outline did not close cleanly — return None and let the
-    # caller fall back to part_bbox rather than shrink the door to a fragment.
+    # Safety guard: the union must span most of the geometry in at least one axis. If
+    # the faces cover only a small corner (the outline never really closed), fall back
+    # to part_bbox rather than shrink the door to a fragment.
     geo_min_x = min(p[0] for p in all_pts)
     geo_max_x = max(p[0] for p in all_pts)
     geo_min_y = min(p[1] for p in all_pts)
@@ -218,7 +227,7 @@ def _detect_outline_bbox(
     covers_h = (max_y - min_y) >= 0.9 * geo_h
     if not covers_w and not covers_h:
         logger.warning(
-            "Table B DXF outline detection: largest polygon (%.1f x %.1f) far smaller "
+            "Table B DXF outline detection: union of faces (%.1f x %.1f) far smaller "
             "than geometry span (%.1f x %.1f); treating as no clean outline.",
             max_x - min_x, max_y - min_y, geo_w, geo_h,
         )
