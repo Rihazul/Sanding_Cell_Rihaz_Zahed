@@ -1405,29 +1405,34 @@ export function TableBCadAssistedWorkspace({
   };
   // Bounds used for the frame (outer boundary, sections, zigzag).
   //
-  // Prefer the operator's SELECTED Frame Level / Outer Boundary region: its
-  // outer_points are the door the operator drew a region around, so they exclude
-  // stray fragments that share a layer with the outline (e.g. prongs on layer "0"
-  // that a layer filter cannot separate). Fall back to part_bbox / all-geometry when
-  // no frame region is assigned.
+  // Prefer the operator's selected Frame Level / Outer Boundary geometry. That
+  // is the only reliable way to prevent stray DXF fragments from stretching the
+  // computed frame outside the door closed loop.
   const dxfFrameBounds = (): DxfBBox => {
-    // 1. Prefer the operator's selected Frame Level / Outer Boundary region.
+    // 1. Prefer the operator's selected Frame Level / Outer Boundary surfaces.
     const frameSurfaces = dxfManualSurfaces.filter(
       (s) =>
         (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') &&
         s.outer_points,
     );
     const framePts: number[][] = frameSurfaces.flatMap((s) => s.outer_points as number[][]);
-    const selectedFrameBounds = dxfBBoxOfPoints(framePts);
+
+    // 2. Also honor closed loops explicitly assigned as Frame / Outer Boundary.
+    // Without this, selecting the correct closed loop can still fall through to
+    // dxfOutlineBBox/dxfPartBBox and reintroduce the extended top Y.
+    const assignedFrameLoopPts: number[][] = dxfLoops
+      .filter((loop) => dxfAssignments[loop.entity_id] === 'frame' || dxfAssignments[loop.entity_id] === 'outer')
+      .flatMap((loop) => loop.points || []);
+
+    const selectedFrameBounds = dxfBBoxOfPoints([...framePts, ...assignedFrameLoopPts]);
     if (selectedFrameBounds) return selectedFrameBounds;
-    // 2. No selected frame region: use the stitched door outline (largest closed
-    //    polygon) when the parse produced one — it excludes dangling fragments that
-    //    share the outline's layer (e.g. prongs on layer "0") which part_bbox cannot.
-    //    Fall back to part_bbox / all-geometry when no clean outline closed.
+
+    // 3. No selected frame/outer geometry: infer the smallest closed loop that
+    // contains the selected pocket / 3D regions. Fall back only when no usable
+    // loop exists.
     const closedLoopBounds = dxfComputedFrameLoopBounds();
     return closedLoopBounds ?? dxfOutlineBBox ?? dxfPartBBox ?? dxfBoundsOfAllGeometry();
   };
-
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
   // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
   // it has NO offset and starts at the machine origin (0,0 = bottom-right corner),
@@ -2003,9 +2008,8 @@ export function TableBCadAssistedWorkspace({
     setDxfSelectedIds([]);
   };
 
-  // Outer Boundary is not an assignable region: the remaining frame is computed
-  // automatically (Outer − Pocket − 3D Contour) when the toolpath is previewed.
   const dxfToolbarAssignments = [
+    { type: 'outer', label: DXF_REGION_META.outer.label, color: DXF_REGION_META.outer.color },
     { type: 'pocket', label: DXF_REGION_META.pocket.label, color: DXF_REGION_META.pocket.color },
     { type: 'surface3d', label: DXF_REGION_META.surface3d.label, color: DXF_REGION_META.surface3d.color },
     { type: 'frame', label: DXF_REGION_META.frame.label, color: DXF_REGION_META.frame.color },
@@ -2033,15 +2037,6 @@ export function TableBCadAssistedWorkspace({
     );
 
   const assignDxfToolbarRegion = (regionType: string) => {
-    // Block Frame Level once pockets / 3D contours exist — the frame is auto-computed.
-    if (regionType === 'frame' && dxfHasPocketOrContour) {
-      setDxfLockedOperation((prev) => (prev === 'frame' ? null : prev));
-      setDxfSurfaceMessage(
-        'Frame Level is not needed here — with pockets / 3D contours assigned, the frame is computed automatically on Preview Toolpath.',
-      );
-      return;
-    }
-
     // Reassign confirmed surfaces picked from the list first (works in any mode).
     if (dxfSelectedSurfaceIds.length > 0) {
       const operation = dxfRegionToOperation(regionType);
@@ -2476,13 +2471,10 @@ export function TableBCadAssistedWorkspace({
                     // there is something to assign (a detected surface, selected
                     // lines/loops, or a selected confirmed surface).
                     // Assign buttons stay enabled in Lines mode so the operator can
-                    // lock/unlock the operation even with no preview. Frame Level is
-                    // blocked once a pocket / 3D contour exists (frame is auto-computed).
-                    const frameBlocked = assignment.type === 'frame' && dxfHasPocketOrContour;
+                    // lock/unlock the operation even with no preview.
                     const disabled =
-                      frameBlocked ||
-                      (dxfSelectedSurfaceIds.length === 0 &&
-                        (dxfSelectionMode === 'line' ? false : dxfSelectedIds.length === 0));
+                      dxfSelectedSurfaceIds.length === 0 &&
+                      (dxfSelectionMode === 'line' ? false : dxfSelectedIds.length === 0);
                     const isLocked = dxfSelectionMode === 'line' && dxfLockedOperation === assignment.type;
                     return (
                       <button
@@ -2491,9 +2483,7 @@ export function TableBCadAssistedWorkspace({
                         disabled={disabled}
                         onClick={() => assignDxfToolbarRegion(assignment.type)}
                         title={
-                          frameBlocked
-                            ? 'Frame is computed automatically once pockets / 3D contours exist — no need to assign Frame Level'
-                            : isLocked
+                          isLocked
                             ? `${assignment.label} locked — keep selecting lines; click again to unlock`
                             : dxfSelectionMode === 'line'
                             ? `Click to lock ${assignment.label} for repeated line-surface assignment`
