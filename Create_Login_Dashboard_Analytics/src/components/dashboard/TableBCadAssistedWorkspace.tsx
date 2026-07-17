@@ -1382,30 +1382,26 @@ export function TableBCadAssistedWorkspace({
     height: bbox ? bbox.max_y - bbox.min_y : 0,
   });
 
-  const dxfLargestDoorLoopBounds = (): DxfBBox => {
-    const closedLoops = dxfLoops.filter((loop) => (loop.points || []).length >= 3);
-    if (!closedLoops.length) return null;
+  const dxfComputedFrameLoopBounds = (): DxfBBox => {
+    const workRegions = [
+      ...dxfManualSurfaces
+        .filter((s) => (s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area') && s.outer_points)
+        .map((s) => s.outer_points as number[][]),
+      ...dxfLoops
+        .filter((loop) => dxfAssignments[loop.entity_id] === 'pocket' || dxfAssignments[loop.entity_id] === 'surface3d')
+        .map((loop) => loop.points || []),
+    ].filter((pts) => pts.length >= 3);
 
-    const largestLoop = [...closedLoops].sort((a, b) => {
-      const areaA = Number.isFinite((a as any).area) ? Number((a as any).area) : dxfPolygonArea(a.points || []);
-      const areaB = Number.isFinite((b as any).area) ? Number((b as any).area) : dxfPolygonArea(b.points || []);
-      return areaB - areaA;
-    })[0];
-    const loopBounds = dxfBBoxOfPoints(largestLoop.points || []);
-    if (!loopBounds) return null;
+    if (!workRegions.length) return null;
+    const maxWorkArea = Math.max(...workRegions.map((pts) => dxfPolygonArea(pts)), 0);
+    const candidates = dxfLoops
+      .filter((loop) => (loop.points || []).length >= 3)
+      .map((loop) => ({ loop, area: Number.isFinite((loop as any).area) ? Number((loop as any).area) : dxfPolygonArea(loop.points || []) }))
+      .filter(({ loop, area }) => area > maxWorkArea * 1.05 && workRegions.every((region) => dxfPolygonNested(region, loop.points || [])))
+      .sort((a, b) => a.area - b.area);
 
-    // Use the loop as the door boundary only when it is almost the same extent as
-    // the parsed part. This rejects pocket loops while allowing the real door loop
-    // to override an inflated part/outline bbox caused by overhanging DXF guides.
-    const reference = dxfPartBBox ?? dxfOutlineBBox ?? null;
-    if (!reference) return loopBounds;
-    const loopSize = dxfBBoxSize(loopBounds);
-    const refSize = dxfBBoxSize(reference);
-    const coversReference =
-      refSize.width <= 1e-9 ||
-      refSize.height <= 1e-9 ||
-      (loopSize.width >= refSize.width * 0.85 && loopSize.height >= refSize.height * 0.85);
-    return coversReference ? loopBounds : null;
+    const selected = candidates[0]?.loop;
+    return selected ? dxfBBoxOfPoints(selected.points || []) : null;
   };
   // Bounds used for the frame (outer boundary, sections, zigzag).
   //
@@ -1428,7 +1424,7 @@ export function TableBCadAssistedWorkspace({
     //    polygon) when the parse produced one — it excludes dangling fragments that
     //    share the outline's layer (e.g. prongs on layer "0") which part_bbox cannot.
     //    Fall back to part_bbox / all-geometry when no clean outline closed.
-    const closedLoopBounds = dxfLargestDoorLoopBounds();
+    const closedLoopBounds = dxfComputedFrameLoopBounds();
     return closedLoopBounds ?? dxfOutlineBBox ?? dxfPartBBox ?? dxfBoundsOfAllGeometry();
   };
 
