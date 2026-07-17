@@ -1394,11 +1394,21 @@ export function TableBCadAssistedWorkspace({
 
     if (!workRegions.length) return null;
     const maxWorkArea = Math.max(...workRegions.map((pts) => dxfPolygonArea(pts)), 0);
+    const excludedWorkLoopIds = new Set(
+      dxfLoops
+        .filter((loop) => dxfAssignments[loop.entity_id] === 'pocket' || dxfAssignments[loop.entity_id] === 'surface3d')
+        .map((loop) => loop.entity_id),
+    );
+
+    // The computed frame must use the real door closed loop. Previously this
+    // picked the smallest parent loop around the work regions, which could be a
+    // local pocket/frame contour. Manual "Outer Boundary" worked because it
+    // forced the correct loop. Use the outermost containing loop automatically.
     const candidates = dxfLoops
-      .filter((loop) => (loop.points || []).length >= 3)
+      .filter((loop) => (loop.points || []).length >= 3 && !excludedWorkLoopIds.has(loop.entity_id))
       .map((loop) => ({ loop, area: Number.isFinite((loop as any).area) ? Number((loop as any).area) : dxfPolygonArea(loop.points || []) }))
       .filter(({ loop, area }) => area > maxWorkArea * 1.05 && workRegions.every((region) => dxfPolygonNested(region, loop.points || [])))
-      .sort((a, b) => a.area - b.area);
+      .sort((a, b) => b.area - a.area);
 
     const selected = candidates[0]?.loop;
     return selected ? dxfBBoxOfPoints(selected.points || []) : null;
@@ -2009,7 +2019,6 @@ export function TableBCadAssistedWorkspace({
   };
 
   const dxfToolbarAssignments = [
-    { type: 'outer', label: DXF_REGION_META.outer.label, color: DXF_REGION_META.outer.color },
     { type: 'pocket', label: DXF_REGION_META.pocket.label, color: DXF_REGION_META.pocket.color },
     { type: 'surface3d', label: DXF_REGION_META.surface3d.label, color: DXF_REGION_META.surface3d.color },
     { type: 'frame', label: DXF_REGION_META.frame.label, color: DXF_REGION_META.frame.color },
