@@ -1370,6 +1370,43 @@ export function TableBCadAssistedWorkspace({
     return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
   };
 
+  const dxfBBoxOfPoints = (pts: number[][]): DxfBBox => {
+    if (!pts.length) return null;
+    const xs = pts.map((p) => p[0]);
+    const ys = pts.map((p) => p[1]);
+    return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
+  };
+
+  const dxfBBoxSize = (bbox: DxfBBox) => ({
+    width: bbox ? bbox.max_x - bbox.min_x : 0,
+    height: bbox ? bbox.max_y - bbox.min_y : 0,
+  });
+
+  const dxfLargestDoorLoopBounds = (): DxfBBox => {
+    const closedLoops = dxfLoops.filter((loop) => (loop.points || []).length >= 3);
+    if (!closedLoops.length) return null;
+
+    const largestLoop = [...closedLoops].sort((a, b) => {
+      const areaA = Number.isFinite((a as any).area) ? Number((a as any).area) : dxfPolygonArea(a.points || []);
+      const areaB = Number.isFinite((b as any).area) ? Number((b as any).area) : dxfPolygonArea(b.points || []);
+      return areaB - areaA;
+    })[0];
+    const loopBounds = dxfBBoxOfPoints(largestLoop.points || []);
+    if (!loopBounds) return null;
+
+    // Use the loop as the door boundary only when it is almost the same extent as
+    // the parsed part. This rejects pocket loops while allowing the real door loop
+    // to override an inflated part/outline bbox caused by overhanging DXF guides.
+    const reference = dxfPartBBox ?? dxfOutlineBBox ?? null;
+    if (!reference) return loopBounds;
+    const loopSize = dxfBBoxSize(loopBounds);
+    const refSize = dxfBBoxSize(reference);
+    const coversReference =
+      refSize.width <= 1e-9 ||
+      refSize.height <= 1e-9 ||
+      (loopSize.width >= refSize.width * 0.85 && loopSize.height >= refSize.height * 0.85);
+    return coversReference ? loopBounds : null;
+  };
   // Bounds used for the frame (outer boundary, sections, zigzag).
   //
   // Prefer the operator's SELECTED Frame Level / Outer Boundary region: its
@@ -1385,16 +1422,14 @@ export function TableBCadAssistedWorkspace({
         s.outer_points,
     );
     const framePts: number[][] = frameSurfaces.flatMap((s) => s.outer_points as number[][]);
-    if (framePts.length > 0) {
-      const xs = framePts.map((p) => p[0]);
-      const ys = framePts.map((p) => p[1]);
-      return { min_x: Math.min(...xs), min_y: Math.min(...ys), max_x: Math.max(...xs), max_y: Math.max(...ys) };
-    }
+    const selectedFrameBounds = dxfBBoxOfPoints(framePts);
+    if (selectedFrameBounds) return selectedFrameBounds;
     // 2. No selected frame region: use the stitched door outline (largest closed
     //    polygon) when the parse produced one — it excludes dangling fragments that
     //    share the outline's layer (e.g. prongs on layer "0") which part_bbox cannot.
     //    Fall back to part_bbox / all-geometry when no clean outline closed.
-    return dxfOutlineBBox ?? dxfPartBBox ?? dxfBoundsOfAllGeometry();
+    const closedLoopBounds = dxfLargestDoorLoopBounds();
+    return closedLoopBounds ?? dxfOutlineBBox ?? dxfPartBBox ?? dxfBoundsOfAllGeometry();
   };
 
   // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +

@@ -721,10 +721,9 @@ export default function Dxf2DViewer({
       })
     : [];
 
-  // The outer boundary should fill the WHOLE part as one region — right out to
-  // the true model edge — even when that edge is drawn as open line segments or a
-  // larger outer rectangle rather than the biggest closed loop. So it spans the
-  // full extent of every entity (loops + open paths + frame), not just one loop.
+  // The outer boundary fill should follow the real closed door loop when available.
+  // Open guide paths can overhang the part edge; use them only as a fallback for DXFs
+  // that do not provide any closed loop.
   const outerBoundaryRect = React.useMemo(() => {
     let minX = Infinity;
     let minY = Infinity;
@@ -738,9 +737,14 @@ export default function Dxf2DViewer({
         if (p[1] > maxY) maxY = p[1];
       }
     };
-    loops.forEach((loop) => consume(loop.points));
-    openPaths.forEach((path) => consume(path.points));
-    framePolygons.forEach((poly) => consume(poly.exterior || []));
+    if (loops.length > 0) {
+      const largestLoop = [...loops].sort((a, b) => (b.area || 0) - (a.area || 0))[0];
+      consume(largestLoop.points);
+    } else if (framePolygons.length > 0) {
+      framePolygons.forEach((poly) => consume(poly.exterior || []));
+    } else {
+      openPaths.forEach((path) => consume(path.points));
+    }
     if (!Number.isFinite(minX)) return null;
     return [
       [minX, minY],
