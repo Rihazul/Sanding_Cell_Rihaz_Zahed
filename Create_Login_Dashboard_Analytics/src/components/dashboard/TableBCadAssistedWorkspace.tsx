@@ -8,6 +8,9 @@ import {
   getTableBDxfParsedLoops,
   checkTableBDxfLinesClosed,
   detectTableBDxfLoops,
+  computeTableBDxfFrameToolpaths,
+  computeTableBDxfFrameZigzag,
+  type TableBDxfFrameRing,
   type TableBDxfLoop,
   type TableBDxfOpenPath,
   type TableBDxfDetectedLoop,
@@ -384,6 +387,10 @@ const dxfOperationMeta = (operation: string) =>
 // assigned region, so a synthetic row carries it to let the operator scope a preview
 // to just the frame sections.
 const DXF_FRAME_SCOPE_ID = '__computed_frame__';
+// A locked Lines-mode auto-confirm waits this long after the last line selection
+// before committing the detected surface, so the operator can keep adding lines
+// (e.g. a 2-line triangle vs. a 3+ line rectangle) before it commits.
+const DXF_AUTO_CONFIRM_DELAY_MS = 1000;
 // DXF_REGION_META comes from the untyped .jsx viewer, so widen it to a string
 // index before lookup to keep the region-assignment rows type-clean.
 const DXF_REGION_META_MAP = DXF_REGION_META as Record<string, { label: string; color: string }>;
@@ -722,7 +729,16 @@ export function TableBCadAssistedWorkspace({
           const ys = lp.points.map((p) => p[1]);
           return (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
         };
-        const outer = loops.reduce((best, lp) => (bboxExtent(lp) > bboxExtent(best) ? lp : best), loops[0]);
+        // A REAL polygonized face always wins over the synthetic selection-bounding
+        // rectangle (is_bbox_fallback). Otherwise a curved / triangular pocket, whose
+        // true boundary is smaller in extent than its bounding box, would be replaced
+        // by that rectangle and lose its actual shape. The bbox rectangle is used only
+        // when no real face was detected.
+        const isBboxFallback = (lp: TableBDxfDetectedLoop) =>
+          (lp as { is_bbox_fallback?: boolean }).is_bbox_fallback === true;
+        const realFaces = loops.filter((lp) => !isBboxFallback(lp));
+        const outerPool = realFaces.length > 0 ? realFaces : loops;
+        const outer = outerPool.reduce((best, lp) => (bboxExtent(lp) > bboxExtent(best) ? lp : best), outerPool[0]);
 
         // Carve down to the INNERMOST box so the whole frame fills, no matter how
         // polygonize split the bands. Every other face's exterior AND every face's
@@ -730,11 +746,14 @@ export function TableBCadAssistedWorkspace({
         const outerArea = dxfPolygonArea(outer.points);
         const detectedExtras = [
           ...loops
-            .filter((lp) => lp !== outer)
+            // Never treat the synthetic bounding rectangle as an inner region.
+            .filter((lp) => lp !== outer && !isBboxFallback(lp))
             .map((lp) => ({ points: lp.points, id: lp.loop_id, area: dxfPolygonArea(lp.points) })),
-          ...loops.flatMap((lp) =>
-            (lp.holes || []).map((h, i) => ({ points: h, id: `${lp.loop_id}_hole_${i}`, area: dxfPolygonArea(h) })),
-          ),
+          ...loops
+            .filter((lp) => !isBboxFallback(lp))
+            .flatMap((lp) =>
+              (lp.holes || []).map((h, i) => ({ points: h, id: `${lp.loop_id}_hole_${i}`, area: dxfPolygonArea(h) })),
+            ),
         ];
         const contained = dxfInnerRegions(outer.points, outerArea, detectedExtras);
         const sourceDesc = 'auto';
@@ -893,6 +912,38 @@ export function TableBCadAssistedWorkspace({
     setDxfSelectedLineIds([]);
   };
 
+  type DxfFrameSection = {
+    section_id: string;
+    points: number[][];
+    bbox: { min_x: number; min_y: number; max_x: number; max_y: number };
+    width?: number;
+    height?: number;
+    orientation?: 'horizontal' | 'vertical';
+    covered?: boolean;
+    clipped?: boolean;
+    area?: number;
+    region_type?: string;
+  };
+
+  type DxfFrameChunk = DxfFrameSection & {
+    chunk_id: string;
+    parent_section_id: string;
+    requires_axis_position: boolean;
+  };
+
+  type DxfFrameSectionPath = {
+    path_id: string;
+    source_section_id: string;
+    source_chunk_id: string;
+    region_type: 'computed_frame';
+    operation_type: 'frame_section_pass';
+    points: number[][];
+    direction: 'X' | 'Y' | string;
+    path_strategy?: string;
+    start_point: number[];
+    end_point: number[];
+  };
+
   // Frame + toolpath preview state.
   const [dxfFramePolygons, setDxfFramePolygons] = React.useState<TableBDxfFramePolygon[]>([]);
   const [dxfFrameRectangles, setDxfFrameRectangles] = React.useState<TableBDxfFrameRectangle[]>([]);
@@ -922,44 +973,19 @@ export function TableBCadAssistedWorkspace({
   const [dxfFrameZigzag, setDxfFrameZigzag] = React.useState<
     { start: number[]; end: number[]; id: string; tool: string; seq: number }[]
   >([]);
+  // The true frame surface polygon(s) = outer door − pockets − 3D, computed by the
+  // backend (shapely) with curved edges preserved. Rendered as an overlay to verify
+  // the frame region before the section/pass pipeline is built on top of it.
+  const [dxfFrameArea, setDxfFrameArea] = React.useState<TableBDxfFrameRing[]>([]);
+
   // Remaining frame surface (Outer Boundary − Pocket − 3D Contour) decomposed into
   // non-overlapping rectangular sections. Toolpaths for these come in a later task.
-  const [dxfFrameSections, setDxfFrameSections] = React.useState<
-    {
-      section_id: string;
-      points: number[][];
-      bbox: { min_x: number; min_y: number; max_x: number; max_y: number };
-      width: number;
-      height: number;
-      orientation: 'horizontal' | 'vertical';
-      covered: boolean;
-    }[]
-  >([]);
+  const [dxfFrameSections, setDxfFrameSections] = React.useState<DxfFrameSection[]>([]);
   // Frame sections split into robot-reachable chunks (no chunk wider than the X
   // reach window or taller than the Y reach window).
-  const [dxfFrameChunks, setDxfFrameChunks] = React.useState<
-    {
-      chunk_id: string;
-      parent_section_id: string;
-      bbox: { min_x: number; min_y: number; max_x: number; max_y: number };
-      points: number[][];
-      requires_axis_position: boolean;
-    }[]
-  >([]);
-  // One preview sanding path per reachable chunk (centerline along its long axis).
-  const [dxfFrameSectionPaths, setDxfFrameSectionPaths] = React.useState<
-    {
-      path_id: string;
-      source_section_id: string;
-      source_chunk_id: string;
-      region_type: 'computed_frame';
-      operation_type: 'frame_section_pass';
-      points: number[][];
-      direction: 'X' | 'Y';
-      start_point: number[];
-      end_point: number[];
-    }[]
-  >([]);
+  const [dxfFrameChunks, setDxfFrameChunks] = React.useState<DxfFrameChunk[]>([]);
+  // Backend Tool 4 frame sanding paths for each reachable chunk.
+  const [dxfFrameSectionPaths, setDxfFrameSectionPaths] = React.useState<DxfFrameSectionPath[]>([]);
   const [dxfMmPerUnit, setDxfMmPerUnit] = React.useState(1);
   // The part's extent in the machine frame, from parse-time normalization. It is
   // derived from the outline layer alone, so it stays correct when other layers
@@ -969,6 +995,10 @@ export function TableBCadAssistedWorkspace({
   // polygon). Excludes dangling fragments that share the outline's layer (e.g.
   // prongs on layer "0"), which part_bbox cannot. Null when nothing closed cleanly.
   const [dxfOutlineBBox, setDxfOutlineBBox] = React.useState<DxfBBox>(null);
+  // The door outline as an ordered exterior ring (curved edges kept as flattened
+  // segments). Frame sections are clipped to this so they follow a curved door edge
+  // instead of the bounding rectangle. Null when no clean outline closed.
+  const [dxfOutlinePolygon, setDxfOutlinePolygon] = React.useState<number[][] | null>(null);
   const [dxfFrameWarnings, setDxfFrameWarnings] = React.useState<TableBDxfFrameWarning[]>([]);
   const [dxfShowFrame, setDxfShowFrame] = React.useState(true);
   const [dxfShowToolpaths, setDxfShowToolpaths] = React.useState(true);
@@ -1007,6 +1037,7 @@ export function TableBCadAssistedWorkspace({
     setDxfPocketZigzag([]);
     setDxf3dContourToolpaths([]);
     setDxfFrameZigzag([]);
+    setDxfFrameArea([]);
     setDxfFrameSections([]);
     setDxfFrameChunks([]);
     setDxfFrameSectionPaths([]);
@@ -1050,6 +1081,7 @@ export function TableBCadAssistedWorkspace({
           origin_source?: string;
           part_bbox?: { min_x: number; min_y: number; max_x: number; max_y: number };
           outline_bbox?: { min_x: number; min_y: number; max_x: number; max_y: number } | null;
+          outline_polygon?: number[][] | null;
         };
       }).normalization;
       const mmPerUnit = normalization?.mm_per_unit;
@@ -1060,6 +1092,11 @@ export function TableBCadAssistedWorkspace({
       // Stitched door outline (largest closed polygon); excludes prongs sharing the
       // outline's layer. Preferred over part_bbox for the frame when present.
       setDxfOutlineBBox(normalization?.outline_bbox ?? null);
+      setDxfOutlinePolygon(
+        Array.isArray(normalization?.outline_polygon) && normalization.outline_polygon.length >= 3
+          ? normalization.outline_polygon
+          : null,
+      );
       console.log('[DXF Viewer] normalization', {
         mm_per_unit: mmPerUnit,
         origin_source: normalization?.origin_source,
@@ -1111,6 +1148,16 @@ export function TableBCadAssistedWorkspace({
 
     const segments: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
     for (const pk of pockets) {
+      const uniquePts = pk.pts.slice(
+        0,
+        pk.pts.length > 1 && Math.hypot(pk.pts[0][0] - pk.pts[pk.pts.length - 1][0], pk.pts[0][1] - pk.pts[pk.pts.length - 1][1]) <= 1e-6
+          ? pk.pts.length - 1
+          : pk.pts.length,
+      );
+      if (uniquePts.length === 3) {
+        console.log('[Pocket Toolpath] triangular pocket skipped for Tool 3 rectangular contour', { region: pk.id });
+        continue;
+      }
       const xs = pk.pts.map((p) => p[0]);
       const ys = pk.pts.map((p) => p[1]);
       const minX = Math.min(...xs);
@@ -1169,23 +1216,141 @@ export function TableBCadAssistedWorkspace({
   // span the pocket's Y and step across in X, alternating up/down (zigzag), bounded
   // 72 mm in from each edge, starting at the bottom-right corner. Step spacing comes
   // from the operator's pocket overlap: step = pass width - overlap.
+  const dxfUniquePolygonPoints = (pts: number[][]) => {
+    const out = pts.map((p) => [p[0], p[1]]);
+    if (out.length > 1) {
+      const first = out[0];
+      const last = out[out.length - 1];
+      if (Math.hypot(first[0] - last[0], first[1] - last[1]) <= 1e-6) out.pop();
+    }
+    return out;
+  };
+
+  const dxfTriangleIncenter = (tri: number[][]) => {
+    const [a, b, c] = tri;
+    const lenA = Math.hypot(b[0] - c[0], b[1] - c[1]);
+    const lenB = Math.hypot(a[0] - c[0], a[1] - c[1]);
+    const lenC = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const perimeter = lenA + lenB + lenC;
+    const area = dxfPolygonArea(tri);
+    if (perimeter <= 1e-9 || area <= 1e-9) return null;
+    return {
+      point: [
+        (lenA * a[0] + lenB * b[0] + lenC * c[0]) / perimeter,
+        (lenA * a[1] + lenB * b[1] + lenC * c[1]) / perimeter,
+      ],
+      radius: (2 * area) / perimeter,
+    };
+  };
+
+  const dxfTriangleAngle = (tri: number[][], index: number) => {
+    const p = tri[index];
+    const a = tri[(index + 1) % 3];
+    const b = tri[(index + 2) % 3];
+    const va = [a[0] - p[0], a[1] - p[1]];
+    const vb = [b[0] - p[0], b[1] - p[1]];
+    const denom = Math.max(Math.hypot(va[0], va[1]) * Math.hypot(vb[0], vb[1]), 1e-9);
+    const cos = Math.max(-1, Math.min(1, (va[0] * vb[0] + va[1] * vb[1]) / denom));
+    return Math.acos(cos);
+  };
+
+  const buildTriangleTool4SpiralSegments = (
+    regionId: string,
+    pts: number[][],
+    edgeOffset: number,
+    step: number,
+  ) => {
+    const tri = dxfUniquePolygonPoints(pts);
+    if (tri.length !== 3) return null;
+
+    const incenter = dxfTriangleIncenter(tri);
+    if (!incenter || incenter.radius <= edgeOffset + 1e-6) {
+      console.warn('[Pocket Toolpath] triangle too small for Tool 4 offset, skipped', {
+        region: regionId,
+        inradius: incenter?.radius,
+        required_offset: edgeOffset,
+      });
+      return [];
+    }
+
+    const widestIndex = [0, 1, 2].sort((a, b) => dxfTriangleAngle(tri, b) - dxfTriangleAngle(tri, a))[0];
+    const ordered = [0, 1, 2].map((n) => tri[(widestIndex + n) % 3]);
+    const points: number[][] = [];
+    let inset = edgeOffset;
+    while (inset < incenter.radius - 1e-6) {
+      const scale = Math.max(0, 1 - inset / incenter.radius);
+      const layer = ordered.map((p) => [
+        incenter.point[0] + (p[0] - incenter.point[0]) * scale,
+        incenter.point[1] + (p[1] - incenter.point[1]) * scale,
+      ]);
+      points.push(...layer, layer[0]);
+      inset += step;
+    }
+    points.push(incenter.point);
+
+    const segments: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      if (Math.hypot(points[i][0] - points[i + 1][0], points[i][1] - points[i + 1][1]) <= 1e-6) continue;
+      segments.push({
+        start: points[i],
+        end: points[i + 1],
+        id: `${regionId}_tool4_tri_${i}`,
+        tool: 'tool_4',
+        seq: i,
+      });
+    }
+    console.log('[Pocket Toolpath] Tool 4 triangle spiral', {
+      region: regionId,
+      inradius: incenter.radius,
+      offset: edgeOffset,
+      step,
+      segments: segments.length,
+    });
+    return segments;
+  };
   const computeDxfPocketZigzag = (scope: Set<string> | null) => {
     const off = TOOL4_OFFSET_MM / dxfMmPerUnit;
     const overlap = Math.max(0, Math.min(100, dxfPocketOverlap));
     const stepMmEffective = Math.max(TOOL4_PASS_WIDTH_MM - overlap, 1);
     const step = stepMmEffective / dxfMmPerUnit;
 
-    const pockets: { id: string; pts: number[][] }[] = [
+    const regions: { id: string; pts: number[][]; operation: 'pocket' | 'surface3d' }[] = [
       ...dxfManualSurfaces
-        .filter((s) => s.assigned_operation === 'pocket_floor' && s.outer_points && (!scope || scope.has(s.id)))
-        .map((s) => ({ id: s.id, pts: s.outer_points as number[][] })),
+        .filter(
+          (s) =>
+            (s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area') &&
+            s.outer_points &&
+            (!scope || scope.has(s.id)),
+        )
+        .map((s) => ({
+          id: s.id,
+          pts: s.outer_points as number[][],
+          operation: s.assigned_operation === 'surface_3d_area' ? 'surface3d' as const : 'pocket' as const,
+        })),
       ...dxfLoops
-        .filter((l) => dxfAssignments[l.entity_id] === 'pocket' && (!scope || scope.has(l.entity_id)))
-        .map((l) => ({ id: l.entity_id, pts: l.points })),
+        .filter(
+          (l) =>
+            (dxfAssignments[l.entity_id] === 'pocket' || dxfAssignments[l.entity_id] === 'surface3d') &&
+            (!scope || scope.has(l.entity_id)),
+        )
+        .map((l) => ({
+          id: l.entity_id,
+          pts: l.points,
+          operation: dxfAssignments[l.entity_id] === 'surface3d' ? 'surface3d' as const : 'pocket' as const,
+        })),
     ];
 
     const segments: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
-    for (const pk of pockets) {
+    for (const pk of regions) {
+      const triangleSegments = buildTriangleTool4SpiralSegments(pk.id, pk.pts, off, step);
+      if (triangleSegments) {
+        segments.push(...triangleSegments);
+        continue;
+      }
+
+      // Non-triangular 3D contour regions are handled by computeDxf3dContourToolpaths().
+      if (pk.operation === 'surface3d') continue;
+
       const xs = pk.pts.map((p) => p[0]);
       const ys = pk.pts.map((p) => p[1]);
       const bxLo = Math.min(...xs) + off;
@@ -1302,6 +1467,10 @@ export function TableBCadAssistedWorkspace({
 
     const segments: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
     for (const ring of rings) {
+      if (dxfUniquePolygonPoints(ring.outer_points as number[][]).length === 3) {
+        console.log('[3D Contour Toolpath] triangular ring uses Tool 4 triangle spiral path', { region: ring.id });
+        continue;
+      }
       const outerB = dxfBboxOf(ring.outer_points as number[][]);
       const innerB = dxfBboxOf((ring.holes as number[][][])[0]);
 
@@ -1390,6 +1559,28 @@ export function TableBCadAssistedWorkspace({
       .filter((loop) => dxfAssignments[loop.entity_id] === 'pocket' || dxfAssignments[loop.entity_id] === 'surface3d')
       .map((loop) => loop.points || []),
   ].filter((pts) => pts.length >= 3);
+
+  // Pocket / 3D-contour region polygons, kept separate for the backend frame-area
+  // computation (frame = outer − pockets − 3D).
+  const dxfPocketPolygons = (): number[][][] =>
+    [
+      ...dxfManualSurfaces
+        .filter((s) => s.assigned_operation === 'pocket_floor' && s.outer_points)
+        .map((s) => s.outer_points as number[][]),
+      ...dxfLoops
+        .filter((loop) => dxfAssignments[loop.entity_id] === 'pocket')
+        .map((loop) => loop.points || []),
+    ].filter((pts) => pts.length >= 3);
+
+  const dxfSurface3dPolygons = (): number[][][] =>
+    [
+      ...dxfManualSurfaces
+        .filter((s) => s.assigned_operation === 'surface_3d_area' && s.outer_points)
+        .map((s) => s.outer_points as number[][]),
+      ...dxfLoops
+        .filter((loop) => dxfAssignments[loop.entity_id] === 'surface3d')
+        .map((loop) => loop.points || []),
+    ].filter((pts) => pts.length >= 3);
 
   const dxfBBoxContains = (outer: DxfBBox, inner: DxfBBox, tolerance = 1e-3) =>
     !!outer &&
@@ -1483,11 +1674,53 @@ export function TableBCadAssistedWorkspace({
   };
   // Bounds used for the frame (outer boundary, sections, zigzag).
   //
-  // Prefer the operator's selected Frame Level / Outer Boundary geometry. That
-  // is the only reliable way to prevent stray DXF fragments from stretching the
-  // computed frame outside the door closed loop.
+  const hasDxfFrameObstacles = () =>
+    dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area') ||
+    dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket' || dxfAssignments[l.entity_id] === 'surface3d');
+
+  const dxfFrameObstaclePolygons = () =>
+    [
+      ...dxfManualSurfaces
+        .filter((s) => (s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area') && s.outer_points)
+        .map((s) => s.outer_points as number[][]),
+      ...dxfLoops
+        .filter((l) => dxfAssignments[l.entity_id] === 'pocket' || dxfAssignments[l.entity_id] === 'surface3d')
+        .map((l) => l.points),
+    ].filter((pts) => pts.length >= 3);
+
+  const dxfFrameOuterPolygon = (): number[][] | null => {
+    // The parsed outline is the authoritative door boundary. Manual Frame Level /
+    // Outer Boundary selections can be partial helper regions; using them first can
+    // shrink the computed frame and hide curved lower sections.
+    if (dxfOutlinePolygon && dxfOutlinePolygon.length >= 3) return dxfOutlinePolygon;
+
+    const candidates: number[][][] = [];
+    dxfManualSurfaces
+      .filter((s) => (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') && s.outer_points)
+      .forEach((s) => candidates.push(s.outer_points as number[][]));
+
+    const autoOuterBoundaryLoopId = dxfAutoOuterBoundaryLoopId();
+    dxfLoops
+      .filter(
+        (loop) =>
+          dxfAssignments[loop.entity_id] === 'frame' ||
+          dxfAssignments[loop.entity_id] === 'outer' ||
+          loop.entity_id === autoOuterBoundaryLoopId,
+      )
+      .forEach((loop) => candidates.push(loop.points || []));
+
+    const selected = candidates
+      .filter((pts) => pts.length >= 3)
+      .sort((a, b) => Math.abs(dxfPolygonArea(b)) - Math.abs(dxfPolygonArea(a)))[0];
+    return selected || null;
+  };
+
+  // Bounds used for computed frame. Prefer the parsed closed door outline when
+  // available so curved door sections remain part of the frame area.
   const dxfFrameBounds = (): DxfBBox => {
-    // 1. Prefer the operator's selected Frame Level / Outer Boundary surfaces.
+    if (dxfOutlineBBox) return dxfOutlineBBox;
+
+    // 1. Fallback to the operator's selected Frame Level / Outer Boundary surfaces.
     const frameSurfaces = dxfManualSurfaces.filter(
       (s) =>
         (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') &&
@@ -1515,327 +1748,23 @@ export function TableBCadAssistedWorkspace({
     const closedLoopBounds = dxfComputedFrameLoopBounds();
     return dxfOutlineBBox ?? dxfPartBBox ?? closedLoopBounds ?? dxfBoundsOfAllGeometry();
   };
-  // Frame Tool 4 zigzag: only when the part has NO pocket (just frame level +
-  // outer boundary, or the whole door is outer boundary). Unlike the pocket zigzag
-  // it has NO offset and starts at the machine origin (0,0 = bottom-right corner),
-  // filling the full frame extent with the operator's step size.
-  const computeDxfFrameZigzag = () => {
-    const hasPocket =
-      dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor') ||
-      dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket');
-    const hasFrameOrOuter =
-      dxfManualSurfaces.some((s) => s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') ||
-      dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'frame' || dxfAssignments[l.entity_id] === 'outer');
-    if (hasPocket || !hasFrameOrOuter) return [];
+  // NOTE: the frame-level zigzag is now computed entirely in the backend
+  // (compute_frame_zigzag_fill via useBackendFrameZigzag) so it can clip to the real
+  // door outline (curve-aware). The old frontend bbox-based computeDxfFrameZigzag was
+  // removed — it could not follow a curved edge.
 
-    // Full frame extent = the part's outline. Prefer the backend's part_bbox: it is
-    // derived from the outline layer alone, so layers that overhang the part edge
-    // (e.g. grooves) cannot inflate it, and the selected Frame region trims stray
-    // fragments that share the outline's layer.
-    const bounds = dxfFrameBounds();
-    if (!bounds) return [];
-    const bxLo = bounds.min_x;
-    const bxHi = bounds.max_x;
-    const byLo = bounds.min_y;
-    const byHi = bounds.max_y;
-    const xinner = bxHi - bxLo;
-    if (xinner <= 0 || byHi <= byLo) return [];
-
-    const overlap = Math.max(0, Math.min(100, dxfPocketOverlap));
-    const stepMmEffective = Math.max(TOOL4_PASS_WIDTH_MM - overlap, 1);
-    const step = stepMmEffective / dxfMmPerUnit;
-    const { numSteps, adjustedStep } = calcZigzagPassSpacing(xinner, step);
-    console.log('[Frame Toolpath] Tool 4 zigzag (no offset, from origin)', {
-      overlap_mm: overlap,
-      step_mm: stepMmEffective,
-      passes: numSteps + 1,
-    });
-
-    const points: number[][] = [];
-    let offset = 0;
-    let toggle = 0;
-    while (offset <= xinner + 1e-9) {
-      const x = bxLo + offset;
-      const row = [
-        [x, byLo],
-        [x, byHi],
-      ];
-      if (toggle) row.reverse();
-      points.push(...row);
-      offset += adjustedStep;
-      toggle = 1 - toggle;
-    }
-    const segments: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      segments.push({ start: points[i], end: points[i + 1], id: `frame_tool4_${i}`, tool: 'tool_4_frame', seq: i });
-    }
-    return segments;
-  };
-
-  // Compute the remaining frame surface and split it into non-overlapping rectangles:
-  //   remaining_frame = Outer Boundary − Pocket − 3D Contour
-  // The Outer Boundary is the full part extent; Pockets and 3D-contour ring footprints
-  // are the obstacles removed from it. The leftover rectilinear region is decomposed
-  // with a coordinate grid + greedy maximal-rectangle merge, so sections are unique,
-  // non-overlapping, and never cover a Pocket or 3D Contour. No toolpaths yet.
-  const computeDxfFrameSections = () => {
-    // The frame's outer boundary is the door outline, not a bbox over every entity:
-    // overhanging layers and stray fragments would otherwise stretch the sections
-    // past the part edge and shift every section corner.
-    const outerBounds = dxfFrameBounds();
-    if (!outerBounds) return [];
-    const outer = { x0: outerBounds.min_x, x1: outerBounds.max_x, y0: outerBounds.min_y, y1: outerBounds.max_y };
-
-    const boxOf = (pts: number[][]) => {
-      const xs = pts.map((p) => p[0]);
-      const ys = pts.map((p) => p[1]);
-      return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
-    };
-    // Obstacles removed from the frame: pocket footprints + 3D-contour ring footprints.
-    const obstacles = [
-      ...dxfManualSurfaces.filter((s) => s.assigned_operation === 'pocket_floor' && s.outer_points).map((s) => boxOf(s.outer_points as number[][])),
-      ...dxfLoops.filter((l) => dxfAssignments[l.entity_id] === 'pocket').map((l) => boxOf(l.points)),
-      ...dxfManualSurfaces.filter((s) => s.assigned_operation === 'surface_3d_area' && s.outer_points).map((s) => boxOf(s.outer_points as number[][])),
-      ...dxfLoops.filter((l) => dxfAssignments[l.entity_id] === 'surface3d').map((l) => boxOf(l.points)),
-    ];
-
-    // Coordinate grid from all rectangle edges, clamped to the outer boundary.
-    const uniq = (arr: number[]) =>
-      Array.from(new Set(arr.map((v) => Math.round(v * 1e4) / 1e4))).sort((a, b) => a - b);
-    const xs = uniq([outer.x0, outer.x1, ...obstacles.flatMap((o) => [o.x0, o.x1])].filter((v) => v >= outer.x0 - 1e-9 && v <= outer.x1 + 1e-9));
-    const ys = uniq([outer.y0, outer.y1, ...obstacles.flatMap((o) => [o.y0, o.y1])].filter((v) => v >= outer.y0 - 1e-9 && v <= outer.y1 + 1e-9));
-    const cols = xs.length - 1;
-    const rows = ys.length - 1;
-    if (cols <= 0 || rows <= 0) return [];
-
-    const inObstacle = (cx: number, cy: number) =>
-      obstacles.some((o) => cx > o.x0 + 1e-9 && cx < o.x1 - 1e-9 && cy > o.y0 + 1e-9 && cy < o.y1 - 1e-9);
-
-    // frame[j][i] = true when the grid cell is part of the remaining frame.
-    const frame: boolean[][] = [];
-    for (let j = 0; j < rows; j++) {
-      frame[j] = [];
-      for (let i = 0; i < cols; i++) {
-        const cx = (xs[i] + xs[i + 1]) / 2;
-        const cy = (ys[j] + ys[j + 1]) / 2;
-        frame[j][i] = !inObstacle(cx, cy);
-      }
-    }
-
-    const used = frame.map((row) => row.map(() => false));
-    const sections: {
-      section_id: string;
-      points: number[][];
-      bbox: { min_x: number; min_y: number; max_x: number; max_y: number };
-      width: number;
-      height: number;
-      orientation: 'horizontal' | 'vertical';
-      covered: boolean;
-    }[] = [];
-    let counter = 0;
-    for (let j = 0; j < rows; j++) {
-      for (let i = 0; i < cols; i++) {
-        if (!frame[j][i] || used[j][i]) continue;
-        // Grow right across contiguous frame cells, then down while the full span stays frame.
-        let i2 = i;
-        while (i2 + 1 < cols && frame[j][i2 + 1] && !used[j][i2 + 1]) i2++;
-        let j2 = j;
-        let canExtend = true;
-        while (canExtend && j2 + 1 < rows) {
-          for (let k = i; k <= i2; k++) {
-            if (!frame[j2 + 1][k] || used[j2 + 1][k]) {
-              canExtend = false;
-              break;
-            }
-          }
-          if (canExtend) j2++;
-        }
-        for (let jj = j; jj <= j2; jj++) for (let ii = i; ii <= i2; ii++) used[jj][ii] = true;
-
-        const x0 = xs[i];
-        const x1 = xs[i2 + 1];
-        const y0 = ys[j];
-        const y1 = ys[j2 + 1];
-        const width = x1 - x0;
-        const height = y1 - y0;
-        if (width <= 1e-6 || height <= 1e-6) continue;
-        counter += 1;
-        sections.push({
-          section_id: `frame_section_${String(counter).padStart(3, '0')}`,
-          points: [
-            [x0, y0],
-            [x1, y0],
-            [x1, y1],
-            [x0, y1],
-          ],
-          bbox: { min_x: x0, min_y: y0, max_x: x1, max_y: y1 },
-          width,
-          height,
-          orientation: width >= height ? 'horizontal' : 'vertical',
-          covered: false,
-        });
-      }
-    }
-    console.log('[Frame Sections] remaining_frame decomposed', {
-      sections: sections.length,
-      obstacles: obstacles.length,
-    });
-    return sections;
-  };
-
-  // Robot reach window (mm). A single sanding pass can only span this far in one
-  // base position; larger frame sections must be split into reachable chunks.
+  // Robot reach window (mm). The backend uses these values to split computed
+  // frame sections into reachable chunks before returning preview toolpaths.
   const REACH_X_MM = 515;
   const REACH_Y_MM = 750;
 
-  type DxfFrameSection = (typeof dxfFrameSections)[number];
-  type DxfFrameChunk = (typeof dxfFrameChunks)[number];
-
-  // Split each frame section into robot-reachable chunks. A section wider than the
-  // X reach is divided along X, taller than the Y reach along Y, into evenly-sized
-  // chunks (each within the window). Chunks tile the section exactly, so they don't
-  // overlap, stay inside the remaining frame, and never cover a pocket / 3D contour.
-  const splitFrameSectionsByReach = (sections: DxfFrameSection[]): DxfFrameChunk[] => {
-    const reachX = REACH_X_MM / dxfMmPerUnit;
-    const reachY = REACH_Y_MM / dxfMmPerUnit;
-    const chunks: DxfFrameChunk[] = [];
-    let counter = 0;
-    for (const section of sections) {
-      const { min_x, min_y, max_x, max_y } = section.bbox;
-      const w = max_x - min_x;
-      const h = max_y - min_y;
-      const nx = Math.max(1, Math.ceil(w / reachX - 1e-9));
-      const ny = Math.max(1, Math.ceil(h / reachY - 1e-9));
-      const wasSplit = nx > 1 || ny > 1;
-      for (let gx = 0; gx < nx; gx++) {
-        for (let gy = 0; gy < ny; gy++) {
-          const cx0 = min_x + (w * gx) / nx;
-          const cx1 = gx === nx - 1 ? max_x : min_x + (w * (gx + 1)) / nx;
-          const cy0 = min_y + (h * gy) / ny;
-          const cy1 = gy === ny - 1 ? max_y : min_y + (h * (gy + 1)) / ny;
-          counter += 1;
-          chunks.push({
-            chunk_id: `frame_chunk_${String(counter).padStart(3, '0')}`,
-            parent_section_id: section.section_id,
-            bbox: { min_x: cx0, min_y: cy0, max_x: cx1, max_y: cy1 },
-            points: [
-              [cx0, cy0],
-              [cx1, cy0],
-              [cx1, cy1],
-              [cx0, cy1],
-            ],
-            // Split chunks sit outside a single reach window → the robot must move
-            // its base/axis to reach them.
-            requires_axis_position: wasSplit,
-          });
-        }
-      }
-    }
-    return chunks;
-  };
-
-  // Sanding tool radius (mm). One pass covers a 2·radius wide strip; a chunk wider
-  // than that on its short axis needs multiple passes (a zigzag) to cover it.
-  // Tool 4 on the frame: 50 mm offset (inset of the pass ends from the rail ends),
-  // and a 75 mm single-pass width — a rectangle wider than 75 mm on its short side
-  // gets multiple overlapping passes.
+  // Tool 4 frame pass settings sent to the backend frame-toolpath route.
   const TOOL_FRAME_OFFSET_MM = 50;
   const FRAME_PASS_WIDTH_MM = 75;
 
-  // One preview sanding path per reachable chunk. Passes run along the chunk's long
-  // axis and step across its short axis. A chunk ≤ 75 mm on its short side gets one
-  // centerline pass; wider than that gets overlapping zigzag passes whose step is the
-  // 75 mm pass width reduced by the operator's FRAME overlap (denser with overlap).
-  // Paths stay inside the chunk, so they never overlap or enter a pocket / 3D contour.
-  const computeDxfFrameSectionPaths = (chunks: DxfFrameChunk[]) => {
-    const offset = TOOL_FRAME_OFFSET_MM / dxfMmPerUnit;
-    const halfPass = FRAME_PASS_WIDTH_MM / 2 / dxfMmPerUnit;
-    const singlePassMax = FRAME_PASS_WIDTH_MM / dxfMmPerUnit;
-    const frameOverlap = Math.max(0, Math.min(100, dxfFrameOverlap));
-    const stepMm = Math.max(FRAME_PASS_WIDTH_MM - frameOverlap, 10);
-    const step = stepMm / dxfMmPerUnit;
-
-    const paths: {
-      path_id: string;
-      source_section_id: string;
-      source_chunk_id: string;
-      region_type: 'computed_frame';
-      operation_type: 'frame_section_pass';
-      points: number[][];
-      direction: 'X' | 'Y';
-      start_point: number[];
-      end_point: number[];
-    }[] = [];
-
-    chunks.forEach((chunk, index) => {
-      const { min_x, min_y, max_x, max_y } = chunk.bbox;
-      const horizontal = max_x - min_x >= max_y - min_y;
-      // Long-axis pass endpoints, inset by the 50 mm offset (clamped so they stay ordered).
-      const loMin = horizontal ? min_x : min_y;
-      const loMax = horizontal ? max_x : max_y;
-      const longInset = Math.min(offset, (loMax - loMin) / 2);
-      const pa0 = loMin + longInset;
-      const pa1 = loMax - longInset;
-      // Short axis (stepping direction).
-      const shMin = horizontal ? min_y : min_x;
-      const shMax = horizontal ? max_y : max_x;
-      const shLen = shMax - shMin;
-      const shortC = (shMin + shMax) / 2;
-
-      const points: number[][] = [];
-      if (shLen <= singlePassMax + 1e-9) {
-        // ≤ 75 mm wide: one centerline pass.
-        points.push(horizontal ? [pa0, shortC] : [shortC, pa0]);
-        points.push(horizontal ? [pa1, shortC] : [shortC, pa1]);
-      } else {
-        // > 75 mm wide: overlapping passes. Pass centers span [shMin+halfPass,
-        // shMax-halfPass] so the 75 mm strips tile the short side; ceil guarantees
-        // full coverage and the frame overlap tightens the step further.
-        const s0 = shMin + halfPass;
-        const s1 = shMax - halfPass;
-        const span = s1 - s0;
-        const numSteps = Math.max(1, Math.ceil(span / step - 1e-9));
-        const adjustedStep = span / numSteps;
-        let toggle = 0;
-        for (let k = 0; k <= numSteps; k++) {
-          const s = s0 + k * adjustedStep;
-          const row = horizontal
-            ? [
-                [pa0, s],
-                [pa1, s],
-              ]
-            : [
-                [s, pa0],
-                [s, pa1],
-              ];
-          if (toggle) row.reverse();
-          points.push(...row);
-          toggle = 1 - toggle;
-        }
-      }
-
-      paths.push({
-        path_id: `frame_path_${String(index + 1).padStart(3, '0')}`,
-        source_section_id: chunk.parent_section_id,
-        source_chunk_id: chunk.chunk_id,
-        region_type: 'computed_frame',
-        operation_type: 'frame_section_pass',
-        points,
-        direction: horizontal ? 'X' : 'Y',
-        start_point: points[0],
-        end_point: points[points.length - 1],
-      });
-    });
-    console.log('[Frame Section Paths] generated', {
-      paths: paths.length,
-      chunks: chunks.length,
-      total_passes: paths.reduce((n, p) => n + Math.max(1, Math.floor(p.points.length / 2)), 0),
-    });
-    return paths;
-  };
-
-  const handleGenerateFramePreview = () => {
+  const handleGenerateFramePreview = async () => {
     if (!dxfJobId) return;
+    setDxfFrameStatus('loading');
 
     // Scope the preview: if the operator has selected specific region(s) — surfaces
     // in the list or loops in the drawing — generate toolpaths ONLY for those, and
@@ -1850,41 +1779,140 @@ export function TableBCadAssistedWorkspace({
     setDxfPocketZigzag(pocketZz);
     setDxf3dContourToolpaths(contourTp);
 
+    const outlineForFrame = dxfOutlinePolygon ?? (dxfPartBBox
+      ? [
+          [dxfPartBBox.min_x, dxfPartBBox.min_y],
+          [dxfPartBBox.max_x, dxfPartBBox.min_y],
+          [dxfPartBBox.max_x, dxfPartBBox.max_y],
+          [dxfPartBBox.min_x, dxfPartBBox.max_y],
+        ]
+      : null);
+
     let frameZig: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
     let frameChunks: DxfFrameChunk[] = [];
-    let frameSectionPaths: ReturnType<typeof computeDxfFrameSectionPaths> = [];
+    let frameSectionPaths: DxfFrameSectionPath[] = [];
+
+    const useBackendFrameToolpaths = async (): Promise<boolean> => {
+      try {
+        const result = await computeTableBDxfFrameToolpaths(
+          dxfJobId,
+          outlineForFrame,
+          dxfPocketPolygons(),
+          dxfSurface3dPolygons(),
+          {
+            passWidthMm: FRAME_PASS_WIDTH_MM,
+            offsetMm: TOOL_FRAME_OFFSET_MM,
+            overlapMm: dxfFrameOverlap,
+            reachXMm: REACH_X_MM,
+            reachYMm: REACH_Y_MM,
+          },
+        );
+        setDxfFrameArea(result.rings ?? []);
+        const backendSections = (result.sections ?? []) as any[];
+        const backendChunks = (result.chunks ?? []) as DxfFrameChunk[];
+        const backendPaths = (result.toolpaths ?? []) as DxfFrameSectionPath[];
+        setDxfFrameSections(backendSections.map((section) => ({ ...section, covered: true })));
+        setDxfFrameChunks(backendChunks);
+        setDxfFrameSectionPaths(backendPaths);
+        frameChunks = backendChunks;
+        frameSectionPaths = backendPaths;
+        console.log('[DXF FrameToolpaths] backend generated', {
+          ok: result.ok,
+          rings: result.rings?.length ?? 0,
+          sections: backendSections.length,
+          chunks: backendChunks.length,
+          paths: backendPaths.length,
+          frame_area: result.frame_area,
+        });
+        return true;
+      } catch (error) {
+        console.error('[DXF FrameToolpaths] backend failed', error);
+        setDxfFrameArea([]);
+        return false;
+      }
+    };
+
+    // Whole-door frame (no pocket): curve-aware zigzag FILL from the backend. Each
+    // returned pass is a [start,end] point path; convert to the segment shape the
+    // frame-zigzag renderer uses. Returns the segments (or [] on failure).
+    const useBackendFrameZigzag = async (): Promise<
+      { start: number[]; end: number[]; id: string; tool: string; seq: number }[]
+    > => {
+      try {
+        // Frame-level surface = the whole door is FLAT with no pocket assigned. It is a
+        // pure linear zigzag over the full outline (curve-aware), so pass NO obstacles —
+        // nothing is subtracted. (Pockets/3D are separate operations, not part of this.)
+        // Step spacing = tool diameter − overlap (same rule as the pocket zigzag). The
+        // tool is 144 mm wide, so overlap=0 → 144 mm step, overlap=100 → 44 mm step.
+        // (Do NOT use the legacy 75 mm FRAME_PASS_WIDTH_MM — that made step collapse to
+        // 1 mm at high overlap and condensed the passes.)
+        const result = await computeTableBDxfFrameZigzag(
+          dxfJobId,
+          outlineForFrame,
+          [],
+          [],
+          { passWidthMm: TOOL4_PASS_WIDTH_MM, overlapMm: dxfFrameOverlap },
+        );
+        setDxfFrameArea(result.rings ?? []);
+        // Each backend pass is one vertical stroke. To make the toolpath read as a
+        // continuous serpentine, also emit the STEP-OVER segment that links each pass's
+        // end to the next pass's start (the right→left horizontal travel). Both stroke
+        // and step-over become drawn segments so the viewer shows the full flow, not
+        // just disconnected up/down lines. seq increments across both so ordering holds.
+        const passes = result.toolpaths ?? [];
+        const segs: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
+        let seq = 0;
+        passes.forEach((tp, i) => {
+          const start = tp.points[0];
+          const end = tp.points[tp.points.length - 1];
+          const tool = tp.tool ?? 'tool_4_frame';
+          if (i > 0) {
+            // step-over from previous pass's end to this pass's start
+            const prevEnd = passes[i - 1].points[passes[i - 1].points.length - 1];
+            segs.push({ start: prevEnd, end: start, id: `frame_zigzag_step_${i}`, tool, seq: seq++ });
+          }
+          segs.push({ start, end, id: tp.path_id ?? `frame_zigzag_${i}`, tool, seq: seq++ });
+        });
+        console.log('[DXF FrameZigzag] backend generated', {
+          ok: result.ok,
+          passes: result.pass_count ?? segs.length,
+          frame_area: result.frame_area,
+        });
+        return segs;
+      } catch (error) {
+        console.error('[DXF FrameZigzag] backend failed', error);
+        setDxfFrameArea([]);
+        return [];
+      }
+    };
 
     if (scope) {
-      // The frame is a GLOBAL region (Outer − Pocket − 3D), not a per-region toolpath.
-      // If the scope includes a frame / outer region, generate the full frame toolpath
-      // so selecting it in the list shows the frame; otherwise the frame stays blank.
-      const scopeHasFrame =
-        scope.has(DXF_FRAME_SCOPE_ID) ||
+      // TWO DISTINCT frame operations — never mix them:
+      //  • Frame Level: an ASSIGNED frame_level / outer_boundary region → a single
+      //    curve-aware zigzag fill over the flat door outline (useBackendFrameZigzag).
+      //  • Computed Frame: the synthetic "__computed_frame__" row (frame = outer −
+      //    pockets − 3D, split into reachable sections) → the section pipeline
+      //    (useBackendFrameToolpaths). It has NO zigzag fill.
+      const scopeHasFrameLevel =
         dxfManualSurfaces.some(
           (s) => scope.has(s.id) && (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary'),
         ) ||
         dxfLoops.some(
           (l) => scope.has(l.entity_id) && (dxfAssignments[l.entity_id] === 'frame' || dxfAssignments[l.entity_id] === 'outer'),
         );
-      const hasPocket =
-        dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor') ||
-        dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket');
+      const scopeHasComputedFrame = scope.has(DXF_FRAME_SCOPE_ID);
 
-      if (scopeHasFrame) {
-        frameZig = computeDxfFrameZigzag();
+      if (scopeHasComputedFrame) {
+        // Computed Frame: section toolpaths only, NO frame-level zigzag.
+        setDxfFrameZigzag([]);
+        await useBackendFrameToolpaths();
+      } else if (scopeHasFrameLevel) {
+        // Frame Level: zigzag fill only, NO sections. Origin start, bottom→top, right→left.
+        frameZig = await useBackendFrameZigzag();
         setDxfFrameZigzag(frameZig);
-        if (hasPocket) {
-          const frameSections = computeDxfFrameSections();
-          frameChunks = splitFrameSectionsByReach(frameSections);
-          frameSectionPaths = computeDxfFrameSectionPaths(frameChunks);
-          setDxfFrameSections(frameSections.map((section) => ({ ...section, covered: true })));
-          setDxfFrameChunks(frameChunks);
-          setDxfFrameSectionPaths(frameSectionPaths);
-        } else {
-          setDxfFrameSections([]);
-          setDxfFrameChunks([]);
-          setDxfFrameSectionPaths([]);
-        }
+        setDxfFrameSections([]);
+        setDxfFrameChunks([]);
+        setDxfFrameSectionPaths([]);
       } else {
         setDxfFrameZigzag([]);
         setDxfFrameSections([]);
@@ -1899,33 +1927,47 @@ export function TableBCadAssistedWorkspace({
           ? `Toolpath preview for ${scopeIds.size} selected region(s).`
           : `Selected region(s) produced no toolpath — the region may be smaller than the tool offset.`,
       );
-      console.log('[DXF Toolpath] scoped preview generated', { regions: scopeIds.size, scopeHasFrame, segments: total });
+      console.log('[DXF Toolpath] scoped preview generated', { regions: scopeIds.size, scopeHasFrameLevel, scopeHasComputedFrame, segments: total });
     } else {
-      frameZig = computeDxfFrameZigzag();
-      setDxfFrameZigzag(frameZig);
-      // Frame-section boxes/chunks are only meaningful when a pocket carves the frame
-      // into separate rails. For a flat door (no pocket — frame level, or nothing but
-      // frame) the whole-model zigzag covers everything, so skip the boxes entirely.
-      const hasPocket =
-        dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor') ||
-        dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket');
-      if (hasPocket) {
-        const frameSections = computeDxfFrameSections();
-        frameChunks = splitFrameSectionsByReach(frameSections);
-        frameSectionPaths = computeDxfFrameSectionPaths(frameChunks);
-        // Every section is fully covered once its chunks each get a path.
-        setDxfFrameSections(frameSections.map((section) => ({ ...section, covered: true })));
-        setDxfFrameChunks(frameChunks);
-        setDxfFrameSectionPaths(frameSectionPaths);
+      // "All regions" preview. Frame is ONE of two mutually-exclusive operations:
+      //  • Pockets / 3D present  → Computed Frame: leftover frame split into reachable
+      //    sections (useBackendFrameToolpaths). No frame-level zigzag.
+      //  • No pockets, frame_level assigned → Frame Level: zigzag fill over the flat
+      //    door outline. No sections.
+      const hasObstacles = hasDxfFrameObstacles();
+      const hasFrameOrOuter =
+        dxfManualSurfaces.some(
+          (s) => s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary',
+        ) ||
+        dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'frame' || dxfAssignments[l.entity_id] === 'outer');
+
+      if (hasObstacles) {
+        // Computed Frame: sections only, never the zigzag.
+        setDxfFrameZigzag([]);
+        await useBackendFrameToolpaths();
+      } else if (hasFrameOrOuter) {
+        // Frame Level: zigzag fill only. Origin start, bottom→top, right→left.
+        frameZig = await useBackendFrameZigzag();
+        setDxfFrameZigzag(frameZig);
+        setDxfFrameSections([]);
+        setDxfFrameChunks([]);
+        setDxfFrameSectionPaths([]);
       } else {
+        setDxfFrameZigzag([]);
+        setDxfFrameArea([]);
         setDxfFrameSections([]);
         setDxfFrameChunks([]);
         setDxfFrameSectionPaths([]);
       }
       setDxfSelectedToolpathId(null);
       setDxfFrameStatus('ready');
-      setDxfFrameMessage('Toolpath preview generated (all regions).');
-      console.log('[DXF Toolpath] preview generated (all regions)');
+      const total = pocketTp.length + pocketZz.length + contourTp.length + frameZig.length + frameSectionPaths.length;
+      setDxfFrameMessage(
+        total > 0
+          ? 'Toolpath preview generated (all regions).'
+          : 'No regions assigned — assign a region, then press Preview.',
+      );
+      console.log('[DXF Toolpath] preview generated (all regions)', { hasObstacles, hasFrameOrOuter, segments: total });
     }
 
     // Report the toolpath payload up so the config screen can gate approve / Start Task.
@@ -2158,17 +2200,36 @@ export function TableBCadAssistedWorkspace({
     assignDxfRegion(regionType);
   };
 
-  // While an operation is locked in Lines mode, auto-confirm each detected surface
-  // so the operator never has to re-click the button. Confirming clears the preview
-  // and selection, which prevents any re-fire loop.
+  // While an operation is locked in Lines mode, auto-confirm the detected surface so
+  // the operator never has to re-click the button — but DEBOUNCED: it fires only after
+  // line selection has been stable for a moment. This lets a shape keep gaining lines
+  // (select 2 lines = triangle preview; add a 3rd before the pause = rectangle) and
+  // commits whatever is detected once the operator stops selecting. Any change to the
+  // selection or preview resets the timer. Clicking the locked button still confirms
+  // immediately.
+  const dxfAutoConfirmTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   React.useEffect(() => {
-    if (dxfSelectionMode === 'line' && dxfLockedOperation && dxfDetectedSurface) {
-      confirmDetectedSurface(dxfRegionToOperation(dxfLockedOperation));
+    if (dxfAutoConfirmTimerRef.current) {
+      clearTimeout(dxfAutoConfirmTimerRef.current);
+      dxfAutoConfirmTimerRef.current = null;
     }
-    // confirmDetectedSurface reads live state; re-running on detected-surface change
+    if (dxfSelectionMode === 'line' && dxfLockedOperation && dxfDetectedSurface) {
+      const operation = dxfRegionToOperation(dxfLockedOperation);
+      dxfAutoConfirmTimerRef.current = setTimeout(() => {
+        dxfAutoConfirmTimerRef.current = null;
+        confirmDetectedSurface(operation);
+      }, DXF_AUTO_CONFIRM_DELAY_MS);
+    }
+    return () => {
+      if (dxfAutoConfirmTimerRef.current) {
+        clearTimeout(dxfAutoConfirmTimerRef.current);
+        dxfAutoConfirmTimerRef.current = null;
+      }
+    };
+    // confirmDetectedSurface reads live state; re-running on selection/preview change
     // is enough and avoids adding an unstable function dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dxfDetectedSurface, dxfLockedOperation, dxfSelectionMode]);
+  }, [dxfDetectedSurface, dxfSelectedLineIds, dxfLockedOperation, dxfSelectionMode]);
 
   const clearDxfToolbarSelection = () => {
     console.log('[DXF Toolbar] Clear Selection clicked');
@@ -2273,16 +2334,33 @@ export function TableBCadAssistedWorkspace({
   const dxfSegmentsToPolylines = (
     segs: { start: number[]; end: number[]; id: string; tool: string; seq: number }[],
   ) => {
+    // Frame-zigzag is now a fully connected chain: vertical strokes + explicit step-over
+    // segments (frame_zigzag_step_*) that link each pass's end to the next pass's start.
+    // Every segment's end == the next segment's start, so it stitches into ONE continuous
+    // serpentine polyline (first.start + every end) — showing both up/down strokes and
+    // the right→left step-overs.
+    const frameZig = segs.filter((s) => /^frame_zigzag_/.test(s.id));
+    const others = segs.filter((s) => !/^frame_zigzag_/.test(s.id));
+
+    const out: { points: number[][] }[] = [];
+    if (frameZig.length) {
+      const ordered = [...frameZig].sort((a, b) => a.seq - b.seq);
+      out.push({ points: [ordered[0].start, ...ordered.map((s) => s.end)] });
+    }
+
+    // Pocket/contour toolpaths split one continuous path into sub-segments id_0, id_1,
+    // ... where each end == the next start; rejoin as first.start + every end.
     const groups = new Map<string, typeof segs>();
-    for (const s of segs) {
+    for (const s of others) {
       const key = s.id.replace(/_\d+$/, '');
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(s);
     }
-    return [...groups.values()].map((list) => {
+    for (const list of groups.values()) {
       list.sort((a, b) => a.seq - b.seq);
-      return { points: [list[0].start, ...list.map((s) => s.end)] };
-    });
+      out.push({ points: [list[0].start, ...list.map((s) => s.end)] });
+    }
+    return out;
   };
 
   // Region info for the inspector: corner-point shapes + ordered toolpath point lists.
@@ -2804,6 +2882,7 @@ export function TableBCadAssistedWorkspace({
                       surfacePreview={dxfDetectedSurface ? { outer: dxfDetectedSurface.outer, holes: dxfDetectedSurface.holes } : null}
                       manualSurfaces={dxfManualSurfaces}
                       framePolygons={dxfFramePolygons}
+                      frameAreaPolygons={dxfFrameArea}
                       frameRectangles={dxfFrameRectangles}
                       frameToolpaths={dxfFrameToolpaths}
                       pocketToolpaths={dxfPocketToolpaths}
@@ -2896,22 +2975,3 @@ export function TableBCadAssistedWorkspace({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

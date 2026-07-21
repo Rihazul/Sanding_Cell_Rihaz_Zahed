@@ -298,6 +298,7 @@ function loopAtPoint(loops, worldX, worldY, toleranceWorld) {
  *   ringPreview?: { outer: number[][], hole: number[][] } | null,
  *   manualSurfaces?: any[],
  *   framePolygons?: any[],
+ *   frameAreaPolygons?: any[],
  *   frameRectangles?: any[],
  *   frameToolpaths?: any[],
  *   pocketToolpaths?: any[],
@@ -327,6 +328,7 @@ export default function Dxf2DViewer({
   ringPreview = null,
   manualSurfaces = [],
   framePolygons = [],
+  frameAreaPolygons = [],
   frameRectangles = [],
   frameToolpaths = [],
   pocketToolpaths = [],
@@ -957,6 +959,27 @@ export default function Dxf2DViewer({
                     />
                   );
                 })}
+
+              {/* Backend-computed frame area (outer − pockets − 3D), curve preserved.
+                  A verification overlay: dashed magenta outline, no fill, so it sits on
+                  top of the existing geometry without obscuring it. */}
+              {frameAreaPolygons.map((poly, index) => {
+                let d = ringPathD(poly.exterior || []);
+                for (const hole of poly.holes || []) d += ' ' + ringPathD(hole);
+                return (
+                  <path
+                    key={`frame-area-${index}`}
+                    d={d}
+                    fill="none"
+                    fillRule="evenodd"
+                    stroke="#d946ef"
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                    vectorEffect="non-scaling-stroke"
+                    pointerEvents="none"
+                  />
+                );
+              })}
 
               {/* Confirmed manual surfaces.
                   Holes (subtracted inner regions) stay empty via fill-rule evenodd,

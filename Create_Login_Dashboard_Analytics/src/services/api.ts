@@ -1,5 +1,7 @@
 // API service for robot control dashboard
 
+// DEV: pointed at the local backend for testing on this machine.
+// ⚠️ REVERT TO 'http://192.168.0.230:5100' (robot PC) before deploying to the robot.
 export const API_BASE_URL = 'http://192.168.0.230:5100';
 
 // Generic API call function
@@ -644,6 +646,110 @@ export interface TableBDxfDetectLoopsResponse {
   status?: string;
 }
 
+// --- Frame area (outer door − pockets − 3D contours) ---
+export interface TableBDxfFrameRing {
+  exterior: number[][];
+  holes: number[][][];
+  area: number;
+}
+export interface TableBDxfFrameAreaResponse {
+  success: boolean;
+  ok?: boolean;
+  rings?: TableBDxfFrameRing[];
+  outer_area?: number;
+  frame_area?: number;
+  obstacle_count?: number;
+  reason?: string;
+  message?: string;
+}
+
+export interface TableBDxfFrameToolpathsBackendResponse extends TableBDxfFrameAreaResponse {
+  sections?: any[];
+  chunks?: any[];
+  toolpaths?: any[];
+}
+
+export async function computeTableBDxfFrameToolpaths(
+  jobId: string,
+  outlinePolygon: number[][] | null,
+  pocketPolygons: number[][][],
+  surface3dPolygons: number[][][],
+  options?: {
+    passWidthMm?: number;
+    offsetMm?: number;
+    overlapMm?: number;
+    reachXMm?: number;
+    reachYMm?: number;
+  },
+): Promise<TableBDxfFrameToolpathsBackendResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/table-b-dxf/frame-toolpaths/${encodeURIComponent(jobId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        outline_polygon: outlinePolygon,
+        pocket_polygons: pocketPolygons,
+        surface3d_polygons: surface3dPolygons,
+        pass_width_mm: options?.passWidthMm ?? 75,
+        offset_mm: options?.offsetMm ?? 50,
+        overlap_mm: options?.overlapMm ?? 0,
+        reach_x_mm: options?.reachXMm ?? 515,
+        reach_y_mm: options?.reachYMm ?? 750,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Frame toolpath failed: ${response.statusText}`);
+    }
+    return data;
+  } catch (error) {
+    console.error('Error computing Table B DXF frame toolpaths:', error);
+    throw error;
+  }
+}
+
+export interface TableBDxfFrameZigzagResponse {
+  success: boolean;
+  ok?: boolean;
+  rings?: { exterior: number[][]; holes: number[][][]; area: number }[];
+  toolpaths?: { path_id: string; points: number[][]; tool: string; operation_type: string; direction: string }[];
+  frame_area?: number;
+  pass_count?: number;
+  reason?: string;
+  message?: string;
+}
+
+// Curve-aware zigzag FILL of the whole frame surface (Frame Level on the whole door).
+export async function computeTableBDxfFrameZigzag(
+  jobId: string,
+  outlinePolygon: number[][] | null,
+  pocketPolygons: number[][][],
+  surface3dPolygons: number[][][],
+  options?: { passWidthMm?: number; overlapMm?: number },
+): Promise<TableBDxfFrameZigzagResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/table-b-dxf/frame-zigzag/${encodeURIComponent(jobId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        outline_polygon: outlinePolygon,
+        pocket_polygons: pocketPolygons,
+        surface3d_polygons: surface3dPolygons,
+        pass_width_mm: options?.passWidthMm ?? 75,
+        overlap_mm: options?.overlapMm ?? 0,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Frame zigzag failed: ${response.statusText}`);
+    }
+    return data;
+  } catch (error) {
+    console.error('Error computing Table B DXF frame zigzag:', error);
+    throw error;
+  }
+}
+
 export async function detectTableBDxfLoops(
   jobId: string,
   selectedEntityIds: string[],
@@ -888,3 +994,4 @@ export const api = {
   checkToolStatus,
   getLogsHistory,
 };
+

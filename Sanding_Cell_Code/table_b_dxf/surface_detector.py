@@ -29,6 +29,48 @@ def _relative_tolerance(points: list[list[float]]) -> float:
     return max(diag * 1e-3, 1e-6)
 
 
+def _polygonize_with_closing_edge(lines: list[Any], tol: float) -> list[Any]:
+    """Polygonize `lines` after connecting the two free endpoints of an open chain.
+
+    The selected lines are treated as an undirected graph of endpoints. When exactly
+    two endpoints are "free" (touched by a single segment) the chain is open with two
+    loose ends — e.g. a triangle drawn as a "V" of two sides sharing a vertex, its
+    base implied. Adding the segment between those two free ends closes the shape so
+    polygonize returns its true polygon (a triangle) rather than nothing. Returns []
+    when the chain does not have exactly two free ends.
+    """
+    from collections import defaultdict
+
+    def _key(x: float, y: float) -> tuple[float, float]:
+        # Quantize so near-coincident endpoints count as the same vertex.
+        q = max(tol, 1e-9)
+        return (round(x / q) * q, round(y / q) * q)
+
+    endpoint_uses: dict[tuple[float, float], int] = defaultdict(int)
+    endpoint_xy: dict[tuple[float, float], tuple[float, float]] = {}
+    for line in lines:
+        coords = list(line.coords)
+        if len(coords) < 2:
+            continue
+        for x, y in (coords[0], coords[-1]):
+            k = _key(float(x), float(y))
+            endpoint_uses[k] += 1
+            endpoint_xy[k] = (float(x), float(y))
+
+    free = [endpoint_xy[k] for k, n in endpoint_uses.items() if n == 1]
+    if len(free) != 2:
+        return []
+
+    try:
+        closing = LineString([free[0], free[1]])
+        merged = unary_union(list(lines) + [closing])
+        merged = snap(merged, merged, tol)
+        return list(polygonize(unary_union(merged)))
+    except Exception as error:  # noqa: BLE001 — never let a geometry hiccup fail the request
+        logger.warning("Table B DXF Assisted close-chain polygonize failed: %s", error)
+        return []
+
+
 def detect_selected_loops(
     job_id: str,
     selected_entity_ids: list[str],
@@ -118,6 +160,24 @@ def detect_selected_loops(
         if _score(candidate) > _score(faces):
             faces = candidate
 
+    # True when the raw selection polygonized into a complete outer on its own — i.e.
+    # the operator's lines already enclose the area with no loose ends. False means the
+    # shape only closed via an inferred edge (an open "V" chain) or the bbox fallback,
+    # so the selection is still OPEN and could gain more lines. The frontend uses this
+    # to decide whether a locked auto-confirm should fire yet.
+    closed_without_inference = _outer_complete(faces)
+
+    # Close an OPEN CHAIN into its real polygon before falling back to a bounding
+    # rectangle. When the operator selects lines that form an open path with exactly
+    # two loose ends (e.g. two sides of a triangle meeting at a vertex — a "V"), the
+    # implied final edge connects those two free endpoints. Adding it lets a triangle
+    # (or any non-rectangular chain) polygonize as its true shape instead of being
+    # replaced by its bbox rectangle.
+    if not _outer_complete(faces):
+        closed = _polygonize_with_closing_edge(lines, tol)
+        if _outer_complete(closed) or (closed and not faces):
+            faces = closed
+
     # ALWAYS offer the SELECTION'S BOUNDING RECTANGLE as an outer-boundary candidate.
     # The operator drew a box around the ring, so its bbox is that outer box for the
     # rectangular frames Table B handles. This makes ring detection identical no
@@ -126,6 +186,7 @@ def detect_selected_loops(
     # it, a partial selection that happens to close into an inner band would be
     # mistaken for the outer and the frame band would not fill.
     outer_from_bbox = False
+    bbox_ring = None
     if sel_w > tol and sel_h > tol and not _outer_complete(faces):
         bbox_ring = Polygon(
             [
@@ -176,6 +237,10 @@ def detect_selected_loops(
             "net_area": float(face.area),
             "bbox": _bbox(exterior),
             "source_entity_ids": source_ids,
+            # True only for the SYNTHETIC selection-bounding rectangle added as a
+            # fallback candidate. The frontend must never pick this over a real
+            # polygonized face, so a curved / triangular pocket keeps its true shape.
+            "is_bbox_fallback": bbox_ring is not None and face is bbox_ring,
         })
 
     # Largest boundaries first — the UI picks outer + largest contained inner.
@@ -193,4 +258,8 @@ def detect_selected_loops(
         "selected_count": len(selected),
         "candidate_count": len(loops),
         "outer_from_bbox": outer_from_bbox,
+        # True only when the selection enclosed the area on its own (no inferred edge,
+        # no bbox fallback). The frontend defers a locked auto-confirm until this is
+        # True so an open "V" chain can still gain more lines before committing.
+        "closed_without_inference": bool(closed_without_inference),
     }

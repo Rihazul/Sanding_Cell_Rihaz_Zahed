@@ -233,7 +233,26 @@ def _detect_outline_bbox(
         )
         return None
 
-    return {"min_x": float(min_x), "min_y": float(min_y), "max_x": float(max_x), "max_y": float(max_y)}
+    # Exterior ring of the union polygon, so consumers can follow the ACTUAL door
+    # boundary (curved edges included) rather than just its bounding rectangle. For a
+    # MultiPolygon (disjoint faces that didn't merge) take the largest part's exterior.
+    polygon_pts: list[list[float]] | None = None
+    try:
+        geom = outline
+        if geom.geom_type == "MultiPolygon":
+            geom = max(geom.geoms, key=lambda g: g.area)
+        if geom.geom_type == "Polygon":
+            polygon_pts = [[float(x), float(y)] for x, y in geom.exterior.coords]
+    except Exception as error:  # noqa: BLE001 — polygon extraction is best-effort
+        logger.warning("Table B DXF outline detection: exterior extraction failed: %s", error)
+
+    return {
+        "min_x": float(min_x),
+        "min_y": float(min_y),
+        "max_x": float(max_x),
+        "max_y": float(max_y),
+        "polygon": polygon_pts,
+    }
 
 
 def _normalize_geometry(
@@ -313,7 +332,19 @@ def _normalize_geometry(
     # Stitch the transformed line geometry into closed polygons; the largest is the
     # door outline. Dangling fragments (e.g. prongs on the outline's layer) never
     # close into a polygon, so this excludes them where a layer/bbox filter cannot.
-    outline_bbox = _detect_outline_bbox(loops, open_paths)
+    outline_detected = _detect_outline_bbox(loops, open_paths)
+    # Split the detection into a pure bbox (existing consumers) and the exterior
+    # polygon (curved-outline consumers, e.g. curved frame sections).
+    outline_polygon: list[list[float]] | None = None
+    outline_bbox: dict[str, float] | None = None
+    if outline_detected is not None:
+        outline_polygon = outline_detected.get("polygon")
+        outline_bbox = {
+            "min_x": outline_detected["min_x"],
+            "min_y": outline_detected["min_y"],
+            "max_x": outline_detected["max_x"],
+            "max_y": outline_detected["max_y"],
+        }
     return {
         "applied": True,
         "rotated": rotated,
@@ -333,6 +364,11 @@ def _normalize_geometry(
         # cannot (e.g. prongs sharing the outline's layer). null when nothing closed —
         # consumers then fall back to part_bbox.
         "outline_bbox": outline_bbox,
+        # The door outline as an ordered exterior ring (mm, machine frame), with curved
+        # edges kept as flattened line segments. null when no clean outline closed.
+        # Consumers use this to follow the ACTUAL boundary (e.g. clip frame sections to
+        # a curved door) instead of the bounding rectangle.
+        "outline_polygon": outline_polygon,
         "size": [final_x, final_y],
         "y_size_mm": y_size_mm,
         "max_y_mm": _MAX_Y_MM,

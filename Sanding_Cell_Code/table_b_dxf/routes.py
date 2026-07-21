@@ -16,6 +16,7 @@ from .jobs import (
 from .parser import parse_dxf_loops
 from .surface_checker import check_selected_lines_closed
 from .surface_detector import detect_selected_loops
+from .frame_sections import compute_frame_sections_and_toolpaths, compute_frame_zigzag_fill
 
 logger = logging.getLogger(__name__)
 
@@ -210,3 +211,58 @@ def detect_table_b_dxf_loops(job_id: str):
             "status": "invalid_detect_request",
             "message": str(error),
         }), 400
+
+
+@table_b_dxf_bp.post("/frame-toolpaths/<job_id>")
+def compute_table_b_dxf_frame_toolpaths(job_id: str):
+    """Compute frame area, frame sections, reach chunks, and toolpaths in backend."""
+    logger.info("Table B DXF Assisted frame-toolpaths requested: %s", job_id)
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = compute_frame_sections_and_toolpaths(
+            payload.get("outline_polygon"),
+            payload.get("pocket_polygons") or [],
+            payload.get("surface3d_polygons") or [],
+            pass_width_mm=float(payload.get("pass_width_mm") or 75.0),
+            offset_mm=float(payload.get("offset_mm") or 50.0),
+            overlap_mm=float(payload.get("overlap_mm") or 0.0),
+            reach_x_mm=float(payload.get("reach_x_mm") or 515.0),
+            reach_y_mm=float(payload.get("reach_y_mm") or 750.0),
+        )
+        return jsonify({"success": True, "job_id": job_id, **result})
+    except Exception as error:  # noqa: BLE001 — never fail a preview on a geometry hiccup
+        logger.exception("Table B DXF Assisted frame-toolpaths failed: %s", error)
+        return jsonify({
+            "success": False,
+            "job_id": job_id,
+            "status": "frame_toolpaths_failed",
+            "message": str(error),
+        }), 500
+
+
+@table_b_dxf_bp.post("/frame-zigzag/<job_id>")
+def compute_table_b_dxf_frame_zigzag(job_id: str):
+    """Zigzag fill of the whole frame surface, clipped to the door outline (curve-aware).
+
+    For 'Frame Level on the whole door': dense serpentine passes filling
+    outer − pockets − 3D, each clipped to the real polygon so they follow a curved edge.
+    """
+    logger.info("Table B DXF Assisted frame-zigzag requested: %s", job_id)
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = compute_frame_zigzag_fill(
+            payload.get("outline_polygon"),
+            payload.get("pocket_polygons") or [],
+            payload.get("surface3d_polygons") or [],
+            pass_width_mm=float(payload.get("pass_width_mm") or 75.0),
+            overlap_mm=float(payload.get("overlap_mm") or 0.0),
+        )
+        return jsonify({"success": True, "job_id": job_id, **result})
+    except Exception as error:  # noqa: BLE001 — never fail a preview on a geometry hiccup
+        logger.exception("Table B DXF Assisted frame-zigzag failed: %s", error)
+        return jsonify({
+            "success": False,
+            "job_id": job_id,
+            "status": "frame_zigzag_failed",
+            "message": str(error),
+        }), 500
