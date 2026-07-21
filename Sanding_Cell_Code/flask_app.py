@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from threading import Thread, Timer
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
-from Server_Better_V2 import getTool11, keepTool11, communicate, laser, stopper_statusmod, set_table_state, moveOnlyJ6r, waitForSeventhAxisIdle
+from Server_Better_V2 import getTool11, keepTool11, communicate, laser, stopper_statusmod, set_table_state, moveOnlyJ6r
 from Server_Better_V2 import _get_tool_in_hand, _read_tool_sensors
 from Server_Better_V2 import setup_logger
 import yaml, requests
@@ -1567,29 +1567,6 @@ def _manual_switch_tool_response(cps, current_tool, target_tool, config):
         'flash_message',
         {"message": f"Switching Tool {current_tool} -> Tool {target_tool}: dropping current tool first..."},
     )
-
-    seventh_result = communicate(
-        cps=cps,
-        config=config,
-        seventh=0,
-        tcp=config["coords"].get("tcptool1plane1", config["coords"]["tcpDefault"]),
-        ucs=config["coords"].get("ucsTable1", config["coords"]["ucsDefault"]),
-        speed=0.3,
-        wait=True,
-        require_seventh_ok=True,
-    )
-    if seventh_result is None:
-        raise RuntimeError(
-            f"Failed to move 7th axis to tool station before dropping Tool {current_tool}."
-        )
-    if not waitForSeventhAxisIdle(
-        cps=cps,
-        config=config,
-        context=f"manual tool switch {current_tool}->{target_tool}",
-    ):
-        raise RuntimeError(
-            f"J7 did not become idle before dropping Tool {current_tool}."
-        )
 
     keepTool11(
         cps,
@@ -3173,3 +3150,4 @@ def handle_action():
 if __name__ == '__main__':
     # Desktop/runtime mode should avoid Flask reloader duplicates.
     app.run(host='0.0.0.0', port=5100, debug=False, use_reloader=False, threaded=True)
+

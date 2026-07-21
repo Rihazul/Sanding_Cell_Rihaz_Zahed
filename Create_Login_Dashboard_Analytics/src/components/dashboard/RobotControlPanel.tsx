@@ -363,7 +363,8 @@ export function RobotControlPanel({
             <ToggleButton label="T1" isActive={t1Picked} isPending={!!t1Pending} pendingLabel={t1Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(1)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="T2" isActive={t2Picked} isPending={!!t2Pending} pendingLabel={t2Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(2)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
             <ToggleButton label="T3" isActive={t3Picked} isPending={!!t3Pending} pendingLabel={t3Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(3)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T4" isActive={t4Picked} isPending={!!t4Pending} pendingLabel={t4Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(4)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />`r`n          </div>
+            <ToggleButton label="T4" isActive={t4Picked} isPending={!!t4Pending} pendingLabel={t4Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(4)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
+          </div>
         </div>
 
         {/* Laser Control */}
@@ -384,5 +385,6 @@ export function RobotControlPanel({
     </Card>
   );
 }
+
 
 
