@@ -6,6 +6,7 @@ import { toolToggle, performAction, toggleTableState } from '../../services/api'
 
 type TablePendingState = 'opening' | 'closing' | null;
 type ToolPendingState = { state: 'picking' | 'dropping'; since: number } | null;
+type ToolNumber = 1 | 2 | 3 | 4;
 
 interface RobotControlPanelProps {
   robotEnabled: boolean;
@@ -83,12 +84,96 @@ export function RobotControlPanel({
   const TOOL_PENDING_FALLBACK_PICK_MS = 2500;
   const TOOL_PENDING_FALLBACK_DROP_MS = 6000;
   const TABLE_PENDING_FALLBACK_MS = 12000;
-  const getHeldTool = (currentTool: number) => {
+  const getHeldTool = (currentTool: ToolNumber) => {
     if (currentTool !== 1 && t1Picked) return 1;
     if (currentTool !== 2 && t2Picked) return 2;
     if (currentTool !== 3 && t3Picked) return 3;
     if (currentTool !== 4 && t4Picked) return 4;
     return null;
+  };
+
+  const isToolPicked = (toolNumber: ToolNumber) => {
+    if (toolNumber === 1) return t1Picked;
+    if (toolNumber === 2) return t2Picked;
+    if (toolNumber === 3) return t3Picked;
+    return t4Picked;
+  };
+
+  const setToolPickedState = (toolNumber: ToolNumber, picked: boolean) => {
+    if (toolNumber === 1) setT1Picked(picked);
+    if (toolNumber === 2) setT2Picked(picked);
+    if (toolNumber === 3) setT3Picked(picked);
+    if (toolNumber === 4) setT4Picked(picked);
+  };
+
+  const setToolPendingState = (toolNumber: ToolNumber, pending: ToolPendingState) => {
+    if (toolNumber === 1) setT1Pending(pending);
+    if (toolNumber === 2) setT2Pending(pending);
+    if (toolNumber === 3) setT3Pending(pending);
+    if (toolNumber === 4) setT4Pending(pending);
+  };
+
+  const clearMatchingToolPending = (toolNumber: ToolNumber, state: 'picking' | 'dropping', since: number) => {
+    const clearIfMatching = (prev: ToolPendingState) =>
+      prev && prev.state === state && prev.since === since ? null : prev;
+
+    if (toolNumber === 1) setT1Pending(clearIfMatching);
+    if (toolNumber === 2) setT2Pending(clearIfMatching);
+    if (toolNumber === 3) setT3Pending(clearIfMatching);
+    if (toolNumber === 4) setT4Pending(clearIfMatching);
+  };
+
+  const handleToolToggle = async (toolNumber: ToolNumber) => {
+    const wasPicked = isToolPicked(toolNumber);
+    const willPick = !wasPicked;
+    const heldTool = willPick ? getHeldTool(toolNumber) : null;
+    const pendingSince = Date.now();
+    const targetPendingState = willPick ? 'picking' : 'dropping';
+
+    try {
+      if (heldTool) {
+        setToolPendingState(heldTool, { state: 'dropping', since: pendingSince });
+        setToolPendingState(toolNumber, { state: 'picking', since: pendingSince });
+        addActivity(`Switching Tool ${heldTool} -> Tool ${toolNumber}: dropping current tool first.`, 'info');
+      } else {
+        setToolPendingState(toolNumber, { state: targetPendingState, since: pendingSince });
+        addActivity(`Tool ${toolNumber} ${willPick ? 'pick' : 'drop'} command sent.`, 'info');
+      }
+
+      await toolToggle(toolNumber, willPick ? 'pick' : 'keep');
+
+      if (heldTool) {
+        setToolPickedState(heldTool, false);
+        setToolPickedState(toolNumber, true);
+        addActivity(`Tool ${heldTool} dropped, Tool ${toolNumber} picked up`, 'success');
+        window.setTimeout(
+          () => clearMatchingToolPending(heldTool, 'dropping', pendingSince),
+          TOOL_PENDING_FALLBACK_DROP_MS
+        );
+        window.setTimeout(
+          () => clearMatchingToolPending(toolNumber, 'picking', pendingSince),
+          TOOL_PENDING_FALLBACK_PICK_MS
+        );
+        return;
+      }
+
+      setToolPickedState(toolNumber, willPick);
+      addActivity(`Tool ${toolNumber} ${willPick ? 'picked up' : 'dropped'}`, 'success');
+      const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
+      window.setTimeout(
+        () => clearMatchingToolPending(toolNumber, targetPendingState, pendingSince),
+        fallbackMs
+      );
+    } catch (error) {
+      if (heldTool) setToolPendingState(heldTool, null);
+      setToolPendingState(toolNumber, null);
+      addActivity(
+        heldTool
+          ? `Tool switch ${heldTool} -> ${toolNumber} failed: ${error}`
+          : `Tool ${toolNumber} action failed: ${error}`,
+        'error'
+      );
+    }
   };
 
   return (
@@ -275,123 +360,10 @@ export function RobotControlPanel({
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-gray-600 mb-2">Tool Stations</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <ToggleButton label="T1" isActive={t1Picked} isPending={!!t1Pending} pendingLabel={t1Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
-              try {
-                const willPick = !t1Picked;
-                if (willPick) {
-                  const heldTool = getHeldTool(1);
-                  if (heldTool) {
-                    addActivity(`Drop Tool ${heldTool} first, then pick Tool 1.`, 'warning');
-                    return;
-                  }
-                }
-                const pendingSince = Date.now();
-                const pendingState = willPick ? 'picking' : 'dropping';
-                setT1Pending({ state: pendingState, since: pendingSince });
-                await toolToggle(1, !t1Picked ? 'pick' : 'keep');
-                setT1Picked(!t1Picked); 
-                addActivity(`Tool 1 ${!t1Picked ? 'picked up' : 'dropped'}`, 'success'); 
-                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(
-                  () =>
-                    setT1Pending(prev =>
-                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
-                    ),
-                  fallbackMs
-                );
-              } catch (error) {
-                setT1Pending(null);
-                addActivity(`Tool 1 action failed: ${error}`, 'error');
-              }
-            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T2" isActive={t2Picked} isPending={!!t2Pending} pendingLabel={t2Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
-              try {
-                const willPick = !t2Picked;
-                if (willPick) {
-                  const heldTool = getHeldTool(2);
-                  if (heldTool) {
-                    addActivity(`Drop Tool ${heldTool} first, then pick Tool 2.`, 'warning');
-                    return;
-                  }
-                }
-                const pendingSince = Date.now();
-                const pendingState = willPick ? 'picking' : 'dropping';
-                setT2Pending({ state: pendingState, since: pendingSince });
-                await toolToggle(2, !t2Picked ? 'pick' : 'keep');
-                setT2Picked(!t2Picked); 
-                addActivity(`Tool 2 ${!t2Picked ? 'picked up' : 'dropped'}`, 'success'); 
-                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(
-                  () =>
-                    setT2Pending(prev =>
-                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
-                    ),
-                  fallbackMs
-                );
-              } catch (error) {
-                setT2Pending(null);
-                addActivity(`Tool 2 action failed: ${error}`, 'error');
-              }
-            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T3" isActive={t3Picked} isPending={!!t3Pending} pendingLabel={t3Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
-              try {
-                const willPick = !t3Picked;
-                if (willPick) {
-                  const heldTool = getHeldTool(3);
-                  if (heldTool) {
-                    addActivity(`Drop Tool ${heldTool} first, then pick Tool 3.`, 'warning');
-                    return;
-                  }
-                }
-                const pendingSince = Date.now();
-                const pendingState = willPick ? 'picking' : 'dropping';
-                setT3Pending({ state: pendingState, since: pendingSince });
-                await toolToggle(3, !t3Picked ? 'pick' : 'keep');
-                setT3Picked(!t3Picked); 
-                addActivity(`Tool 3 ${!t3Picked ? 'picked up' : 'dropped'}`, 'success'); 
-                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(
-                  () =>
-                    setT3Pending(prev =>
-                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
-                    ),
-                  fallbackMs
-                );
-              } catch (error) {
-                setT3Pending(null);
-                addActivity(`Tool 3 action failed: ${error}`, 'error');
-              }
-            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
-            <ToggleButton label="T4" isActive={t4Picked} isPending={!!t4Pending} pendingLabel={t4Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={async () => { 
-              try {
-                const willPick = !t4Picked;
-                if (willPick) {
-                  const heldTool = getHeldTool(4);
-                  if (heldTool) {
-                    addActivity(`Drop Tool ${heldTool} first, then pick Tool 4.`, 'warning');
-                    return;
-                  }
-                }
-                const pendingSince = Date.now();
-                const pendingState = willPick ? 'picking' : 'dropping';
-                setT4Pending({ state: pendingState, since: pendingSince });
-                await toolToggle(4, !t4Picked ? 'pick' : 'keep');
-                setT4Picked(!t4Picked); 
-                addActivity(`Tool 4 ${!t4Picked ? 'picked up' : 'dropped'}`, 'success'); 
-                const fallbackMs = willPick ? TOOL_PENDING_FALLBACK_PICK_MS : TOOL_PENDING_FALLBACK_DROP_MS;
-                window.setTimeout(
-                  () =>
-                    setT4Pending(prev =>
-                      prev && prev.state === pendingState && prev.since === pendingSince ? null : prev
-                    ),
-                  fallbackMs
-                );
-              } catch (error) {
-                setT4Pending(null);
-                addActivity(`Tool 4 action failed: ${error}`, 'error');
-              }
-            }} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
-          </div>
+            <ToggleButton label="T1" isActive={t1Picked} isPending={!!t1Pending} pendingLabel={t1Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(1)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T2" isActive={t2Picked} isPending={!!t2Pending} pendingLabel={t2Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(2)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T3" isActive={t3Picked} isPending={!!t3Pending} pendingLabel={t3Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(3)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />
+            <ToggleButton label="T4" isActive={t4Picked} isPending={!!t4Pending} pendingLabel={t4Pending?.state === 'picking' ? 'PICKING' : 'DROPPING'} onToggle={() => handleToolToggle(4)} activeLabel="DROP TOOL" inactiveLabel="PICK TOOL" disabled={isOperating || !robotEnabled} />`r`n          </div>
         </div>
 
         {/* Laser Control */}
@@ -412,3 +384,5 @@ export function RobotControlPanel({
     </Card>
   );
 }
+
+

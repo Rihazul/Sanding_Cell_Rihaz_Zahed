@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_from_directory, g
 from flask_cors import CORS
 from threading import Thread, Timer
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
-from Server_Better_V2 import getTool11, keepTool11,communicate,laser,stopper_statusmod,set_table_state
+from Server_Better_V2 import getTool11, keepTool11, communicate, laser, stopper_statusmod, set_table_state, moveOnlyJ6r, waitForSeventhAxisIdle
 from Server_Better_V2 import _get_tool_in_hand, _read_tool_sensors
 from Server_Better_V2 import setup_logger
 import yaml, requests
@@ -1554,6 +1554,86 @@ def _get_tool_in_hand_stable(cps, attempts=4, delay_s=0.08):
     return last
 
 
+def _manual_switch_tool_response(cps, current_tool, target_tool, config):
+    """Drop the mounted tool and pick the requested one in one manual action."""
+    current_tool = int(current_tool)
+    target_tool = int(target_tool)
+
+    if current_tool == target_tool:
+        socketio.emit('flash_message', {"message": f"Already holding Tool {target_tool}"})
+        return jsonify({"status": "success", "message": f"Tool {target_tool} already in hand"})
+
+    socketio.emit(
+        'flash_message',
+        {"message": f"Switching Tool {current_tool} -> Tool {target_tool}: dropping current tool first..."},
+    )
+
+    seventh_result = communicate(
+        cps=cps,
+        config=config,
+        seventh=0,
+        tcp=config["coords"].get("tcptool1plane1", config["coords"]["tcpDefault"]),
+        ucs=config["coords"].get("ucsTable1", config["coords"]["ucsDefault"]),
+        speed=0.3,
+        wait=True,
+        require_seventh_ok=True,
+    )
+    if seventh_result is None:
+        raise RuntimeError(
+            f"Failed to move 7th axis to tool station before dropping Tool {current_tool}."
+        )
+    if not waitForSeventhAxisIdle(
+        cps=cps,
+        config=config,
+        context=f"manual tool switch {current_tool}->{target_tool}",
+    ):
+        raise RuntimeError(
+            f"J7 did not become idle before dropping Tool {current_tool}."
+        )
+
+    keepTool11(
+        cps,
+        toolNumber=current_tool,
+        config=config,
+        goToSafe=False,
+        startFromSafe=True,
+    )
+    if current_tool == 3:
+        tool_override_state[3] = False
+
+    if current_tool == 1 and target_tool == 3:
+        socketio.emit(
+            'flash_message',
+            {"message": "Applying Tool 1 -> Tool 3 joint correction (J1 +30, J6 -90)..."},
+        )
+        moveOnlyJ6r(cps, -90, config, J1=30, wait=True)
+    elif current_tool == 3 and target_tool == 1:
+        socketio.emit(
+            'flash_message',
+            {"message": "Applying Tool 3 -> Tool 1 joint correction (J1 -30, J6 +90)..."},
+        )
+        moveOnlyJ6r(cps, 90, config, J1=-30, wait=True)
+
+    socketio.emit('flash_message', {"message": f"Picking Tool {target_tool}..."})
+    success = getTool11(
+        cps,
+        toolNumber=target_tool,
+        config=config,
+        startFromSafe=False,
+        exitToSafe=True,
+    )
+    if not success:
+        raise RuntimeError(f"Tool {target_tool} not detected after switch pick.")
+
+    if target_tool == 3:
+        tool_override_state[3] = True
+
+    socketio.emit('flash_message', {"message": f"Switched Tool {current_tool} -> Tool {target_tool}"})
+    return jsonify({
+        "status": "success",
+        "message": f"Tool {current_tool} dropped and Tool {target_tool} picked successfully",
+    })
+
 def _disconnect_global_cps_for_child_start():
     """Disconnect and reset CPS once before starting a child."""
     with robot_lock:
@@ -1867,12 +1947,11 @@ def tool_toggle():
                 )
                 return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
             else:
-                socketio.emit(
-                    'flash_message',
-                    {"message": f"Already holding Tool {detected_tool}. Can't pick Tool {tool_num}"}
-                )
-                # cps.HRIF_DisConnect(0)
-                return jsonify({"error": "Pick conditions not met"}), 400
+                try:
+                    return _manual_switch_tool_response(cps, detected_tool, tool_num, config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool switch failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
 
     elif action == "keep":
         with locked_cps() as ok:
@@ -2011,11 +2090,11 @@ def tool_toggle2():
                 )
                 return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
             else:
-                socketio.emit(
-                    'flash_message',
-                    {"message": f"Already holding Tool {detected_tool}. Can't pick Tool {tool_num}"}
-                )
-                return jsonify({"error": "Pick conditions not met"}), 400
+                try:
+                    return _manual_switch_tool_response(cps, detected_tool, tool_num, config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool switch failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
 
     elif action == "keep":
         with locked_cps() as ok:
@@ -2134,11 +2213,11 @@ def tool_toggle1():
                 )
                 return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
             else:
-                socketio.emit(
-                    'flash_message',
-                    {"message": f"Already holding Tool {detected_tool}. Can't pick Tool {tool_num}"}
-                )
-                return jsonify({"error": "Pick conditions not met"}), 400
+                try:
+                    return _manual_switch_tool_response(cps, detected_tool, tool_num, config_data_UI)
+                except RuntimeError as exc:
+                    socketio.emit('flash_message', {"message": f"Tool switch failed: {exc}"})
+                    return jsonify({"error": str(exc)}), 409
 
     elif action == "keep":
         with locked_cps() as ok:
