@@ -119,6 +119,157 @@ def _split_sections_by_reach(sections: list[dict[str, Any]], reach_x: float, rea
     return chunks
 
 
+def build_structural_curved_frame_sections(
+    frame_geom: Any,
+    outer_poly: Any,
+    obstacle_polys: list[Any],
+    pass_width: float,
+) -> list[dict[str, Any]]:
+    """Build operator-intended sections for rectangular pockets with one curved side.
+
+    This path is only for Case C. It uses each pocket's structural curved-side endpoints
+    as layout anchors, not every sampled DXF arc point. The output matches the intended
+    model: top rail, lower curved rail, vertical gaps between pockets, and big outer side
+    sections. The actual polygons are still clipped to frame_geom, so no section enters a
+    pocket or 3D contour.
+    """
+    if frame_geom is None or getattr(frame_geom, "is_empty", True) or not obstacle_polys:
+        return []
+    if outer_poly is None or getattr(outer_poly, "is_empty", True):
+        return []
+
+    try:
+        from shapely.geometry import Polygon, box
+        from shapely.ops import unary_union
+    except Exception:
+        return []
+
+    curved_infos: list[dict[str, Any]] = []
+    for obstacle in obstacle_polys:
+        base = _largest_polygon(obstacle)
+        if base is None or getattr(base, "is_empty", True) or getattr(base, "geom_type", None) != "Polygon":
+            continue
+        ring = [[float(x), float(y)] for x, y in base.exterior.coords[:-1]]
+        side = _curved_side_of_ring(ring)
+        if not side or len(side) < 4:
+            continue
+        minx, miny, maxx, maxy = [float(v) for v in base.bounds]
+        # Use the extreme points OF THE CURVED SIDE ITSELF, not just the run's two ends.
+        # _curved_side_of_ring can return a run whose endpoints include a top corner; taking
+        # those directly made curve_left/curve_right land on the pocket TOP, so the rail
+        # between two such pockets collapsed to zero height and produced no pass at all.
+        curve_left = min(side, key=lambda p: (float(p[0]), float(p[1])))
+        curve_right = max(side, key=lambda p: (float(p[0]), float(p[1])))
+        endpoints = [curve_left, curve_right]
+        curved_infos.append({
+            "poly": base,
+            "minx": minx,
+            "miny": miny,
+            "maxx": maxx,
+            "maxy": maxy,
+            "curve_y": sum(float(p[1]) for p in endpoints) / 2.0,
+            "curve_x0": min(float(p[0]) for p in endpoints),
+            "curve_x1": max(float(p[0]) for p in endpoints),
+            "curve_left": [float(curve_left[0]), float(curve_left[1])],
+            "curve_right": [float(curve_right[0]), float(curve_right[1])],
+        })
+
+    if not curved_infos:
+        return []
+    curved_infos.sort(key=lambda item: (item["minx"] + item["maxx"]) / 2.0)
+
+    ox0, oy0, ox1, oy1 = [float(v) for v in outer_poly.bounds]
+    frame_height = max(oy1 - oy0, 1e-6)
+    pocket_top_y = max(info["maxy"] for info in curved_infos)
+    curve_y = max(info["curve_y"] for info in curved_infos)
+    lower_cut_y = min(pocket_top_y - 1e-6, curve_y)
+
+    candidates: list[tuple[Any, str, str]] = []
+
+    # Top rail: one long pass across the upper frame rail.
+    if oy1 - pocket_top_y > frame_height * 0.03:
+        candidates.append((box(ox0, pocket_top_y, ox1, oy1), "top_frame_band", "centerline"))
+
+    # Vertical frame bands between pockets: use each pocket pair's structural
+    # top corners and curved-side endpoints instead of a global rectangle.
+    for left, right in zip(curved_infos, curved_infos[1:]):
+        if right["minx"] - left["maxx"] <= max(float(pass_width) * 0.25, 10.0):
+            continue
+        bottom_y = min(float(left["curve_right"][1]), float(right["curve_left"][1]))
+        top_y = min(float(left["maxy"]), float(right["maxy"]))
+        if top_y - bottom_y <= max(float(pass_width) * 0.25, 10.0):
+            # Degenerate rail (the two pockets' reference points sit at the same height).
+            # Fall back to the full gap between the pockets, clipped to the frame later,
+            # rather than emitting nothing for this rib.
+            bottom_y = min(float(left["miny"]), float(right["miny"]))
+            top_y = max(float(left["maxy"]), float(right["maxy"]))
+        if top_y - bottom_y <= 1e-6:
+            continue
+        rail = box(left["maxx"], bottom_y, right["minx"], top_y)
+        candidates.append((rail, "between_pockets_vertical", "centerline"))
+
+
+    # Lower curved rail: split by pocket spans/gaps so the centerline follows large,
+    # meaningful sections instead of tiny grid fragments.
+    lower_sections: list[Any] = []
+    # One section below each curved pocket.
+    for info in curved_infos:
+        lower_sections.append(box(info["minx"], oy0, info["maxx"], lower_cut_y))
+    # One section in each gap between neighboring pockets.
+    for left, right in zip(curved_infos, curved_infos[1:]):
+        if right["minx"] - left["maxx"] > max(float(pass_width) * 0.25, 10.0):
+            lower_sections.append(box(left["maxx"], oy0, right["minx"], lower_cut_y))
+    if lower_sections:
+        for piece in _as_polygons(unary_union(lower_sections)):
+            candidates.append((piece, "bottom_curved_band", "centerline"))
+
+    # Outer side sections are big sections and must use zigzag fill.
+    # The width threshold decides whether a side strip becomes a section at all, so it must
+    # be a real "too small to sand" limit. At pass_width*0.5 a 70 mm strip beside a 144 mm
+    # tool was dropped for being 2 mm under the bar, silently losing the whole right-hand
+    # frame rail. Anything at least a quarter of the tool wide is worth a pass.
+    side_min_width = max(float(pass_width) * 0.25, 15.0)
+    first = curved_infos[0]
+    last = curved_infos[-1]
+    if first["minx"] - ox0 > side_min_width:
+        candidates.append((box(ox0, oy0, first["minx"], oy1), "outer_left_frame", "zigzag_fill"))
+    if ox1 - last["maxx"] > side_min_width:
+        candidates.append((box(last["maxx"], oy0, ox1, oy1), "outer_right_frame", "zigzag_fill"))
+
+    sections: list[dict[str, Any]] = []
+    claimed = None
+    top_claimed = None
+    for candidate, strategy, mode in candidates:
+        geom = candidate.intersection(frame_geom)
+        if strategy == "between_pockets_vertical":
+            # These rails must reach their structural curved-side endpoints. Do not
+            # subtract the previously claimed lower curved band, or the rail gets cut
+            # at an artificial horizontal level and leaves diagonal slivers.
+            if top_claimed is not None:
+                geom = geom.difference(top_claimed)
+        elif claimed is not None:
+            geom = geom.difference(claimed)
+        pieces = _as_polygons(geom)
+        for piece in pieces:
+            if piece.is_empty or piece.area <= max(float(pass_width) * 2.0, 50.0):
+                continue
+            section = _section_from_polygon(piece, len(sections) + 1, True)
+            if not section:
+                continue
+            section["section_strategy"] = strategy
+            section["toolpath_mode"] = mode
+            if strategy == "bottom_curved_band":
+                section["curved"] = True
+            sections.append(section)
+        if pieces:
+            unioned = unary_union(pieces)
+            if strategy == "top_frame_band":
+                top_claimed = unioned if top_claimed is None else unary_union([top_claimed, unioned])
+            claimed = unioned if claimed is None else unary_union([claimed, unioned])
+
+    # Require enough structure to avoid replacing the proven fallback with a partial guess.
+    return sections if len(sections) >= max(3, len(curved_infos)) else []
+
 def _outer_non_axis_boundary_regions(
     outer_polygon: list[list[float]] | None,
     frame_geom: Any,
@@ -218,6 +369,202 @@ def _outer_non_axis_boundary_regions(
     return _as_polygons(unary_union(regions))
 
 
+def _simplify_ring(pts: list[list[float]], tol: float) -> list[list[float]]:
+    """Douglas-Peucker on an open copy of a ring — removes per-vertex sampling noise while
+    keeping real corners and overall arc shape."""
+    import math
+
+    if len(pts) < 3 or tol <= 0:
+        return [list(p) for p in pts]
+
+    def _dp(seq: list[list[float]]) -> list[list[float]]:
+        if len(seq) < 3:
+            return seq
+        ax, ay = seq[0]
+        bx, by = seq[-1]
+        dx, dy = bx - ax, by - ay
+        base = math.hypot(dx, dy)
+        dmax, idx = -1.0, 0
+        for i in range(1, len(seq) - 1):
+            px, py = seq[i]
+            d = math.hypot(px - ax, py - ay) if base < 1e-9 else abs(dy * px - dx * py + bx * ay - by * ax) / base
+            if d > dmax:
+                dmax, idx = d, i
+        if dmax > tol:
+            return _dp(seq[: idx + 1])[:-1] + _dp(seq[idx:])
+        return [seq[0], seq[-1]]
+
+    out = _dp([list(p) for p in pts] + [list(pts[0])])
+    if len(out) >= 2 and math.hypot(out[0][0] - out[-1][0], out[0][1] - out[-1][1]) < 1e-9:
+        out = out[:-1]
+    return out if len(out) >= 3 else [list(p) for p in pts]
+
+
+def _curved_side_of_ring(ring: list[list[float]], angle_deg: float = 18.0, min_pts: int = 4) -> list[list[float]] | None:
+    """Return the run of vertices forming a CURVED side of a pocket, or None.
+
+    A curved side is a chain of vertices between two sharp corners along which the
+    boundary only bends gently (arc flattening). The two bounding corners are exactly the
+    anchor points an operator would pick to say "the curved part runs from here to here".
+    """
+    import math
+
+    raw = [[float(x), float(y)] for x, y in ring]
+    if len(raw) >= 2 and math.hypot(raw[0][0] - raw[-1][0], raw[0][1] - raw[-1][1]) < 1e-6:
+        raw = raw[:-1]
+    if len(raw) < min_pts + 2:
+        return None
+
+    # Classify on a DE-NOISED copy of the ring. Real DXF rings carry per-vertex noise
+    # (duplicated lines, tiny gaps, offset contours), and that noise — not the true shape —
+    # is what previously decided whether a curved side was found. Douglas-Peucker with a
+    # small tolerance removes the jitter while preserving genuine corners and arc shape.
+    # Anchors are then mapped back onto the ORIGINAL vertices, so the band still uses real
+    # geometry.
+    span0 = max(
+        max(p[0] for p in raw) - min(p[0] for p in raw),
+        max(p[1] for p in raw) - min(p[1] for p in raw),
+        1.0,
+    )
+    pts = _simplify_ring(raw, tol=max(span0 * 0.004, 1.5))
+    n = len(pts)
+    if n < min_pts + 2:
+        pts = raw
+        n = len(pts)
+    if n < min_pts + 2:
+        return None
+
+    def turn_at(i: int) -> float:
+        a, b, c = pts[(i - 1) % n], pts[i], pts[(i + 1) % n]
+        v1x, v1y = b[0] - a[0], b[1] - a[1]
+        v2x, v2y = c[0] - b[0], c[1] - b[1]
+        l1, l2 = math.hypot(v1x, v1y), math.hypot(v2x, v2y)
+        if l1 < 1e-9 or l2 < 1e-9:
+            return 0.0
+        dot = max(-1.0, min(1.0, (v1x * v2x + v1y * v2y) / (l1 * l2)))
+        return math.degrees(math.acos(dot))
+
+    def deviation_at(i: int) -> float:
+        """Perpendicular distance from vertex i to the chord through its neighbours.
+
+        Angle alone is NOT a safe corner test on real DXF data: a noisy vertex on a short
+        segment swings the angle wildly (45 deg from 5 mm of jitter) while barely leaving
+        the arc. That shredded smooth arcs into fake corners, so the curved side was found
+        on clean files and silently lost on messy ones — the intermittent failure. Distance
+        is scale-honest: a real corner departs by millimetres, sampling noise does not."""
+        a, b, c = pts[(i - 1) % n], pts[i], pts[(i + 1) % n]
+        dx, dy = c[0] - a[0], c[1] - a[1]
+        chord = math.hypot(dx, dy)
+        if chord < 1e-9:
+            return 0.0
+        return abs(dy * b[0] - dx * b[1] + c[0] * a[1] - c[1] * a[0]) / chord
+
+    # A vertex is a real corner only when it turns sharply AND actually departs from the
+    # local boundary. `min_dev` scales with the ring so it adapts to model size.
+    span = max(
+        max(p[0] for p in pts) - min(p[0] for p in pts),
+        max(p[1] for p in pts) - min(p[1] for p in pts),
+        1.0,
+    )
+    min_dev = max(span * 0.01, 3.0)
+    is_corner = [turn_at(i) > angle_deg and deviation_at(i) > min_dev for i in range(n)]
+    if not any(is_corner):
+        return None
+
+    # Longest run of non-corner (gently bending) vertices, inclusive of its end corners.
+    best: list[list[float]] | None = None
+    for start in range(n):
+        if not is_corner[start]:
+            continue
+        run = [pts[start]]
+        k = (start + 1) % n
+        guard = 0
+        while not is_corner[k] and guard < n:
+            run.append(pts[k])
+            k = (k + 1) % n
+            guard += 1
+        run.append(pts[k])  # closing corner
+        if len(run) >= min_pts and (best is None or len(run) > len(best)):
+            best = run
+    return best
+
+
+def curved_pocket_bands(obstacle_polys: list[Any], outer_poly: Any, frame_geom: Any,
+                        pass_width: float) -> list[Any]:
+    """Frame bands along pockets' CURVED sides, anchored on the pocket corner points.
+
+    Operator's rule: take the two corner points bounding a pocket's curved side, follow the
+    arc between them, and the frame band under that arc is one section whose toolpath is the
+    band's centerline. This needs no curvature classification of the frame itself — the
+    pocket corners are exact, known anchors — and it works whether or not the surrounding
+    rectangular sections happen to contain curved parts.
+
+    Returns one band polygon per curved pocket side (empty list when no pocket is curved).
+    """
+    from shapely.geometry import Polygon
+
+    if not obstacle_polys or frame_geom is None or getattr(frame_geom, "is_empty", True):
+        return []
+    if outer_poly is None or getattr(outer_poly, "is_empty", True):
+        return []
+
+    outer_ring = list(outer_poly.exterior.coords[:-1]) if getattr(outer_poly, "geom_type", None) == "Polygon" else []
+    if len(outer_ring) < 3:
+        return []
+
+    bands: list[Any] = []
+    for p in obstacle_polys:
+        base = _largest_polygon(p)
+        if base is None or getattr(base, "is_empty", True) or getattr(base, "geom_type", None) != "Polygon":
+            continue
+        side = _curved_side_of_ring([[float(x), float(y)] for x, y in base.exterior.coords[:-1]])
+        if not side or len(side) < 4:
+            continue
+        # Project the curved side outward onto the nearest part of the door outline, then
+        # close the ring: pocket curved side + matching outline stretch = the frame band.
+        try:
+            outline = _nearest_outline_run(outer_ring, side)
+            if outline is None or len(outline) < 2:
+                continue
+            band = Polygon(list(side) + list(reversed(outline)))
+            if not band.is_valid:
+                band = band.buffer(0)
+            band = band.intersection(frame_geom)
+        except Exception:
+            continue
+        for g in _as_polygons(band):
+            if not g.is_empty and g.area > max(pass_width * 5.0, 100.0):
+                bands.append(g)
+    return bands
+
+def _nearest_outline_run(outer_ring: list[Any], side: list[list[float]]) -> list[list[float]] | None:
+    """The stretch of the door outline that faces `side` (a pocket's curved side)."""
+    import math
+
+    ring = [[float(x), float(y)] for x, y in outer_ring]
+    if len(ring) < 2 or len(side) < 2:
+        return None
+
+    def nearest_index(pt: list[float]) -> int:
+        best_i, best_d = 0, None
+        for i, q in enumerate(ring):
+            d = math.hypot(q[0] - pt[0], q[1] - pt[1])
+            if best_d is None or d < best_d:
+                best_i, best_d = i, d
+        return best_i
+
+    i0 = nearest_index(side[0])
+    i1 = nearest_index(side[-1])
+    n = len(ring)
+    # Walk the shorter way around the ring between the two anchor projections.
+    fwd = [(i0 + k) % n for k in range((i1 - i0) % n + 1)]
+    bwd = [(i0 - k) % n for k in range((i0 - i1) % n + 1)]
+    run_idx = fwd if len(fwd) <= len(bwd) else bwd
+    if len(run_idx) < 2:
+        return None
+    return [ring[i] for i in run_idx]
+
+
 def diagonal_zone_box(obstacle_polys: list[Any], frame_geom: Any, margin: float = 0.0) -> Any:
     """Axis-aligned box that tightly encloses every obstacle having a sloped (non-axis)
     edge — the "diagonal zone".
@@ -228,7 +575,7 @@ def diagonal_zone_box(obstacle_polys: list[Any], frame_geom: Any, margin: float 
     familiar rectangular section logic applies. Returns None when the model has no sloped
     obstacle (a purely rectangular door), so those models keep the existing behaviour.
     """
-    from shapely.geometry import box
+    from shapely.geometry import Polygon, box
 
     if not obstacle_polys or frame_geom is None or getattr(frame_geom, "is_empty", True):
         return None
@@ -271,7 +618,7 @@ def split_diagonal_zone_into_arms(zone_frame: Any, zone_box: Any, pass_width: fl
     arm — then keep the arm pieces. The junction is the zone-box centre, which is where the
     sloped obstacles meet by construction.
     """
-    from shapely.geometry import box
+    from shapely.geometry import Polygon, box
 
     if zone_frame is None or getattr(zone_frame, "is_empty", True) or zone_box is None:
         return []
@@ -496,15 +843,51 @@ def _split_band_into_strips(poly: Any) -> list[Any]:
     return legs if legs else parts
 
 
+def _band_supports_straight_pass(base: Any, min_frac: float = 0.55) -> bool:
+    """True when a straight centerline already covers most of this band's length.
+
+    Splitting is only worth doing for a band that would otherwise emit NO pass. If a
+    straight stroke already works, quadrant-slicing it just produces short offcuts that are
+    then too short to survive the tool offset — which is how a clean 4-band frame turned
+    into 7 sections with 2 of them empty."""
+    import math
+    from shapely.geometry import LineString
+
+    try:
+        ux, uy = _major_axis(base)
+        coords = list(base.exterior.coords[:-1])
+        longs = [x * ux + y * uy for x, y in coords]
+        span = max(longs) - min(longs)
+        if span <= 1e-6:
+            return True
+        cx, cy = base.centroid.x, base.centroid.y
+        reach = span * 2.0
+        line = LineString([(cx - ux * reach, cy - uy * reach), (cx + ux * reach, cy + uy * reach)])
+        inter = line.intersection(base)
+        if inter.is_empty:
+            return False
+        if inter.geom_type == "LineString":
+            covered = inter.length
+        else:
+            parts = [g.length for g in getattr(inter, "geoms", []) if g.geom_type == "LineString"]
+            covered = max(parts) if parts else 0.0
+        return covered >= span * min_frac
+    except Exception:
+        return True
+
+
 def _split_corner_band_into_legs(poly: Any) -> list[Any]:
     """Cut an L/U-shaped thin band into its straight legs.
 
     Uses the band's own bounding box: a corner-wrapping band leaves most of the box empty.
     We slice the band with the axis-aligned half-planes at the bend so each leg becomes a
     simple straight strip. Returns [poly] unchanged when the band is already straight."""
-    from shapely.geometry import box
+    from shapely.geometry import Polygon, box
 
     base = _largest_polygon(poly)
+    # Only split when the band genuinely cannot be covered by one straight stroke.
+    if base is not None and getattr(base, "geom_type", None) == "Polygon" and _band_supports_straight_pass(base):
+        return [poly]
     if base is None or getattr(base, "is_empty", True) or getattr(base, "geom_type", None) != "Polygon":
         return [poly]
     minx, miny, maxx, maxy = [float(v) for v in base.bounds]

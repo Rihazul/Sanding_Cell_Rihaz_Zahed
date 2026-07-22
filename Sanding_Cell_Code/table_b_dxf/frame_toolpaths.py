@@ -106,6 +106,130 @@ def _longest_line_part(geom: Any) -> Any:
     return max(parts, key=lambda g: g.length)
 
 
+def _split_curve_at_apex(points: list[list[float]], min_len: float) -> list[list[list[float]]]:
+    """Split a curved band's centerline into LONG STRAIGHT strokes meeting at the apex.
+
+    Operator intent for a curved lower rail is a few long angled moves — one per side of
+    the arc — joined by a short connector at the peak, rather than one many-segment
+    polyline that reads as wobbly. We find the apex (the vertex furthest from the chord
+    between the ends) and emit: left stroke, short apex connector, right stroke.
+
+    Returns [] when the path is already effectively straight (no meaningful apex), so a
+    flat band keeps its single stroke.
+    """
+    import math
+
+    if len(points) < 3:
+        return []
+    ax, ay = points[0]
+    bx, by = points[-1]
+    dx, dy = bx - ax, by - ay
+    chord = math.hypot(dx, dy)
+    if chord < max(min_len * 2.0, 1e-6):
+        return []
+
+    apex_i, apex_d = 0, -1.0
+    for i in range(1, len(points) - 1):
+        px, py = points[i]
+        d = abs(dy * px - dx * py + bx * ay - by * ax) / chord
+        if d > apex_d:
+            apex_i, apex_d = i, d
+    # A shallow arc is better served by one straight stroke.
+    if apex_d < max(min_len * 0.15, 3.0) or apex_i <= 0 or apex_i >= len(points) - 1:
+        return []
+
+    apex = points[apex_i]
+    # Short connector centred on the apex, along the local tangent, so the two long
+    # strokes are joined rather than leaving a gap at the peak.
+    prev_pt = points[apex_i - 1]
+    next_pt = points[apex_i + 1]
+    tx, ty = next_pt[0] - prev_pt[0], next_pt[1] - prev_pt[1]
+    tlen = math.hypot(tx, ty)
+    if tlen < 1e-9:
+        return []
+    tx, ty = tx / tlen, ty / tlen
+    half = max(min_len * 0.5, 10.0)
+    c0 = [apex[0] - tx * half, apex[1] - ty * half]
+    c1 = [apex[0] + tx * half, apex[1] + ty * half]
+
+    left = [list(points[0]), c0]
+    right = [c1, list(points[-1])]
+    strokes = []
+    for s in (left, [c0, c1], right):
+        if math.dist(s[0], s[-1]) >= max(min_len * 0.25, 5.0):
+            strokes.append(s)
+    return strokes if len(strokes) >= 2 else []
+
+
+def _curved_band_following_centerline(poly: Any, pass_width: float, offset: float) -> list[list[float]]:
+    """Centerline of a curved frame band that FOLLOWS the arc.
+
+    Used for the structural lower band of a curved door. A straight chord at a fixed y
+    drifts out of the band near its ends (and can land inside a pocket); sampling the
+    band's cross-section centres along its length keeps the stroke inside and bending with
+    the curve. Returns [] when no usable stroke can be built, so the caller can skip.
+    """
+    import math
+
+    base = _largest_polygon(poly)
+    if base is None or getattr(base, "is_empty", True) or getattr(base, "geom_type", None) != "Polygon":
+        return []
+    minx, miny, maxx, maxy = [float(v) for v in base.bounds]
+    long_len = max(maxx - minx, 1e-6)
+
+    stations = _curved_band_centerline(base, 1.0, 0.0, long_len, pass_width, 0.0)
+    if not stations or len(stations) < 2:
+        return []
+    stations = _smooth_polyline(stations, window=7)
+
+    # How thick is the band? On a THIN curved band the straight chords between simplified
+    # stations bow outside the polygon, the containment check rejects the whole path, and
+    # the band silently gets NO pass at all. So scale the simplify tolerance to the band's
+    # own thickness and, if the result still leaves the band, retry with progressively
+    # finer detail before giving up.
+    thickness = float(base.area) / max(long_len, 1e-6)
+    eff_offset = min(float(offset), max(long_len * 0.2, 0.0))
+
+    tolerances = [
+        max(min(pass_width * 0.06, thickness * 0.25), 1.0),
+        max(thickness * 0.12, 0.5),
+        max(thickness * 0.05, 0.25),
+        0.0,  # last resort: keep every sampled station
+    ]
+    for tol in tolerances:
+        pts = _simplify_polyline(stations, tol=tol) if tol > 0 else [list(p) for p in stations]
+        pts = _trim_polyline(pts, eff_offset)
+        if len(pts) < 2 or math.dist(pts[0], pts[-1]) <= 1e-6:
+            continue
+        if _polyline_stays_in_polygon(pts, base):
+            return pts
+        trimmed = _trim_polyline(pts, max(pass_width * 0.25, 5.0))
+        if len(trimmed) >= 2 and _polyline_stays_in_polygon(trimmed, base):
+            return trimmed
+
+    # The band is CONCAVE (it dips up between pockets), so a chord between two perfectly
+    # valid centre points can still cut outside it. Rejecting the whole path for that left
+    # the band with no pass at all. Instead keep the longest run of consecutive stations
+    # whose segments all stay inside — a slightly shorter stroke that is actually valid
+    # beats emitting nothing.
+    best: list[list[float]] = []
+    run: list[list[float]] = [list(stations[0])]
+    for a, b in zip(stations, stations[1:]):
+        if _polyline_stays_in_polygon([a, b], base):
+            run.append(list(b))
+        else:
+            if len(run) > len(best):
+                best = run
+            run = [list(b)]
+    if len(run) > len(best):
+        best = run
+    if len(best) >= 2:
+        best = _simplify_polyline(best, tol=max(thickness * 0.08, 0.5))
+        if len(best) >= 2 and math.dist(best[0], best[-1]) > max(pass_width * 0.5, 10.0):
+            return best
+    return []
+
+
 def _polyline_stays_in_polygon(points: list[list[float]], poly: Any, tol: float = 1e-5) -> bool:
     if len(points) < 2 or poly is None or poly.is_empty:
         return False
@@ -121,6 +245,28 @@ def _polyline_stays_in_polygon(points: list[list[float]], poly: Any, tol: float 
         return True
     except Exception:
         return False
+
+
+def _smooth_polyline(points: list[list[float]], window: int = 5) -> list[list[float]]:
+    """Moving-average smoothing of a sampled centerline.
+
+    Cross-section midpoints wobble wherever the band's edges step (e.g. beside a pocket
+    corner). Sanding wants a CLEAN path that follows the arc, not one that chases every
+    sampling artefact, so we average each station with its neighbours. Endpoints are kept
+    exactly so the stroke still spans the full band."""
+    n = len(points)
+    if n < 3 or window < 3:
+        return [list(p) for p in points]
+    half = max(1, window // 2)
+    out: list[list[float]] = [list(points[0])]
+    for i in range(1, n - 1):
+        lo = max(0, i - half)
+        hi = min(n, i + half + 1)
+        xs = sum(p[0] for p in points[lo:hi]) / (hi - lo)
+        ys = sum(p[1] for p in points[lo:hi]) / (hi - lo)
+        out.append([xs, ys])
+    out.append(list(points[-1]))
+    return out
 
 
 def _simplify_polyline(points: list[list[float]], tol: float) -> list[list[float]]:
@@ -269,7 +415,7 @@ def _best_curved_chord(poly: Any, axis_x: float, axis_y: float, pass_width: floa
     return best[2], best[3]
 
 
-def _oriented_toolpath(poly: Any, pass_width: float, offset: float, step: float, half_pass: float) -> tuple[list[list[float]], str, str]:
+def _oriented_toolpath(poly: Any, pass_width: float, offset: float, step: float, half_pass: float, force_band: bool = False) -> tuple[list[list[float]], str, str]:
     from shapely.geometry import LineString
     import math
 
@@ -322,7 +468,7 @@ def _oriented_toolpath(poly: Any, pass_width: float, offset: float, step: float,
     eff_thickness = float(poly.area) / max(_rect_long, 1e-6)
     exterior_pts = [[float(x), float(y)] for x, y in poly.exterior.coords[:-1]]
     is_curve_poly = _ring_has_curve(exterior_pts) or _ring_has_non_axis_edge(exterior_pts)
-    is_band = eff_thickness <= pass_width * 1.1
+    is_band = force_band or eff_thickness <= pass_width * 1.1
     if is_band:
         # Centerline direction = the min-rotated-rectangle's LONG edge (the band's true
         # axis, robust for diagonal arms). Cast a line along that axis through the band's
@@ -344,26 +490,55 @@ def _oriented_toolpath(poly: Any, pass_width: float, offset: float, step: float,
         except Exception:
             axis_x, axis_y = ux, uy
 
-        # Curved sections should not blindly use the longest horizontal chord; that
-        # creates a rectangle-looking pass on a curved frame band. Test diagonal chords
-        # too and pick the best safe stroke fully contained in the section.
         if is_curve_poly:
-            curved = _best_curved_chord(poly, axis_x, axis_y, pass_width, offset)
+            # A genuinely CURVED band must be covered by a stroke that FOLLOWS the arc,
+            # running down the middle of the band — not by a straight chord across it
+            # (a chord leaves the band's ends unsanded and is what made curved previews
+            # look rectangular). Sample cross-section centres along the band's axis and
+            # connect them; simplify so the result keeps only the vertices the curve
+            # needs. Fall back to the straight-chord search only if that fails.
+            # A SHORT section must not be trimmed out of existence. Trimming `offset` off
+            # both ends of an 80 mm band leaves nothing, so the section silently produced no
+            # pass at all (the uncovered ribs between pockets). Scale the trim down so a
+            # short band still keeps a usable stroke — the tool is wide and covers the part.
+            eff_offset = offset
+            if long_len > 1e-6:
+                eff_offset = min(offset, max(long_len * 0.2, 0.0))
+
+            if _ring_has_curve(exterior_pts):
+                stations = _curved_band_centerline(poly, axis_x, axis_y, long_len, pass_width, eff_offset)
+                if stations and len(stations) >= 2:
+                    # Smooth first: raw cross-section midpoints wobble beside pocket corners
+                    # and that wobble was showing up as a jagged pass. Then simplify with a
+                    # tolerance large enough to drop residual noise but small enough to keep
+                    # the real arc, so the result is a few long straight moves along the curve.
+                    stations = _smooth_polyline(stations, window=7)
+                    simplified = _simplify_polyline(stations, tol=max(pass_width * 0.06, 6.0))
+                    simplified = _trim_polyline(simplified, eff_offset)
+                    if len(simplified) >= 2 and math.dist(simplified[0], simplified[-1]) > 1e-6:
+                        if _polyline_stays_in_polygon(simplified, poly):
+                            return simplified, direction, "curved_band_centerline"
+            curved = _best_curved_chord(poly, axis_x, axis_y, pass_width, eff_offset)
             if curved is not None:
                 return curved[0], direction, curved[1]
             return [], direction, "curved_chord_centerline"
 
-        # Non-curved thin/diagonal bands keep the original centerline rule.
+        # Non-curved thin/diagonal bands keep the original centerline rule. Explicit
+        # structural centerline sections can be shorter than 2 * offset, so scale their
+        # trim down instead of deleting the path.
+        centerline_offset = offset
+        if force_band and long_len > 1e-6:
+            centerline_offset = min(offset, max(long_len * 0.2, 0.0))
         cx, cy = poly.centroid.x, poly.centroid.y
-        reach = long_len + short_len + max(pass_width, offset) + 10.0
+        reach = long_len + short_len + max(pass_width, centerline_offset) + 10.0
         line = LineString([
             (cx - axis_x * reach, cy - axis_y * reach),
             (cx + axis_x * reach, cy + axis_y * reach),
         ])
         span = _longest_line_part(line.intersection(poly))
-        if span is not None and span.length > pass_width * 0.5:
+        if span is not None and span.length > pass_width * 0.35:
             pts = [[float(x), float(y)] for x, y in span.coords]
-            pts = _trim_segment(pts, offset)
+            pts = _trim_segment(pts, centerline_offset)
             if pts and len(pts) >= 2 and math.dist(pts[0], pts[-1]) > 1e-6 and _polyline_stays_in_polygon(pts, poly):
                 return pts, direction, strategy
 
@@ -372,11 +547,11 @@ def _oriented_toolpath(poly: Any, pass_width: float, offset: float, step: float,
         #   • if the stations are collinear → it's a straight band → collapse to 2 points.
         #   • if they bend → it's a CURVED band → keep the polyline (linear point-to-point
         #     coverage of the curve; the wide tool need not be perfectly centered).
-        stations = _curved_band_centerline(poly, axis_x, axis_y, long_len, pass_width, offset)
+        stations = _curved_band_centerline(poly, axis_x, axis_y, long_len, pass_width, centerline_offset)
         if stations and len(stations) >= 2:
             simplified = _simplify_polyline(stations, tol=pass_width * 0.15)
             # Polyline-aware trim keeps the curve's intermediate vertices.
-            simplified = _trim_polyline(simplified, offset)
+            simplified = _trim_polyline(simplified, centerline_offset)
             if (
                 len(simplified) >= 2
                 and math.dist(simplified[0], simplified[-1]) > 1e-6

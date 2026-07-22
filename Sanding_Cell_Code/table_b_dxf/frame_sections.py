@@ -27,15 +27,19 @@ from .frame_section_builder import (
     _section_from_polygon,
     _split_band_into_strips,
     _split_corner_band_into_legs,
+    curved_pocket_bands,
     diagonal_zone_box,
     split_diagonal_zone_into_arms,
     _split_curved_band_by_geometry,
     _split_sections_by_reach,
+    build_structural_curved_frame_sections,
 )
 from .frame_toolpaths import (
     _clip_line_segment_to_polygon,
+    _curved_band_following_centerline,
     _generate_section_toolpaths,
     _oriented_toolpath,
+    _split_curve_at_apex,
 )
 
 logger = logging.getLogger(__name__)
@@ -179,127 +183,158 @@ def compute_frame_sections_and_toolpaths(
     if frame_geom.is_empty or frame_geom.area <= 1e-6:
         return {"ok": True, "rings": [], "sections": [], "chunks": [], "toolpaths": [], "frame_area": 0.0, "obstacle_count": len(obstacles)}
 
-    # Extract curved/sloped OUTER-boundary bands before grid decomposition. The grid is
-    # good for rectangular frame sections, but it is the wrong primitive for a curved
-    # edge: it turns one real curved band into several fake rectangle cells. Removing
-    # these bands from the gridded area makes the preview use the actual DXF shape there.
+    structural_curved_sections = build_structural_curved_frame_sections(
+        frame_geom,
+        outer,
+        obstacles,
+        float(pass_width_mm),
+    )
+
+    # CLAIM ORDER MATTERS:
+    # 1) Curved pocket bands are exact, corner-anchored Case C sections. Claim them first
+    #    from the full frame so later grid/edge stages cannot consume or reshape them.
+    # 2) Diagonal Case B zones are computed from the remaining frame.
+    # 3) Rectangular Case A grid sections are computed last from what remains.
+    curve_bands = curved_pocket_bands(obstacles, outer, frame_geom, float(pass_width_mm))
+    curve_union = unary_union(curve_bands) if curve_bands else None
+    remaining_frame = frame_geom
+    if curve_union is not None:
+        remaining_frame = frame_geom.difference(curve_union)
+
+    grid_source = remaining_frame if not remaining_frame.is_empty and remaining_frame.area > 1e-6 else None
+
     outer_edge_regions = _outer_non_axis_boundary_regions(
         outer_polygon,
-        frame_geom,
+        grid_source,
         pass_width_mm=pass_width_mm,
         offset_mm=offset_mm,
-    )
-    minx, miny, maxx, maxy = [float(v) for v in frame_geom.bounds]
-    # Grid lines come only from obstacle CORNERS (arc points were already filtered out in
-    # _corner_vertices). A light coarsening still collapses corners that fall within a few
-    # mm of each other so we never make sub-tool slivers.
-    grid_merge = 8.0
-    xs = _coarsen_sorted([
-        minx,
-        maxx,
-        *[float(p[0]) for p in obstacle_points if minx - 1e-6 <= float(p[0]) <= maxx + 1e-6],
-        *[v for bounds in obstacle_bounds for v in (bounds[0], bounds[2]) if minx - 1e-6 <= v <= maxx + 1e-6],
-    ], grid_merge)
-    ys = _coarsen_sorted([
-        miny,
-        maxy,
-        *[float(p[1]) for p in obstacle_points if miny - 1e-6 <= float(p[1]) <= maxy + 1e-6],
-        *[v for bounds in obstacle_bounds for v in (bounds[1], bounds[3]) if miny - 1e-6 <= v <= maxy + 1e-6],
-    ], grid_merge)
-    if len(xs) < 2 or len(ys) < 2:
-        rings = _rings_of(frame_geom)
-        return {"ok": True, "rings": rings, "sections": [], "chunks": [], "toolpaths": [], "frame_area": sum(r["area"] for r in rings), "obstacle_count": len(obstacles)}
+    ) if grid_source is not None else []
 
-    # ZONE SPLIT — isolate the diagonal problem from the rectangular one.
-    # A box tightly enclosing the sloped (triangular) obstacles is the "diagonal zone".
-    # Inside it the frame is a set of diagonal arms, each getting ONE p1->p2 stroke.
-    # Outside it the frame is ordinary rectangular perimeter strips, handled by the grid.
-    # Keeping them apart stops the diagonal arms from fusing with the perimeter bands
-    # (which produced chords running along a band edge instead of down an arm's centre).
-    diag_zone = diagonal_zone_box(obstacles, frame_geom)
+    diag_zone = diagonal_zone_box(obstacles, grid_source) if grid_source is not None else None
     diag_frame = None
-    grid_frame = frame_geom
-    if diag_zone is not None:
-        inside = frame_geom.intersection(diag_zone)
-        outside = frame_geom.difference(diag_zone)
-        if not inside.is_empty and inside.area > 1e-6 and not outside.is_empty:
+    grid_frame = grid_source
+    if diag_zone is not None and grid_source is not None:
+        inside = grid_source.intersection(diag_zone)
+        outside = grid_source.difference(diag_zone)
+        if not inside.is_empty and inside.area > 1e-6:
             diag_frame = inside
-            grid_frame = outside
+            grid_frame = outside if not outside.is_empty and outside.area > 1e-6 else None
 
-    full: list[list[bool]] = [[False for _ in range(len(xs) - 1)] for _ in range(len(ys) - 1)]
-    used: list[list[bool]] = [[False for _ in range(len(xs) - 1)] for _ in range(len(ys) - 1)]
+    block_geoms: list[Any] = []
     partial_geoms: list[Any] = []
     min_area = 1e-5
 
-    for j in range(len(ys) - 1):
-        for i in range(len(xs) - 1):
-            cell = box(xs[i], ys[j], xs[i + 1], ys[j + 1])
-            if cell.area <= min_area:
-                continue
-            inter = cell.intersection(grid_frame)
-            if inter.is_empty or inter.area <= min_area:
-                continue
-            if abs(inter.area - cell.area) / max(cell.area, min_area) <= 1e-4:
-                full[j][i] = True
-            else:
-                partial_geoms.extend(_as_polygons(inter))
+    if grid_frame is not None and not grid_frame.is_empty and grid_frame.area > min_area:
+        minx, miny, maxx, maxy = [float(v) for v in grid_frame.bounds]
+        # Grid lines come only from obstacle CORNERS (arc points were already filtered out
+        # in _corner_vertices). A light coarsening still collapses corners that fall within
+        # a few mm of each other so we never make sub-tool slivers.
+        grid_merge = 8.0
+        xs = _coarsen_sorted([
+            minx,
+            maxx,
+            *[float(p[0]) for p in obstacle_points if minx - 1e-6 <= float(p[0]) <= maxx + 1e-6],
+            *[v for bounds in obstacle_bounds for v in (bounds[0], bounds[2]) if minx - 1e-6 <= v <= maxx + 1e-6],
+        ], grid_merge)
+        ys = _coarsen_sorted([
+            miny,
+            maxy,
+            *[float(p[1]) for p in obstacle_points if miny - 1e-6 <= float(p[1]) <= maxy + 1e-6],
+            *[v for bounds in obstacle_bounds for v in (bounds[1], bounds[3]) if miny - 1e-6 <= v <= maxy + 1e-6],
+        ], grid_merge)
+
+        if len(xs) >= 2 and len(ys) >= 2:
+            full: list[list[bool]] = [[False for _ in range(len(xs) - 1)] for _ in range(len(ys) - 1)]
+            used: list[list[bool]] = [[False for _ in range(len(xs) - 1)] for _ in range(len(ys) - 1)]
+
+            for j in range(len(ys) - 1):
+                for i in range(len(xs) - 1):
+                    cell = box(xs[i], ys[j], xs[i + 1], ys[j + 1])
+                    if cell.area <= min_area:
+                        continue
+                    inter = cell.intersection(grid_frame)
+                    if inter.is_empty or inter.area <= min_area:
+                        continue
+                    if abs(inter.area - cell.area) / max(cell.area, min_area) <= 1e-4:
+                        full[j][i] = True
+                    else:
+                        partial_geoms.extend(_as_polygons(inter))
+
+            # Merge FULL cells into maximal rectangular blocks. These are the genuinely
+            # rectangular frame chunks the grid is good at.
+            for j in range(len(ys) - 1):
+                for i in range(len(xs) - 1):
+                    if not full[j][i] or used[j][i]:
+                        continue
+                    i2 = i
+                    while i2 + 1 < len(xs) - 1 and full[j][i2 + 1] and not used[j][i2 + 1]:
+                        i2 += 1
+                    j2 = j
+                    can_extend = True
+                    while can_extend and j2 + 1 < len(ys) - 1:
+                        for k in range(i, i2 + 1):
+                            if not full[j2 + 1][k] or used[j2 + 1][k]:
+                                can_extend = False
+                                break
+                        if can_extend:
+                            j2 += 1
+                    for jj in range(j, j2 + 1):
+                        for ii in range(i, i2 + 1):
+                            used[jj][ii] = True
+                    block_geoms.append(box(xs[i], ys[j], xs[i2 + 1], ys[j2 + 1]))
 
     sections: list[dict[str, Any]] = []
     counter = 0
 
-    # Merge FULL cells into maximal rectangular blocks (these are the genuinely
-    # rectangular frame chunks the grid is good at).
-    block_geoms: list[Any] = []
-    for j in range(len(ys) - 1):
-        for i in range(len(xs) - 1):
-            if not full[j][i] or used[j][i]:
-                continue
-            i2 = i
-            while i2 + 1 < len(xs) - 1 and full[j][i2 + 1] and not used[j][i2 + 1]:
-                i2 += 1
-            j2 = j
-            can_extend = True
-            while can_extend and j2 + 1 < len(ys) - 1:
-                for k in range(i, i2 + 1):
-                    if not full[j2 + 1][k] or used[j2 + 1][k]:
-                        can_extend = False
-                        break
-                if can_extend:
-                    j2 += 1
-            for jj in range(j, j2 + 1):
-                for ii in range(i, i2 + 1):
-                    used[jj][ii] = True
-            block_geoms.append(box(xs[i], ys[j], xs[i2 + 1], ys[j2 + 1]))
-
-    # Partial cells (clipped by a curved/diagonal edge) are unioned into connected bands
-    # and split into strips so a curved or diagonal band becomes ONE section with ONE
-    # pass. Full rectangular blocks stay as their own sections. (The grid coarsening above
-    # already prevents a curved edge from spawning stacked micro-cells, so no per-block
-    # absorption heuristic is needed here.)
     merged_partials = _as_polygons(unary_union(partial_geoms)) if partial_geoms else []
-    merged_partials, block_geoms = _merge_blocks_into_curved_regions(merged_partials, block_geoms, pass_width_mm)
+
+    # Case C can also appear as a curved end inside an otherwise rectangular frame area.
+    # Protect those curved partials before the generic rectangle/diagonal merge; otherwise
+    # they get absorbed into grid blocks and are later displayed as mixed rectangle passes.
+    protected_curve_polys: list[Any] = []
+    straight_partials: list[Any] = []
+    for partial in merged_partials:
+        base = partial
+        exterior = [[float(x), float(y)] for x, y in base.exterior.coords[:-1]] if getattr(base, "geom_type", None) == "Polygon" else []
+        if _ring_has_curve(exterior):
+            protected_curve_polys.append(base)
+        else:
+            straight_partials.append(base)
+
+    protected_curve_union = unary_union(protected_curve_polys) if protected_curve_polys else None
+    if protected_curve_union is not None:
+        # Keep rectangular blocks from overlapping the curved-frame sections.
+        trimmed_blocks: list[Any] = []
+        for block in block_geoms:
+            for piece in _as_polygons(block.difference(protected_curve_union)):
+                if not piece.is_empty and piece.area > 1e-3:
+                    trimmed_blocks.append(piece)
+        block_geoms = trimmed_blocks
+
+    merged_partials, block_geoms = _merge_blocks_into_curved_regions(straight_partials, block_geoms, pass_width_mm)
 
     edge_polys = _as_polygons(unary_union(outer_edge_regions)) if outer_edge_regions else []
+    if protected_curve_polys:
+        protected_union = unary_union(protected_curve_polys)
+        trimmed_edges: list[Any] = []
+        for edge in edge_polys:
+            for piece in _as_polygons(edge.difference(protected_union)):
+                if not piece.is_empty and piece.area > 1e-3:
+                    trimmed_edges.append(piece)
+        edge_polys = trimmed_edges
+
     other_polys: list[Any] = []
     for region in merged_partials:
         for band in _split_curved_band_by_geometry(region, pass_width_mm, reach_x_mm, reach_y_mm):
             exterior = [[float(x), float(y)] for x, y in band.exterior.coords[:-1]] if getattr(band, "geom_type", None) == "Polygon" else []
             if _ring_has_curve(exterior):
-                # CASE C (curved): preview the real computed curved shape. Do NOT decompose
-                # it into rectangle-like strips — that hides the curve.
-                other_polys.append(band)
+                protected_curve_polys.append(band)
             else:
-                # CASE B (diagonal) and CASE A (rectangular): still split into individual
-                # strips. Diagonal arms that meet (e.g. at an X centre) arrive unioned into
-                # one bowtie polygon; leaving it whole yields a single chord spanning TWO
-                # arms (wrong length/angle) and starves the straight edge bands. Splitting
-                # gives each arm its own diagonal section, per Case B.
                 other_polys.extend(_split_band_into_strips(band))
     other_polys.extend(block_geoms)
 
-    # DIAGONAL ZONE: the frame inside the sloped-obstacle box. Its arms are separated here
-    # (they no longer touch the perimeter strips, so splitting is unambiguous) and each arm
-    # becomes its own diagonal section carrying a single p1->p2 stroke.
+    # Case B diagonal sections are already isolated from curved claims, so their arms can
+    # be split cleanly without stealing the Case C curved-band area.
     if diag_frame is not None:
         for arm in split_diagonal_zone_into_arms(diag_frame, diag_zone, float(pass_width_mm)):
             other_polys.extend(_split_band_into_strips(arm))
@@ -315,20 +350,30 @@ def compute_frame_sections_and_toolpaths(
     else:
         strip_polys.extend(other_polys)
 
-    # Subtracting the edge regions above can leave L-shaped remainders (an edge band that
-    # turns a corner). A straight centerline cannot cover an L, so those sections would
-    # emit NO toolpath and that frame area would go unsanded. Cut every corner-wrapping
-    # axis-aligned band into straight legs here, after all differencing is done.
+    # Split only the unprotected remainder into corner legs. The claimed curved pocket
+    # bands are appended after this so they remain whole curved sections.
     leg_polys: list[Any] = []
     for poly in strip_polys:
         leg_polys.extend(_split_corner_band_into_legs(poly))
     strip_polys = leg_polys
+
+    # Protected curved sections are appended after generic splitting so they keep their
+    # true curved section shape. This covers both corner-anchored pocket bands and curved
+    # ends discovered from the computed frame itself.
+    for band in [*protected_curve_polys, *(curve_bands or [])]:
+        if not band.is_empty and band.area > 1e-3:
+            strip_polys.append(band)
 
     for poly in sorted(strip_polys, key=lambda p: p.area, reverse=True):
         section = _section_from_polygon(poly, counter + 1, True)
         if section:
             counter += 1
             sections.append(section)
+
+    if structural_curved_sections:
+        # Curved-pocket models use operator-intended structural sections instead of the
+        # grid fragments. Rectangular and triangular models keep the existing fallback.
+        sections = structural_curved_sections
 
     # Route each section by thickness:
     #   • THIN band (≤ ~1 tool width): one continuous centerline over the FULL section,
@@ -348,9 +393,10 @@ def compute_frame_sections_and_toolpaths(
         poly = _polygon_from_section(section)
         if poly is None:
             continue
+        mode = section.get("toolpath_mode")
         is_curve_section = bool(section.get("curved"))
-        is_single_pass = is_curve_section or _section_effective_thickness(poly) <= band_pass_width * 1.1
-        (thin_sections if is_single_pass else wide_sections).append(section)
+        is_single_pass = mode == "centerline" or is_curve_section or _section_effective_thickness(poly) <= band_pass_width * 1.1
+        (wide_sections if mode == "zigzag_fill" else thin_sections if is_single_pass else wide_sections).append(section)
 
     toolpaths: list[dict[str, Any]] = []
     seq = 0
@@ -362,24 +408,63 @@ def compute_frame_sections_and_toolpaths(
         poly = _polygon_from_section(section)
         if poly is None or poly.is_empty or poly.geom_type != "Polygon":
             continue
-        centerline, direction, strategy = _oriented_toolpath(poly, band_pass_width, band_offset, band_step, band_half)
+        pending_strokes: list[list[list[float]]] = []
+        if section.get("section_strategy") == "between_pockets_vertical":
+            from shapely.geometry import LineString
+
+            minx, miny, maxx, maxy = [float(v) for v in poly.bounds]
+            cx = (minx + maxx) / 2.0
+            reach = (maxy - miny) + band_pass_width + 10.0
+            centerline = _clip_line_segment_to_polygon(
+                LineString([(cx, miny - reach), (cx, maxy + reach)]),
+                poly,
+            ) or []
+            direction = "Y"
+            strategy = "structural_vertical_centerline"
+        elif section.get("section_strategy") == "bottom_curved_band":
+            # The lower band follows the door's arc. Sanding it wants a few LONG STRAIGHT
+            # strokes, not one wobbly polyline: split the band's centerline at the arc apex
+            # so each half becomes a single angled stroke, joined by a short connector at
+            # the peak. A fixed-y chord is not usable here — it drifts out of the band near
+            # the ends and can land inside a pocket.
+            centerline = _curved_band_following_centerline(
+                poly, band_pass_width, band_offset,
+            )
+            extra_strokes = _split_curve_at_apex(centerline, band_half)
+            direction = "X"
+            strategy = "structural_lower_band_centerline"
+            if extra_strokes:
+                centerline = extra_strokes[0]
+                pending_strokes = extra_strokes[1:]
+        else:
+            centerline, direction, strategy = _oriented_toolpath(
+                poly,
+                band_pass_width,
+                band_offset,
+                band_step,
+                band_half,
+                force_band=bool(section.get("curved") or section.get("toolpath_mode") == "centerline"),
+            )
         if len(centerline) < 2:
             continue
         seg_len = sum(math.dist(centerline[i], centerline[i + 1]) for i in range(len(centerline) - 1))
         if seg_len < band_half:  # drop a degenerate sliver
             continue
-        seq += 1
-        toolpaths.append({
-            "path_id": f"frame_path_{seq:03d}",
-            "source_section_id": section.get("section_id"),
-            "region_type": "computed_frame",
-            "operation_type": "frame_section_pass",
-            "points": centerline,
-            "direction": direction,
-            "path_strategy": strategy,
-            "start_point": centerline[0],
-            "end_point": centerline[-1],
-        })
+        for stroke in [centerline, *pending_strokes]:
+            if len(stroke) < 2:
+                continue
+            seq += 1
+            toolpaths.append({
+                "path_id": f"frame_path_{seq:03d}",
+                "source_section_id": section.get("section_id"),
+                "region_type": "computed_frame",
+                "operation_type": "frame_section_pass",
+                "points": stroke,
+                "direction": direction,
+                "path_strategy": strategy,
+                "start_point": stroke[0],
+                "end_point": stroke[-1],
+            })
 
     # Wide sections → reach-split + serpentine fill per chunk.
     wide_chunks = _split_sections_by_reach(wide_sections, reach_x_mm, reach_y_mm)
@@ -402,6 +487,23 @@ def compute_frame_sections_and_toolpaths(
         chunks.append(chunk)
 
     rings = _rings_of(frame_geom)
+
+    # Report frame area that ended up with NO pass. Silently dropping a section is the
+    # dangerous failure mode: the operator sees a preview that looks plausible while part
+    # of the frame is never sanded. It happens on malformed input (e.g. a 3D contour drawn
+    # a few mm from its pocket, which shatters the frame into sub-tool fragments), so
+    # surface it rather than hide it.
+    covered_ids = {tp.get("source_section_id") for tp in toolpaths}
+    uncovered = [s for s in sections if s.get("section_id") not in covered_ids]
+    uncovered_area = float(sum(float(s.get("area") or 0.0) for s in uncovered))
+    if uncovered:
+        logger.warning(
+            "Table B DXF frame: %d of %d sections produced NO toolpath (%.0f mm2 of frame "
+            "left uncovered). Check for obstacles drawn very close together or an offset "
+            "larger than the section.",
+            len(uncovered), len(sections), uncovered_area,
+        )
+
     return {
         "ok": True,
         "rings": rings,
@@ -411,6 +513,8 @@ def compute_frame_sections_and_toolpaths(
         "outer_area": float(outer.area),
         "frame_area": sum(r["area"] for r in rings),
         "obstacle_count": len(obstacles),
+        "uncovered_section_ids": [s.get("section_id") for s in uncovered],
+        "uncovered_area": uncovered_area,
     }
 
 

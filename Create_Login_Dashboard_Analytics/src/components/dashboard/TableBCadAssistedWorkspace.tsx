@@ -315,6 +315,106 @@ function dxfHoleSignature(points: number[][]): string {
   ].join(',');
 }
 
+function dxfDisplayCornerPoints(points: number[][]): number[][] {
+  if (!points || points.length <= 4) return points || [];
+
+  const cleaned: number[][] = [];
+  for (const p of points) {
+    const x = Number(p?.[0]);
+    const y = Number(p?.[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const prev = cleaned[cleaned.length - 1];
+    if (!prev || Math.hypot(prev[0] - x, prev[1] - y) > 0.5) cleaned.push([x, y]);
+  }
+  if (cleaned.length >= 2 && Math.hypot(cleaned[0][0] - cleaned[cleaned.length - 1][0], cleaned[0][1] - cleaned[cleaned.length - 1][1]) <= 0.5) {
+    cleaned.pop();
+  }
+  if (cleaned.length <= 4) return cleaned;
+
+  const structural: number[][] = [];
+  const n = cleaned.length;
+  const angleThresholdDeg = 18;
+  const minEdgeMm = 2;
+  for (let i = 0; i < n; i++) {
+    const a = cleaned[(i - 1 + n) % n];
+    const b = cleaned[i];
+    const c = cleaned[(i + 1) % n];
+    const v1x = b[0] - a[0];
+    const v1y = b[1] - a[1];
+    const v2x = c[0] - b[0];
+    const v2y = c[1] - b[1];
+    const l1 = Math.hypot(v1x, v1y);
+    const l2 = Math.hypot(v2x, v2y);
+    if (l1 < minEdgeMm || l2 < minEdgeMm) continue;
+    const dot = Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / (l1 * l2)));
+    const turnDeg = Math.acos(dot) * 180 / Math.PI;
+    if (turnDeg >= angleThresholdDeg) structural.push(b);
+  }
+
+  // A rectangular region with one curved side should reduce to its four real structure
+  // corners: the two straight-side top corners plus the two curve endpoints. If angle
+  // detection sees extra arc noise, keep the four strongest bbox-extreme candidates from
+  // the original vertices instead of inventing a bbox rectangle.
+  if (structural.length === 4) return structural;
+  if (structural.length > 4) {
+    const xs = cleaned.map((p) => p[0]);
+    const ys = cleaned.map((p) => p[1]);
+    const xLo = Math.min(...xs);
+    const xHi = Math.max(...xs);
+    const yLo = Math.min(...ys);
+    const yHi = Math.max(...ys);
+    const targets = [
+      [xLo, yLo],
+      [xLo, yHi],
+      [xHi, yHi],
+      [xHi, yLo],
+    ];
+    const picked: number[][] = [];
+    for (const target of targets) {
+      let best = structural[0];
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (const p of structural) {
+        const alreadyPicked = picked.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= 0.5);
+        if (alreadyPicked) continue;
+        const d = Math.hypot(p[0] - target[0], p[1] - target[1]);
+        if (d < bestDist) {
+          best = p;
+          bestDist = d;
+        }
+      }
+      picked.push(best);
+    }
+    return picked;
+  }
+
+  // Fallback: use four real vertices nearest each bbox corner. This preserves actual
+  // shape points and avoids displaying invented rectangular corners.
+  const xs = cleaned.map((p) => p[0]);
+  const ys = cleaned.map((p) => p[1]);
+  const targets = [
+    [Math.min(...xs), Math.min(...ys)],
+    [Math.min(...xs), Math.max(...ys)],
+    [Math.max(...xs), Math.max(...ys)],
+    [Math.max(...xs), Math.min(...ys)],
+  ];
+  const picked: number[][] = [];
+  for (const target of targets) {
+    let best = cleaned[0];
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const p of cleaned) {
+      const alreadyPicked = picked.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) <= 0.5);
+      if (alreadyPicked) continue;
+      const d = Math.hypot(p[0] - target[0], p[1] - target[1]);
+      if (d < bestDist) {
+        best = p;
+        bestDist = d;
+      }
+    }
+    picked.push(best);
+  }
+  return picked;
+}
+
 // Drop duplicate holes (same region from multiple sources). Without this, an inner
 // region counted twice over-subtracts area — which can make a valid ring look empty
 // and refuse to confirm.
@@ -2410,12 +2510,12 @@ export function TableBCadAssistedWorkspace({
       if (sourceType === 'line_surface') {
         const s = dxfManualSurfaces.find((x) => x.id === rowId);
         assignedOperation = s?.assigned_operation;
-        if (s?.outer_points) shapes.push({ label: 'Outer corners', points: s.outer_points });
-        if (s?.holes?.[0]) shapes.push({ label: 'Inner corners', points: s.holes[0] });
+        if (s?.outer_points) shapes.push({ label: 'Outer corners', points: dxfDisplayCornerPoints(s.outer_points) });
+        if (s?.holes?.[0]) shapes.push({ label: 'Inner corners', points: dxfDisplayCornerPoints(s.holes[0]) });
       } else {
         const l = dxfLoops.find((x) => x.entity_id === rowId);
         assignedOperation = dxfAssignments[rowId];
-        if (l) shapes.push({ label: 'Corners', points: l.points });
+        if (l) shapes.push({ label: 'Corners', points: dxfDisplayCornerPoints(l.points) });
       }
       dxfSegmentsToPolylines(forRegion(dxfPocketToolpaths) as never).forEach((p) =>
         toolpaths.push({ label: 'Pocket contour · Tool 3', points: p.points }),
@@ -2468,7 +2568,7 @@ export function TableBCadAssistedWorkspace({
           ],
         });
       }
-      dxfFrameChunks.forEach((c, i) => shapes.push({ label: `Section ${i + 1} corners`, points: c.points }));
+      dxfFrameChunks.forEach((c, i) => shapes.push({ label: `Section ${i + 1} corners`, points: dxfDisplayCornerPoints(c.points) }));
       dxfFrameSectionPaths.forEach((p, i) => toolpaths.push({ label: `Frame section pass ${i + 1}`, points: p.points }));
       dxfSegmentsToPolylines(dxfFrameZigzag).forEach((p) => toolpaths.push({ label: 'Frame zigzag', points: p.points }));
     }
