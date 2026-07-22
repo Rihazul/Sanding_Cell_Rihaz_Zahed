@@ -12,103 +12,33 @@ handles concave outlines and holes, which a pure-JS clip does not.
 import logging
 from typing import Any
 
+from .frame_classification import (
+    _coarsen_sorted,
+    _corner_vertices,
+    _ring_has_curve,
+    _ring_has_non_axis_edge,
+    _section_effective_thickness,
+)
+from .frame_geometry import _as_polygons, _polygon, _rings_of, compute_frame_area
+from .frame_section_builder import (
+    _merge_blocks_into_curved_regions,
+    _outer_non_axis_boundary_regions,
+    _polygon_from_section,
+    _section_from_polygon,
+    _split_band_into_strips,
+    _split_corner_band_into_legs,
+    diagonal_zone_box,
+    split_diagonal_zone_into_arms,
+    _split_curved_band_by_geometry,
+    _split_sections_by_reach,
+)
+from .frame_toolpaths import (
+    _clip_line_segment_to_polygon,
+    _generate_section_toolpaths,
+    _oriented_toolpath,
+)
+
 logger = logging.getLogger(__name__)
-
-
-def _polygon(points: list[list[float]] | None):
-    """Build a valid shapely Polygon from a ring, or None."""
-    if not points or len(points) < 3:
-        return None
-    try:
-        from shapely.geometry import Polygon
-        from shapely.validation import make_valid
-
-        poly = Polygon([(float(x), float(y)) for x, y in points])
-        if not poly.is_valid:
-            poly = make_valid(poly)
-        return poly if (not poly.is_empty and poly.area > 1e-9) else None
-    except Exception as error:  # noqa: BLE001
-        logger.warning("Table B DXF frame_area: bad polygon: %s", error)
-        return None
-
-
-def _rings_of(geom: Any) -> list[dict[str, Any]]:
-    """Flatten a shapely (Multi)Polygon into a list of {exterior, holes} rings, mm."""
-    rings: list[dict[str, Any]] = []
-    if geom is None or geom.is_empty:
-        return rings
-    polys = []
-    gt = geom.geom_type
-    if gt == "Polygon":
-        polys = [geom]
-    elif gt in ("MultiPolygon", "GeometryCollection"):
-        polys = [g for g in geom.geoms if g.geom_type == "Polygon" and g.area > 1e-6]
-    for poly in sorted(polys, key=lambda p: p.area, reverse=True):
-        exterior = [[float(x), float(y)] for x, y in poly.exterior.coords[:-1]]
-        holes = [
-            [[float(x), float(y)] for x, y in interior.coords[:-1]]
-            for interior in poly.interiors
-        ]
-        rings.append({"exterior": exterior, "holes": holes, "area": float(poly.area)})
-    return rings
-
-
-def compute_frame_area(
-    outer_polygon: list[list[float]] | None,
-    pocket_polygons: list[list[list[float]]] | None,
-    surface3d_polygons: list[list[list[float]]] | None,
-) -> dict[str, Any]:
-    """Frame region = outer door polygon − pocket regions − 3D-contour regions.
-
-    Returns the remaining frame surface as polygon rings (each with exterior + holes),
-    in mm, curved edges preserved as flattened segments. This is the true surface the
-    frame toolpath must fill; sections and passes are derived from it (later stages).
-
-    Best effort — on any geometry failure returns the outer polygon unchanged so a
-    preview is never lost.
-    """
-    outer = _polygon(outer_polygon)
-    if outer is None:
-        return {"ok": False, "reason": "no_outer_polygon", "rings": []}
-
-    obstacles = []
-    for group in (pocket_polygons or [], surface3d_polygons or []):
-        for pts in group:
-            p = _polygon(pts)
-            if p is not None:
-                obstacles.append(p)
-
-    try:
-        from shapely.ops import unary_union
-
-        frame_geom = outer
-        if obstacles:
-            frame_geom = outer.difference(unary_union(obstacles))
-    except Exception as error:  # noqa: BLE001
-        logger.warning("Table B DXF frame_area: difference failed: %s", error)
-        return {"ok": True, "rings": _rings_of(outer), "note": "difference_failed_used_outer"}
-
-    rings = _rings_of(frame_geom)
-    return {
-        "ok": True,
-        "rings": rings,
-        "outer_area": float(outer.area),
-        "frame_area": sum(r["area"] for r in rings),
-        "obstacle_count": len(obstacles),
-    }
-
-
-def _as_polygons(geom: Any) -> list[Any]:
-    """Flatten a shapely intersection result into a list of Polygons, largest first."""
-    gt = geom.geom_type
-    if gt == "Polygon":
-        polys = [geom]
-    elif gt in ("MultiPolygon", "GeometryCollection"):
-        polys = [g for g in geom.geoms if g.geom_type == "Polygon" and g.area > 1e-6]
-    else:
-        polys = []
-    return sorted(polys, key=lambda p: p.area, reverse=True)
-
 
 
 def compute_frame_zigzag_fill(
@@ -217,7 +147,7 @@ def compute_frame_sections_and_toolpaths(
     true frame surface: outer door minus pockets and 3D contour regions.
     """
     try:
-        from shapely.geometry import LineString, Polygon, box
+        from shapely.geometry import LineString, box
         from shapely.ops import unary_union
     except Exception as error:  # noqa: BLE001
         logger.warning("Table B DXF frame toolpath: shapely unavailable: %s", error)
@@ -230,12 +160,18 @@ def compute_frame_sections_and_toolpaths(
 
     obstacles = []
     obstacle_points: list[list[float]] = []
+    obstacle_bounds: list[tuple[float, float, float, float]] = []
     for group in (pocket_polygons or [], surface3d_polygons or []):
         for pts in group:
             p = _polygon(pts)
             if p is not None:
                 obstacles.append(p)
-                obstacle_points.extend(pts)
+                obstacle_bounds.append(tuple(float(v) for v in p.bounds))
+                # Only REAL corners feed the grid lines. A smooth (arc-flattened) edge
+                # contributes no grid line — otherwise its dozens of near-collinear
+                # vertices carve the curved frame into stacked micro-cells. Sharp corners
+                # (turn > ~18°) are kept so rectangular/triangular pockets still grid.
+                obstacle_points.extend(_corner_vertices(pts, angle_deg=18.0))
 
     frame_geom = outer
     if obstacles:
@@ -243,12 +179,52 @@ def compute_frame_sections_and_toolpaths(
     if frame_geom.is_empty or frame_geom.area <= 1e-6:
         return {"ok": True, "rings": [], "sections": [], "chunks": [], "toolpaths": [], "frame_area": 0.0, "obstacle_count": len(obstacles)}
 
+    # Extract curved/sloped OUTER-boundary bands before grid decomposition. The grid is
+    # good for rectangular frame sections, but it is the wrong primitive for a curved
+    # edge: it turns one real curved band into several fake rectangle cells. Removing
+    # these bands from the gridded area makes the preview use the actual DXF shape there.
+    outer_edge_regions = _outer_non_axis_boundary_regions(
+        outer_polygon,
+        frame_geom,
+        pass_width_mm=pass_width_mm,
+        offset_mm=offset_mm,
+    )
     minx, miny, maxx, maxy = [float(v) for v in frame_geom.bounds]
-    xs = _unique_sorted([minx, maxx, *[float(p[0]) for p in obstacle_points if minx - 1e-6 <= float(p[0]) <= maxx + 1e-6]])
-    ys = _unique_sorted([miny, maxy, *[float(p[1]) for p in obstacle_points if miny - 1e-6 <= float(p[1]) <= maxy + 1e-6]])
+    # Grid lines come only from obstacle CORNERS (arc points were already filtered out in
+    # _corner_vertices). A light coarsening still collapses corners that fall within a few
+    # mm of each other so we never make sub-tool slivers.
+    grid_merge = 8.0
+    xs = _coarsen_sorted([
+        minx,
+        maxx,
+        *[float(p[0]) for p in obstacle_points if minx - 1e-6 <= float(p[0]) <= maxx + 1e-6],
+        *[v for bounds in obstacle_bounds for v in (bounds[0], bounds[2]) if minx - 1e-6 <= v <= maxx + 1e-6],
+    ], grid_merge)
+    ys = _coarsen_sorted([
+        miny,
+        maxy,
+        *[float(p[1]) for p in obstacle_points if miny - 1e-6 <= float(p[1]) <= maxy + 1e-6],
+        *[v for bounds in obstacle_bounds for v in (bounds[1], bounds[3]) if miny - 1e-6 <= v <= maxy + 1e-6],
+    ], grid_merge)
     if len(xs) < 2 or len(ys) < 2:
         rings = _rings_of(frame_geom)
         return {"ok": True, "rings": rings, "sections": [], "chunks": [], "toolpaths": [], "frame_area": sum(r["area"] for r in rings), "obstacle_count": len(obstacles)}
+
+    # ZONE SPLIT — isolate the diagonal problem from the rectangular one.
+    # A box tightly enclosing the sloped (triangular) obstacles is the "diagonal zone".
+    # Inside it the frame is a set of diagonal arms, each getting ONE p1->p2 stroke.
+    # Outside it the frame is ordinary rectangular perimeter strips, handled by the grid.
+    # Keeping them apart stops the diagonal arms from fusing with the perimeter bands
+    # (which produced chords running along a band edge instead of down an arm's centre).
+    diag_zone = diagonal_zone_box(obstacles, frame_geom)
+    diag_frame = None
+    grid_frame = frame_geom
+    if diag_zone is not None:
+        inside = frame_geom.intersection(diag_zone)
+        outside = frame_geom.difference(diag_zone)
+        if not inside.is_empty and inside.area > 1e-6 and not outside.is_empty:
+            diag_frame = inside
+            grid_frame = outside
 
     full: list[list[bool]] = [[False for _ in range(len(xs) - 1)] for _ in range(len(ys) - 1)]
     used: list[list[bool]] = [[False for _ in range(len(xs) - 1)] for _ in range(len(ys) - 1)]
@@ -260,7 +236,7 @@ def compute_frame_sections_and_toolpaths(
             cell = box(xs[i], ys[j], xs[i + 1], ys[j + 1])
             if cell.area <= min_area:
                 continue
-            inter = cell.intersection(frame_geom)
+            inter = cell.intersection(grid_frame)
             if inter.is_empty or inter.area <= min_area:
                 continue
             if abs(inter.area - cell.area) / max(cell.area, min_area) <= 1e-4:
@@ -271,6 +247,9 @@ def compute_frame_sections_and_toolpaths(
     sections: list[dict[str, Any]] = []
     counter = 0
 
+    # Merge FULL cells into maximal rectangular blocks (these are the genuinely
+    # rectangular frame chunks the grid is good at).
+    block_geoms: list[Any] = []
     for j in range(len(ys) - 1):
         for i in range(len(xs) - 1):
             if not full[j][i] or used[j][i]:
@@ -290,24 +269,138 @@ def compute_frame_sections_and_toolpaths(
             for jj in range(j, j2 + 1):
                 for ii in range(i, i2 + 1):
                     used[jj][ii] = True
-            geom = box(xs[i], ys[j], xs[i2 + 1], ys[j2 + 1])
-            section = _section_from_polygon(geom, counter + 1, False)
-            if section:
-                counter += 1
-                sections.append(section)
+            block_geoms.append(box(xs[i], ys[j], xs[i2 + 1], ys[j2 + 1]))
 
-    # Merge adjacent clipped cells back into meaningful curved/diagonal bands.
-    # The grid is useful for rectangular frame blocks, but leaving every partial
-    # cell separate creates clustered micro-sections on arcs and diagonal pockets.
+    # Partial cells (clipped by a curved/diagonal edge) are unioned into connected bands
+    # and split into strips so a curved or diagonal band becomes ONE section with ONE
+    # pass. Full rectangular blocks stay as their own sections. (The grid coarsening above
+    # already prevents a curved edge from spawning stacked micro-cells, so no per-block
+    # absorption heuristic is needed here.)
     merged_partials = _as_polygons(unary_union(partial_geoms)) if partial_geoms else []
-    for poly in sorted(merged_partials, key=lambda p: p.area, reverse=True):
+    merged_partials, block_geoms = _merge_blocks_into_curved_regions(merged_partials, block_geoms, pass_width_mm)
+
+    edge_polys = _as_polygons(unary_union(outer_edge_regions)) if outer_edge_regions else []
+    other_polys: list[Any] = []
+    for region in merged_partials:
+        for band in _split_curved_band_by_geometry(region, pass_width_mm, reach_x_mm, reach_y_mm):
+            exterior = [[float(x), float(y)] for x, y in band.exterior.coords[:-1]] if getattr(band, "geom_type", None) == "Polygon" else []
+            if _ring_has_curve(exterior):
+                # CASE C (curved): preview the real computed curved shape. Do NOT decompose
+                # it into rectangle-like strips — that hides the curve.
+                other_polys.append(band)
+            else:
+                # CASE B (diagonal) and CASE A (rectangular): still split into individual
+                # strips. Diagonal arms that meet (e.g. at an X centre) arrive unioned into
+                # one bowtie polygon; leaving it whole yields a single chord spanning TWO
+                # arms (wrong length/angle) and starves the straight edge bands. Splitting
+                # gives each arm its own diagonal section, per Case B.
+                other_polys.extend(_split_band_into_strips(band))
+    other_polys.extend(block_geoms)
+
+    # DIAGONAL ZONE: the frame inside the sloped-obstacle box. Its arms are separated here
+    # (they no longer touch the perimeter strips, so splitting is unambiguous) and each arm
+    # becomes its own diagonal section carrying a single p1->p2 stroke.
+    if diag_frame is not None:
+        for arm in split_diagonal_zone_into_arms(diag_frame, diag_zone, float(pass_width_mm)):
+            other_polys.extend(_split_band_into_strips(arm))
+
+    strip_polys: list[Any] = list(edge_polys)
+    if edge_polys:
+        edge_union = unary_union(edge_polys)
+        for poly in other_polys:
+            remainder = poly.difference(edge_union)
+            for piece in _as_polygons(remainder):
+                if not piece.is_empty and piece.area > 1e-3:
+                    strip_polys.append(piece)
+    else:
+        strip_polys.extend(other_polys)
+
+    # Subtracting the edge regions above can leave L-shaped remainders (an edge band that
+    # turns a corner). A straight centerline cannot cover an L, so those sections would
+    # emit NO toolpath and that frame area would go unsanded. Cut every corner-wrapping
+    # axis-aligned band into straight legs here, after all differencing is done.
+    leg_polys: list[Any] = []
+    for poly in strip_polys:
+        leg_polys.extend(_split_corner_band_into_legs(poly))
+    strip_polys = leg_polys
+
+    for poly in sorted(strip_polys, key=lambda p: p.area, reverse=True):
         section = _section_from_polygon(poly, counter + 1, True)
         if section:
             counter += 1
             sections.append(section)
 
-    chunks = _split_sections_by_reach(sections, reach_x_mm, reach_y_mm)
-    toolpaths = _generate_section_toolpaths(chunks, pass_width_mm, offset_mm, overlap_mm)
+    # Route each section by thickness:
+    #   • THIN band (≤ ~1 tool width): one continuous centerline over the FULL section,
+    #     then split that LINE by reach → clean straight arm passes (not stubby chunks).
+    #   • WIDE section (> ~1 tool width): reach-split the polygon and serpentine-fill each
+    #     chunk (the big edge rectangles).
+    import math
+
+    band_pass_width = max(float(pass_width_mm), 1e-6)
+    band_offset = max(float(offset_mm), 0.0)
+    band_step = max(band_pass_width - min(max(float(overlap_mm), 0.0), 100.0), 10.0)
+    band_half = band_pass_width / 2.0
+
+    thin_sections: list[dict[str, Any]] = []
+    wide_sections: list[dict[str, Any]] = []
+    for section in sections:
+        poly = _polygon_from_section(section)
+        if poly is None:
+            continue
+        is_curve_section = bool(section.get("curved"))
+        is_single_pass = is_curve_section or _section_effective_thickness(poly) <= band_pass_width * 1.1
+        (thin_sections if is_single_pass else wide_sections).append(section)
+
+    toolpaths: list[dict[str, Any]] = []
+    seq = 0
+    # Thin bands → ONE continuous straight centerline per band. A straight sanding stroke
+    # is a single linear move; we do NOT chop it at reach-cell boundaries (that produced
+    # two collinear passes meeting mid-arm). The robot repositions along the same line as
+    # needed — the goal is fewer, whole sections, not more fragments.
+    for section in thin_sections:
+        poly = _polygon_from_section(section)
+        if poly is None or poly.is_empty or poly.geom_type != "Polygon":
+            continue
+        centerline, direction, strategy = _oriented_toolpath(poly, band_pass_width, band_offset, band_step, band_half)
+        if len(centerline) < 2:
+            continue
+        seg_len = sum(math.dist(centerline[i], centerline[i + 1]) for i in range(len(centerline) - 1))
+        if seg_len < band_half:  # drop a degenerate sliver
+            continue
+        seq += 1
+        toolpaths.append({
+            "path_id": f"frame_path_{seq:03d}",
+            "source_section_id": section.get("section_id"),
+            "region_type": "computed_frame",
+            "operation_type": "frame_section_pass",
+            "points": centerline,
+            "direction": direction,
+            "path_strategy": strategy,
+            "start_point": centerline[0],
+            "end_point": centerline[-1],
+        })
+
+    # Wide sections → reach-split + serpentine fill per chunk.
+    wide_chunks = _split_sections_by_reach(wide_sections, reach_x_mm, reach_y_mm)
+    for tp in _generate_section_toolpaths(wide_chunks, pass_width_mm, offset_mm, overlap_mm):
+        seq += 1
+        tp["path_id"] = f"frame_path_{seq:03d}"
+        toolpaths.append(tp)
+
+    # Preview chunks should match what the operator sees as sections. Wide rectangles
+    # still need reach-split verification; thin/curved bands are single-pass sections,
+    # so returning them unsplit avoids fake rectangular boxes over curved frame areas.
+    chunks = _split_sections_by_reach(wide_sections, reach_x_mm, reach_y_mm)
+    chunk_counter = len(chunks)
+    for section in thin_sections:
+        chunk_counter += 1
+        chunk = dict(section)
+        chunk["chunk_id"] = f"frame_chunk_{chunk_counter:03d}"
+        chunk["parent_section_id"] = section.get("section_id")
+        chunk["requires_axis_position"] = False
+        chunks.append(chunk)
+
     rings = _rings_of(frame_geom)
     return {
         "ok": True,
@@ -321,277 +414,3 @@ def compute_frame_sections_and_toolpaths(
     }
 
 
-def _unique_sorted(values: list[float]) -> list[float]:
-    return sorted(set(round(float(v), 4) for v in values))
-
-
-def _section_from_polygon(poly: Any, index: int, clipped: bool) -> dict[str, Any] | None:
-    if poly.is_empty or poly.area <= 1e-6:
-        return None
-    if poly.geom_type != "Polygon":
-        polys = _as_polygons(poly)
-        if not polys:
-            return None
-        poly = polys[0]
-    exterior = [[float(x), float(y)] for x, y in poly.exterior.coords[:-1]]
-    if len(exterior) < 3:
-        return None
-    minx, miny, maxx, maxy = [float(v) for v in poly.bounds]
-    width = maxx - minx
-    height = maxy - miny
-    if width <= 1e-6 or height <= 1e-6:
-        return None
-    return {
-        "section_id": f"frame_section_{index:03d}",
-        "points": exterior,
-        "bbox": {"min_x": minx, "min_y": miny, "max_x": maxx, "max_y": maxy},
-        "width": width,
-        "height": height,
-        "orientation": "horizontal" if width >= height else "vertical",
-        "covered": True,
-        "clipped": bool(clipped or len(exterior) > 4),
-        "area": float(poly.area),
-        "region_type": "computed_frame",
-    }
-
-
-def _split_sections_by_reach(sections: list[dict[str, Any]], reach_x: float, reach_y: float) -> list[dict[str, Any]]:
-    from shapely.geometry import Polygon, box
-
-    chunks: list[dict[str, Any]] = []
-    counter = 0
-    for section in sections:
-        pts = section.get("points") or []
-        if len(pts) < 3:
-            continue
-        poly = Polygon([(float(x), float(y)) for x, y in pts])
-        if not poly.is_valid:
-            from shapely.validation import make_valid
-            poly = make_valid(poly)
-        bbox = section.get("bbox") or {}
-        minx = float(bbox.get("min_x", poly.bounds[0]))
-        miny = float(bbox.get("min_y", poly.bounds[1]))
-        maxx = float(bbox.get("max_x", poly.bounds[2]))
-        maxy = float(bbox.get("max_y", poly.bounds[3]))
-        nx = max(1, int(__import__("math").ceil((maxx - minx) / max(reach_x, 1e-6) - 1e-9)))
-        ny = max(1, int(__import__("math").ceil((maxy - miny) / max(reach_y, 1e-6) - 1e-9)))
-        for ix in range(nx):
-            x0 = minx + (maxx - minx) * ix / nx
-            x1 = minx + (maxx - minx) * (ix + 1) / nx
-            for iy in range(ny):
-                y0 = miny + (maxy - miny) * iy / ny
-                y1 = miny + (maxy - miny) * (iy + 1) / ny
-                inter = poly.intersection(box(x0, y0, x1, y1))
-                for piece in _as_polygons(inter):
-                    if piece.area <= 1e-6:
-                        continue
-                    counter += 1
-                    chunk = _section_from_polygon(piece, counter, bool(section.get("clipped") or nx > 1 or ny > 1))
-                    if not chunk:
-                        continue
-                    chunk["chunk_id"] = f"frame_chunk_{counter:03d}"
-                    chunk["parent_section_id"] = section["section_id"]
-                    chunk["requires_axis_position"] = nx > 1 or ny > 1
-                    chunks.append(chunk)
-    return chunks
-
-
-def _generate_section_toolpaths(
-    chunks: list[dict[str, Any]],
-    pass_width_mm: float,
-    offset_mm: float,
-    overlap_mm: float,
-) -> list[dict[str, Any]]:
-    from shapely.geometry import LineString, Polygon
-
-    pass_width = max(float(pass_width_mm), 1e-6)
-    offset = max(float(offset_mm), 0.0)
-    overlap = min(max(float(overlap_mm), 0.0), 100.0)
-    step = max(pass_width - overlap, 10.0)
-    half_pass = pass_width / 2.0
-    toolpaths: list[dict[str, Any]] = []
-
-    for idx, chunk in enumerate(chunks, start=1):
-        pts = chunk.get("points") or []
-        if len(pts) < 3:
-            continue
-        poly = Polygon([(float(x), float(y)) for x, y in pts])
-        if not poly.is_valid:
-            from shapely.validation import make_valid
-            poly = make_valid(poly)
-        if poly.is_empty or poly.area <= 1e-6:
-            continue
-
-        if _should_use_oriented_pass(poly, chunk):
-            points, direction, strategy = _oriented_toolpath(poly, pass_width, offset, step, half_pass)
-        else:
-            points, direction, strategy = _axis_aligned_toolpath(poly, pass_width, offset, step, half_pass)
-
-        if len(points) < 2:
-            continue
-        toolpaths.append({
-            "path_id": f"frame_path_{idx:03d}",
-            "source_section_id": chunk.get("parent_section_id") or chunk.get("section_id"),
-            "source_chunk_id": chunk.get("chunk_id"),
-            "region_type": "computed_frame",
-            "operation_type": "frame_section_pass",
-            "points": points,
-            "direction": direction,
-            "path_strategy": strategy,
-            "start_point": points[0],
-            "end_point": points[-1],
-        })
-    return toolpaths
-
-
-def _axis_aligned_toolpath(poly: Any, pass_width: float, offset: float, step: float, half_pass: float) -> tuple[list[list[float]], str, str]:
-    from shapely.geometry import LineString
-
-    minx, miny, maxx, maxy = [float(v) for v in poly.bounds]
-    width = maxx - minx
-    height = maxy - miny
-    horizontal = width >= height
-    lo_min = minx if horizontal else miny
-    lo_max = maxx if horizontal else maxy
-    sh_min = miny if horizontal else minx
-    sh_max = maxy if horizontal else maxx
-    centers = _pass_centers(sh_min, sh_max, pass_width, step, half_pass)
-    long_inset = min(offset, max((lo_max - lo_min) / 2.0, 0.0))
-    pa0 = lo_min + long_inset
-    pa1 = lo_max - long_inset
-    if pa1 - pa0 <= 1e-6:
-        pa0 = lo_min
-        pa1 = lo_max
-
-    points: list[list[float]] = []
-    toggle = False
-    for center in centers:
-        a = (pa0, center) if horizontal else (center, pa0)
-        b = (pa1, center) if horizontal else (center, pa1)
-        clipped = _clip_line_segment_to_polygon(LineString([a, b]), poly)
-        if not clipped:
-            continue
-        if toggle:
-            clipped = list(reversed(clipped))
-        points.extend(clipped)
-        toggle = not toggle
-    return points, "X" if horizontal else "Y", "axis_aligned"
-
-
-def _oriented_toolpath(poly: Any, pass_width: float, offset: float, step: float, half_pass: float) -> tuple[list[list[float]], str, str]:
-    from shapely.geometry import LineString
-    import math
-
-    ux, uy = _major_axis(poly)
-    vx, vy = -uy, ux
-    coords = [(float(x), float(y)) for x, y in poly.exterior.coords[:-1]]
-    long_vals = [x * ux + y * uy for x, y in coords]
-    short_vals = [x * vx + y * vy for x, y in coords]
-    lo_min, lo_max = min(long_vals), max(long_vals)
-    sh_min, sh_max = min(short_vals), max(short_vals)
-    centers = _pass_centers(sh_min, sh_max, pass_width, step, half_pass)
-    long_inset = min(offset, max((lo_max - lo_min) / 2.0, 0.0))
-    pa0 = lo_min + long_inset
-    pa1 = lo_max - long_inset
-    if pa1 - pa0 <= 1e-6:
-        pa0 = lo_min
-        pa1 = lo_max
-
-    pad = max(pass_width, offset, 1.0)
-    points: list[list[float]] = []
-    toggle = False
-    for center in centers:
-        a = (ux * (pa0 - pad) + vx * center, uy * (pa0 - pad) + vy * center)
-        b = (ux * (pa1 + pad) + vx * center, uy * (pa1 + pad) + vy * center)
-        clipped = _clip_line_segment_to_polygon(LineString([a, b]), poly)
-        if not clipped:
-            continue
-        # Trim the clipped segment by the requested tool offset without losing short bands.
-        clipped = _trim_segment(clipped, offset) or clipped
-        if toggle:
-            clipped = list(reversed(clipped))
-        points.extend(clipped)
-        toggle = not toggle
-
-    direction = "X" if abs(ux) >= abs(uy) else "Y"
-    angle = abs(math.degrees(math.atan2(uy, ux))) % 180.0
-    strategy = "diagonal" if 8.0 < angle < 82.0 or 98.0 < angle < 172.0 else "curved_band"
-    return points, direction, strategy
-
-
-def _pass_centers(sh_min: float, sh_max: float, pass_width: float, step: float, half_pass: float) -> list[float]:
-    sh_len = sh_max - sh_min
-    if sh_len <= pass_width + 1e-9:
-        return [(sh_min + sh_max) / 2.0]
-    s0 = sh_min + min(half_pass, sh_len / 2.0)
-    s1 = sh_max - min(half_pass, sh_len / 2.0)
-    if s1 <= s0 + 1e-6:
-        return [(sh_min + sh_max) / 2.0]
-    import math
-
-    span = s1 - s0
-    steps = max(1, int(math.ceil(span / step - 1e-9)))
-    adjusted = span / steps
-    return [s0 + k * adjusted for k in range(steps + 1)]
-
-
-def _should_use_oriented_pass(poly: Any, chunk: dict[str, Any]) -> bool:
-    if bool(chunk.get("clipped")):
-        return True
-    coords = list(poly.exterior.coords[:-1])
-    if len(coords) != 4:
-        return True
-    minx, miny, maxx, maxy = [float(v) for v in poly.bounds]
-    envelope_area = max((maxx - minx) * (maxy - miny), 1e-9)
-    return abs(float(poly.area) - envelope_area) / envelope_area > 1e-4
-
-
-def _major_axis(poly: Any) -> tuple[float, float]:
-    import math
-
-    rect = poly.minimum_rotated_rectangle
-    coords = list(rect.exterior.coords)
-    best = (1.0, 0.0, -1.0)
-    for a, b in zip(coords, coords[1:]):
-        dx = float(b[0] - a[0])
-        dy = float(b[1] - a[1])
-        length = math.hypot(dx, dy)
-        if length > best[2]:
-            best = (dx, dy, length)
-    if best[2] <= 1e-9:
-        return (1.0, 0.0)
-    return (best[0] / best[2], best[1] / best[2])
-
-
-def _trim_segment(points: list[list[float]], trim: float) -> list[list[float]] | None:
-    if trim <= 1e-9 or len(points) < 2:
-        return points
-    import math
-
-    x0, y0 = points[0]
-    x1, y1 = points[-1]
-    dx = x1 - x0
-    dy = y1 - y0
-    length = math.hypot(dx, dy)
-    if length <= trim * 2.2:
-        return points
-    ux, uy = dx / length, dy / length
-    return [[x0 + ux * trim, y0 + uy * trim], [x1 - ux * trim, y1 - uy * trim]]
-
-
-def _clip_line_segment_to_polygon(line: Any, poly: Any) -> list[list[float]] | None:
-    inter = line.intersection(poly)
-    segments = []
-    if inter.is_empty:
-        return None
-    if inter.geom_type == "LineString":
-        segments = [inter]
-    elif inter.geom_type in ("MultiLineString", "GeometryCollection"):
-        segments = [g for g in inter.geoms if g.geom_type == "LineString" and g.length > 1e-6]
-    if not segments:
-        return None
-    seg = max(segments, key=lambda g: g.length)
-    coords = list(seg.coords)
-    if len(coords) < 2:
-        return None
-    return [[float(coords[0][0]), float(coords[0][1])], [float(coords[-1][0]), float(coords[-1][1])]]

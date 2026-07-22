@@ -229,6 +229,19 @@ def compute_table_b_dxf_frame_toolpaths(job_id: str):
             reach_x_mm=float(payload.get("reach_x_mm") or 515.0),
             reach_y_mm=float(payload.get("reach_y_mm") or 750.0),
         )
+        chunks = result.get("chunks") or []
+        toolpaths = result.get("toolpaths") or []
+        logger.info(
+            "Table B DXF frame-toolpaths result: outlinePts=%s pockets=%s surface3d=%s sections=%s chunks=%s curvedChunks=%s paths=%s strategies=%s",
+            len(payload.get("outline_polygon") or []),
+            len(payload.get("pocket_polygons") or []),
+            len(payload.get("surface3d_polygons") or []),
+            len(result.get("sections") or []),
+            len(chunks),
+            sum(1 for chunk in chunks if chunk.get("curved")),
+            len(toolpaths),
+            sorted({path.get("path_strategy") for path in toolpaths if path.get("path_strategy")}),
+        )
         return jsonify({"success": True, "job_id": job_id, **result})
     except Exception as error:  # noqa: BLE001 — never fail a preview on a geometry hiccup
         logger.exception("Table B DXF Assisted frame-toolpaths failed: %s", error)

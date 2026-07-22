@@ -387,6 +387,10 @@ const dxfOperationMeta = (operation: string) =>
 // assigned region, so a synthetic row carries it to let the operator scope a preview
 // to just the frame sections.
 const DXF_FRAME_SCOPE_ID = '__computed_frame__';
+// Whole-door Frame Level entry: the frame zigzag covers the whole door, so a single
+// synthetic row carries the door's 4 outer corners + the zigzag toolpath instead of
+// repeating that toolpath on every individual frame-level region card.
+const DXF_FRAME_LEVEL_DOOR_ID = '__frame_level_door__';
 // A locked Lines-mode auto-confirm waits this long after the last line selection
 // before committing the detected surface, so the operator can keep adding lines
 // (e.g. a 2-line triangle vs. a 3+ line rectangle) before it commits.
@@ -1678,6 +1682,14 @@ export function TableBCadAssistedWorkspace({
     dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area') ||
     dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket' || dxfAssignments[l.entity_id] === 'surface3d');
 
+  // Only a POCKET carves the frame into separate rails (→ Computed Frame sections).
+  // 3D contour rings sit ON TOP of a frame-level surface: the frame zigzag still covers
+  // the whole door and the contour rings are an additional, overlaid toolpath. So they
+  // must NOT switch the preview to Computed Frame.
+  const hasDxfPocketRegion = () =>
+    dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor') ||
+    dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket');
+
   const dxfFrameObstaclePolygons = () =>
     [
       ...dxfManualSurfaces
@@ -1894,6 +1906,7 @@ export function TableBCadAssistedWorkspace({
       //    pockets − 3D, split into reachable sections) → the section pipeline
       //    (useBackendFrameToolpaths). It has NO zigzag fill.
       const scopeHasFrameLevel =
+        scope.has(DXF_FRAME_LEVEL_DOOR_ID) ||
         dxfManualSurfaces.some(
           (s) => scope.has(s.id) && (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary'),
         ) ||
@@ -1930,11 +1943,12 @@ export function TableBCadAssistedWorkspace({
       console.log('[DXF Toolpath] scoped preview generated', { regions: scopeIds.size, scopeHasFrameLevel, scopeHasComputedFrame, segments: total });
     } else {
       // "All regions" preview. Frame is ONE of two mutually-exclusive operations:
-      //  • Pockets / 3D present  → Computed Frame: leftover frame split into reachable
+      //  • A POCKET is assigned → Computed Frame: leftover frame split into reachable
       //    sections (useBackendFrameToolpaths). No frame-level zigzag.
-      //  • No pockets, frame_level assigned → Frame Level: zigzag fill over the flat
-      //    door outline. No sections.
-      const hasObstacles = hasDxfFrameObstacles();
+      //  • No pocket, frame_level assigned → Frame Level: zigzag fill over the whole
+      //    door outline. 3D contour rings do NOT change this — they overlay on top, so
+      //    a frame-level surface + contour rings shows BOTH the zigzag and the rings.
+      const hasObstacles = hasDxfPocketRegion();
       const hasFrameOrOuter =
         dxfManualSurfaces.some(
           (s) => s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary',
@@ -2151,13 +2165,19 @@ export function TableBCadAssistedWorkspace({
   // Frame Level is only relevant on a flat door. Once a pocket or 3D contour is
   // assigned, the frame is computed automatically (Outer − Pocket − 3D) on Preview
   // Toolpath, so assigning Frame Level would be redundant/confusing.
+  // A Computed Frame only exists when a POCKET carves the frame into rails. 3D contour
+  // rings overlay a frame-level surface without carving it, so they must not create a
+  // synthetic "Computed Frame" row.
   const dxfHasPocketOrContour =
+    dxfManualSurfaces.some((s) => s.assigned_operation === 'pocket_floor') ||
+    dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'pocket');
+
+  // Any frame-level / outer-boundary region assigned → the whole-door zigzag applies.
+  const dxfHasFrameLevelRegion =
     dxfManualSurfaces.some(
-      (s) => s.assigned_operation === 'pocket_floor' || s.assigned_operation === 'surface_3d_area',
+      (s) => s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary',
     ) ||
-    dxfLoops.some(
-      (l) => dxfAssignments[l.entity_id] === 'pocket' || dxfAssignments[l.entity_id] === 'surface3d',
-    );
+    dxfLoops.some((l) => dxfAssignments[l.entity_id] === 'frame' || dxfAssignments[l.entity_id] === 'outer');
 
   const assignDxfToolbarRegion = (regionType: string) => {
     // Reassign confirmed surfaces picked from the list first (works in any mode).
@@ -2302,8 +2322,8 @@ export function TableBCadAssistedWorkspace({
         color: meta.color,
       };
     }),
-    // When the frame is auto-computed (pockets / 3D present), add a synthetic row so
-    // the operator can select and re-preview only the frame sections.
+    // When the frame is auto-computed (a pocket carves it), add a synthetic row so the
+    // operator can select and re-preview only the frame sections.
     ...(dxfHasPocketOrContour
       ? [
           {
@@ -2316,6 +2336,21 @@ export function TableBCadAssistedWorkspace({
           },
         ]
       : []),
+    // When a frame-level region is assigned (no pocket), the zigzag covers the WHOLE
+    // door. Add ONE synthetic row carrying the door outline + zigzag toolpath, so each
+    // individual frame-level region card can stay lean (just its 4 corners).
+    ...(dxfHasFrameLevelRegion && !dxfHasPocketOrContour
+      ? [
+          {
+            id: DXF_FRAME_LEVEL_DOOR_ID,
+            displayId: 'Frame Level (whole door)',
+            sourceType: 'frame_level_door',
+            assignedType: 'frame_level',
+            assignedLabel: 'Frame Level (door)',
+            color: DXF_OPERATION_META.frame_level.color,
+          },
+        ]
+      : []),
   ];
 
   // Operator-friendly, per-type numbered names ("Pocket 1", "3D Contour 2") instead
@@ -2323,7 +2358,7 @@ export function TableBCadAssistedWorkspace({
   const dxfFriendlyBase = (label: string) => (label === 'Frame Level' ? 'Frame' : label);
   const dxfTypeCounters: Record<string, number> = {};
   const dxfAssignmentRows = dxfAssignmentRowsRaw.map((row) => {
-    if (row.sourceType === 'computed_frame') return row;
+    if (row.sourceType === 'computed_frame' || row.sourceType === 'frame_level_door') return row;
     const base = dxfFriendlyBase(row.assignedLabel);
     dxfTypeCounters[base] = (dxfTypeCounters[base] || 0) + 1;
     return { ...row, displayId: `${base} ${dxfTypeCounters[base]}` };
@@ -2391,21 +2426,30 @@ export function TableBCadAssistedWorkspace({
       dxfSegmentsToPolylines(forRegion(dxf3dContourToolpaths) as never).forEach((p) =>
         toolpaths.push({ label: '3D contour ring', points: p.points }),
       );
-      // Frame Level / Outer Boundary regions drive the global frame toolpath (it is
-      // computed over the whole part, not per-region), so surface it on this region.
-      const isFrameRegion =
-        assignedOperation === 'frame_level' ||
-        assignedOperation === 'outer_boundary' ||
-        assignedOperation === 'frame' ||
-        assignedOperation === 'outer';
-      if (isFrameRegion) {
-        dxfFrameSectionPaths.forEach((p, i) =>
-          toolpaths.push({ label: `Frame section pass ${i + 1}`, points: p.points }),
-        );
-        dxfSegmentsToPolylines(dxfFrameZigzag).forEach((p) =>
-          toolpaths.push({ label: 'Frame zigzag · Tool 4', points: p.points }),
-        );
+      // The frame-level zigzag is computed over the WHOLE door, not per-region, so it is
+      // NOT attached to each individual frame-level region card (that repeated the whole
+      // door toolpath on every card and confused the operator). Each frame-level region
+      // card shows only its own 4 corner points; the whole-door zigzag lives on the
+      // dedicated 'frame_level_door' synthetic row below.
+    } else if (sourceType === 'frame_level_door') {
+      // Whole-door Frame Level entry: the door's 4 outer corners + the single frame
+      // zigzag toolpath, shown ONCE (not repeated per region).
+      const outerBounds = dxfFrameBounds();
+      if (outerBounds) {
+        const { min_x: xLo, max_x: xHi, min_y: yLo, max_y: yHi } = outerBounds;
+        shapes.push({
+          label: 'Door outer corners',
+          points: [
+            [xLo, yLo],
+            [xLo, yHi],
+            [xHi, yHi],
+            [xHi, yLo],
+          ],
+        });
       }
+      dxfSegmentsToPolylines(dxfFrameZigzag).forEach((p) =>
+        toolpaths.push({ label: 'Frame zigzag · Tool 4', points: p.points }),
+      );
     } else if (sourceType === 'computed_frame') {
       // Overall door outer boundary = the door outline (bottom-right is the
       // machine-frame origin), listed CCW from the origin corner. Uses the selected
@@ -2793,7 +2837,10 @@ export function TableBCadAssistedWorkspace({
                         dxfAssignmentRows.map((row) => {
                           const isSurfaceRow = row.sourceType === 'line_surface';
                           const isLoopRow = row.sourceType === 'closed_loop';
-                          const isFrameRow = row.sourceType === 'computed_frame';
+                          // Both synthetic rows (Computed Frame, whole-door Frame Level) behave the
+                          // same in the table: selectable, no delete, Info shows the door-level view.
+                          const isFrameRow =
+                            row.sourceType === 'computed_frame' || row.sourceType === 'frame_level_door';
                           const isSelectable = isSurfaceRow || isLoopRow || isFrameRow;
                           const selected =
                             (isSurfaceRow && dxfSelectedSurfaceIds.includes(row.id)) ||
