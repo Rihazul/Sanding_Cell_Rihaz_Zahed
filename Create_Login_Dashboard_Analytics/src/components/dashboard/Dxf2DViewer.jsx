@@ -79,6 +79,36 @@ const CONTOUR_TOOLPATH_COLOR = '#9333ea'; // purple — 3D-contour ring toolpath
 const START_MARKER_FILL = '#ffffff';
 const START_MARKER_STROKE = '#16a34a';
 
+// One colour per 7th-axis station. Passes sharing a colour are executed from the SAME
+// station, so the operator can see at a glance what runs together and how many times the
+// axis has to reposition. Frame sections that combine into one reachable run therefore
+// appear as a single colour rather than one colour per section.
+const STATION_COLORS = [
+  '#dc2626', // red
+  '#2563eb', // blue
+  '#16a34a', // green
+  '#d97706', // amber
+  '#9333ea', // purple
+  '#0891b2', // cyan
+  '#db2777', // pink
+  '#65a30d', // lime
+];
+const STATION_UNREACHABLE_COLOR = '#94a3b8'; // grey - no station can reach this pass
+
+export const stationColor = (stationIndex) =>
+  stationIndex === null || stationIndex === undefined
+    ? STATION_UNREACHABLE_COLOR
+    : STATION_COLORS[stationIndex % STATION_COLORS.length];
+
+// Which tool each pass group belongs to, so the viewer can filter to one tool at a time.
+// Tool 4 owns the frame passes AND the pocket zigzag (both are the wide raster tool).
+const TOOL_LABELS = {
+  tool_3: 'Tool 3 · Pocket edge',
+  tool_4: 'Tool 4 · Frame & zigzag',
+  tool_1: 'Tool 1 · 3D contour',
+};
+const TOOL_FILTER_ORDER = ['tool_3', 'tool_4', 'tool_1'];
+
 const controlButtonStyle = {
   cursor: 'pointer',
   padding: '4px 10px',
@@ -311,6 +341,8 @@ function loopAtPoint(loops, worldX, worldY, toleranceWorld) {
  *   showFrame?: boolean,
  *   showToolpaths?: boolean,
  *   selectedToolpathId?: string | null,
+ *   selectedFrameSectionId?: string | null,
+ *   selectedFramePathId?: string | null,
  *   onSelectToolpath?: (rectId: string) => void,
  * }} props
  */
@@ -341,6 +373,8 @@ export default function Dxf2DViewer({
   showFrame = true,
   showToolpaths = true,
   selectedToolpathId = null,
+  selectedFrameSectionId = null,
+  selectedFramePathId = null,
   onSelectToolpath,
 }) {
   const containerRef = React.useRef(null);
@@ -356,6 +390,14 @@ export default function Dxf2DViewer({
   const [hoveredId, setHoveredId] = React.useState(null);
   const [hoveredLineId, setHoveredLineId] = React.useState(null);
   const [isPanning, setIsPanning] = React.useState(false);
+  // Which tool's passes to show. Colour = 7th-axis station, so showing one tool at a time
+  // keeps station colours from colliding across tools and lets the legend group by stop.
+  const [toolFilter, setToolFilter] = React.useState('all'); // 'all' | 'tool_3' | 'tool_4' | 'tool_1'
+  // The station legend is a floating panel the operator can collapse (so it stops covering
+  // the model) and drag out of the way.
+  const [legendCollapsed, setLegendCollapsed] = React.useState(false);
+  const [legendPos, setLegendPos] = React.useState({ x: 8, y: 8 });
+  const legendDragRef = React.useRef(null);
   // World coordinate under the cursor (for the live readout). null when off-canvas.
   const [cursorWorld, setCursorWorld] = React.useState(null);
 
@@ -439,6 +481,28 @@ export default function Dxf2DViewer({
       const worldY = (t.ty - cy) / t.s;
       return { s: ns, tx: cx + ns * worldX, ty: cy + ns * worldY };
     });
+  };
+
+  // Drag the legend panel by its title bar. Positions are clamped to the viewer so it can
+  // never be dragged fully off-screen.
+  const onLegendDragStart = (event) => {
+    event.stopPropagation();
+    legendDragRef.current = { startX: event.clientX, startY: event.clientY, origX: legendPos.x, origY: legendPos.y };
+    const move = (e) => {
+      if (!legendDragRef.current) return;
+      const dx = e.clientX - legendDragRef.current.startX;
+      const dy = e.clientY - legendDragRef.current.startY;
+      const nx = Math.max(0, Math.min(viewport.w - 60, legendDragRef.current.origX + dx));
+      const ny = Math.max(0, Math.min(viewport.h - 24, legendDragRef.current.origY + dy));
+      setLegendPos({ x: nx, y: ny });
+    };
+    const up = () => {
+      legendDragRef.current = null;
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
   };
 
   const toWorld = (clientX, clientY) => {
@@ -587,9 +651,13 @@ export default function Dxf2DViewer({
     );
   };
 
+  // A pass group is drawn when toolpaths are on AND the tool filter admits its tool.
+  const toolVisible = (tool) => showToolpaths && (toolFilter === 'all' || toolFilter === tool);
+
+  const isToolpathStartSegment = (seg) => /_0$/.test(String(seg.id || '')) || seg.seq === 0;
   // Pocket toolpath overlays (Tool 3 rectangular contour): directional line + a
   // mid-segment arrow showing travel direction, constant pixel size like above.
-  const pocketToolpathOverlays = showToolpaths
+  const pocketToolpathOverlays = toolVisible('tool_3')
     ? pocketToolpaths.map((seg) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
@@ -610,12 +678,12 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: seg.seq === 0 };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
       })
     : [];
 
   // 3D-contour ring toolpath overlays (purple rectangular contour).
-  const contourToolpathOverlays = showToolpaths
+  const contourToolpathOverlays = toolVisible('tool_1')
     ? contourToolpaths.map((seg) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
@@ -635,13 +703,13 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: seg.seq === 0 };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
       })
     : [];
 
   // Tool 4 zigzag fill overlays: thin green passes with a mid-segment travel arrow;
   // start marker at the first point (bottom-right).
-  const pocketZigzagOverlays = showToolpaths
+  const pocketZigzagOverlays = toolVisible('tool_4')
     ? pocketZigzag.map((seg) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
@@ -661,13 +729,13 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: seg.seq === 0 };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
       })
     : [];
 
   // Frame Tool 4 zigzag overlays: red passes (no offset, from the origin) with a
   // mid-segment travel arrow and a start marker at the origin.
-  const frameZigzagOverlays = showToolpaths
+  const frameZigzagOverlays = toolVisible('tool_4')
     ? frameZigzag.map((seg) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
@@ -687,14 +755,14 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: seg.seq === 0 };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
       })
     : [];
 
   // Frame-section preview paths: red passes per chunk (single centerline or a
   // radius-based zigzag), rendered as connected segments with travel arrows and a
   // start marker at the first point of each path.
-  const frameSectionPathOverlays = showToolpaths
+  const frameSectionPathOverlays = toolVisible('tool_4')
     ? frameSectionPaths.flatMap((path) => {
         const pts = path.points || [];
         const segs = [];
@@ -717,11 +785,45 @@ export default function Dxf2DViewer({
           const py = ux;
           const halfW = arrowSize * 0.5;
           const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-          segs.push({ key: `${path.path_id}_${i}`, x0, y0, x1, y1, arrow, isStart: i === 0 });
+          segs.push({
+            key: `${path.path_id}_${i}`, pathId: path.path_id, x0, y0, x1, y1, arrow, isStart: i === 0,
+            // Colour by 7th-axis station so passes that run together share a colour.
+            color: stationColor(path.station_index),
+            stationIndex: path.station_index ?? null,
+          });
         }
         return segs;
       })
     : [];
+
+  // Per-tool station summary for the legend: for each tool, its distinct 7th-axis stops
+  // in run order, with the axis position and how many passes each stop runs. Built from
+  // whatever pass groups belong to that tool. Only tools admitted by the filter appear.
+  const toolStationLegend = React.useMemo(() => {
+    if (!showToolpaths) return [];
+    const groups = {
+      tool_3: pocketToolpaths,
+      tool_4: [...pocketZigzag, ...frameSectionPaths, ...frameZigzag],
+      tool_1: contourToolpaths,
+    };
+    return TOOL_FILTER_ORDER
+      .filter((tool) => (toolFilter === 'all' || toolFilter === tool) && (groups[tool] || []).length > 0)
+      .map((tool) => {
+        const byStation = new Map();
+        let hasUnreachable = false;
+        for (const seg of groups[tool]) {
+          const si = seg.station_index;
+          if (si === null || si === undefined) { hasUnreachable = true; continue; }
+          if (!byStation.has(si)) byStation.set(si, { count: 0, axis: seg.axis7_position_mm });
+          byStation.get(si).count += 1;
+        }
+        const stops = [...byStation.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([si, info]) => ({ si, count: info.count, axis: info.axis }));
+        return { tool, label: TOOL_LABELS[tool] || tool, stops, hasUnreachable, planned: byStation.size > 0 };
+      })
+      .filter((entry) => entry.stops.length > 0 || entry.hasUnreachable);
+  }, [showToolpaths, toolFilter, pocketToolpaths, pocketZigzag, frameSectionPaths, frameZigzag, contourToolpaths]);
 
   // The outer boundary fill should follow the real closed door loop when available.
   // Open guide paths can overhang the part edge; use them only as a fallback for DXFs
@@ -1055,19 +1157,24 @@ export default function Dxf2DViewer({
                   window), red dashed boxes for verification. Chunks needing an axis
                   move are tinted amber. Non-overlapping; never over a pocket/3D. */}
               {showToolpaths &&
-                frameChunks.map((chunk) => (
-                  <path
-                    key={`fchunk-${chunk.chunk_id}`}
-                    d={ringPathD(chunk.points)}
-                    fill={chunk.requires_axis_position ? 'rgba(245, 158, 11, 0.10)' : 'rgba(239, 68, 68, 0.06)'}
-                    stroke={TOOLPATH_COLOR}
-                    strokeWidth={1.4}
-                    strokeDasharray="6 4"
-                    strokeLinejoin="round"
-                    vectorEffect="non-scaling-stroke"
-                    pointerEvents="none"
-                  />
-                ))}
+                frameChunks.map((chunk) => {
+                  const isSelected =
+                    selectedFrameSectionId != null &&
+                    (chunk.chunk_id === selectedFrameSectionId || chunk.parent_section_id === selectedFrameSectionId);
+                  return (
+                    <path
+                      key={`fchunk-${chunk.chunk_id}`}
+                      d={ringPathD(chunk.points)}
+                      fill={isSelected ? 'rgba(244, 63, 94, 0.20)' : chunk.requires_axis_position ? 'rgba(245, 158, 11, 0.10)' : 'rgba(239, 68, 68, 0.06)'}
+                      stroke={isSelected ? HIGHLIGHT_STROKE : TOOLPATH_COLOR}
+                      strokeWidth={isSelected ? 3.2 : 1.4}
+                      strokeDasharray={isSelected ? 'none' : '6 4'}
+                      strokeLinejoin="round"
+                      vectorEffect="non-scaling-stroke"
+                      pointerEvents="none"
+                    />
+                  );
+                })}
 
               {selectionMode === 'line' && openPaths.map(renderOpenPath)}
             </g>
@@ -1083,8 +1190,10 @@ export default function Dxf2DViewer({
               <g pointerEvents="none">
                 {pocketToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`ptp-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={POCKET_TOOLPATH_COLOR} strokeWidth={2} />
-                    <polygon points={arrow} fill={POCKET_TOOLPATH_COLOR} />
+                    {/* Coloured by 7th-axis station when the reach planner has run, so
+                        splits are visible; falls back to the tool colour otherwise. */}
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index)} strokeWidth={2} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1099,8 +1208,8 @@ export default function Dxf2DViewer({
               <g pointerEvents="none">
                 {contourToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`ctp-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={CONTOUR_TOOLPATH_COLOR} strokeWidth={2} />
-                    <polygon points={arrow} fill={CONTOUR_TOOLPATH_COLOR} />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index)} strokeWidth={2} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1115,8 +1224,8 @@ export default function Dxf2DViewer({
               <g pointerEvents="none">
                 {pocketZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`pzz-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={POCKET_ZIGZAG_COLOR} strokeWidth={1.5} />
-                    <polygon points={arrow} fill={POCKET_ZIGZAG_COLOR} />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index)} strokeWidth={1.5} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1129,15 +1238,19 @@ export default function Dxf2DViewer({
                 radius-based zigzag) with travel arrows and a start marker. */}
             {frameSectionPathOverlays.length > 0 && (
               <g pointerEvents="none">
-                {frameSectionPathOverlays.map(({ key, x0, y0, x1, y1, arrow, isStart }) => (
-                  <g key={`fsp-${key}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={TOOLPATH_COLOR} strokeWidth={2} />
-                    <polygon points={arrow} fill={TOOLPATH_COLOR} />
-                    {isStart && (
-                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
-                    )}
-                  </g>
-                ))}
+                {frameSectionPathOverlays.map(({ key, pathId, x0, y0, x1, y1, arrow, isStart, color }) => {
+                  const isSelected = selectedFramePathId != null && pathId === selectedFramePathId;
+                  const drawColor = isSelected ? HIGHLIGHT_STROKE : color || TOOLPATH_COLOR;
+                  return (
+                    <g key={`fsp-${key}`}>
+                      <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
+                      <polygon points={arrow} fill={drawColor} />
+                      {isStart && (
+                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             )}
 
@@ -1147,8 +1260,9 @@ export default function Dxf2DViewer({
               <g pointerEvents="none">
                 {frameZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`fzz-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={TOOLPATH_COLOR} strokeWidth={1.5} />
-                    <polygon points={arrow} fill={TOOLPATH_COLOR} />
+                    {/* Colour by 7th-axis station like the other tools once planned. */}
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index)} strokeWidth={1.5} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1202,50 +1316,125 @@ export default function Dxf2DViewer({
           <button type="button" title="Fit to screen" onClick={fitToScreen} style={controlButtonStyle}>Fit</button>
         </div>
 
-        {/* Toolpath legend — shows only the tools whose toolpaths are on screen so
-            the operator can tell which color is which tool. */}
-        {showToolpaths &&
-          (() => {
-            const entries = [
-              pocketToolpaths.length > 0 && { color: POCKET_TOOLPATH_COLOR, label: 'Tool 3 · Pocket contour' },
-              pocketZigzag.length > 0 && { color: POCKET_ZIGZAG_COLOR, label: 'Tool 4 · Pocket zigzag' },
-              contourToolpaths.length > 0 && { color: CONTOUR_TOOLPATH_COLOR, label: '3D contour ring' },
-              frameZigzag.length > 0 && { color: TOOLPATH_COLOR, label: 'Tool 4 · Frame zigzag' },
-              frameSectionPaths.length > 0 && { color: TOOLPATH_COLOR, label: 'Frame section pass' },
-              frameChunks.length > 0 && { color: TOOLPATH_COLOR, label: 'Frame chunks (reach-split)' },
-            ].filter(Boolean);
-            if (entries.length === 0) return null;
-            return (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '8px',
-                  left: '8px',
-                  fontSize: '11px',
-                  color: '#0f172a',
-                  background: 'rgba(255, 255, 255, 0.95)',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: '8px',
-                  padding: '6px 9px',
-                  boxShadow: '0 1px 4px rgba(15, 23, 42, 0.12)',
-                  pointerEvents: 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                }}
+        {/* Tool filter — show one tool's passes at a time so station colours are clear.
+            Only appears while previewing toolpaths. */}
+        {showToolpaths && (
+          <div
+            style={{ position: 'absolute', top: '44px', right: '8px', display: 'flex', gap: '4px' }}
+            onMouseDown={(event) => event.stopPropagation()}
+            onMouseUp={(event) => event.stopPropagation()}
+          >
+            {['all', ...TOOL_FILTER_ORDER].map((key) => {
+              const active = toolFilter === key;
+              const label = key === 'all' ? 'All' : (TOOL_LABELS[key] || key).replace(/^Tool \d+ · /, '').replace(' · ', ' ');
+              const short = key === 'all' ? 'All' : key === 'tool_3' ? 'T3 edge' : key === 'tool_4' ? 'T4 frame' : '3D';
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  title={key === 'all' ? 'Show all tools' : `Show ${label} only`}
+                  onClick={() => setToolFilter(key)}
+                  style={{
+                    ...controlButtonStyle,
+                    padding: '3px 8px',
+                    fontSize: '11px',
+                    background: active ? '#0f172a' : '#ffffff',
+                    color: active ? '#ffffff' : '#0f172a',
+                    borderColor: active ? '#0f172a' : '#cbd5e1',
+                  }}
+                >
+                  {short}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Toolpath legend — grouped by tool, each tool's 7th-axis stops listed in run
+            order. Colour = station, so each stop's swatch matches its passes on screen.
+            The operator reads: which tool, how many repositions, and where the axis parks. */}
+        {showToolpaths && toolStationLegend.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: `${legendPos.y}px`,
+              left: `${legendPos.x}px`,
+              maxHeight: 'calc(100% - 16px)',
+              fontSize: '11px',
+              color: '#0f172a',
+              background: 'rgba(255, 255, 255, 0.96)',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              boxShadow: '0 1px 4px rgba(15, 23, 42, 0.12)',
+              pointerEvents: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              minWidth: legendCollapsed ? 'auto' : '190px',
+              overflow: 'hidden',
+            }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            {/* Title bar: drag handle + collapse/expand toggle. */}
+            <div
+              onMouseDown={onLegendDragStart}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                padding: '5px 8px', cursor: 'move', userSelect: 'none',
+                background: '#f1f5f9', borderBottom: legendCollapsed ? 'none' : '1px solid #e2e8f0',
+              }}
+            >
+              <span style={{ fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#475569' }}>
+                7th-axis stops
+              </span>
+              <button
+                type="button"
+                title={legendCollapsed ? 'Expand' : 'Collapse'}
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={() => setLegendCollapsed((v) => !v)}
+                style={{ ...controlButtonStyle, padding: '0 6px', fontSize: '13px', lineHeight: '18px', minWidth: '22px' }}
               >
-                <span style={{ fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#64748b' }}>
-                  Toolpaths
-                </span>
-                {entries.map((entry) => (
-                  <span key={entry.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ width: '16px', height: '3px', borderRadius: '2px', background: entry.color, flex: '0 0 auto' }} />
-                    {entry.label}
+                {legendCollapsed ? '▢' : '—'}
+              </button>
+            </div>
+
+            {!legendCollapsed && (
+              <div style={{ padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
+            {toolStationLegend.map((tool) => {
+              const totalPasses = tool.stops.reduce((s, x) => s + x.count, 0);
+              return (
+                <div key={tool.tool} style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                  <span style={{ fontWeight: 800, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#334155' }}>
+                    {tool.label}
+                    <span style={{ color: '#94a3b8', fontWeight: 600 }}>
+                      {' · '}{tool.stops.length} stop{tool.stops.length === 1 ? '' : 's'} · {totalPasses} pass{totalPasses === 1 ? '' : 'es'}
+                    </span>
                   </span>
-                ))}
+                  {!tool.planned && (
+                    <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>reach plan pending…</span>
+                  )}
+                  {tool.stops.map((stop, i) => (
+                    <span key={stop.si} style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
+                      <span style={{ width: '16px', height: '3px', borderRadius: '2px', background: stationColor(stop.si), flex: '0 0 auto' }} />
+                      <span>
+                        Stop {i + 1}
+                        {stop.axis !== undefined && stop.axis !== null ? ` @ X=${Math.round(stop.axis)}mm` : ''}
+                        <span style={{ color: '#64748b' }}> · {stop.count} pass{stop.count === 1 ? '' : 'es'}</span>
+                      </span>
+                    </span>
+                  ))}
+                  {tool.hasUnreachable && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
+                      <span style={{ width: '16px', height: '3px', borderRadius: '2px', background: STATION_UNREACHABLE_COLOR, flex: '0 0 auto' }} />
+                      <span style={{ color: '#64748b' }}>not reachable</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
               </div>
-            );
-          })()}
+            )}
+          </div>
+        )}
 
         {/* Live cursor coordinate in machine (world) units — visible at all times,
             including during toolpath preview. */}

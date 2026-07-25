@@ -10,6 +10,7 @@ import {
   detectTableBDxfLoops,
   computeTableBDxfFrameToolpaths,
   computeTableBDxfFrameZigzag,
+  planTableBDxfReach,
   type TableBDxfFrameRing,
   type TableBDxfLoop,
   type TableBDxfOpenPath,
@@ -113,7 +114,28 @@ export interface DxfToolpathPath {
   operation: string; // human label, e.g. "Pocket contour", "Frame section pass"
   closed: boolean; // true = last point returns to the first (rectangular contours)
   points: number[][]; // [[x, y], [x, y], ...] in mm
+  station_index?: number | null;
+  axis7_position_mm?: number | null;
+  reach_unreachable?: boolean;
+  split_from_path_id?: string;
+  reach_split_index?: number;
+  reach_split_count?: number;
+  chained_path_ids?: string[];
 }
+
+type DxfPreviewSegment = {
+  start: number[];
+  end: number[];
+  id: string;
+  tool: string;
+  seq: number;
+  station_index?: number | null;
+  axis7_position_mm?: number | null;
+  reach_unreachable?: boolean;
+  split_from_path_id?: string;
+  reach_split_index?: number;
+  reach_split_count?: number;
+};
 
 // Corner-point geometry for one assigned region (what the Info panel shows).
 export interface DxfRegionInfoPayload {
@@ -581,6 +603,12 @@ export function TableBCadAssistedWorkspace({
   const [dxfHoveredRowId, setDxfHoveredRowId] = React.useState<string | null>(null);
   // Row whose corner points + toolpath points are shown in the info panel.
   const [dxfInfoRowId, setDxfInfoRowId] = React.useState<string | null>(null);
+  // Which sub-sections of the Info panel are expanded. Collapsed by default so the operator
+  // sees a plain-language summary first, then drills into raw points only if they want.
+  const [dxfInfoExpanded, setDxfInfoExpanded] = React.useState<Record<string, boolean>>({});
+  // Info panel position (draggable). null = default top-right; once dragged it stays put.
+  const [dxfInfoPos, setDxfInfoPos] = React.useState<{ x: number; y: number } | null>(null);
+  const dxfInfoDragRef = React.useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
   const [dxfAssignments, setDxfAssignments] = React.useState<Record<string, string>>({});
   const [dxfSelectionMode, setDxfSelectionMode] = React.useState<'loop' | 'line' | 'ring'>('loop');
   const [dxfSelectedLineIds, setDxfSelectedLineIds] = React.useState<string[]>([]);
@@ -1046,6 +1074,13 @@ export function TableBCadAssistedWorkspace({
     path_strategy?: string;
     start_point: number[];
     end_point: number[];
+    station_index?: number | null;
+    axis7_position_mm?: number | null;
+    reach_unreachable?: boolean;
+    split_from_path_id?: string;
+    reach_split_index?: number;
+    reach_split_count?: number;
+    chained_path_ids?: string[];
   };
 
   // Frame + toolpath preview state.
@@ -1107,6 +1142,8 @@ export function TableBCadAssistedWorkspace({
   const [dxfShowFrame, setDxfShowFrame] = React.useState(true);
   const [dxfShowToolpaths, setDxfShowToolpaths] = React.useState(true);
   const [dxfSelectedToolpathId, setDxfSelectedToolpathId] = React.useState<string | null>(null);
+  const [dxfSelectedFrameSectionId, setDxfSelectedFrameSectionId] = React.useState<string | null>(null);
+  const [dxfSelectedFramePathId, setDxfSelectedFramePathId] = React.useState<string | null>(null);
   const [dxfFrameStatus, setDxfFrameStatus] = React.useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [dxfFrameMessage, setDxfFrameMessage] = React.useState<string>('');
   const [isDxfViewerOpen, setIsDxfViewerOpen] = React.useState(false);
@@ -1147,6 +1184,8 @@ export function TableBCadAssistedWorkspace({
     setDxfFrameSectionPaths([]);
     setDxfFrameWarnings([]);
     setDxfSelectedToolpathId(null);
+    setDxfSelectedFrameSectionId(null);
+    setDxfSelectedFramePathId(null);
     setDxfFrameStatus('idle');
     setDxfFrameMessage('');
   };
@@ -1524,7 +1563,7 @@ export function TableBCadAssistedWorkspace({
       [ixMax, iyMax],
       [ixMax, iyMin],
     ];
-    const segs: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
+    const segs: DxfPreviewSegment[] = [];
     for (let i = 0; i < 4; i++) {
       segs.push({ start: corners[i], end: corners[(i + 1) % 4], id: `${idPrefix}_${i}`, tool, seq: i });
     }
@@ -1884,9 +1923,133 @@ export function TableBCadAssistedWorkspace({
     const scopeIds = new Set<string>([...dxfSelectedSurfaceIds, ...dxfSelectedIds]);
     const scope = scopeIds.size > 0 ? scopeIds : null;
 
-    const pocketTp = computeDxfPocketToolpaths(scope);
-    const pocketZz = computeDxfPocketZigzag(scope);
-    const contourTp = computeDxf3dContourToolpaths(scope);
+    const segmentsToPaths = (
+      segs: DxfPreviewSegment[],
+      operation: string,
+      closed: boolean,
+    ): DxfToolpathPath[] => {
+      const groups = new Map<string, DxfPreviewSegment[]>();
+      for (const s of segs) {
+        const key = s.id.replace(/_\d+$/, ''); // drop the trailing segment index
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(s);
+      }
+      const out: DxfToolpathPath[] = [];
+      for (const [key, list] of groups) {
+        list.sort((a, b) => a.seq - b.seq);
+        const points = [list[0].start, ...list.map((s) => s.end)];
+        const first = list[0];
+        out.push({
+          path_id: key,
+          tool: first.tool,
+          operation,
+          closed,
+          points,
+          station_index: first.station_index ?? null,
+          axis7_position_mm: first.axis7_position_mm ?? null,
+          reach_unreachable: list.some((s) => !!s.reach_unreachable),
+          split_from_path_id: first.split_from_path_id,
+          reach_split_index: first.reach_split_index,
+          reach_split_count: first.reach_split_count,
+        });
+      }
+      return out;
+    };
+
+    const pathsToSegments = (paths: DxfToolpathPath[]): DxfPreviewSegment[] => {
+      const out: DxfPreviewSegment[] = [];
+      paths.forEach((path, pathIndex) => {
+        const pts = path.points ?? [];
+        for (let i = 0; i < pts.length - 1; i += 1) {
+          out.push({
+            start: pts[i],
+            end: pts[i + 1],
+            id: `${path.path_id}_${i}`,
+            tool: path.tool,
+            seq: pathIndex * 10000 + i,
+            station_index: path.station_index ?? null,
+            axis7_position_mm: path.axis7_position_mm ?? null,
+            reach_unreachable: path.reach_unreachable,
+            split_from_path_id: path.split_from_path_id,
+            reach_split_index: path.reach_split_index,
+            reach_split_count: path.reach_split_count,
+          });
+        }
+      });
+      return out;
+    };
+
+    const planSegmentsForTool = async (
+      segs: DxfPreviewSegment[],
+      operation: string,
+      closed: boolean,
+      plannerTool: 'tool_1' | 'tool_3' | 'tool_4',
+    ): Promise<{ segments: DxfPreviewSegment[]; paths: DxfToolpathPath[] }> => {
+      const rawPaths = segmentsToPaths(segs, operation, closed);
+      if (!rawPaths.length) return { segments: segs, paths: rawPaths };
+      try {
+        const result = await planTableBDxfReach(
+          dxfJobId,
+          plannerTool,
+          rawPaths.map((path) => ({
+            path_id: path.path_id,
+            tool: path.tool,
+            operation: path.operation,
+            operation_type: operation,
+            closed: path.closed,
+            points: path.points,
+          })),
+        );
+        const responsePaths = result.toolpaths ?? [];
+        if (!responsePaths.length) return { segments: segs, paths: rawPaths };
+        const plannedPaths = responsePaths.map((path, plannedIndex) => {
+          const source = rawPaths.find(
+            (raw) => raw.path_id === path.path_id || raw.path_id === path.split_from_path_id,
+          );
+          return {
+            path_id: path.path_id ?? source?.path_id ?? `${operation}_${plannedIndex}`,
+            tool: path.tool ?? source?.tool ?? plannerTool,
+            operation: path.operation ?? source?.operation ?? operation,
+            closed: path.closed ?? source?.closed ?? closed,
+            points: path.points,
+            station_index: path.station_index ?? null,
+            axis7_position_mm: path.axis7_position_mm ?? null,
+            reach_unreachable: path.reach_unreachable,
+            split_from_path_id: path.split_from_path_id,
+            reach_split_index: path.reach_split_index,
+            reach_split_count: path.reach_split_count,
+            chained_path_ids: path.chained_path_ids,
+          };
+        }) as DxfToolpathPath[];
+        const stationOrder = (result.reach_plan?.stations ?? []).flatMap((station) => station.path_indices ?? []);
+        const orderedIndexes = new Set<number>();
+        const orderedPaths = [
+          ...stationOrder.flatMap((index) => {
+            if (index < 0 || index >= plannedPaths.length || orderedIndexes.has(index)) return [];
+            orderedIndexes.add(index);
+            return [plannedPaths[index]];
+          }),
+          ...plannedPaths.filter((_, index) => !orderedIndexes.has(index)),
+        ];
+        return { segments: pathsToSegments(orderedPaths), paths: orderedPaths };
+      } catch (error) {
+        console.warn(`[DXF Reach] ${operation} planning failed; using raw browser paths`, error);
+        return { segments: segs, paths: rawPaths };
+      }
+    };
+
+    const rawPocketTp = computeDxfPocketToolpaths(scope);
+    const rawPocketZz = computeDxfPocketZigzag(scope);
+    const rawContourTp = computeDxf3dContourToolpaths(scope);
+    const plannedPocketTp = await planSegmentsForTool(rawPocketTp, 'Pocket contour (Tool 3)', true, 'tool_3');
+    const plannedPocketZz = await planSegmentsForTool(rawPocketZz, 'Pocket zigzag (Tool 4)', false, 'tool_4');
+    const plannedContourTp = await planSegmentsForTool(rawContourTp, '3D contour ring', true, 'tool_1');
+    const pocketTp = plannedPocketTp.segments;
+    const pocketZz = plannedPocketZz.segments;
+    const contourTp = plannedContourTp.segments;
+    const pocketTpPaths = plannedPocketTp.paths;
+    const pocketZzPaths = plannedPocketZz.paths;
+    const contourTpPaths = plannedContourTp.paths;
     setDxfPocketToolpaths(pocketTp);
     setDxfPocketZigzag(pocketZz);
     setDxf3dContourToolpaths(contourTp);
@@ -1900,7 +2063,7 @@ export function TableBCadAssistedWorkspace({
         ]
       : null);
 
-    let frameZig: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
+    let frameZig: DxfPreviewSegment[] = [];
     let frameChunks: DxfFrameChunk[] = [];
     let frameSectionPaths: DxfFrameSectionPath[] = [];
 
@@ -1947,9 +2110,7 @@ export function TableBCadAssistedWorkspace({
     // Whole-door frame (no pocket): curve-aware zigzag FILL from the backend. Each
     // returned pass is a [start,end] point path; convert to the segment shape the
     // frame-zigzag renderer uses. Returns the segments (or [] on failure).
-    const useBackendFrameZigzag = async (): Promise<
-      { start: number[]; end: number[]; id: string; tool: string; seq: number }[]
-    > => {
+    const useBackendFrameZigzag = async (): Promise<DxfPreviewSegment[]> => {
       try {
         // Frame-level surface = the whole door is FLAT with no pocket assigned. It is a
         // pure linear zigzag over the full outline (curve-aware), so pass NO obstacles —
@@ -1966,24 +2127,32 @@ export function TableBCadAssistedWorkspace({
           { passWidthMm: TOOL4_PASS_WIDTH_MM, overlapMm: dxfFrameOverlap },
         );
         setDxfFrameArea(result.rings ?? []);
-        // Each backend pass is one vertical stroke. To make the toolpath read as a
-        // continuous serpentine, also emit the STEP-OVER segment that links each pass's
-        // end to the next pass's start (the right→left horizontal travel). Both stroke
-        // and step-over become drawn segments so the viewer shows the full flow, not
-        // just disconnected up/down lines. seq increments across both so ordering holds.
+        // The backend returns one or more frame-zigzag polylines. It connects passes
+        // only when the connector hardline stays inside the computed frame surface.
+        // The frontend must not invent step-over lines here, because those can cross
+        // pockets or leave the valid frame.
         const passes = result.toolpaths ?? [];
-        const segs: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
+        const segs: DxfPreviewSegment[] = [];
         let seq = 0;
-        passes.forEach((tp, i) => {
-          const start = tp.points[0];
-          const end = tp.points[tp.points.length - 1];
+        passes.forEach((tp, passIndex) => {
+          const pts = tp.points ?? [];
           const tool = tp.tool ?? 'tool_4_frame';
-          if (i > 0) {
-            // step-over from previous pass's end to this pass's start
-            const prevEnd = passes[i - 1].points[passes[i - 1].points.length - 1];
-            segs.push({ start: prevEnd, end: start, id: `frame_zigzag_step_${i}`, tool, seq: seq++ });
+          const baseId = tp.path_id ?? `frame_zigzag_${passIndex}`;
+          for (let i = 0; i < pts.length - 1; i += 1) {
+            segs.push({
+              start: pts[i],
+              end: pts[i + 1],
+              id: `${baseId}_${i}`,
+              tool,
+              seq: seq++,
+              station_index: tp.station_index ?? null,
+              axis7_position_mm: tp.axis7_position_mm ?? null,
+              reach_unreachable: tp.reach_unreachable,
+              split_from_path_id: tp.split_from_path_id,
+              reach_split_index: tp.reach_split_index,
+              reach_split_count: tp.reach_split_count,
+            });
           }
-          segs.push({ start, end, id: tp.path_id ?? `frame_zigzag_${i}`, tool, seq: seq++ });
         });
         console.log('[DXF FrameZigzag] backend generated', {
           ok: result.ok,
@@ -2088,37 +2257,24 @@ export function TableBCadAssistedWorkspace({
     // Segments are stitched back into ordered [x, y] point paths for MoveL execution:
     // consecutive segments chain (end of one = start of the next), so a path is the
     // start of its first segment followed by every segment's end.
-    const segmentsToPaths = (
-      segs: { start: number[]; end: number[]; id: string; tool: string; seq: number }[],
-      operation: string,
-      closed: boolean,
-    ): DxfToolpathPath[] => {
-      const groups = new Map<string, typeof segs>();
-      for (const s of segs) {
-        const key = s.id.replace(/_\d+$/, ''); // drop the trailing segment index
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(s);
-      }
-      const out: DxfToolpathPath[] = [];
-      for (const [key, list] of groups) {
-        list.sort((a, b) => a.seq - b.seq);
-        const points = [list[0].start, ...list.map((s) => s.end)];
-        out.push({ path_id: key, tool: list[0].tool, operation, closed, points });
-      }
-      return out;
-    };
-
     const paths: DxfToolpathPath[] = [
-      ...segmentsToPaths(pocketTp, 'Pocket contour (Tool 3)', true),
-      ...segmentsToPaths(pocketZz, 'Pocket zigzag (Tool 4)', false),
-      ...segmentsToPaths(contourTp, '3D contour ring', true),
+      ...pocketTpPaths,
+      ...pocketZzPaths,
+      ...contourTpPaths,
       ...segmentsToPaths(frameZig, 'Frame zigzag (Tool 4)', false),
       ...frameSectionPaths.map((p) => ({
         path_id: p.path_id,
         tool: 'frame_section',
-        operation: 'Frame section pass',
+        operation: 'Frame toolpath',
         closed: false,
         points: p.points,
+        station_index: p.station_index ?? null,
+        axis7_position_mm: p.axis7_position_mm ?? null,
+        reach_unreachable: p.reach_unreachable,
+        split_from_path_id: p.split_from_path_id,
+        reach_split_index: p.reach_split_index,
+        reach_split_count: p.reach_split_count,
+        chained_path_ids: p.chained_path_ids,
       })),
     ];
 
@@ -2469,22 +2625,26 @@ export function TableBCadAssistedWorkspace({
   const dxfSegmentsToPolylines = (
     segs: { start: number[]; end: number[]; id: string; tool: string; seq: number }[],
   ) => {
-    // Frame-zigzag is now a fully connected chain: vertical strokes + explicit step-over
-    // segments (frame_zigzag_step_*) that link each pass's end to the next pass's start.
-    // Every segment's end == the next segment's start, so it stitches into ONE continuous
-    // serpentine polyline (first.start + every end) — showing both up/down strokes and
-    // the right→left step-overs.
+    // Frame-zigzag arrives from the backend as one or more already-safe polylines.
+    // Rejoin each returned segment group for the info/export payload without adding
+    // any extra connector that the backend did not approve.
     const frameZig = segs.filter((s) => /^frame_zigzag_/.test(s.id));
     const others = segs.filter((s) => !/^frame_zigzag_/.test(s.id));
 
     const out: { points: number[][] }[] = [];
-    if (frameZig.length) {
-      const ordered = [...frameZig].sort((a, b) => a.seq - b.seq);
-      out.push({ points: [ordered[0].start, ...ordered.map((s) => s.end)] });
+    const frameGroups = new Map<string, typeof segs>();
+    for (const s of frameZig) {
+      const key = s.id.replace(/_\d+$/, '');
+      if (!frameGroups.has(key)) frameGroups.set(key, []);
+      frameGroups.get(key)!.push(s);
+    }
+    for (const list of frameGroups.values()) {
+      list.sort((a, b) => a.seq - b.seq);
+      out.push({ points: [list[0].start, ...list.map((s) => s.end)] });
     }
 
-    // Pocket/contour toolpaths split one continuous path into sub-segments id_0, id_1,
-    // ... where each end == the next start; rejoin as first.start + every end.
+    // Pocket/contour toolpaths split one continuous path into sub-segments id_0,
+    // id_1, ... where each end == the next start; rejoin as first.start + every end.
     const groups = new Map<string, typeof segs>();
     for (const s of others) {
       const key = s.id.replace(/_\d+$/, '');
@@ -2500,8 +2660,8 @@ export function TableBCadAssistedWorkspace({
 
   // Region info for the inspector: corner-point shapes + ordered toolpath point lists.
   const computeDxfRegionInfo = (rowId: string, sourceType: string) => {
-    const shapes: { label: string; points: number[][] }[] = [];
-    const toolpaths: { label: string; points: number[][] }[] = [];
+    const shapes: { id?: string; label: string; points: number[][] }[] = [];
+    const toolpaths: { id?: string; label: string; points: number[][] }[] = [];
     const forRegion = (segs: { id: string }[]) => segs.filter((s) => s.id.startsWith(`${rowId}_`));
 
     if (sourceType === 'line_surface' || sourceType === 'closed_loop') {
@@ -2568,8 +2728,8 @@ export function TableBCadAssistedWorkspace({
           ],
         });
       }
-      dxfFrameChunks.forEach((c, i) => shapes.push({ label: `Section ${i + 1} corners`, points: dxfDisplayCornerPoints(c.points) }));
-      dxfFrameSectionPaths.forEach((p, i) => toolpaths.push({ label: `Frame section pass ${i + 1}`, points: p.points }));
+      dxfFrameChunks.forEach((c, i) => shapes.push({ id: c.chunk_id, label: `Section ${i + 1} corners`, points: dxfDisplayCornerPoints(c.points) }));
+      dxfFrameSectionPaths.forEach((p, i) => toolpaths.push({ id: p.path_id, label: `Frame toolpath ${i + 1}`, points: p.points }));
       dxfSegmentsToPolylines(dxfFrameZigzag).forEach((p) => toolpaths.push({ label: 'Frame zigzag', points: p.points }));
     }
     return { shapes, toolpaths };
@@ -2987,6 +3147,7 @@ export function TableBCadAssistedWorkspace({
                                   type="button"
                                   onClick={(event) => {
                                     event.stopPropagation();
+                                    setDxfInfoExpanded({}); // new region opens collapsed
                                     setDxfInfoRowId((prev) => (prev === row.id ? null : row.id));
                                   }}
                                   style={{ ...dxfPlainButtonStyle, padding: '3px 7px', fontSize: '10px', marginRight: '5px' }}
@@ -3020,7 +3181,7 @@ export function TableBCadAssistedWorkspace({
                       loops={dxfLoops}
                       openPaths={dxfOpenPaths}
                       selectedIds={dxfSelectedIds}
-                      highlightId={dxfHoveredRowId}
+                      highlightId={dxfHoveredRowId ?? dxfInfoRowId}
                       assignments={dxfAssignments}
                       onToggleSelect={handleToggleDxfLoop}
                       selectionMode={dxfSelectionMode}
@@ -3042,6 +3203,8 @@ export function TableBCadAssistedWorkspace({
                       showFrame={dxfShowFrame}
                       showToolpaths={dxfShowToolpaths}
                       selectedToolpathId={dxfSelectedToolpathId}
+                      selectedFrameSectionId={dxfSelectedFrameSectionId}
+                      selectedFramePathId={dxfSelectedFramePathId}
                       onSelectToolpath={(rectId: string) => {
                         setDxfSelectedToolpathId((prev) => (prev === rectId ? null : rectId));
                         console.log('[DXF Frame] toolpath selected', { rect_id: rectId });
@@ -3055,60 +3218,165 @@ export function TableBCadAssistedWorkspace({
                       const info = computeDxfRegionInfo(row.id, row.sourceType);
                       const fmt = (pts: number[][]) =>
                         pts.map((p) => `(${p[0].toFixed(1)}, ${p[1].toFixed(1)})`).join('  ');
+                      const pathLen = (pts: number[][]) => {
+                        let d = 0;
+                        for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+                        return d;
+                      };
+                      // What this region IS, in one plain sentence.
+                      const opLabel =
+                        row.sourceType === 'frame_level_door' ? 'Frame Level — the whole door surface'
+                        : row.sourceType === 'computed_frame' ? 'Computed Frame — leftover frame split into reachable sections'
+                        : row.assignedLabel || 'Region';
+                      const totalToolpathLen = info.toolpaths.reduce((s, t) => s + pathLen(t.points), 0);
+                      const isOpen = (key: string) => !!dxfInfoExpanded[key];
+                      const toggle = (key: string) => setDxfInfoExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+                      const Row = ({ label, value, hint }: { label: string; value: string; hint?: string }) => (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '3px 0' }}>
+                          <span style={{ color: '#64748b' }} title={hint}>{label}{hint ? ' ⓘ' : ''}</span>
+                          <span style={{ fontWeight: 700, color: '#0f172a', textAlign: 'right' }}>{value}</span>
+                        </div>
+                      );
+                      const Section = ({ id, title, count, active = false, onActivate, children }: { id: string; title: string; count: string; active?: boolean; onActivate?: () => void; children: React.ReactNode }) => (
+                        <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onActivate?.();
+                              toggle(id);
+                            }}
+                            style={{ ...dxfPlainButtonStyle, width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px', fontSize: '11px', fontWeight: 800, color: active ? '#be123c' : '#334155', background: active ? '#ffe4e6' : isOpen(id) ? '#f1f5f9' : '#ffffff', borderColor: active ? '#fb7185' : '#cbd5e1' }}
+                          >
+                            <span>{title} <span style={{ color: active ? '#e11d48' : '#94a3b8', fontWeight: 600 }}>· {count}</span></span>
+                            <span style={{ color: active ? '#e11d48' : '#94a3b8' }}>{isOpen(id) ? '▾' : '▸'}</span>
+                          </button>
+                          {isOpen(id) && <div style={{ padding: '6px 4px 2px' }}>{children}</div>}
+                        </div>
+                      );
+                      const onInfoDragStart = (event: React.MouseEvent) => {
+                        // Start from the panel's current on-screen box so the first drag
+                        // doesn't jump, whether it's still at the default corner or already moved.
+                        const box = (event.currentTarget.parentElement as HTMLElement)?.getBoundingClientRect();
+                        const origin = dxfInfoPos ?? (box ? { x: box.left, y: box.top } : { x: 0, y: 0 });
+                        dxfInfoDragRef.current = { sx: event.clientX, sy: event.clientY, ox: origin.x, oy: origin.y };
+                        const move = (e: MouseEvent) => {
+                          if (!dxfInfoDragRef.current) return;
+                          const { sx, sy, ox, oy } = dxfInfoDragRef.current;
+                          setDxfInfoPos({
+                            x: Math.max(0, Math.min(window.innerWidth - 80, ox + (e.clientX - sx))),
+                            y: Math.max(0, Math.min(window.innerHeight - 40, oy + (e.clientY - sy))),
+                          });
+                        };
+                        const up = () => {
+                          dxfInfoDragRef.current = null;
+                          window.removeEventListener('mousemove', move);
+                          window.removeEventListener('mouseup', up);
+                        };
+                        window.addEventListener('mousemove', move);
+                        window.addEventListener('mouseup', up);
+                      };
                       return (
                         <div
                           style={{
-                            position: 'absolute',
-                            top: '24px',
-                            right: '24px',
+                            position: 'fixed',
+                            ...(dxfInfoPos
+                              ? { top: `${dxfInfoPos.y}px`, left: `${dxfInfoPos.x}px` }
+                              : { top: '24px', right: '24px' }),
                             width: '340px',
-                            maxHeight: 'calc(100% - 48px)',
+                            maxHeight: 'calc(100vh - 48px)',
                             overflowY: 'auto',
                             background: '#ffffff',
                             border: '1px solid #cbd5e1',
                             borderRadius: '12px',
                             boxShadow: '0 10px 30px rgba(15,23,42,0.18)',
-                            padding: '14px',
+                            paddingBottom: '14px',
                             fontSize: '11px',
-                            zIndex: 20,
+                            zIndex: 40,
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <strong style={{ fontSize: '13px' }}>{row.displayId}</strong>
+                          {/* Draggable title bar. */}
+                          <div
+                            onMouseDown={onInfoDragStart}
+                            style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              padding: '10px 14px 8px', cursor: 'move', userSelect: 'none',
+                              borderBottom: '1px solid #e2e8f0', marginBottom: '10px',
+                              position: 'sticky', top: 0, background: '#ffffff', zIndex: 1,
+                            }}
+                          >
+                            <span style={{ display: 'flex', flexDirection: 'column' }}>
+                              <strong style={{ fontSize: '13px' }}>{row.displayId}</strong>
+                              <span style={{ color: '#94a3b8', fontSize: '10px' }}>drag to move</span>
+                            </span>
                             <button
                               type="button"
-                              onClick={() => setDxfInfoRowId(null)}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={() => {
+                                setDxfInfoRowId(null);
+                                setDxfSelectedFrameSectionId(null);
+                                setDxfSelectedFramePathId(null);
+                              }}
                               style={{ ...dxfPlainButtonStyle, padding: '2px 8px', fontSize: '11px' }}
                             >
                               Close
                             </button>
                           </div>
-                          <div style={{ fontWeight: 800, color: '#334155', marginBottom: '4px' }}>Corner points (mm)</div>
-                          {info.shapes.length === 0 ? (
-                            <div style={{ color: '#94a3b8', marginBottom: '8px' }}>No corner data.</div>
-                          ) : (
-                            info.shapes.map((s, i) => (
-                              <div key={`shape-${i}`} style={{ marginBottom: '8px' }}>
-                                <div style={{ color: '#64748b', marginBottom: '2px' }}>
-                                  {s.label} · {s.points.length} pts
-                                </div>
-                                <div style={{ fontFamily: 'monospace', color: '#0f172a', wordBreak: 'break-word' }}>{fmt(s.points)}</div>
-                              </div>
-                            ))
-                          )}
-                          <div style={{ fontWeight: 800, color: '#334155', margin: '10px 0 4px' }}>Toolpath points (in order, mm)</div>
-                          {info.toolpaths.length === 0 ? (
-                            <div style={{ color: '#94a3b8' }}>No toolpath generated yet — run Preview Toolpath.</div>
-                          ) : (
-                            info.toolpaths.map((t, i) => (
-                              <div key={`tp-${i}`} style={{ marginBottom: '8px' }}>
-                                <div style={{ color: '#64748b', marginBottom: '2px' }}>
-                                  {t.label} · {t.points.length} pts
-                                </div>
-                                <div style={{ fontFamily: 'monospace', color: '#0f172a', wordBreak: 'break-word' }}>{fmt(t.points)}</div>
-                              </div>
-                            ))
-                          )}
+                          <div style={{ padding: '0 14px' }}>
+                          <div style={{ color: '#64748b', marginBottom: '8px', lineHeight: 1.4 }}>{opLabel}</div>
+
+                          {/* Plain-language summary — the numbers that matter, always visible. */}
+                          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 10px' }}>
+                            <Row label="Corner shapes" value={`${info.shapes.length}`} hint="Outlines that bound this region." />
+                            <Row label="Sanding passes" value={`${info.toolpaths.length}`} hint="Separate strokes the tool will run here." />
+                            <Row label="Total pass length" value={`${totalToolpathLen.toFixed(0)} mm`} hint="Sum of all pass lengths — how far the tool travels sanding." />
+                            {info.toolpaths.length === 0 && (
+                              <div style={{ color: '#94a3b8', paddingTop: '4px' }}>No toolpath yet — run Preview Toolpath.</div>
+                            )}
+                          </div>
+
+                          {/* Corner shapes - collapsed; each with its own point count. */}
+                          {info.shapes.map((s, i) => {
+                            const isFrameSection = row.sourceType === 'computed_frame' && !!s.id;
+                            return (
+                              <Section
+                                key={`shape-${i}`}
+                                id={`shape-${i}`}
+                                title={s.label}
+                                count={`${s.points.length} corner${s.points.length === 1 ? '' : 's'}`}
+                                active={isFrameSection && dxfSelectedFrameSectionId === s.id}
+                                onActivate={isFrameSection ? () => {
+                                  setDxfSelectedFrameSectionId(s.id || null);
+                                  setDxfSelectedFramePathId(null);
+                                } : undefined}
+                              >
+                                <div style={{ fontFamily: 'monospace', color: '#0f172a', wordBreak: 'break-word', fontSize: '10.5px', lineHeight: 1.5 }}>{fmt(s.points)}</div>
+                                <div style={{ color: '#94a3b8', marginTop: '4px' }}>(x, y) in mm from the UCS origin.</div>
+                              </Section>
+                            );
+                          })}
+
+                          {/* Each pass — its length and point list, expandable. */}
+                          {info.toolpaths.map((t, i) => {
+                            const len = pathLen(t.points);
+                            const isFramePath = row.sourceType === 'computed_frame' && !!t.id;
+                            return (
+                              <Section
+                                key={`tp-${i}`}
+                                id={`tp-${i}`}
+                                title={t.label}
+                                count={`${len.toFixed(0)} mm · ${t.points.length} pts`}
+                                active={isFramePath && dxfSelectedFramePathId === t.id}
+                                onActivate={isFramePath ? () => {
+                                  setDxfSelectedFramePathId(t.id || null);
+                                  setDxfSelectedFrameSectionId(null);
+                                } : undefined}
+                              >
+                                <div style={{ fontFamily: 'monospace', color: '#0f172a', wordBreak: 'break-word', fontSize: '10.5px', lineHeight: 1.5 }}>{fmt(t.points)}</div>
+                                <div style={{ color: '#94a3b8', marginTop: '4px' }}>Points in order - the tool moves through them as straight MoveL segments.</div>
+                              </Section>
+                            );
+                          })}
+                          </div>
                         </div>
                       );
                     })()}

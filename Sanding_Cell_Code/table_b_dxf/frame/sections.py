@@ -12,15 +12,20 @@ handles concave outlines and holes, which a pure-JS clip does not.
 import logging
 from typing import Any
 
-from .frame_classification import (
+from .classification import (
     _coarsen_sorted,
     _corner_vertices,
     _ring_has_curve,
     _ring_has_non_axis_edge,
     _section_effective_thickness,
 )
-from .frame_geometry import _as_polygons, _polygon, _rings_of, compute_frame_area
-from .frame_section_builder import (
+from .geometry import _as_polygons, _polygon, _rings_of, compute_frame_area
+from .paths.chaining import (
+    _chain_computed_frame_toolpaths,
+    _path_source_ids,
+    _point_near_outer_boundary,
+)
+from .section_builder import (
     _merge_blocks_into_curved_regions,
     _outer_non_axis_boundary_regions,
     _polygon_from_section,
@@ -34,107 +39,63 @@ from .frame_section_builder import (
     _split_sections_by_reach,
     build_structural_curved_frame_sections,
 )
-from .frame_toolpaths import (
+from .toolpaths import (
     _clip_line_segment_to_polygon,
     _curved_band_following_centerline,
     _generate_section_toolpaths,
     _oriented_toolpath,
+    _polyline_stays_in_polygon,
+    _polyline_uses_polygon_boundary,
     _split_curve_at_apex,
+    _trim_polyline,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def compute_frame_zigzag_fill(
-    outer_polygon: list[list[float]] | None,
-    pocket_polygons: list[list[list[float]]] | None,
-    surface3d_polygons: list[list[list[float]]] | None,
-    pass_width_mm: float = 75.0,
-    overlap_mm: float = 0.0,
-) -> dict[str, Any]:
-    """Zigzag (serpentine) fill of the frame surface, clipped to the real polygon.
+def _trim_outer_boundary_endpoints(points: list[list[float]], frame_geom: Any, trim_mm: float) -> list[list[float]]:
+    if len(points) < 2:
+        return points
+    if not (
+        _point_near_outer_boundary(points[0], frame_geom, 3.0)
+        or _point_near_outer_boundary(points[-1], frame_geom, 3.0)
+    ):
+        return points
+    trimmed = _trim_polyline(points, max(float(trim_mm), 0.0))
+    return trimmed if len(trimmed) >= 2 else points
 
-    For "Frame Level on the whole door": fill frame_area = outer − pockets − 3D with
-    vertical passes stepping in X at (pass_width − overlap), each pass CLIPPED to the
-    frame polygon so it stops at the door's curved edge instead of overrunning the
-    bounding rectangle. Passes alternate direction (serpentine), matching the frontend
-    zigzag pattern but curve-aware.
 
-    Returns:
-      { ok, rings, toolpaths: [{points, tool, operation_type, direction}], frame_area }
-    where each toolpath is one continuous vertical pass (as flattened points).
-    """
+
+
+
+def _best_vertical_centerline_in_section(poly: Any, pass_width_mm: float) -> list[list[float]]:
+    """Pick the longest valid vertical pass inside a narrow frame rib."""
     try:
+        import math
         from shapely.geometry import LineString
-        from shapely.ops import unary_union
-    except Exception as error:  # noqa: BLE001
-        logger.warning("Table B DXF frame zigzag: shapely unavailable: %s", error)
-        return {"ok": False, "reason": "shapely_unavailable", "rings": [], "toolpaths": []}
 
-    outer = _polygon(outer_polygon)
-    if outer is None:
-        return {"ok": False, "reason": "no_outer_polygon", "rings": [], "toolpaths": []}
-
-    obstacles = []
-    for group in (pocket_polygons or [], surface3d_polygons or []):
-        for pts in group:
-            p = _polygon(pts)
-            if p is not None:
-                obstacles.append(p)
-    frame_geom = outer if not obstacles else outer.difference(unary_union(obstacles))
-    if frame_geom.is_empty or frame_geom.area <= 1e-6:
-        return {"ok": True, "rings": [], "toolpaths": [], "frame_area": 0.0}
-
-    minx, miny, maxx, maxy = [float(v) for v in frame_geom.bounds]
-    step = max(float(pass_width_mm) - max(0.0, float(overlap_mm)), 1.0)
-
-    toolpaths: list[dict[str, Any]] = []
-    # In the normalized frame the machine origin (0,0) is the bottom-right corner, which
-    # is min-x / min-y. So the fill must START AT THE ORIGIN CORNER (minx, miny): step X
-    # from minx up to maxx (physical right -> left) and run each pass BOTTOM -> TOP first
-    # (y0 -> y1), then alternate (serpentine). The first toolpath point is the origin
-    # corner; the last pass lands on the far (leftmost) side.
-    x = minx
-    toggle = 0
-    seq = 0
-    # A tiny inset keeps a vertical scanline off the exact left/right edge so the very
-    # first/last pass still intersects the polygon interior.
-    while x <= maxx + 1e-6:
-        scan = LineString([(x, miny - 1.0), (x, maxy + 1.0)])
-        clipped = scan.intersection(frame_geom)
-        # The scanline may cross the frame in several disjoint spans (e.g. between two
-        # pockets); emit each span as its own pass so no move crosses a hole.
-        spans = []
-        if clipped.geom_type == "LineString" and not clipped.is_empty:
-            spans = [clipped]
-        elif clipped.geom_type == "MultiLineString":
-            spans = [g for g in clipped.geoms if g.length > 1e-6]
-        for span in spans:
-            ys = [c[1] for c in span.coords]
-            y0, y1 = min(ys), max(ys)
-            # toggle 0 => bottom->top, toggle 1 => top->bottom (serpentine)
-            pass_pts = [[x, y0], [x, y1]] if not toggle else [[x, y1], [x, y0]]
-            toolpaths.append({
-                "path_id": f"frame_zigzag_{seq:03d}",
-                "points": pass_pts,
-                "tool": "tool_4_frame",
-                "operation_type": "frame_zigzag_pass",
-                "direction": "Y",
-            })
-            seq += 1
-        x += step
-        toggle = 1 - toggle
-
-    rings = _rings_of(frame_geom)
-    return {
-        "ok": True,
-        "rings": rings,
-        "toolpaths": toolpaths,
-        "frame_area": sum(r["area"] for r in rings),
-        "pass_count": len(toolpaths),
-    }
-
-
+        minx, miny, maxx, maxy = [float(v) for v in poly.bounds]
+        width = max(maxx - minx, 1e-6)
+        height = max(maxy - miny, 1e-6)
+        reach = height + max(float(pass_width_mm), width) + 10.0
+        fractions = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8]
+        best: list[list[float]] = []
+        best_len = 0.0
+        for frac in fractions:
+            x = minx + width * frac
+            clipped = _clip_line_segment_to_polygon(
+                LineString([(x, miny - reach), (x, maxy + reach)]),
+                poly,
+            ) or []
+            if len(clipped) < 2:
+                continue
+            seg_len = sum(math.dist(clipped[i], clipped[i + 1]) for i in range(len(clipped) - 1))
+            if seg_len > best_len and _polyline_stays_in_polygon(clipped, poly, tol=0.5):
+                best = clipped
+                best_len = seg_len
+        return best
+    except Exception:
+        return []
 def compute_frame_sections_and_toolpaths(
     outer_polygon: list[list[float]] | None,
     pocket_polygons: list[list[list[float]]] | None,
@@ -371,9 +332,50 @@ def compute_frame_sections_and_toolpaths(
             sections.append(section)
 
     if structural_curved_sections:
-        # Curved-pocket models use operator-intended structural sections instead of the
-        # grid fragments. Rectangular and triangular models keep the existing fallback.
-        sections = structural_curved_sections
+        # Curved-pocket models use operator-intended curved/rail sections first, but keep
+        # any leftover rectangular grid sections that do not overlap them. This prevents
+        # the curved branch from silently dropping straight side coverage.
+        structural_polys = [p for p in (_polygon_from_section(s) for s in structural_curved_sections) if p is not None and not p.is_empty]
+        structural_union = unary_union(structural_polys) if structural_polys else None
+        recovered_sections: list[dict[str, Any]] = []
+        for section in sections:
+            poly = _polygon_from_section(section)
+            if poly is None or poly.is_empty:
+                continue
+            remainder = poly.difference(structural_union) if structural_union is not None else poly
+            for piece in _as_polygons(remainder):
+                if piece.is_empty or piece.area <= max(float(pass_width_mm) * 2.0, 50.0):
+                    continue
+                recovered = _section_from_polygon(piece, len(structural_curved_sections) + len(recovered_sections) + 1, True)
+                if not recovered:
+                    continue
+                if section.get("toolpath_mode"):
+                    recovered["toolpath_mode"] = section.get("toolpath_mode")
+                if section.get("section_strategy"):
+                    recovered["section_strategy"] = section.get("section_strategy")
+                recovered_sections.append(recovered)
+        sections = [*structural_curved_sections, *recovered_sections]
+
+    # DROP SUB-TOOL SLIVERS. When a 3D contour ring is drawn a few mm outside its pocket,
+    # the strip of "frame" between two adjacent contours becomes a 9 mm-wide, ~zero-area
+    # section. A pass down its centre runs right on the region edge (the artifact the
+    # operator sees) and cannot be sanded as its own band anyway — the adjacent passes
+    # cover it incidentally. Remove any section whose effective thickness is well under the
+    # tool, so no toolpath is placed on a degenerate strip.
+    # Threshold catches degenerate slivers (~9 mm here) without dropping legitimate thin
+    # rails (a diagonal arm can be ~37 mm). 20 mm sits safely between the two.
+    min_section_thickness = 20.0
+    kept_sections: list[dict[str, Any]] = []
+    for section in sections:
+        poly = _polygon_from_section(section)
+        if poly is None or poly.is_empty:
+            continue
+        if float(poly.area) <= 1e-3:
+            continue
+        if _section_effective_thickness(poly) < min_section_thickness:
+            continue
+        kept_sections.append(section)
+    sections = kept_sections
 
     # Route each section by thickness:
     #   • THIN band (≤ ~1 tool width): one continuous centerline over the FULL section,
@@ -383,9 +385,15 @@ def compute_frame_sections_and_toolpaths(
     import math
 
     band_pass_width = max(float(pass_width_mm), 1e-6)
-    band_offset = max(float(offset_mm), 0.0)
+    # Computed-frame centerline passes should run through the section middle. Keep the
+    # inset only for wide zigzag fills where the tool needs clearance from section edges.
+    band_offset = 0.0
+    wide_zigzag_offset = 35.0
     band_step = max(band_pass_width - min(max(float(overlap_mm), 0.0), 100.0), 10.0)
     band_half = band_pass_width / 2.0
+    # Single-band frame passes are lateral centrelines, but their endpoints must not put
+    # the TCP exactly on the raw door boundary. Trim only along the stroke direction.
+    single_band_endpoint_inset = min(35.0, band_half * 0.7)
 
     thin_sections: list[dict[str, Any]] = []
     wide_sections: list[dict[str, Any]] = []
@@ -410,15 +418,7 @@ def compute_frame_sections_and_toolpaths(
             continue
         pending_strokes: list[list[list[float]]] = []
         if section.get("section_strategy") == "between_pockets_vertical":
-            from shapely.geometry import LineString
-
-            minx, miny, maxx, maxy = [float(v) for v in poly.bounds]
-            cx = (minx + maxx) / 2.0
-            reach = (maxy - miny) + band_pass_width + 10.0
-            centerline = _clip_line_segment_to_polygon(
-                LineString([(cx, miny - reach), (cx, maxy + reach)]),
-                poly,
-            ) or []
+            centerline = _best_vertical_centerline_in_section(poly, band_pass_width)
             direction = "Y"
             strategy = "structural_vertical_centerline"
         elif section.get("section_strategy") == "bottom_curved_band":
@@ -453,10 +453,25 @@ def compute_frame_sections_and_toolpaths(
         for stroke in [centerline, *pending_strokes]:
             if len(stroke) < 2:
                 continue
+            stroke_len = sum(math.dist(stroke[i], stroke[i + 1]) for i in range(len(stroke) - 1))
+            trim = min(single_band_endpoint_inset, max(stroke_len * 0.2, 0.0))
+            trimmed = _trim_polyline(stroke, trim)
+            if len(trimmed) >= 2 and math.dist(trimmed[0], trimmed[-1]) > 1e-6:
+                stroke = trimmed
+            stroke = _trim_outer_boundary_endpoints(stroke, frame_geom, single_band_endpoint_inset)
+            # Structural ribs are intentionally represented by one centerline inside a
+            # narrow strip. The local strip-boundary test can falsely reject those ribs
+            # after clipping/trim noise, even though the pass is still inside frame_geom.
+            if (
+                section.get("section_strategy") != "between_pockets_vertical"
+                and _polyline_uses_polygon_boundary(stroke, poly)
+            ):
+                continue
             seq += 1
             toolpaths.append({
                 "path_id": f"frame_path_{seq:03d}",
                 "source_section_id": section.get("section_id"),
+                "source_section_strategy": section.get("section_strategy"),
                 "region_type": "computed_frame",
                 "operation_type": "frame_section_pass",
                 "points": stroke,
@@ -466,12 +481,77 @@ def compute_frame_sections_and_toolpaths(
                 "end_point": stroke[-1],
             })
 
-    # Wide sections → reach-split + serpentine fill per chunk.
+    # Wide sections -> reach-split + serpentine fill per chunk with a small internal margin.
     wide_chunks = _split_sections_by_reach(wide_sections, reach_x_mm, reach_y_mm)
-    for tp in _generate_section_toolpaths(wide_chunks, pass_width_mm, offset_mm, overlap_mm):
+    for tp in _generate_section_toolpaths(wide_chunks, pass_width_mm, wide_zigzag_offset, overlap_mm):
         seq += 1
         tp["path_id"] = f"frame_path_{seq:03d}"
+        pts = tp.get("points") or []
+        tp["points"] = _trim_outer_boundary_endpoints(pts, frame_geom, single_band_endpoint_inset)
+        tp["start_point"] = tp["points"][0]
+        tp["end_point"] = tp["points"][-1]
         toolpaths.append(tp)
+
+    # Coverage fallback: every computed-frame section must either have a pass or be
+    # reported uncovered. Some valid sections are rejected by the primary strategy when
+    # the inset/clearance is too strict for that geometry. Retry only those missing
+    # sections, without changing paths that already passed validation.
+    wide_section_ids = {s.get("section_id") for s in wide_sections}
+    covered_before_fallback = set()
+    for tp in toolpaths:
+        covered_before_fallback.update(_path_source_ids(tp))
+    fallback_sections = [s for s in sections if s.get("section_id") not in covered_before_fallback]
+    for section in fallback_sections:
+        section_id = section.get("section_id")
+        if section_id in wide_section_ids:
+            # Wide regions need area coverage, not just one centerline. If the 35 mm
+            # internal margin made the section produce no path, retry the same generic
+            # zigzag generation with zero margin and keep all clipping/boundary checks.
+            retry_chunks = _split_sections_by_reach([section], reach_x_mm, reach_y_mm)
+            for tp in _generate_section_toolpaths(retry_chunks, pass_width_mm, 0.0, overlap_mm):
+                seq += 1
+                tp["path_id"] = f"frame_path_{seq:03d}"
+                tp["path_strategy"] = f"fallback_{tp.get('path_strategy') or 'zigzag_zero_offset'}"
+                pts = tp.get("points") or []
+                tp["points"] = _trim_outer_boundary_endpoints(pts, frame_geom, single_band_endpoint_inset)
+                tp["start_point"] = tp["points"][0]
+                tp["end_point"] = tp["points"][-1]
+                toolpaths.append(tp)
+            continue
+
+        poly = _polygon_from_section(section)
+        if poly is None or poly.is_empty or poly.geom_type != "Polygon":
+            continue
+        centerline, direction, strategy = _oriented_toolpath(
+            poly,
+            band_pass_width,
+            0.0,
+            band_step,
+            band_half,
+            force_band=True,
+        )
+        if len(centerline) < 2:
+            continue
+        seg_len = sum(math.dist(centerline[i], centerline[i + 1]) for i in range(len(centerline) - 1))
+        if seg_len < max(10.0, band_half * 0.35):
+            continue
+        if not _polyline_stays_in_polygon(centerline, frame_geom, tol=0.5):
+            continue
+        if _polyline_uses_polygon_boundary(centerline, frame_geom):
+            continue
+        seq += 1
+        toolpaths.append({
+            "path_id": f"frame_path_{seq:03d}",
+            "source_section_id": section_id,
+            "source_section_strategy": section.get("section_strategy"),
+            "region_type": "computed_frame",
+            "operation_type": "frame_section_pass",
+            "points": centerline,
+            "direction": direction,
+            "path_strategy": f"fallback_{strategy}",
+            "start_point": centerline[0],
+            "end_point": centerline[-1],
+        })
 
     # Preview chunks should match what the operator sees as sections. Wide rectangles
     # still need reach-split verification; thin/curved bands are single-pass sections,
@@ -483,8 +563,16 @@ def compute_frame_sections_and_toolpaths(
         chunk = dict(section)
         chunk["chunk_id"] = f"frame_chunk_{chunk_counter:03d}"
         chunk["parent_section_id"] = section.get("section_id")
+        chunk["source_section_strategy"] = section.get("section_strategy")
         chunk["requires_axis_position"] = False
         chunks.append(chunk)
+
+
+    toolpaths = _chain_computed_frame_toolpaths(
+        toolpaths,
+        frame_geom,
+        max_connector_mm=max(float(reach_x_mm), float(reach_y_mm), band_pass_width * 4.0),
+    )
 
     rings = _rings_of(frame_geom)
 
@@ -493,7 +581,9 @@ def compute_frame_sections_and_toolpaths(
     # of the frame is never sanded. It happens on malformed input (e.g. a 3D contour drawn
     # a few mm from its pocket, which shatters the frame into sub-tool fragments), so
     # surface it rather than hide it.
-    covered_ids = {tp.get("source_section_id") for tp in toolpaths}
+    covered_ids = set()
+    for tp in toolpaths:
+        covered_ids.update(_path_source_ids(tp))
     uncovered = [s for s in sections if s.get("section_id") not in covered_ids]
     uncovered_area = float(sum(float(s.get("area") or 0.0) for s in uncovered))
     if uncovered:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,13 +17,56 @@ from .jobs import (
 from .parser import parse_dxf_loops
 from .surface_checker import check_selected_lines_closed
 from .surface_detector import detect_selected_loops
-from .frame_sections import compute_frame_sections_and_toolpaths, compute_frame_zigzag_fill
+from .frame.sections import compute_frame_sections_and_toolpaths
+from .frame.zigzag import compute_frame_zigzag_fill
+from .tool_reach import attach_station_plan, plan_closed_loop_best_start, station_window_for_path
 
 logger = logging.getLogger(__name__)
 
 table_b_dxf_bp = Blueprint("table_b_dxf", __name__, url_prefix="/api/table-b-dxf")
 
 ALLOWED_DXF_EXTENSIONS = {".dxf"}
+
+
+def _path_debug_summary(toolpaths):
+    summary = {}
+    for path in toolpaths or []:
+        key = str(path.get("source_section_strategy") or path.get("path_strategy") or "unknown")
+        entry = summary.setdefault(key, {"count": 0, "split_count": 0, "point_counts": []})
+        entry["count"] += 1
+        if path.get("reach_split_count"):
+            entry["split_count"] += 1
+        entry["point_counts"].append(len(path.get("points") or []))
+    return summary
+
+
+def _write_frame_toolpath_debug(job_id, payload, result, before_reach_toolpaths, after_reach_toolpaths):
+    try:
+        debug_dir = Path(__file__).resolve().parent / "debug"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        sections = result.get("sections") or []
+        data = {
+            "job_id": job_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "payload_counts": {
+                "outline_points": len(payload.get("outline_polygon") or []),
+                "pocket_polygons": len(payload.get("pocket_polygons") or []),
+                "surface3d_polygons": len(payload.get("surface3d_polygons") or []),
+            },
+            "sections_by_strategy": _path_debug_summary([
+                {"source_section_strategy": section.get("section_strategy"), "points": section.get("corners") or []}
+                for section in sections
+            ]),
+            "before_reach_summary": _path_debug_summary(before_reach_toolpaths),
+            "after_reach_summary": _path_debug_summary(after_reach_toolpaths),
+            "uncovered_section_ids": result.get("uncovered_section_ids") or [],
+            "sections": sections,
+            "toolpaths_before_reach": before_reach_toolpaths,
+            "toolpaths_after_reach": after_reach_toolpaths,
+        }
+        (debug_dir / "last_frame_toolpaths.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception as debug_error:  # noqa: BLE001 - debug must not break preview
+        logger.warning("Table B DXF frame-toolpaths debug dump skipped: %s", debug_error)
 
 
 def _get_uploaded_file():
@@ -231,6 +275,29 @@ def compute_table_b_dxf_frame_toolpaths(job_id: str):
         )
         chunks = result.get("chunks") or []
         toolpaths = result.get("toolpaths") or []
+        toolpaths_before_reach = json.loads(json.dumps(toolpaths))
+
+        # Plan 7th-axis stations for the frame tool and tag every toolpath with the station
+        # that runs it. The viewer colours by station so the operator can see which passes
+        # happen together without repositioning, and the executor gets the axis positions
+        # alongside the points it must trace.
+        #
+        # ORDER MATTERS. compute_frame_sections_and_toolpaths already produced the fewest,
+        # longest connected rails (greedy corner join, no re-sanding, no border ride). Here we
+        # ONLY tag stations and split a rail where the arm physically cannot reach it in one
+        # move. We deliberately do NOT re-run the same-station endpoint merge afterwards: it
+        # re-fragmented the clean rails and bent reach-split pieces into false corners (a
+        # vertical rail glued to half the bottom rail), which is exactly the disconnection the
+        # operator was seeing. Splitting for reach is unavoidable; re-chaining by station is
+        # not, so we drop it and keep the long rails intact.
+        try:
+            result["reach_plan"] = attach_station_plan(toolpaths, tool="tool_4", chain=False)
+            result["toolpaths"] = toolpaths
+        except Exception as reach_error:  # noqa: BLE001 - a preview must not fail on this
+            logger.warning("Table B DXF frame-toolpaths: reach planning skipped: %s", reach_error)
+
+        _write_frame_toolpath_debug(job_id, payload, result, toolpaths_before_reach, toolpaths)
+
         logger.info(
             "Table B DXF frame-toolpaths result: outlinePts=%s pockets=%s surface3d=%s sections=%s chunks=%s curvedChunks=%s paths=%s strategies=%s",
             len(payload.get("outline_polygon") or []),
@@ -253,6 +320,70 @@ def compute_table_b_dxf_frame_toolpaths(job_id: str):
         }), 500
 
 
+@table_b_dxf_bp.post("/plan-reach/<job_id>")
+def plan_table_b_dxf_reach(job_id: str):
+    """Plan 7th-axis stations for ANY tool's toolpaths (pocket edge, zigzag, 3D, frame).
+
+    The frontend generates pocket/3D toolpaths locally, so they never passed through reach
+    planning and showed no splits. This endpoint takes whatever paths a tool must run and
+    returns them tagged with the station that executes each one, splitting any pass the arm
+    cannot reach in a single move.
+
+    Body: { tool: "tool_3"|"tool_1"|"tool_4", toolpaths: [ {path_id, points:[[x,y],...]} ] }
+    """
+    logger.info("Table B DXF Assisted plan-reach requested: %s", job_id)
+    payload = request.get_json(silent=True) or {}
+    tool = str(payload.get("tool") or "tool_4")
+    toolpaths = payload.get("toolpaths") or []
+    if not isinstance(toolpaths, list):
+        return jsonify({
+            "success": False, "job_id": job_id, "status": "invalid_payload",
+            "message": "toolpaths must be a list of {path_id, points}.",
+        }), 400
+    try:
+        paths = [dict(tp) for tp in toolpaths if isinstance(tp, dict)]
+
+        # Closed pocket-edge and 3D contour loops may be too large for one J7 station.
+        # Keep the normal bottom-right start only when the full loop fits. Otherwise,
+        # choose the best reachable loop break and return open arcs that cover the loop
+        # once, without forcing every split to start at the original corner.
+        if tool in {"tool_1", "tool_3"}:
+            planned_paths = []
+            for path in paths:
+                pts = path.get("points") or []
+                if not path.get("closed") or len(pts) < 3 or station_window_for_path(tool, pts) is not None:
+                    planned_paths.append(path)
+                    continue
+                loop_plan = plan_closed_loop_best_start(tool, pts)
+                arcs = loop_plan.get("arcs") or []
+                if not arcs:
+                    planned_paths.append(path)
+                    continue
+                for arc_index, arc in enumerate(arcs):
+                    clone = dict(path)
+                    clone["points"] = arc.get("points") or []
+                    clone["closed"] = False
+                    clone["path_id"] = f"{path.get('path_id', 'loop')}_arc{arc_index}"
+                    clone["split_from_path_id"] = path.get("path_id")
+                    clone["reach_split_index"] = arc_index
+                    clone["reach_split_count"] = len(arcs)
+                    clone["closed_loop_start_index"] = loop_plan.get("start_index")
+                    planned_paths.append(clone)
+            paths = planned_paths
+
+        plan = attach_station_plan(paths, tool=tool)
+        return jsonify({
+            "success": True, "job_id": job_id, "tool": tool,
+            "toolpaths": paths, "reach_plan": plan,
+        })
+    except Exception as error:  # noqa: BLE001 - a preview must never fail on planning
+        logger.exception("Table B DXF Assisted plan-reach failed: %s", error)
+        return jsonify({
+            "success": False, "job_id": job_id,
+            "status": "plan_reach_failed", "message": str(error),
+        }), 500
+
+
 @table_b_dxf_bp.post("/frame-zigzag/<job_id>")
 def compute_table_b_dxf_frame_zigzag(job_id: str):
     """Zigzag fill of the whole frame surface, clipped to the door outline (curve-aware).
@@ -270,6 +401,12 @@ def compute_table_b_dxf_frame_zigzag(job_id: str):
             pass_width_mm=float(payload.get("pass_width_mm") or 75.0),
             overlap_mm=float(payload.get("overlap_mm") or 0.0),
         )
+        try:
+            toolpaths = result.get("toolpaths") or []
+            result["reach_plan"] = attach_station_plan(toolpaths, tool="tool_4")
+            result["toolpaths"] = toolpaths
+        except Exception as reach_error:  # noqa: BLE001 - preview should still render
+            logger.warning("Table B DXF frame-zigzag: reach planning skipped: %s", reach_error)
         return jsonify({"success": True, "job_id": job_id, **result})
     except Exception as error:  # noqa: BLE001 — never fail a preview on a geometry hiccup
         logger.exception("Table B DXF Assisted frame-zigzag failed: %s", error)

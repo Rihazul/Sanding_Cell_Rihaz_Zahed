@@ -249,6 +249,35 @@ def _recipe_for_tool(tool: str, recipe: dict[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError):
         cycle = 0
     return {"force": force, "cycle": cycle}
+def _float_or_none(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _xy_points(points: Any) -> list[list[float]]:
+    out: list[list[float]] = []
+    for point in points or []:
+        try:
+            out.append([float(point[0]), float(point[1])])
+        except (TypeError, ValueError, IndexError):
+            continue
+    return out
+
+
+def _robot_base_points(viewer_points: list[list[float]], axis7_position_mm: float | None) -> list[list[float]]:
+    """Convert viewer/global UCS points into the robot-base frame at one J7 stop.
+
+    The 2D viewer is in the fixed Table B UCS. Moving the 7th axis shifts the robot
+    base along UCS X, so the robot must receive local X = viewer X - J7 position.
+    Y is unchanged because the rail only translates the base in X.
+    """
+    if axis7_position_mm is None:
+        return [list(point) for point in viewer_points]
+    return [[point[0] - axis7_position_mm, point[1]] for point in viewer_points]
 
 
 def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
@@ -287,13 +316,20 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
             continue
 
         step_recipe = _recipe_for_tool(tool, recipe)
+        viewer_points = _xy_points(path.get("points") or [])
+        axis7_position_mm = _float_or_none(path.get("axis7_position_mm"))
+        robot_points = _robot_base_points(viewer_points, axis7_position_mm)
         step = {
             "path_id": path.get("path_id"),
             "tool": tool,
             "physical_tool": spec["physical_tool"],
             "operation": path.get("operation") or spec["label"],
             "closed": bool(path.get("closed")),
-            "points": path.get("points") or [],
+            "points": viewer_points,
+            "viewer_points": viewer_points,
+            "robot_base_points": robot_points,
+            "station_index": path.get("station_index"),
+            "axis7_position_mm": axis7_position_mm,
             "motion": TOOL_MOTION_PARAMS.get(tool),
             "recipe": step_recipe,
         }
@@ -404,10 +440,12 @@ def run_approved_toolpath(job_id: str, recipe: dict[str, Any], cps: Any = None) 
 
         for index, step in enumerate(batch["steps"], start=1):
             logger.info(
-                "[TableB DXF Run] Tool %s path %s/%s id=%s op=%s closed=%s points=%s force=%s cycle=%s",
+                "[TableB DXF Run] Tool %s path %s/%s id=%s op=%s closed=%s points=%s force=%s cycle=%s station=%s j7=%.3f",
                 tool_num, index, batch["path_count"], step["path_id"], step["operation"],
                 step["closed"], len(step["points"]),
                 step["recipe"]["force"], step["recipe"]["cycle"],
+                step.get("station_index"),
+                float(step.get("axis7_position_mm") or 0.0),
             )
             # Each configured cycle repeats the whole path, as the Table A cycles do.
             for cycle_index in range(1, step["recipe"]["cycle"] + 1):
@@ -415,10 +453,16 @@ def run_approved_toolpath(job_id: str, recipe: dict[str, Any], cps: Any = None) 
                     "[TableB DXF Run]   cycle %s/%s",
                     cycle_index, step["recipe"]["cycle"],
                 )
-                for point_index, point in enumerate(step["points"]):
+                for point_index, point in enumerate(step["robot_base_points"]):
+                    viewer_point = step["viewer_points"][point_index]
                     logger.info(
-                        "[TableB DXF Run]     MoveL %s.%s -> x=%.3f y=%.3f (mm)",
-                        index, point_index, float(point[0]), float(point[1]),
+                        "[TableB DXF Run]     MoveL %s.%s -> base_x=%.3f y=%.3f (viewer_x=%.3f j7=%.3f mm)",
+                        index,
+                        point_index,
+                        float(point[0]),
+                        float(point[1]),
+                        float(viewer_point[0]),
+                        float(step.get("axis7_position_mm") or 0.0),
                     )
 
         logger.info("[TableB DXF Run] === TOOL %s BATCH COMPLETE ===", tool_num)

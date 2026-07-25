@@ -719,6 +719,60 @@ export interface TableBDxfFrameZigzagResponse {
   message?: string;
 }
 
+export interface TableBDxfPlannedToolpath {
+  path_id?: string;
+  tool?: string;
+  operation?: string;
+  operation_type?: string;
+  closed?: boolean;
+  points: number[][];
+  station_index?: number | null;
+  axis7_position_mm?: number | null;
+  reach_unreachable?: boolean;
+  split_from_path_id?: string;
+  reach_split_index?: number;
+  reach_split_count?: number;
+  chained_path_ids?: string[];
+}
+
+export interface TableBDxfReachPlanResponse {
+  success: boolean;
+  tool?: string;
+  toolpaths?: TableBDxfPlannedToolpath[];
+  reach_plan?: {
+    stations?: { position: number; path_indices: number[] }[];
+    station_count?: number;
+    total_travel_mm?: number;
+    unreachable_path_indices?: number[];
+  };
+  message?: string;
+}
+
+// Plan 7th-axis stations for one tool's toolpaths. Pocket edge / zigzag / 3D paths are
+// generated in the browser, so they must be sent here to get their reach splits and the
+// station (and therefore preview colour) each pass belongs to.
+export async function planTableBDxfReach(
+  jobId: string,
+  tool: string,
+  toolpaths: { path_id: string; tool?: string; operation?: string; operation_type?: string; closed?: boolean; points: number[][] }[],
+): Promise<TableBDxfReachPlanResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/table-b-dxf/plan-reach/${encodeURIComponent(jobId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tool, toolpaths }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Reach planning failed: ${response.statusText}`);
+    }
+    return data;
+  } catch (error) {
+    console.error('Error planning Table B DXF reach:', error);
+    throw error;
+  }
+}
+
 // Curve-aware zigzag FILL of the whole frame surface (Frame Level on the whole door).
 export async function computeTableBDxfFrameZigzag(
   jobId: string,
@@ -994,4 +1048,3 @@ export const api = {
   checkToolStatus,
   getLogsHistory,
 };
-

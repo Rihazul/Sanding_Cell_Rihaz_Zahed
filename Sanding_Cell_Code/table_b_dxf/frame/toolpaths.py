@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from .frame_classification import (
+from .classification import (
     _major_axis,
     _ring_has_curve,
     _ring_has_non_axis_edge,
 )
-from .frame_geometry import _largest_polygon
-from .frame_section_builder import _polygon_from_section
+from .geometry import _largest_polygon
+from .section_builder import _polygon_from_section
 
 
 def _generate_section_toolpaths(
@@ -37,11 +37,12 @@ def _generate_section_toolpaths(
         else:
             points, direction, strategy = _axis_aligned_toolpath(poly, pass_width, offset, step, half_pass)
 
-        if len(points) < 2 or not _polyline_stays_in_polygon(points, poly):
+        if len(points) < 2 or not _polyline_stays_in_polygon(points, poly) or _polyline_uses_polygon_boundary(points, poly):
             continue
         toolpaths.append({
             "path_id": f"frame_path_{idx:03d}",
             "source_section_id": chunk.get("parent_section_id") or chunk.get("section_id"),
+            "source_section_strategy": chunk.get("source_section_strategy") or chunk.get("section_strategy"),
             "source_chunk_id": chunk.get("chunk_id"),
             "region_type": "computed_frame",
             "operation_type": "frame_section_pass",
@@ -245,6 +246,43 @@ def _polyline_stays_in_polygon(points: list[list[float]], poly: Any, tol: float 
         return True
     except Exception:
         return False
+
+
+
+
+def _polyline_uses_polygon_boundary(
+    points: list[list[float]],
+    poly: Any,
+    min_overlap: float = 1.0,
+    clearance_mm: float = 0.0,
+) -> bool:
+    """True when a TCP path rides on, or too close along, a polygon boundary.
+
+    Exact line overlap is always rejected. ``clearance_mm`` is used for checks against the
+    real frame area, where pocket and 3D contour edges are holes. Touching one point is
+    allowed; following a boundary for a measurable length is not.
+    """
+    if len(points) < 2 or poly is None or poly.is_empty:
+        return False
+    try:
+        from shapely.geometry import LineString
+
+        boundary = poly.boundary
+        clearance = max(float(clearance_mm), 0.0)
+        for a, b in zip(points, points[1:]):
+            line = LineString([(float(a[0]), float(a[1])), (float(b[0]), float(b[1]))])
+            if line.length <= 1e-9:
+                continue
+            inter = line.intersection(boundary)
+            if not inter.is_empty and float(getattr(inter, "length", 0.0)) > min_overlap:
+                return True
+            if clearance > 0.0:
+                nearby = line.buffer(clearance, cap_style=2, join_style=2).intersection(boundary)
+                if not nearby.is_empty and float(getattr(nearby, "length", 0.0)) > min_overlap:
+                    return True
+    except Exception:
+        return True
+    return False
 
 
 def _smooth_polyline(points: list[list[float]], window: int = 5) -> list[list[float]]:

@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from .frame_classification import (
+from .classification import (
     _dedupe_consecutive,
     _dedupe_ring,
     _major_axis,
     _ring_has_curve,
     _ring_has_non_axis_edge,
 )
-from .frame_geometry import _as_polygons, _largest_polygon
+from .geometry import _as_polygons, _largest_polygon
 
 
 def _section_from_polygon(poly: Any, index: int, clipped: bool) -> dict[str, Any] | None:

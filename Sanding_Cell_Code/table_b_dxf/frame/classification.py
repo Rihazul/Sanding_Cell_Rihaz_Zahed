@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .frame_geometry import _largest_polygon
+from .geometry import _largest_polygon
 
 
 def _corner_vertices(pts: list[list[float]], angle_deg: float = 18.0) -> list[list[float]]:
