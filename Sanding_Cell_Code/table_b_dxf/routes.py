@@ -18,6 +18,7 @@ from .parser import parse_dxf_loops
 from .surface_checker import check_selected_lines_closed
 from .surface_detector import detect_selected_loops
 from .frame.sections import compute_frame_sections_and_toolpaths
+from .frame.paths import chain_computed_frame_paths_by_station
 from .frame.zigzag import compute_frame_zigzag_fill
 from .tool_reach import attach_station_plan, plan_closed_loop_best_start, station_window_for_path
 
@@ -40,6 +41,41 @@ def _path_debug_summary(toolpaths):
     return summary
 
 
+
+def _reach_plan_from_tagged_toolpaths(toolpaths, tool="tool_4"):
+    """Build a reach_plan that matches the final executable toolpath list."""
+    stations_by_index = {}
+    unreachable = []
+    for path_index, path in enumerate(toolpaths or []):
+        station_index = path.get("station_index")
+        if station_index is None or path.get("reach_unreachable"):
+            unreachable.append(path_index)
+            continue
+        axis = path.get("axis7_position_mm")
+        entry = stations_by_index.setdefault(
+            int(station_index),
+            {"position": float(axis or 0.0), "path_indices": []},
+        )
+        if axis is not None:
+            entry["position"] = float(axis)
+        entry["path_indices"].append(path_index)
+
+    stations = [stations_by_index[key] for key in sorted(stations_by_index)]
+    total_travel = 0.0
+    previous = 0.0
+    for station in stations:
+        position = float(station.get("position") or 0.0)
+        total_travel += abs(position - previous)
+        previous = position
+
+    return {
+        "tool": tool,
+        "stations": stations,
+        "station_count": len(stations),
+        "total_travel_mm": total_travel,
+        "unreachable_path_indices": unreachable,
+    }
+
 def _write_frame_toolpath_debug(job_id, payload, result, before_reach_toolpaths, after_reach_toolpaths):
     try:
         debug_dir = Path(__file__).resolve().parent / "debug"
@@ -60,6 +96,7 @@ def _write_frame_toolpath_debug(job_id, payload, result, before_reach_toolpaths,
             "before_reach_summary": _path_debug_summary(before_reach_toolpaths),
             "after_reach_summary": _path_debug_summary(after_reach_toolpaths),
             "uncovered_section_ids": result.get("uncovered_section_ids") or [],
+            "rings": result.get("rings") or [],
             "sections": sections,
             "toolpaths_before_reach": before_reach_toolpaths,
             "toolpaths_after_reach": after_reach_toolpaths,
@@ -282,15 +319,18 @@ def compute_table_b_dxf_frame_toolpaths(job_id: str):
         # happen together without repositioning, and the executor gets the axis positions
         # alongside the points it must trace.
         #
-        # ORDER MATTERS. compute_frame_sections_and_toolpaths already produced the fewest,
-        # longest connected rails (greedy corner join, no re-sanding, no border ride). Here we
-        # ONLY tag stations and split a rail where the arm physically cannot reach it in one
-        # move. We deliberately do NOT re-run the same-station endpoint merge afterwards: it
-        # re-fragmented the clean rails and bent reach-split pieces into false corners (a
-        # vertical rail glued to half the bottom rail), which is exactly the disconnection the
-        # operator was seeing. Splitting for reach is unavoidable; re-chaining by station is
-        # not, so we drop it and keep the long rails intact.
+        # ORDER MATTERS. First tag/split by 7th-axis reach without changing the clean
+        # generated frame paths. Then connect safe same-station computed-frame rails. Wide
+        # frame zigzags and diagonal centerline bands may join to neighboring single-pass
+        # bands when a short connector stays inside frame_area; curved fills stay separate.
         try:
+            result["reach_plan"] = attach_station_plan(toolpaths, tool="tool_4", chain=False)
+            toolpaths = chain_computed_frame_paths_by_station(
+                toolpaths,
+                result.get("rings") or [],
+                max_connector_mm=max(float(payload.get("pass_width_mm") or 75.0) * 1.25, 120.0),
+            )
+            result["toolpaths"] = toolpaths
             result["reach_plan"] = attach_station_plan(toolpaths, tool="tool_4", chain=False)
             result["toolpaths"] = toolpaths
         except Exception as reach_error:  # noqa: BLE001 - a preview must not fail on this

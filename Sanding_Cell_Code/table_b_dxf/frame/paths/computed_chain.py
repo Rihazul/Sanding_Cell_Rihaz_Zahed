@@ -9,6 +9,7 @@ from .helpers import (
     _dedupe_polyline_points,
     _last_segment_axis,
     _path_source_ids,
+    _remove_collinear_waypoints,
     _polyline_self_overlaps,
     _remove_short_backtrack_jogs,
 )
@@ -309,7 +310,7 @@ def _chain_computed_frame_toolpaths(
     # rides a border/hole/outer edge and never re-sands existing geometry.
     result = _greedy_join_frame_paths(result, frame_geom)
     for path in result:
-        pts = _remove_short_backtrack_jogs(path.get("points") or [])
+        pts = _remove_collinear_waypoints(_remove_short_backtrack_jogs(path.get("points") or []))
         if len(pts) >= 2:
             path["points"] = pts
             path["start_point"] = pts[0]
@@ -358,7 +359,13 @@ def _greedy_join_frame_paths(
             return False
         if "curved" in strategy or "diagonal" in strategy:
             return False
-        return len(pts_of(p)) >= 2
+        if "zigzag" in strategy:
+            return False
+        return strategy in {
+            "structural_vertical_centerline",
+            "computed_frame_clockwise_chain",
+            "computed_frame_clockwise_chain_graph_walk",
+        } and len(pts_of(p)) >= 2
 
     rail_paths = [dict(p) for p in toolpaths if joinable(p)]
     fixed = [dict(p) for p in toolpaths if not joinable(p)]

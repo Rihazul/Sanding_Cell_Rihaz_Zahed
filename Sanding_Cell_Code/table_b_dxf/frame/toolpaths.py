@@ -108,15 +108,13 @@ def _longest_line_part(geom: Any) -> Any:
 
 
 def _split_curve_at_apex(points: list[list[float]], min_len: float) -> list[list[list[float]]]:
-    """Split a curved band's centerline into LONG STRAIGHT strokes meeting at the apex.
+    """Split a curved lower frame band into two long straight strokes.
 
-    Operator intent for a curved lower rail is a few long angled moves — one per side of
-    the arc — joined by a short connector at the peak, rather than one many-segment
-    polyline that reads as wobbly. We find the apex (the vertex furthest from the chord
-    between the ends) and emit: left stroke, short apex connector, right stroke.
+    The curved rail should be represented as the two operator-visible passes: left side to
+    apex and apex to right side. Do not add a short middle connector; that creates the
+    extra small path and weird crossing seen in the preview.
 
-    Returns [] when the path is already effectively straight (no meaningful apex), so a
-    flat band keeps its single stroke.
+    Returns [] when the path is effectively straight, so a flat band keeps one stroke.
     """
     import math
 
@@ -135,31 +133,17 @@ def _split_curve_at_apex(points: list[list[float]], min_len: float) -> list[list
         d = abs(dy * px - dx * py + bx * ay - by * ax) / chord
         if d > apex_d:
             apex_i, apex_d = i, d
-    # A shallow arc is better served by one straight stroke.
     if apex_d < max(min_len * 0.15, 3.0) or apex_i <= 0 or apex_i >= len(points) - 1:
         return []
 
-    apex = points[apex_i]
-    # Short connector centred on the apex, along the local tangent, so the two long
-    # strokes are joined rather than leaving a gap at the peak.
-    prev_pt = points[apex_i - 1]
-    next_pt = points[apex_i + 1]
-    tx, ty = next_pt[0] - prev_pt[0], next_pt[1] - prev_pt[1]
-    tlen = math.hypot(tx, ty)
-    if tlen < 1e-9:
-        return []
-    tx, ty = tx / tlen, ty / tlen
-    half = max(min_len * 0.5, 10.0)
-    c0 = [apex[0] - tx * half, apex[1] - ty * half]
-    c1 = [apex[0] + tx * half, apex[1] + ty * half]
-
-    left = [list(points[0]), c0]
-    right = [c1, list(points[-1])]
+    apex = [float(points[apex_i][0]), float(points[apex_i][1])]
+    left = [list(points[0]), apex]
+    right = [apex, list(points[-1])]
     strokes = []
-    for s in (left, [c0, c1], right):
-        if math.dist(s[0], s[-1]) >= max(min_len * 0.25, 5.0):
-            strokes.append(s)
-    return strokes if len(strokes) >= 2 else []
+    for stroke in (left, right):
+        if math.dist(stroke[0], stroke[-1]) >= max(min_len * 0.25, 5.0):
+            strokes.append(stroke)
+    return strokes if len(strokes) == 2 else []
 
 
 def _curved_band_following_centerline(poly: Any, pass_width: float, offset: float) -> list[list[float]]:

@@ -48,6 +48,40 @@ def _dedupe_polyline_points(points: list[list[float]]) -> list[list[float]]:
     return out
 
 
+def _remove_collinear_waypoints(points: list[list[float]], tol: float = 1e-6) -> list[list[float]]:
+    """Remove intermediate waypoints that do not change the MoveL direction.
+
+    Chaining can create A -> B -> C where B sits on the same straight line. B is useful
+    during planning, but unnecessary for robot execution and operator review. L-corners are
+    preserved because their cross product is non-zero.
+    """
+    pts = _dedupe_polyline_points(points)
+    if len(pts) <= 2:
+        return pts
+
+    simplified: list[list[float]] = [pts[0]]
+    for index in range(1, len(pts) - 1):
+        point = pts[index]
+        prev = simplified[-1]
+        nxt = pts[index + 1]
+        abx = float(point[0]) - float(prev[0])
+        aby = float(point[1]) - float(prev[1])
+        bcx = float(nxt[0]) - float(point[0])
+        bcy = float(nxt[1]) - float(point[1])
+        acx = float(nxt[0]) - float(prev[0])
+        acy = float(nxt[1]) - float(prev[1])
+        scale = max((acx * acx + acy * acy) ** 0.5, 1.0)
+        cross = abs(abx * bcy - aby * bcx)
+        dot = abx * bcx + aby * bcy
+
+        # Same line and same travel direction: B does not change the robot's path.
+        if cross <= tol * scale and dot >= -tol:
+            continue
+        simplified.append(point)
+    simplified.append(pts[-1])
+    return simplified
+
+
 def _remove_short_backtrack_jogs(points: list[list[float]], jog_tol: float = 8.0) -> list[list[float]]:
     """Remove tiny connector reversals introduced by trimming/chaining.
 
