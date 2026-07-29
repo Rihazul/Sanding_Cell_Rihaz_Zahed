@@ -354,6 +354,52 @@ def _group_pocket_zigzag_windows(paths: list[dict[str, Any]]) -> dict[str, list[
         groups.setdefault(key, []).append(dict(path))
     return groups
 
+def _same_cycle_station(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    if a.get("cycle_window_id") != b.get("cycle_window_id"):
+        return False
+    a_axis = _float_or_none(a.get("axis7_position_mm"))
+    b_axis = _float_or_none(b.get("axis7_position_mm"))
+    if a_axis is None or b_axis is None or abs(a_axis - b_axis) > 0.5:
+        return False
+    return a.get("station_index") == b.get("station_index")
+
+
+def _stitch_compatible_pocket_zigzag_paths(paths: list[dict[str, Any]], tolerance_mm: float = 5.0) -> list[dict[str, Any]]:
+    """Merge alternate pocket-zigzag cycles that already touch in the same J7 window.
+
+    The robot runner applies force/release per path. Stitching compatible cycle
+    paths here keeps vertical->horizontal cycle changes continuous instead of
+    lifting and returning to the original preview start point.
+    """
+    stitched: list[dict[str, Any]] = []
+    for path in paths:
+        pts = _xy_points(path.get("points") or [])
+        if len(pts) < 2:
+            continue
+        path = dict(path)
+        path["points"] = pts
+        if not stitched:
+            stitched.append(path)
+            continue
+
+        previous = stitched[-1]
+        previous_pts = _xy_points(previous.get("points") or [])
+        if previous_pts and _same_cycle_station(previous, path):
+            gap = _point_distance(previous_pts[-1], pts[0])
+            if gap <= tolerance_mm:
+                merged_pts = list(previous_pts)
+                if gap <= 0.5:
+                    merged_pts.extend(pts[1:])
+                else:
+                    merged_pts.extend(pts)
+                previous["points"] = merged_pts
+                previous["path_id"] = f"{previous.get('path_id', 'pocketzigzag')}+{path.get('path_id', 'cycle')}"
+                previous["operation"] = f"{previous.get('operation', 'Pocket zigzag')} + {path.get('operation', 'Pocket zigzag')}"
+                previous["cycle_orientation"] = f"{previous.get('cycle_orientation', '')}+{path.get('cycle_orientation', '')}"
+                continue
+
+        stitched.append(path)
+    return stitched
 
 def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]] | None:
     zigzag_recipe = _normalize_recipe_entry(recipe.get("pocketzigzag") if isinstance(recipe, dict) else None)
@@ -425,6 +471,7 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 expanded.append(expanded_path)
                 cursor = pts[-1]
 
+    expanded = _stitch_compatible_pocket_zigzag_paths(expanded)
     return expanded or None
 
 
@@ -758,5 +805,6 @@ def run_approved_toolpath(
         raise TableBDxfExecutionError(str(error)) from error
 
     return {"dry_run": False, **plan, "execution": execution}
+
 
 

@@ -29,6 +29,7 @@ from FileUtils.upload import upload3DModel
 import json
 import copy
 import math
+import uuid
 
 # for left table homing and sanding total
 # Heavy scan/homing modules are imported lazily so the desktop app can open faster.
@@ -57,7 +58,7 @@ REACT_ASSETS_DIR = os.path.join(REACT_BUILD_DIR, "assets")
 # Table B runs the operator-approved 2D DXF toolpath. The legacy model-preset
 # pipeline (Table<N>Model matplotlib dialog + model<N>cycle execution) was removed
 # from this app; those folders remain on disk for reference only.
-def _run_tableb_dxf_task_child(job_id, recipe):
+def _run_tableb_dxf_task_child(job_id, recipe, success_marker=None):
     """Run a Table B DXF job in a child process with a fresh CPS session.
 
     Dry-run resolves/logs the approved toolpath only. Real execution connects CPS
@@ -91,6 +92,13 @@ def _run_tableb_dxf_task_child(job_id, recipe):
             raise RuntimeError(f"Table B DXF child CPS connect failed (ret={ret})")
 
         run_approved_toolpath(job_id, recipe, cps=cps, config=config)
+        if success_marker:
+            try:
+                os.makedirs(os.path.dirname(success_marker), exist_ok=True)
+                with open(success_marker, "w", encoding="utf-8") as marker_file:
+                    json.dump({"job_id": job_id, "completed_at": time.time()}, marker_file)
+            except Exception as marker_error:  # noqa: BLE001
+                logger.warning("[TableB DXF child] could not write success marker: %s", marker_error)
         logger.info("[TableB DXF child] finished job=%s", job_id)
     except Exception as error:  # noqa: BLE001
         logger.error("[TableB DXF child] failed job=%s: %s", job_id, error)
@@ -832,22 +840,38 @@ def _track_process(proc: Process) -> None:
             # child with a native access violation (exit_code=3221225477 / 0xC0000005)
             # even though homing is complete. So treat homing as succeeded when the child
             # persisted success, regardless of a non-zero teardown exit code.
+            success_marker = process_state.get('success_marker')
+            tableb_persisted_ok = (
+                process_state.get('last_action') == 'tableb_dxf'
+                and isinstance(success_marker, str)
+                and bool(success_marker)
+                and os.path.exists(success_marker)
+            )
             homing_persisted_ok = was_homing and _load_j7_home_state()
-            succeeded = (exit_code == 0) or homing_persisted_ok
+            succeeded = (exit_code == 0) or homing_persisted_ok or tableb_persisted_ok
             # Diagnostic: capture the child exit code that decides completed/failed, so a
             # child that did the work but exited non-zero on teardown is visible in the log.
             setup_logger().info(
                 "[_track_process] child exited: exit_code=%s last_action=%s "
-                "homing_persisted_ok=%s succeeded=%s",
+                "homing_persisted_ok=%s tableb_persisted_ok=%s succeeded=%s",
                 exit_code,
                 process_state.get('last_action'),
                 homing_persisted_ok,
+                tableb_persisted_ok,
                 succeeded,
             )
             process_state['status'] = 'completed' if succeeded else 'failed'
             if succeeded and was_homing:
                 _set_j7_home_confirmed(True)
             process_state['last_action'] = None
+            marker_to_delete = process_state.pop('success_marker', None)
+            if isinstance(marker_to_delete, str) and marker_to_delete:
+                try:
+                    os.remove(marker_to_delete)
+                except FileNotFoundError:
+                    pass
+                except Exception:
+                    pass
             client_process = None
             if succeeded:
                 socketio.emit('flash_message', {"message": "Process finished"})
@@ -1183,9 +1207,11 @@ def start_TableB_process():
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
     _disconnect_global_cps_for_child_start()
-    client_process = Process(target=_run_tableb_dxf_task_child, args=(job_id, tableData))
+    success_marker = os.path.join(FLASK_DIR, "table_b_dxf", "mappings", f"tableb_task_success_{uuid.uuid4().hex}.json")
+    client_process = Process(target=_run_tableb_dxf_task_child, args=(job_id, tableData, success_marker))
     process_state['status'] = 'in_progress'
     process_state['last_action'] = 'tableb_dxf'
+    process_state['success_marker'] = success_marker
     client_process.start()
     Thread(target=_track_process, args=(client_process,), daemon=True).start()
 
@@ -3238,4 +3264,6 @@ def handle_action():
 if __name__ == '__main__':
     # Desktop/runtime mode should avoid Flask reloader duplicates.
     app.run(host='0.0.0.0', port=5100, debug=False, use_reloader=False, threaded=True)
+
+
 
