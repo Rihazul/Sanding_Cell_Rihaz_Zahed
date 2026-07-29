@@ -95,10 +95,26 @@ const STATION_COLORS = [
 ];
 const STATION_UNREACHABLE_COLOR = '#94a3b8'; // grey - no station can reach this pass
 
-export const stationColor = (stationIndex) =>
-  stationIndex === null || stationIndex === undefined
+const stationAxisBucket = (axisPositionMm) => {
+  const axis = Number(axisPositionMm);
+  return Number.isFinite(axis) ? Math.round(axis / 10) * 10 : null;
+};
+
+export const stationColor = (stationIndex, axisPositionMm = null) => {
+  const axisBucket = stationAxisBucket(axisPositionMm);
+  if (axisBucket !== null) {
+    return STATION_COLORS[Math.abs(Math.round(axisBucket / 10)) % STATION_COLORS.length];
+  }
+  return stationIndex === null || stationIndex === undefined
     ? STATION_UNREACHABLE_COLOR
     : STATION_COLORS[stationIndex % STATION_COLORS.length];
+};
+
+const stationLegendKey = (seg) => {
+  const axisBucket = stationAxisBucket(seg.axis7_position_mm);
+  if (axisBucket !== null) return `x:${axisBucket}`;
+  return seg.station_index === null || seg.station_index === undefined ? null : `i:${seg.station_index}`;
+};
 
 // Which tool each pass group belongs to, so the viewer can filter to one tool at a time.
 // Tool 4 owns the frame passes AND the pocket zigzag (both are the wide raster tool).
@@ -788,7 +804,7 @@ export default function Dxf2DViewer({
           segs.push({
             key: `${path.path_id}_${i}`, pathId: path.path_id, x0, y0, x1, y1, arrow, isStart: i === 0,
             // Colour by 7th-axis station so passes that run together share a colour.
-            color: stationColor(path.station_index),
+            color: stationColor(path.station_index, path.axis7_position_mm),
             stationIndex: path.station_index ?? null,
           });
         }
@@ -812,14 +828,26 @@ export default function Dxf2DViewer({
         const byStation = new Map();
         let hasUnreachable = false;
         for (const seg of groups[tool]) {
-          const si = seg.station_index;
-          if (si === null || si === undefined) { hasUnreachable = true; continue; }
-          if (!byStation.has(si)) byStation.set(si, { count: 0, axis: seg.axis7_position_mm });
-          byStation.get(si).count += 1;
+          const key = stationLegendKey(seg);
+          if (key === null) { hasUnreachable = true; continue; }
+          if (!byStation.has(key)) {
+            byStation.set(key, {
+              count: 0,
+              axis: seg.axis7_position_mm,
+              stationIndex: seg.station_index,
+              color: stationColor(seg.station_index, seg.axis7_position_mm),
+            });
+          }
+          byStation.get(key).count += 1;
         }
         const stops = [...byStation.entries()]
-          .sort((a, b) => a[0] - b[0])
-          .map(([si, info]) => ({ si, count: info.count, axis: info.axis }));
+          .sort((a, b) => {
+            const ax = Number(a[1].axis);
+            const bx = Number(b[1].axis);
+            if (Number.isFinite(ax) && Number.isFinite(bx)) return ax - bx;
+            return Number(a[1].stationIndex ?? 0) - Number(b[1].stationIndex ?? 0);
+          })
+          .map(([key, info]) => ({ key, si: info.stationIndex, count: info.count, axis: info.axis, color: info.color }));
         return { tool, label: TOOL_LABELS[tool] || tool, stops, hasUnreachable, planned: byStation.size > 0 };
       })
       .filter((entry) => entry.stops.length > 0 || entry.hasUnreachable);
@@ -1192,8 +1220,8 @@ export default function Dxf2DViewer({
                   <g key={`ptp-${seg.id}`}>
                     {/* Coloured by 7th-axis station when the reach planner has run, so
                         splits are visible; falls back to the tool colour otherwise. */}
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index)} strokeWidth={2} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index)} />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={2} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1208,8 +1236,8 @@ export default function Dxf2DViewer({
               <g pointerEvents="none">
                 {contourToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`ctp-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index)} strokeWidth={2} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index)} />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={2} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1224,8 +1252,8 @@ export default function Dxf2DViewer({
               <g pointerEvents="none">
                 {pocketZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`pzz-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index)} strokeWidth={1.5} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index)} />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={1.5} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1261,8 +1289,8 @@ export default function Dxf2DViewer({
                 {frameZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
                   <g key={`fzz-${seg.id}`}>
                     {/* Colour by 7th-axis station like the other tools once planned. */}
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index)} strokeWidth={1.5} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index)} />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={1.5} />
+                    <polygon points={arrow} fill={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
                     )}
@@ -1413,8 +1441,8 @@ export default function Dxf2DViewer({
                     <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>reach plan pending…</span>
                   )}
                   {tool.stops.map((stop, i) => (
-                    <span key={stop.si} style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
-                      <span style={{ width: '16px', height: '3px', borderRadius: '2px', background: stationColor(stop.si), flex: '0 0 auto' }} />
+                    <span key={stop.key} style={{ display: 'flex', alignItems: 'center', gap: '6px', paddingLeft: '2px' }}>
+                      <span style={{ width: '16px', height: '3px', borderRadius: '2px', background: stop.color, flex: '0 0 auto' }} />
                       <span>
                         Stop {i + 1}
                         {stop.axis !== undefined && stop.axis !== null ? ` @ X=${Math.round(stop.axis)}mm` : ''}

@@ -60,19 +60,48 @@ REACT_ASSETS_DIR = os.path.join(REACT_BUILD_DIR, "assets")
 def _run_tableb_dxf_task_child(job_id, recipe):
     """Run a Table B DXF job in a child process with a fresh CPS session.
 
-    While the executor is in dry-run it issues no motion: it resolves the approved
-    toolpath and logs every MoveL it would send.
+    Dry-run resolves/logs the approved toolpath only. Real execution connects CPS
+    inside this child so the Flask parent does not share robot sockets with motion.
     """
     logger = setup_logger(True)
+    cps = None
+    config = None
     try:
         from table_b_dxf.executor import run_approved_toolpath
 
-        logger.info("[TableB DXF child] starting job=%s", job_id)
-        run_approved_toolpath(job_id, recipe, cps=None)
+        logger.info("[TableB DXF child] starting real execution job=%s", job_id)
+        config = load_config()
+        runtime = recipe.get("_runtime", {}) if isinstance(recipe, dict) else {}
+        if isinstance(runtime, dict):
+            ui_config = config.setdefault("UI", {})
+            if runtime.get("robotSpeed") is not None:
+                ui_config["robotSpeed"] = float(runtime["robotSpeed"])
+            if runtime.get("sandingSpeed") is not None:
+                ui_config["sandSpeed"] = float(runtime["sandingSpeed"])
+        config["logger"] = logger
+        cps = CPSClient()
+        connect_start = time.monotonic()
+        ret = cps.HRIF_Connect(0, config["server"]["cpip"], config["server"]["cps"])
+        logger.info(
+            "[TableB DXF child] CPS connect finished in %.3fs ret=%s",
+            time.monotonic() - connect_start,
+            ret,
+        )
+        if ret != 0:
+            raise RuntimeError(f"Table B DXF child CPS connect failed (ret={ret})")
+
+        run_approved_toolpath(job_id, recipe, cps=cps, config=config)
         logger.info("[TableB DXF child] finished job=%s", job_id)
     except Exception as error:  # noqa: BLE001
         logger.error("[TableB DXF child] failed job=%s: %s", job_id, error)
         raise
+    finally:
+        if cps is not None:
+            try:
+                cps.HRIF_DisConnect(0)
+            except Exception:
+                pass
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -295,9 +324,8 @@ from table_b_dxf import table_b_dxf_bp
 app.register_blueprint(table_b_dxf_bp)
 
 # Table B execution now runs the operator-approved DXF toolpath instead of the legacy
-# model presets. DRY_RUN is re-read here so the route can report it to the UI.
+# model presets.
 from table_b_dxf.executor import (
-    DRY_RUN as TABLE_B_DXF_DRY_RUN,
     TableBDxfExecutionError,
     resolve_run_plan as resolve_table_b_dxf_run_plan,
 )
@@ -1097,7 +1125,11 @@ def start_TableB_process():
     if 'TableB' not in data:
         return jsonify({"error": "Invalid request, no JSON data found"}), 400
 
-    tableData = data['TableB']
+    tableData = copy.deepcopy(data['TableB'])
+    tableData["_runtime"] = {
+        "robotSpeed": data.get("robotSpeed"),
+        "sandingSpeed": data.get("sandingSpeed"),
+    }
     job_id = str(tableData.get('job_id') or '').strip()
 
     if not job_id:
@@ -1123,13 +1155,31 @@ def start_TableB_process():
         conn_ret = ensure_cps_connected(force=True)
         if conn_ret != 0:
             return jsonify({"error": f"Failed to connect to CPS client (ret={conn_ret})"}), 500
+
+        stopper_result = _ensure_stopper_b_down(CPS)
+        if not stopper_result.get("success", False):
+            message = stopper_result.get("message", "Stopper B was not confirmed down before Table B task.")
+            logging.getLogger(__name__).error("[TableB DXF start] %s", message)
+            socketio.emit('flash_message', {"message": message})
+            return jsonify({"error": message, "code": "stopper_b_interlock_failed"}), 409
+
         # Operation routing uses swapped IO table IDs on this cell:
-        # selecting Table B task should physically open Table B and close Table A.
-        set_table_state(CPS, "tableAOpenClose", "Open")
-        set_table_state(CPS, "tableBOpenClose", "Close")
-        socketio.emit('flash_message', {"message": "Operation table mode: Table B Open, Table A Close"})
-        nRet = CPS.HRIF_SetBoxCO(0, 2, 0)
-    print("stopper Test")
+        # Table B task requires Table B at 45 degrees and Table A parked horizontal
+        # before the child process can move J7 or the robot arm.
+        table_a_result = set_table_state(CPS, "tableAOpenClose", "Open")
+        table_b_result = set_table_state(CPS, "tableBOpenClose", "Close")
+        if not table_a_result.get("success", False):
+            message = table_a_result.get("message", "Table A was not confirmed horizontal before Table B task.")
+            logging.getLogger(__name__).error("[TableB DXF start] %s", message)
+            socketio.emit('flash_message', {"message": message})
+            return jsonify({"error": message, "code": "table_a_interlock_failed"}), 409
+        if not table_b_result.get("success", False):
+            message = table_b_result.get("message", "Table B was not confirmed at 45 degrees before Table B task.")
+            logging.getLogger(__name__).error("[TableB DXF start] %s", message)
+            socketio.emit('flash_message', {"message": message})
+            return jsonify({"error": message, "code": "table_b_interlock_failed"}), 409
+
+        socketio.emit('flash_message', {"message": "Table B task interlock confirmed: Stopper B down, Table B 45°, Table A horizontal."})
 
     # Disconnect/reset parent CPS before child opens its own CPS session.
     _disconnect_global_cps_for_child_start()
@@ -1144,7 +1194,6 @@ def start_TableB_process():
         'process': "started",
         "status": "Process started",
         "job_id": job_id,
-        "dry_run": TABLE_B_DXF_DRY_RUN,
         "paths": len(run_plan.get("steps", [])),
         # Physical tools that will be mounted, in order (3 -> 4 -> 1 -> 2, skipping
         # any tool whose operations the operator did not select).
@@ -2586,6 +2635,45 @@ def stopper_state(stopper_id):
         return jsonify({'state': 'Invalid'})
 
 
+def _ensure_stopper_b_down(cps, timeout_s=2.0, poll_s=0.05):
+    """Command Stopper B down and verify its output state before Table B execution."""
+    stopper_state = []
+    read_ret = cps.HRIF_ReadBoxCO(0, 2, stopper_state)
+    if read_ret == 0 and stopper_state and stopper_state[0] == '0':
+        return {
+            "success": True,
+            "alreadyInState": True,
+            "message": "Stopper B already confirmed down",
+        }
+
+    set_ret = cps.HRIF_SetBoxCO(0, 2, 0)
+    if set_ret not in (0, None):
+        return {
+            "success": False,
+            "alreadyInState": False,
+            "message": f"Failed to command Stopper B down (ret={set_ret})",
+        }
+
+    deadline = time.monotonic() + max(0.2, float(timeout_s))
+    last_state = None
+    while time.monotonic() < deadline:
+        stopper_state = []
+        read_ret = cps.HRIF_ReadBoxCO(0, 2, stopper_state)
+        if read_ret == 0 and stopper_state:
+            last_state = stopper_state[0]
+            if last_state == '0':
+                return {
+                    "success": True,
+                    "alreadyInState": False,
+                    "message": "Stopper B confirmed down",
+                }
+        time.sleep(poll_s)
+
+    return {
+        "success": False,
+        "alreadyInState": False,
+        "message": f"Stopper B was not confirmed down before Table B task (state={last_state})",
+    }
 def _ensure_stopper_a_down(cps, timeout_s=2.0, poll_s=0.05):
     """Command Stopper A down and verify its output state before scanning."""
     stopper_state = []

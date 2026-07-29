@@ -262,7 +262,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     { label: 'Side', selection: '', force: 0, cycle: 0 },
   ];
 
-  const makeRowSet = () => defaultRows.map(r => ({ ...r }));
+  const makeRowSet = () => defaultRows.map(r => ({ ...r, force: 5, cycle: 1 }));
   const makeTableARowSet = () => tableADefaultRows.map(r => ({ ...r, force: 5, cycle: 1 }));
 
   const [tableARows, setTableARows] = useState<RowConfig[]>(makeTableARowSet());
@@ -378,6 +378,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                   radiusMm: spiralRadius[0],
                   linearSpeedMmS: spiralLinearSpeed[0],
                 }}
+                robotPowerEnabled={robotEnabled}
                 homingRequired={homingRequired}
                 doorConfigs={doorConfigs}
                 setDoorConfigs={setDoorConfigs}
@@ -403,6 +404,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                   radiusMm: spiralRadius[0],
                   linearSpeedMmS: spiralLinearSpeed[0],
                 }}
+                robotPowerEnabled={robotEnabled}
                 homingRequired={homingRequired}
               />
             </SlidingPanel>

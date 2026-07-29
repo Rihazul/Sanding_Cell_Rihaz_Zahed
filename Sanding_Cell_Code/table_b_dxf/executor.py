@@ -6,49 +6,39 @@ Table B no longer uses the legacy model presets (Table<N>Model / model<N>cycle).
 A run is fully defined by the approved toolpath JSON the 2D DXF workspace saved for
 a job, plus the force/cycle recipe the operator set in the UI.
 
-SAFETY / STATUS: this module is currently DRY-RUN ONLY. It resolves everything a
-real run needs and logs each MoveL it *would* send, but issues no motion commands.
-Real motion stays off until the per-tool motion parameters below are filled in and
-DRY_RUN is turned off deliberately.
+SAFETY / STATUS: this module resolves the approved plan and hands it to the
+Table B DXF robot runner for real execution. Motion is executed only from the
+child process that owns a fresh CPS session.
 """
 
 import logging
+import re
 from typing import Any
 
 from .jobs import load_approved_toolpath
+from .tool_reach import reach_span_at_y
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Dry-run switch. While True, nothing moves: the run is fully resolved and logged
-# so the coordinates and ordering can be verified against the viewer first.
-# ---------------------------------------------------------------------------
-DRY_RUN = True
+# Real execution is enabled. The symbol stays available so Flask can report the
+# current mode to the UI, but the dry-run bypass is no longer used.
+DRY_RUN = False
 
 # ---------------------------------------------------------------------------
-# TODO(motion params): fill these in before enabling real motion.
-#
-# The approved toolpath carries only [x, y] millimetre points in the machine frame
-# plus a tool name per path. Everything else — Z height, tool orientation, TCP/UCS
-# and the force applied — is machine configuration and must be supplied here.
-#
-# `tool` values that appear in approved_toolpath.json paths:
-#   tool_3 | tool_4 | tool_3d | tool_4_frame | frame_section
-#
-# For each, specify:
-#   tcp    : TCP name from configs/config.yaml (e.g. "TCP_tool1")
-#   ucs    : UCS/plane name for Table B (e.g. "Plane_2")
-#   z_mm   : sanding Z height in the UCS
-#   retract_mm : safe Z to travel between paths
-#   rx, ry, rz : fixed tool orientation
-# Force/cycle come from the operator's recipe (see _recipe_for_tool), not from here.
+# Motion mapping. The approved toolpath carries [x, y] millimetre points in the
+# machine frame plus a logical tool tag. Runtime TCP/UCS/Z/orientation/speeds are
+# resolved in table_b_dxf.execution.path_runner from configs/config.yaml. Force
+# and cycle come from the operator's recipe (see _recipe_for_tool).
 # ---------------------------------------------------------------------------
 TOOL_MOTION_PARAMS: dict[str, dict[str, Any]] = {
-    # "tool_3": {"tcp": "", "ucs": "", "z_mm": 0.0, "retract_mm": 0.0, "rx": 0.0, "ry": 0.0, "rz": 0.0},
-    # "tool_4": {...},
-    # "tool_3d": {...},
-    # "tool_4_frame": {...},
-    # "frame_section": {...},
+    # Tools 1, 3, and 4 use the shared Table B XY-force runner:
+    # [X, Y, Z, 180, 0, 0], Z+ force approach, preheight Z=-17mm.
+    # TCP/UCS names and speeds are resolved from configs/config.yaml at runtime.
+    "tool_3": {"runner": "table_b_force_xy"},
+    "tool_4": {"runner": "table_b_force_xy"},
+    "tool_3d": {"runner": "table_b_force_xy"},
+    "tool_4_frame": {"runner": "table_b_force_xy"},
+    "frame_section": {"runner": "table_b_force_xy"},
 }
 
 # --- Physical tool mapping -------------------------------------------------
@@ -180,6 +170,15 @@ def _spec_for_tool(tool: str) -> dict[str, Any] | None:
     return None
 
 
+def _motion_for_tool(tool: str) -> dict[str, Any] | None:
+    motion = TOOL_MOTION_PARAMS.get(tool)
+    if motion:
+        return motion
+    if tool.startswith("tool_3d"):
+        return TOOL_MOTION_PARAMS.get("tool_3d")
+    return None
+
+
 # Tool 2 (side / edge outside) follows the part's outer boundary rather than a
 # toolpath drawn in the viewer, so its path is derived here from the approved outer
 # corner points: the rectangle from the origin (0,0) to the part's max (X, Y).
@@ -238,17 +237,9 @@ def _recipe_for_tool(tool: str, recipe: dict[str, Any]) -> dict[str, Any]:
     """Force/cycle the operator set for the row that drives this tool."""
     spec = _spec_for_tool(tool)
     entry = recipe.get(spec["recipe_key"]) if spec else None
-    if not isinstance(entry, dict):
-        return {"force": 0, "cycle": 0}
-    try:
-        force = int(entry.get("force") or 0)
-    except (TypeError, ValueError):
-        force = 0
-    try:
-        cycle = int(entry.get("cycle") or 0)
-    except (TypeError, ValueError):
-        cycle = 0
-    return {"force": force, "cycle": cycle}
+    return _normalize_recipe_entry(entry)
+
+
 def _float_or_none(value: Any) -> float | None:
     try:
         if value is None:
@@ -268,6 +259,194 @@ def _xy_points(points: Any) -> list[list[float]]:
     return out
 
 
+def _normalize_recipe_entry(entry: dict[str, Any] | None) -> dict[str, int]:
+    if not isinstance(entry, dict):
+        return {"force": 0, "cycle": 0}
+    try:
+        force = int(entry.get("force") or 0)
+    except (TypeError, ValueError):
+        force = 0
+    try:
+        cycle = int(entry.get("cycle") or 0)
+    except (TypeError, ValueError):
+        cycle = 0
+    return {"force": force, "cycle": cycle}
+
+
+def _point_distance(a: list[float] | None, b: list[float] | None) -> float:
+    if not a or not b or len(a) < 2 or len(b) < 2:
+        return float("inf")
+    return ((float(a[0]) - float(b[0])) ** 2 + (float(a[1]) - float(b[1])) ** 2) ** 0.5
+
+
+def _ordered_pattern_paths(paths: list[dict[str, Any]], current_end: list[float] | None) -> list[dict[str, Any]]:
+    """Order/reverse one pattern so the next path starts near the previous end.
+
+    This does not invent connector moves. It only chooses the safest orientation of
+    already reach-planned paths so cycle N+1 can continue from where cycle N ended
+    whenever the endpoints make that possible.
+    """
+    remaining = [dict(path) for path in paths]
+    ordered: list[dict[str, Any]] = []
+    cursor = current_end
+
+    while remaining:
+        if cursor is None:
+            path = remaining.pop(0)
+            pts = _xy_points(path.get("points") or [])
+            path["points"] = pts
+            ordered.append(path)
+            cursor = pts[-1] if pts else cursor
+            continue
+
+        best_index = 0
+        best_reverse = False
+        best_distance = float("inf")
+        for index, candidate in enumerate(remaining):
+            pts = _xy_points(candidate.get("points") or [])
+            if len(pts) < 2:
+                continue
+            forward_distance = _point_distance(cursor, pts[0])
+            reverse_distance = _point_distance(cursor, pts[-1])
+            if forward_distance < best_distance:
+                best_index = index
+                best_reverse = False
+                best_distance = forward_distance
+            if reverse_distance < best_distance:
+                best_index = index
+                best_reverse = True
+                best_distance = reverse_distance
+
+        path = remaining.pop(best_index)
+        pts = _xy_points(path.get("points") or [])
+        if best_reverse:
+            pts = list(reversed(pts))
+        path["points"] = pts
+        ordered.append(path)
+        cursor = pts[-1] if pts else cursor
+
+    return ordered
+
+
+def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
+    base = str(path.get("split_from_path_id") or path.get("path_id") or "")
+    # Triangular pockets use Tool 4 spiral fill, not vertical/horizontal rows.
+    match = re.search(r"(.+?_tool4_tri)(?:_|$)", base)
+    if match:
+        return match.group(1)
+    match = re.search(r"(.+?_tool4_sec\d+)", base)
+    if match:
+        return match.group(1)
+    match = re.search(r"(.+?_tool4)(?:_|$)", base)
+    if match:
+        return match.group(1)
+    return base
+
+
+def _is_triangle_pocket_zigzag_window(window_key: str) -> bool:
+    return "_tool4_tri" in str(window_key)
+
+
+def _group_pocket_zigzag_windows(paths: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for path in paths:
+        key = _pocket_zigzag_window_key(path)
+        groups.setdefault(key, []).append(dict(path))
+    return groups
+
+
+def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]] | None:
+    zigzag_recipe = _normalize_recipe_entry(recipe.get("pocketzigzag") if isinstance(recipe, dict) else None)
+    cycles = zigzag_recipe["cycle"]
+    if cycles <= 1:
+        return None
+
+    settings = approved.get("settings") if isinstance(approved, dict) else None
+    patterns = settings.get("pocket_zigzag_cycle_patterns") if isinstance(settings, dict) else None
+    if not isinstance(patterns, dict):
+        return None
+
+    selected = patterns.get("selected_orientation") or settings.get("pocket_zigzag_orientation") or "vertical"
+    selected = "horizontal" if selected == "horizontal" else "vertical"
+    alternate = "vertical" if selected == "horizontal" else "horizontal"
+    vertical_paths = [dict(path) for path in (patterns.get("vertical_paths") or [])]
+    horizontal_paths = [dict(path) for path in (patterns.get("horizontal_paths") or [])]
+    by_orientation = {"vertical": vertical_paths, "horizontal": horizontal_paths}
+    if not by_orientation[selected] or not by_orientation[alternate]:
+        return None
+
+    grouped = {
+        "vertical": _group_pocket_zigzag_windows(vertical_paths),
+        "horizontal": _group_pocket_zigzag_windows(horizontal_paths),
+    }
+    window_order: list[str] = []
+    for path in by_orientation[selected]:
+        key = _pocket_zigzag_window_key(path)
+        if key not in window_order:
+            window_order.append(key)
+    for path in by_orientation[alternate]:
+        key = _pocket_zigzag_window_key(path)
+        if key not in window_order:
+            window_order.append(key)
+
+    expanded: list[dict[str, Any]] = []
+    cursor: list[float] | None = None
+    for window_key in window_order:
+        triangle_window = _is_triangle_pocket_zigzag_window(window_key)
+        for cycle_index in range(1, cycles + 1):
+            orientation = selected if cycle_index % 2 == 1 else alternate
+            if triangle_window:
+                # Triangle pockets do not have vertical/horizontal fill. Reuse the
+                # spiral path each cycle and allow ordering reversal from the current
+                # end point so the robot does not reposition unnecessarily.
+                orientation = "triangle_spiral"
+                window_paths = grouped[selected].get(window_key) or grouped[alternate].get(window_key) or []
+            else:
+                window_paths = grouped[orientation].get(window_key) or []
+            if not window_paths:
+                continue
+            ordered_paths = _ordered_pattern_paths(window_paths, cursor)
+            for path_index, path in enumerate(ordered_paths, start=1):
+                pts = _xy_points(path.get("points") or [])
+                if len(pts) < 2:
+                    continue
+                expanded_path = dict(path)
+                expanded_path["points"] = pts
+                expanded_path["path_id"] = (
+                    f"{path.get('path_id') or f'pocketzigzag_{path_index}'}"
+                    f"__{window_key}__cycle{cycle_index}_{orientation}"
+                )
+                operation_label = "Pocket zigzag triangle spiral" if triangle_window else f"Pocket zigzag {orientation}"
+                expanded_path["operation"] = f"{operation_label} cycle {cycle_index}"
+                expanded_path["recipe_override"] = {"force": zigzag_recipe["force"], "cycle": 1}
+                expanded_path["cycle_index"] = cycle_index
+                expanded_path["cycle_orientation"] = orientation
+                expanded_path["cycle_window_id"] = window_key
+                expanded.append(expanded_path)
+                cursor = pts[-1]
+
+    return expanded or None
+
+
+def _expand_pocket_zigzag_cycles(paths: list[dict[str, Any]], approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]]:
+    expanded_zigzag = _pocket_zigzag_cycle_paths(approved, recipe)
+    if not expanded_zigzag:
+        return paths
+
+    out: list[dict[str, Any]] = []
+    inserted = False
+    for path in paths:
+        if str(path.get("tool", "")) == "tool_4":
+            if not inserted:
+                out.extend(expanded_zigzag)
+                inserted = True
+            continue
+        out.append(path)
+    if not inserted:
+        out.extend(expanded_zigzag)
+    return out
+
+
 def _robot_base_points(viewer_points: list[list[float]], axis7_position_mm: float | None) -> list[list[float]]:
     """Convert viewer/global UCS points into the robot-base frame at one J7 stop.
 
@@ -278,6 +457,66 @@ def _robot_base_points(viewer_points: list[list[float]], axis7_position_mm: floa
     if axis7_position_mm is None:
         return [list(point) for point in viewer_points]
     return [[point[0] - axis7_position_mm, point[1]] for point in viewer_points]
+
+
+def _reach_tool_for_physical_tool(physical_tool: int) -> str | None:
+    if physical_tool in (1, 3, 4):
+        return f"tool_{physical_tool}"
+    return None
+
+
+def _sample_segment_points(points: list[list[float]], max_step_mm: float = 25.0) -> list[list[float]]:
+    if len(points) < 2:
+        return [list(point) for point in points]
+
+    sampled: list[list[float]] = [list(points[0])]
+    for a, b in zip(points, points[1:]):
+        ax, ay = float(a[0]), float(a[1])
+        bx, by = float(b[0]), float(b[1])
+        dist = ((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5
+        count = int(dist // max(max_step_mm, 1.0))
+        for index in range(1, count + 1):
+            t = (index * max_step_mm) / dist if dist > 1e-9 else 1.0
+            if t < 1.0:
+                sampled.append([ax + (bx - ax) * t, ay + (by - ay) * t])
+        sampled.append([bx, by])
+    return sampled
+
+
+def _validate_reach_at_station(step: dict[str, Any]) -> None:
+    """Reject an approved path if its assigned J7 stop cannot physically reach it.
+
+    The viewer stores global Table-B UCS XY points. Robot execution converts them to
+    local base coordinates with local_x = viewer_x - axis7_position_mm. At low Y,
+    each tool's envelope forbids negative local X; sampling every segment catches
+    unsafe connectors between otherwise-valid endpoints.
+    """
+    reach_tool = _reach_tool_for_physical_tool(int(step.get("physical_tool") or 0))
+    if reach_tool is None:
+        return
+
+    axis = step.get("axis7_position_mm")
+    if axis is None:
+        raise TableBDxfExecutionError(
+            f"Path {step.get('path_id')} has no 7th-axis position. Preview/approve the reach-planned toolpath again."
+        )
+    axis = float(axis)
+
+    for point in _sample_segment_points(step.get("viewer_points") or []):
+        x, y = float(point[0]), float(point[1])
+        span = reach_span_at_y(reach_tool, y)
+        if span is None:
+            raise TableBDxfExecutionError(
+                f"Path {step.get('path_id')} has unreachable Y={y:.1f} for {reach_tool}."
+            )
+        local_x = x - axis
+        lo, hi = span
+        if local_x < lo - 1e-6 or local_x > hi + 1e-6:
+            raise TableBDxfExecutionError(
+                f"Path {step.get('path_id')} violates {reach_tool} reach at J7={axis:.1f} mm: "
+                f"viewer=({x:.1f}, {y:.1f}) -> local_x={local_x:.1f}, allowed=[{lo:.1f}, {hi:.1f}]. "
+                "Regenerate/approve the toolpath so the 7th-axis stop is inside the reach window."
+            )
 
 
 def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
@@ -299,6 +538,10 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
             f"Approved toolpath for job {job_id} contains no paths."
         )
 
+    # For Pocket ZigZag cycle > 1, alternate the approved selected pattern with the
+    # hidden alternate pattern saved by the preview: V/H/V... or H/V/H... .
+    paths = _expand_pocket_zigzag_cycles(paths, approved, recipe)
+
     # Tool 2 (side / edge outside) follows the part's outer boundary, which the viewer
     # does not draw, so those paths are derived from the approved outer corner points.
     paths.extend(_build_tool2_paths(approved, recipe))
@@ -315,7 +558,7 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
             unknown_tools.add(tool)
             continue
 
-        step_recipe = _recipe_for_tool(tool, recipe)
+        step_recipe = _normalize_recipe_entry(path.get("recipe_override")) if isinstance(path.get("recipe_override"), dict) else _recipe_for_tool(tool, recipe)
         viewer_points = _xy_points(path.get("points") or [])
         axis7_position_mm = _float_or_none(path.get("axis7_position_mm"))
         robot_points = _robot_base_points(viewer_points, axis7_position_mm)
@@ -330,7 +573,7 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
             "robot_base_points": robot_points,
             "station_index": path.get("station_index"),
             "axis7_position_mm": axis7_position_mm,
-            "motion": TOOL_MOTION_PARAMS.get(tool),
+            "motion": _motion_for_tool(tool),
             "recipe": step_recipe,
         }
 
@@ -354,6 +597,8 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
 
         if not step["motion"]:
             missing_params.add(tool)
+
+        _validate_reach_at_station(step)
         steps.append(step)
 
     if not steps:
@@ -393,12 +638,13 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def run_approved_toolpath(job_id: str, recipe: dict[str, Any], cps: Any = None) -> dict[str, Any]:
-    """Execute (or dry-run) the approved toolpath for a job.
-
-    While DRY_RUN is True this logs every MoveL that would be sent and returns the
-    resolved plan without touching the robot.
-    """
+def run_approved_toolpath(
+    job_id: str,
+    recipe: dict[str, Any],
+    cps: Any = None,
+    config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Execute the operator-approved Table B DXF toolpath for a job."""
     plan = resolve_run_plan(job_id, recipe)
     total_points = sum(len(s["points"]) for s in plan["steps"])
 
@@ -465,39 +711,31 @@ def run_approved_toolpath(job_id: str, recipe: dict[str, Any], cps: Any = None) 
                         float(step.get("axis7_position_mm") or 0.0),
                     )
 
+        logger.info("[TableB DXF Run]   safety: move_seventh_to_zero         Rail (J7) returns to 0 mm before tool change / next operation.")
         logger.info("[TableB DXF Run] === TOOL %s BATCH COMPLETE ===", tool_num)
 
-    # End of run: return the mounted tool and go home, as the Table A reference does.
+    # End of run: keep the last mounted tool in hand at J7=0. The operator can
+    # manually drop it or the next run can switch tools automatically.
     if tool_in_hand is not None:
         logger.info("[TableB DXF Run] === FINISH ===")
-        for finish_step in (
-            {"action": "move_to_safe_point", "detail": "Arm to safe point before final tool return."},
-            {"action": "move_seventh_to_tool_station", "detail": "Rail (J7) to tool station."},
-            {"action": "wait_for_j7_idle", "detail": "Rail must be idle before the changer engages."},
-            {"action": "drop_tool", "detail": f"Return tool {tool_in_hand}."},
-        ):
-            logger.info(
-                "[TableB DXF Run]   safety: %-28s %s",
-                finish_step["action"], finish_step["detail"],
-            )
-
-    if DRY_RUN:
         logger.info(
-            "[TableB DXF Run] DRY RUN complete — no motion sent. "
-            "tool_sequence=%s missing_motion_params=%s",
-            plan["tool_sequence"], plan["missing_motion_params"],
+            "[TableB DXF Run]   safety: keep_tool_in_hand            Tool %s remains mounted after J7 returns to 0 mm.",
+            tool_in_hand,
         )
-        return {"dry_run": True, **plan}
 
-    # Real motion is intentionally not implemented yet: TOOL_MOTION_PARAMS must be
-    # supplied and reviewed first, otherwise the robot would be commanded with
-    # unknown Z heights and orientations.
     if plan["missing_motion_params"]:
         raise TableBDxfExecutionError(
             "Missing motion parameters for tool(s): "
             + ", ".join(plan["missing_motion_params"])
         )
-    raise TableBDxfExecutionError(
-        "Real DXF execution is not enabled yet. Fill in TOOL_MOTION_PARAMS and add the "
-        "motion calls before turning DRY_RUN off."
-    )
+    if config is None:
+        raise TableBDxfExecutionError("Real DXF execution requires runtime config.")
+
+    try:
+        from .execution.path_runner import run_robot_plan
+
+        execution = run_robot_plan(cps=cps, config=config, plan=plan)
+    except Exception as error:  # noqa: BLE001
+        raise TableBDxfExecutionError(str(error)) from error
+
+    return {"dry_run": False, **plan, "execution": execution}

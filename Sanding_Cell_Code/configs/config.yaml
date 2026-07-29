@@ -124,6 +124,12 @@ door:
   seventhAxisForceBarrierGraceSec: 0.0
   seventhAxisForceBarrierStableSamples: 1
   seventhAxisPollIntervalSec: 0.01
+  # Table B DXF sanding paths keep wait=false for smooth motion, then wait
+  # every N points so the robot controller buffer cannot outrun long paths.
+  tableBDxfMotionFlushEveryPoints: 8
+  # Move J7 and the robot arm to the next Table B DXF prepoint at the same time.
+  # Force starts only after the arm is at preheight and J7 is confirmed idle.
+  tableBDxfSimultaneousJ7Robot: true
   # homingSpeed: 1.0
 
 point:

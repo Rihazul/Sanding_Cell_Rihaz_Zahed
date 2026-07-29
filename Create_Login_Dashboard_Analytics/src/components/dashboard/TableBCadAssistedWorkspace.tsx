@@ -161,6 +161,17 @@ export interface DxfToolpathPreviewPayload {
     frame_section_passes: number;
     frame_chunks: number;
   };
+  settings?: {
+    pocket_zigzag_orientation?: 'vertical' | 'horizontal';
+    pocket_overlap_mm?: number;
+    frame_overlap_mm?: number;
+    pocket_zigzag_cycle_patterns?: {
+      selected_orientation: 'vertical' | 'horizontal';
+      alternate_orientation: 'vertical' | 'horizontal';
+      vertical_paths: DxfToolpathPath[];
+      horizontal_paths: DxfToolpathPath[];
+    };
+  };
   // Region corner points (geometry the operator assigned).
   regions: DxfRegionInfoPayload[];
   // MoveL paths (ordered points). This is what the robot executes.
@@ -1099,6 +1110,7 @@ export function TableBCadAssistedWorkspace({
   // Operator-set pocket overlap (mm, 0..100). Higher overlap → smaller pass step
   // → more passes; 0 → passes just touch (fewest passes).
   const [dxfPocketOverlap, setDxfPocketOverlap] = React.useState(0);
+  const [dxfPocketZigzagOrientation, setDxfPocketZigzagOrientation] = React.useState<'vertical' | 'horizontal'>('vertical');
   // Operator-set FRAME overlap (mm, 0..100) — same idea but for the big frame
   // rectangle (chunk) zigzag passes. Independent of the pocket overlap.
   const [dxfFrameOverlap, setDxfFrameOverlap] = React.useState(0);
@@ -1346,6 +1358,9 @@ export function TableBCadAssistedWorkspace({
   // Pass width at zero overlap (= step spacing when overlap is 0). NOTE: inferred
   // as twice the 72 mm offset (tool coverage); adjust if the real Tool 4 width differs.
   const TOOL4_PASS_WIDTH_MM = 144;
+  // Horizontal pocket zigzag is split into full X-window sections before reach
+  // planning, so individual rows are not cut midway by the backend splitter.
+  const TOOL4_HORIZONTAL_WINDOW_MM = 515;
 
   // Distribute passes evenly across a span so the first and last passes land on the
   // two ends (matches _calculate_zigzag_pass_spacing: passes = num_steps + 1).
@@ -1355,10 +1370,10 @@ export function TableBCadAssistedWorkspace({
     return { numSteps, adjustedStep: span / numSteps };
   };
 
-  // Build the Tool 4 zigzag fill for every assigned pocket: vertical passes that
-  // span the pocket's Y and step across in X, alternating up/down (zigzag), bounded
-  // 72 mm in from each edge, starting at the bottom-right corner. Step spacing comes
-  // from the operator's pocket overlap: step = pass width - overlap.
+  // Build the Tool 4 zigzag fill for every assigned pocket. Vertical mode spans Y
+  // and steps across X. Horizontal mode spans X and steps across Y. Both start from
+  // the bottom-right convention used by the DXF workspace, and both use
+  // step = pass width - pocket overlap.
   const dxfUniquePolygonPoints = (pts: number[][]) => {
     const out = pts.map((p) => [p[0], p[1]]);
     if (out.length > 1) {
@@ -1451,7 +1466,11 @@ export function TableBCadAssistedWorkspace({
     });
     return segments;
   };
-  const computeDxfPocketZigzag = (scope: Set<string> | null) => {
+  const computeDxfPocketZigzag = (
+    scope: Set<string> | null,
+    orientation: 'vertical' | 'horizontal' = dxfPocketZigzagOrientation,
+    forceWindowSections = false,
+  ) => {
     const off = TOOL4_OFFSET_MM / dxfMmPerUnit;
     const overlap = Math.max(0, Math.min(100, dxfPocketOverlap));
     const stepMmEffective = Math.max(TOOL4_PASS_WIDTH_MM - overlap, 1);
@@ -1504,40 +1523,94 @@ export function TableBCadAssistedWorkspace({
         console.warn('[Pocket Toolpath] pocket too small for Tool 4 offset, skipped', pk.id);
         continue;
       }
-      const xinner = bxHi - bxLo;
-      const { numSteps, adjustedStep } = calcZigzagPassSpacing(xinner, step);
+      const pushPointPath = (pathPoints: number[][], idPrefix: string, seqBase: number) => {
+        for (let i = 0; i < pathPoints.length - 1; i++) {
+          segments.push({
+            start: pathPoints[i],
+            end: pathPoints[i + 1],
+            id: `${idPrefix}_${i}`,
+            tool: 'tool_4',
+            seq: seqBase + i,
+          });
+        }
+      };
+
+      if (orientation === 'horizontal') {
+        const xSpan = bxHi - bxLo;
+        const ySpan = byHi - byLo;
+        const { numSteps, adjustedStep } = calcZigzagPassSpacing(ySpan, step);
+        const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
+        const sectionCount = Math.max(1, Math.ceil(xSpan / maxWindow));
+        const sectionWidth = xSpan / sectionCount;
+        console.log('[Pocket Toolpath] Tool 4 zigzag', {
+          pocket: pk.id,
+          orientation,
+          overlap_mm: overlap,
+          step_mm: stepMmEffective,
+          passes: numSteps + 1,
+          sections: sectionCount,
+        });
+
+        for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+          const sxLo = bxLo + sectionIndex * sectionWidth;
+          const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+          const points: number[][] = [];
+          let offset = 0;
+          let toggle = 0;
+          while (offset <= ySpan + 1e-9) {
+            const y = byLo + offset;
+            const row = [
+              [sxLo, y],
+              [sxHi, y],
+            ];
+            if (toggle) row.reverse();
+            points.push(...row);
+            offset += adjustedStep;
+            toggle = 1 - toggle;
+          }
+          pushPointPath(points, `${pk.id}_tool4_sec${sectionIndex + 1}`, sectionIndex * 10000);
+        }
+        continue;
+      }
+
+      const xSpan = bxHi - bxLo;
+      const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
+      const sectionCount = forceWindowSections ? Math.max(1, Math.ceil(xSpan / maxWindow)) : 1;
+      const sectionWidth = xSpan / sectionCount;
       console.log('[Pocket Toolpath] Tool 4 zigzag', {
         pocket: pk.id,
+        orientation,
         overlap_mm: overlap,
         step_mm: stepMmEffective,
-        passes: numSteps + 1,
+        sections: sectionCount,
+        cycle_windowed: forceWindowSections,
       });
 
-      // Flat point list: each vertical pass is (x, byLo)->(x, byHi), reversed on
-      // alternate passes; consecutive points also form the horizontal step-overs.
-      const points: number[][] = [];
-      let offset = 0;
-      let toggle = 0;
-      // Start at the bottom-right corner: physical right = min X, bottom = min Y.
-      while (offset <= xinner + 1e-9) {
-        const x = bxLo + offset;
-        const row = [
-          [x, byLo],
-          [x, byHi],
-        ];
-        if (toggle) row.reverse();
-        points.push(...row);
-        offset += adjustedStep;
-        toggle = 1 - toggle;
-      }
-      for (let i = 0; i < points.length - 1; i++) {
-        segments.push({
-          start: points[i],
-          end: points[i + 1],
-          id: `${pk.id}_tool4_${i}`,
-          tool: 'tool_4',
-          seq: i,
-        });
+      // Flat point list: consecutive points also form the step-over moves. Normal
+      // one-cycle preview keeps one continuous vertical path. Hidden cycle patterns
+      // use matching X-window sections so vertical/horizontal alternation can stay
+      // inside the same reach window.
+      for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+        const sxLo = bxLo + sectionIndex * sectionWidth;
+        const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+        const sectionXSpan = sxHi - sxLo;
+        const { adjustedStep } = calcZigzagPassSpacing(sectionXSpan, step);
+        const points: number[][] = [];
+        let offset = 0;
+        let toggle = 0;
+        // Start at the bottom-right corner of this reach window.
+        while (offset <= sectionXSpan + 1e-9) {
+          const row = [
+            [sxLo + offset, byLo],
+            [sxLo + offset, byHi],
+          ];
+          if (toggle) row.reverse();
+          points.push(...row);
+          offset += adjustedStep;
+          toggle = 1 - toggle;
+        }
+        const idPrefix = forceWindowSections ? `${pk.id}_tool4_sec${sectionIndex + 1}` : `${pk.id}_tool4`;
+        pushPointPath(points, idPrefix, sectionIndex * 10000);
       }
     }
     return segments;
@@ -2038,17 +2111,28 @@ export function TableBCadAssistedWorkspace({
       }
     };
 
+    const alternatePocketZigzagOrientation = dxfPocketZigzagOrientation === 'vertical' ? 'horizontal' : 'vertical';
     const rawPocketTp = computeDxfPocketToolpaths(scope);
-    const rawPocketZz = computeDxfPocketZigzag(scope);
+    const rawPocketZz = computeDxfPocketZigzag(scope, dxfPocketZigzagOrientation);
+    const rawPocketZzCycleVertical = computeDxfPocketZigzag(scope, 'vertical', true);
+    const rawPocketZzCycleHorizontal = computeDxfPocketZigzag(scope, 'horizontal', true);
     const rawContourTp = computeDxf3dContourToolpaths(scope);
     const plannedPocketTp = await planSegmentsForTool(rawPocketTp, 'Pocket contour (Tool 3)', true, 'tool_3');
     const plannedPocketZz = await planSegmentsForTool(rawPocketZz, 'Pocket zigzag (Tool 4)', false, 'tool_4');
+    const plannedPocketZzCycleVertical = await planSegmentsForTool(rawPocketZzCycleVertical, 'Pocket zigzag vertical cycle pattern (Tool 4)', false, 'tool_4');
+    const plannedPocketZzCycleHorizontal = await planSegmentsForTool(rawPocketZzCycleHorizontal, 'Pocket zigzag horizontal cycle pattern (Tool 4)', false, 'tool_4');
     const plannedContourTp = await planSegmentsForTool(rawContourTp, '3D contour ring', true, 'tool_1');
     const pocketTp = plannedPocketTp.segments;
     const pocketZz = plannedPocketZz.segments;
     const contourTp = plannedContourTp.segments;
     const pocketTpPaths = plannedPocketTp.paths;
     const pocketZzPaths = plannedPocketZz.paths;
+    const pocketZigzagCyclePatterns = {
+      selected_orientation: dxfPocketZigzagOrientation,
+      alternate_orientation: alternatePocketZigzagOrientation,
+      vertical_paths: plannedPocketZzCycleVertical.paths,
+      horizontal_paths: plannedPocketZzCycleHorizontal.paths,
+    };
     const contourTpPaths = plannedContourTp.paths;
     setDxfPocketToolpaths(pocketTp);
     setDxfPocketZigzag(pocketZz);
@@ -2304,6 +2388,12 @@ export function TableBCadAssistedWorkspace({
         frame_zigzag: frameZig.length,
         frame_section_passes: frameSectionPaths.length,
         frame_chunks: frameChunks.length,
+      },
+      settings: {
+        pocket_zigzag_orientation: dxfPocketZigzagOrientation,
+        pocket_overlap_mm: dxfPocketOverlap,
+        frame_overlap_mm: dxfFrameOverlap,
+        pocket_zigzag_cycle_patterns: pocketZigzagCyclePatterns,
       },
       regions,
       paths,
@@ -3016,6 +3106,18 @@ export function TableBCadAssistedWorkspace({
                       style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
                     />
                     mm
+                  </label>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}>
+                    Pocket ZigZag
+                    <select
+                      value={dxfPocketZigzagOrientation}
+                      onChange={(event) => setDxfPocketZigzagOrientation(event.target.value === 'horizontal' ? 'horizontal' : 'vertical')}
+                      title="Tool 4 pocket zigzag pattern orientation"
+                      style={{ padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
+                    >
+                      <option value="vertical">Vertical</option>
+                      <option value="horizontal">Horizontal</option>
+                    </select>
                   </label>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}>
                     Frame Overlap

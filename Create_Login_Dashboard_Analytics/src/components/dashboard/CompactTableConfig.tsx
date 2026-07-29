@@ -120,6 +120,7 @@ interface CompactTableConfigProps {
     radiusMm: number;
     linearSpeedMmS: number;
   };
+  robotPowerEnabled?: boolean;
   homingRequired?: boolean;
   doorConfigs?: DoorConfig[];
   setDoorConfigs?: React.Dispatch<React.SetStateAction<DoorConfig[]>>;
@@ -139,6 +140,7 @@ export function CompactTableConfig({
   sandingSpeed,
   inverseOverlapping,
   spiralSettings,
+  robotPowerEnabled = true,
   homingRequired = false,
   doorConfigs,
   setDoorConfigs,
@@ -632,6 +634,7 @@ export function CompactTableConfig({
             scoped: dxfToolpathPayload?.scoped ?? false,
             units: dxfToolpathPayload?.units ?? 'mm',
             counts: dxfToolpathPayload?.counts ?? null,
+            settings: dxfToolpathPayload?.settings ?? {},
             regions: dxfToolpathPayload?.regions ?? [],
             paths: dxfToolpathPayload?.paths ?? [],
           });
@@ -1129,6 +1132,20 @@ export function CompactTableConfig({
     console.log('Start Task clicked for Table', tableName);
 
     if (isOperating || isScanning) return;
+    if (tableName === 'B' && !robotPowerEnabled) {
+      const warning = 'Robot Power must be enabled before starting a Table B task.';
+      addActivity(`Table ${tableName}: Start Task blocked - ${warning}`, 'warning');
+      const swal = getSwal();
+      if (swal?.fire) {
+        await swal.fire({
+          title: 'Robot Power Required',
+          text: warning,
+          icon: 'warning',
+          confirmButtonText: 'OK',
+        });
+      }
+      return;
+    }
     const confirmed = await confirmStartTask();
     if (!confirmed) {
       addActivity(`Table ${tableName}: Start task cancelled to review configuration`, 'warning');
@@ -2271,14 +2288,25 @@ export function CompactTableConfig({
                   </Button>
                   <Button
                     onClick={handleStartTask}
-                    disabled={isOperating || !tableBCanStartTask}
+                    disabled={isOperating || !tableBCanStartTask || !robotPowerEnabled}
                     className="bg-blue-500 hover:bg-purple-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
                   >
-                    {isOperating ? 'Operating...' : tableBCanStartTask ? 'Start Task' : 'Approve Preview First'}
+                    {isOperating
+                      ? 'Operating...'
+                      : !tableBCanStartTask
+                      ? 'Approve Preview First'
+                      : !robotPowerEnabled
+                      ? 'Enable Robot First'
+                      : 'Start Task'}
                   </Button>
                 </>
               )}
             </div>
+            {tableName === 'B' && tableBCanStartTask && !robotPowerEnabled && (
+              <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Robot Power must be enabled before sending the approved Table B toolpath to the robot.
+              </div>
+            )}
             {tableName === 'A' && homingRequired && (
               <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                 Homing required before scan after app/server restart.
