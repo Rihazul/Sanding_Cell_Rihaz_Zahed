@@ -1281,9 +1281,9 @@ export function TableBCadAssistedWorkspace({
   };
 
   // Tool 3 (rectangular contour) TCP offset from each pocket edge, in millimeters.
-  // The tool center sits 38.1/50.8 mm in from the pocket edge, plus a 2.5 mm margin.
-  const TOOL3_OFFSET_X_MM = 38.1 + 2.5;
-  const TOOL3_OFFSET_Y_MM = 50.8 + 2.5;
+  // The tool center sits 38.1/50.8 mm in from the pocket edge, plus a 4.5 mm margin.
+  const TOOL3_OFFSET_X_MM = 38.1 + 4.5;
+  const TOOL3_OFFSET_Y_MM = 50.8 + 4.5;
 
   // Build the Tool 3 rectangular-contour toolpath for every assigned pocket. The
   // path is an inner rectangle offset in from the 4 corners, traced as 4 lines

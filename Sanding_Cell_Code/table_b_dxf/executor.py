@@ -519,6 +519,21 @@ def _validate_reach_at_station(step: dict[str, Any]) -> None:
             )
 
 
+
+def _step_station_sort_key(step: dict[str, Any]) -> tuple[float, int, int]:
+    axis = step.get("axis7_position_mm")
+    try:
+        axis_value = float(axis)
+    except (TypeError, ValueError):
+        axis_value = 0.0
+    station = step.get("station_index")
+    try:
+        station_value = int(station)
+    except (TypeError, ValueError):
+        station_value = 0
+    return (axis_value, station_value, int(step.get("_plan_order") or 0))
+
+
 def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
     """Load the approved toolpath and pair each path with its motion parameters.
 
@@ -551,7 +566,7 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
     unknown_tools: set[str] = set()
     skipped: list[dict[str, Any]] = []
 
-    for path in paths:
+    for plan_order, path in enumerate(paths):
         tool = str(path.get("tool", ""))
         spec = _spec_for_tool(tool)
         if not spec:
@@ -575,6 +590,7 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
             "axis7_position_mm": axis7_position_mm,
             "motion": _motion_for_tool(tool),
             "recipe": step_recipe,
+            "_plan_order": plan_order,
         }
 
         # An operation the operator did not configure is skipped, exactly like the
@@ -612,7 +628,10 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
     # and edge outside (T2).
     batches: list[dict[str, Any]] = []
     for physical_tool in TOOL_BATCH_ORDER:
-        batch_steps = [s for s in steps if s["physical_tool"] == physical_tool]
+        batch_steps = sorted(
+            (s for s in steps if s["physical_tool"] == physical_tool),
+            key=_step_station_sort_key,
+        )
         if not batch_steps:
             continue  # nothing selected for this tool — skip the whole batch
         batches.append({
@@ -739,3 +758,5 @@ def run_approved_toolpath(
         raise TableBDxfExecutionError(str(error)) from error
 
     return {"dry_run": False, **plan, "execution": execution}
+
+

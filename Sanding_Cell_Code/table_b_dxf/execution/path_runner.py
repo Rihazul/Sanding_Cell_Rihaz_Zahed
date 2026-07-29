@@ -8,7 +8,6 @@ from Server_Better_V2 import (
     getTool11,
     keepTool11,
     moveOnlyJ6r,
-    move_to_task_safe_point,
     putForceZplus,
     releaseForce,
     stop_requested,
@@ -503,14 +502,21 @@ def _return_j7_to_zero(cps: Any, config: dict[str, Any], physical_tool: int) -> 
 
 
 def _move_arm_to_task_home(cps: Any, config: dict[str, Any], reason: str) -> None:
-    _raise_if_stop_requested(cps, config, f"before arm homing/safe move ({reason})")
-    _log(config, "[TableB DXF Robot] moving 6-axis arm to task home/safe point: %s", reason)
-    move_to_task_safe_point(
+    _raise_if_stop_requested(cps, config, f"before arm home move ({reason})")
+    _log(config, "[TableB DXF Robot] moving 6-axis arm directly to safePoint: %s", reason)
+    result = communicate(
         cps=cps,
         config=config,
+        point=config["point"]["safePoint"],
+        tcp=config["coords"]["tcpDefault"],
+        ucs=config["coords"]["ucsDefault"],
+        seventh=-1,
         speed=robot_speed(config),
         velocity_profile="robotspeed",
+        wait=True,
     )
+    if result is None:
+        raise TableBDxfRobotExecutionError("Failed to move 6-axis arm to safePoint.")
 
 
 def _return_to_home_with_tool(cps: Any, config: dict[str, Any], physical_tool: int) -> None:
@@ -538,6 +544,7 @@ def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> di
 
         _log(config, "[TableB DXF Robot] === TOOL %s BATCH START ===", physical_tool)
         mounted_tool = _ensure_tool_in_hand(cps, config, physical_tool, mounted_tool)
+        _move_arm_to_task_home(cps, config, f"before tool {physical_tool} operation")
 
         for step in batch.get("steps") or []:
             _raise_if_stop_requested(cps, config, "before next path")
@@ -549,4 +556,5 @@ def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> di
 
     _log(config, "[TableB DXF Robot] run complete; keeping mounted tool %s at J7=0", mounted_tool)
     return {"executed_steps": executed_steps, "tool_kept_in_hand": mounted_tool}
+
 

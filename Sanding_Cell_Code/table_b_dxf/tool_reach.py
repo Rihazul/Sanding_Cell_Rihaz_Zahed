@@ -62,10 +62,10 @@ ROBOT_BASE_X_OFFSET_MM = -257.4
 # is the only thing that distinguishes their paths. Mirrors the frontend constants.
 #
 # Note tool 3's offset is ANISOTROPIC: its TCP sits 38.1 mm in from the pocket edge in X
-# but 50.8 mm in Y (each plus a 2.5 mm margin), so it is stored as an (x, y) pair rather
+# but 50.8 mm in Y (each plus a 4.5 mm margin), so it is stored as an (x, y) pair rather
 # than a single inset.
 TOOL_OFFSET_MM: dict[str, Any] = {
-    "tool_3": (38.1 + 2.5, 50.8 + 2.5),  # pocket edge, (x, y)
+    "tool_3": (38.1 + 4.5, 50.8 + 4.5),  # pocket edge, (x, y)
     "tool_1": 27.0,                      # 3D contour ring
     "tool_4": 72.0,                      # pocket zigzag (frame pass uses 50.0)
 }
