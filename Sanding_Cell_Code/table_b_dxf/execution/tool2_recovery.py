@@ -12,10 +12,12 @@ from .tool2_side_geometry import TOOL2_LIFT_Z_MM, tool2_lift_z_for_side
 
 _STATE_PATH = Path(__file__).resolve().parents[1] / "tool2_recovery_state.json"
 
-# Tool 2 commanded sanding poses are already offset 15 mm from the side.
-# After stop, lift from that safe-offset line, then move inward before homing.
-# For bottom/right nominal stops this moves from -15 mm to +80 mm clearance.
+# Tool 2 commanded sanding poses are on the side offset line: 15 mm for Side,
+# 5 mm for Edge. After stop, reset RY, lift from that line, then move into a
+# side-specific clearance corridor before the normal homing sequence.
 TOOL2_HOMING_INWARD_CLEARANCE_MM = 95.0
+TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM = 80.0
+TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM = -80.0
 TOOL2_HOMING_RZ_DEG = 90.0
 
 _TOOL2_SIDE_RZ_DEG = {
@@ -118,7 +120,8 @@ def _inward_clearance_pose(side: str, pose: list[float], inward_mm: float) -> li
     if side == "right":
         x += inward_mm
     elif side == "bottom":
-        y += inward_mm
+        y = TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM
+        z = TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
     elif side == "left":
         x -= inward_mm
     elif side == "top":
