@@ -8,15 +8,20 @@ from typing import Any
 from Server_Better_V2 import communicate, moveOnlyJ6r
 
 from .motion_config import robot_speed
-from .tool2_side_geometry import TOOL2_LIFT_Z_MM, tool2_lift_z_for_side
+from .tool2_side_geometry import (
+    TOOL2_APPROACH_OUTWARD_MM,
+    TOOL2_CONTACT_Z_MM,
+    TOOL2_LEFT_PREFORCE_LOCAL_X_MM,
+    tool2_lift_z_for_side,
+)
 
 _STATE_PATH = Path(__file__).resolve().parents[1] / "tool2_recovery_state.json"
 
 # Tool 2 commanded sanding poses are on the side offset line: 15 mm for Side,
 # 5 mm for Edge. After stop, reset RY, lift from that line, then move into a
 # side-specific clearance corridor before the normal homing sequence.
-TOOL2_HOMING_INWARD_CLEARANCE_MM = 95.0
 TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM = 80.0
+TOOL2_UPPER_HOMING_CLEARANCE_Y_MM = 100.0
 TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM = -80.0
 TOOL2_HOMING_RZ_DEG = 90.0
 TOOL2_HOMING_J6_DEG = 90.012
@@ -97,15 +102,23 @@ def _load_tool2_recovery_state() -> dict[str, Any] | None:
     return payload
 
 
-def _current_cartesian_pose(cps: Any, fallback: list[float] | None = None) -> list[float] | None:
+def _current_tool2_coord_pose(
+    cps: Any,
+    tcp: str,
+    ucs: str,
+    fallback: list[float] | None = None,
+) -> list[float] | None:
     result: list[Any] = []
     try:
-        ret = cps.HRIF_ReadActPos(0, 0, result)
+        ret = cps.HRIF_ReadActCoord(0, 0, tcp, ucs, result)
     except Exception:
         ret = -1
-    if ret == 0 and len(result) >= 12:
+    if ret == 0:
         try:
-            return [float(result[i]) for i in range(6, 12)]
+            if len(result) >= 12:
+                return [float(result[i]) for i in range(6, 12)]
+            if len(result) >= 6:
+                return [float(result[i]) for i in range(0, 6)]
         except (TypeError, ValueError):
             pass
     if fallback and len(fallback) >= 6:
@@ -132,7 +145,10 @@ def _current_j6(cps: Any) -> float | None:
 
 def _is_upper_homing_clearance_zone(pose: list[float]) -> bool:
     try:
-        return float(pose[1]) > TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM and float(pose[2]) < TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
+        return (
+            float(pose[1]) >= TOOL2_UPPER_HOMING_CLEARANCE_Y_MM - 1e-6
+            and float(pose[2]) <= TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM + 1e-6
+        )
     except (TypeError, ValueError, IndexError):
         return False
 
@@ -154,18 +170,45 @@ def _j6_delta_to_homing(cps: Any, config: dict[str, Any], side: str, clearance_p
     return float(_TOOL2_TO_HOMING_J6_DEG.get(side, 0.0))
 
 
-def _inward_clearance_pose(side: str, pose: list[float], inward_mm: float) -> list[float]:
-    x, y, z, rx, ry, rz = [float(v) for v in pose[:6]]
+def _side_safe_contact_pose(side: str, pose: list[float]) -> list[float]:
+    x, y, z, rx, ry, _rz = [float(v) for v in pose[:6]]
+    rz = _TOOL2_SIDE_RZ_DEG[side]
+    recovery_z = TOOL2_CONTACT_Z_MM if z > -5.0 else z
+
     if side == "right":
-        x += inward_mm
+        x = -TOOL2_APPROACH_OUTWARD_MM
     elif side == "bottom":
-        y = TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM
-        z = TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
+        y = -TOOL2_APPROACH_OUTWARD_MM
     elif side == "left":
-        x -= inward_mm
-    elif side == "top":
-        y -= inward_mm
-    return [x, y, z, rx, ry, rz]
+        x = TOOL2_LEFT_PREFORCE_LOCAL_X_MM
+    elif side == "top" and abs(ry) > 1e-6:
+        # Edge uses a 5 mm line; side-safe top placement is 10 mm farther out.
+        y += 10.0
+
+    return [x, y, recovery_z, rx, 0.0, rz]
+
+
+def _homing_clearance_pose(side: str, side_safe_pose: list[float]) -> list[float]:
+    clearance_pose = list(side_safe_pose)
+    y = float(clearance_pose[1])
+    if side in {"left", "right"} and y < TOOL2_UPPER_HOMING_CLEARANCE_Y_MM:
+        clearance_pose[1] = TOOL2_UPPER_HOMING_CLEARANCE_Y_MM
+    elif y <= TOOL2_UPPER_HOMING_CLEARANCE_Y_MM:
+        clearance_pose[1] = TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM
+    current_z = float(clearance_pose[2])
+    if current_z > TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM:
+        clearance_pose[2] = TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
+    clearance_pose[4] = 0.0
+    return clearance_pose
+
+
+def _bottom_homing_clearance_pose(side_safe_pose: list[float]) -> list[float]:
+    clearance_pose = list(side_safe_pose)
+    clearance_pose[1] = TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM
+    clearance_pose[2] = TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
+    clearance_pose[4] = 0.0
+    clearance_pose[5] = _TOOL2_SIDE_RZ_DEG["bottom"]
+    return clearance_pose
 
 
 def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> bool:
@@ -181,48 +224,30 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
         return False
 
     side = str(state["side"])
-    inward_mm = float(state.get("inward_clearance_mm") or TOOL2_HOMING_INWARD_CLEARANCE_MM)
-    safe_z = float(state.get("safe_z_mm") or TOOL2_LIFT_Z_MM)
     fallback_pose = state.get("last_commanded_pose") if isinstance(state.get("last_commanded_pose"), list) else None
-    current_pose = _current_cartesian_pose(cps, fallback_pose)
-    if current_pose is None:
-        _log(config, "[TableB DXF Tool2 Recovery] skipped: no current/fallback pose for side=%s", side)
-        return False
-
     tcp = _tool2_tcp(config)
     ucs = _tool2_ucs(config)
+    current_pose = _current_tool2_coord_pose(cps, tcp, ucs, fallback_pose)
+    if current_pose is None:
+        _log(config, "[TableB DXF Tool2 Recovery] skipped: no Tool 2 TCP/UCS current/fallback pose for side=%s tcp=%s ucs=%s", side, tcp, ucs)
+        return False
+
     speed = robot_speed(config)
-    neutral_current_pose = list(current_pose)
-    neutral_current_pose[4] = 0.0
-    lift_pose = list(neutral_current_pose)
-    lift_pose[2] = safe_z
-    clearance_pose = _inward_clearance_pose(side, lift_pose, inward_mm)
+    side_safe_pose = _side_safe_contact_pose(side, current_pose)
+    clearance_pose = _homing_clearance_pose(side, side_safe_pose)
 
     _log(
         config,
-        "[TableB DXF Tool2 Recovery] side=%s current=%s neutral_current=%s lift=%s clearance=%s",
+        "[TableB DXF Tool2 Recovery] side=%s current=%s combined_side_safe=%s clearance=%s",
         side,
         current_pose,
-        neutral_current_pose,
-        lift_pose,
+        side_safe_pose,
         clearance_pose,
     )
-    if abs(float(current_pose[4])) > 1e-6:
-        communicate(
-            cps=cps,
-            config=config,
-            point=neutral_current_pose,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
     communicate(
         cps=cps,
         config=config,
-        point=lift_pose,
+        point=side_safe_pose,
         tcp=tcp,
         ucs=ucs,
         seventh=-1,
@@ -230,6 +255,54 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
         velocity_profile="robotspeed",
         wait=True,
     )
+    if side == "bottom":
+        bottom_lift_pose = list(side_safe_pose)
+        bottom_lift_pose[2] = tool2_lift_z_for_side("bottom")
+        bottom_clearance_pose = _bottom_homing_clearance_pose(bottom_lift_pose)
+        if abs(float(bottom_lift_pose[2]) - float(side_safe_pose[2])) > 1e-6:
+            communicate(
+                cps=cps,
+                config=config,
+                point=bottom_lift_pose,
+                tcp=tcp,
+                ucs=ucs,
+                seventh=-1,
+                speed=speed,
+                velocity_profile="robotspeed",
+                wait=True,
+            )
+        communicate(
+            cps=cps,
+            config=config,
+            point=bottom_clearance_pose,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+        _log(
+            config,
+            "[TableB DXF Tool2 Recovery] bottom recovery completed without J6 adjustment clearance=%s",
+            bottom_clearance_pose,
+        )
+        clear_tool2_recovery_state()
+        return True
+    if abs(float(clearance_pose[1]) - float(side_safe_pose[1])) > 1e-6:
+        clearance_xy_pose = list(side_safe_pose)
+        clearance_xy_pose[1] = clearance_pose[1]
+        communicate(
+            cps=cps,
+            config=config,
+            point=clearance_xy_pose,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
     communicate(
         cps=cps,
         config=config,

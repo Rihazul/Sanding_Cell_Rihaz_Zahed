@@ -332,18 +332,6 @@ def _force_ready_at_contact(
     return base_contact
 
 
-def _reset_edge_orientation_if_needed(
-    cps: Any,
-    config: dict[str, Any],
-    operation_mode: str,
-    x: float,
-    y: float,
-    rz: float,
-) -> None:
-    if _is_edge_operation(operation_mode):
-        _move(cps, config, _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0), velocity_profile="robotspeed", wait=True)
-
-
 def _bounds_from_steps(steps: list[dict[str, Any]]) -> tuple[float, float]:
     xs: list[float] = []
     ys: list[float] = []
@@ -368,20 +356,23 @@ def _run_horizontal_segment(
     enter_from_contact: bool = False,
     lift_after: bool = True,
     backoff_before_entry: bool = False,
+    reverse_path: bool = False,
 ) -> _Tool2Position:
     side = segment.side
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
     rz = TOOL2_SIDE_RZ_DEG[side]
     y = _horizontal_y_for_operation(side, segment.y, operation_mode)
     side_safe_y = _horizontal_y_for_operation(side, segment.y, TOOL2_OPERATION_SIDE)
+    path_start_x = segment.local_end_x if reverse_path else segment.local_start_x
+    path_end_x = segment.local_start_x if reverse_path else segment.local_end_x
     _log(
         config,
         "[TableB DXF Tool2] %s %s segment j7=%.3f x %.3f -> %.3f y=%.3f enter_from_contact=%s lift_after=%s",
         operation_mode,
         side,
         segment.axis7,
-        segment.local_start_x,
-        segment.local_end_x,
+        path_start_x,
+        path_end_x,
         y,
         enter_from_contact,
         lift_after,
@@ -400,7 +391,7 @@ def _run_horizontal_segment(
             _move(
                 cps,
                 config,
-                _pose(segment.local_start_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz),
+                _pose(path_start_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz),
                 velocity_profile="robotspeed",
                 wait=True,
                 require_seventh_ok=True,
@@ -408,7 +399,7 @@ def _run_horizontal_segment(
         _move(
             cps,
             config,
-            _pose(segment.local_start_x, y, TOOL2_CONTACT_Z_MM, rz),
+            _pose(path_start_x, y, TOOL2_CONTACT_Z_MM, rz),
             velocity_profile="robotspeed",
             wait=True,
             require_seventh_ok=True,
@@ -418,11 +409,11 @@ def _run_horizontal_segment(
             cps,
             config,
             axis7=segment.axis7,
-            prepoint=_pose(segment.local_start_x, y, lift_z, rz),
+            prepoint=_pose(path_start_x, y, lift_z, rz),
         )
-    _force_ready_at_contact(cps, config, side, operation_mode, segment.local_start_x, y, rz)
+    _force_ready_at_contact(cps, config, side, operation_mode, path_start_x, y, rz)
     _apply_force_and_vibration(cps, config, side, force)
-    end_pose = _sanding_pose(operation_mode, segment.local_end_x, y, TOOL2_CONTACT_Z_MM, rz)
+    end_pose = _sanding_pose(operation_mode, path_end_x, y, TOOL2_CONTACT_Z_MM, rz)
     _mark_tool2_recovery(side, end_pose)
     _log(config, "[TableB DXF Tool2] %s %s sanding move to %s", operation_mode, side, end_pose)
     _move(
@@ -435,17 +426,38 @@ def _run_horizontal_segment(
         wait=True,
     )
     _release_force_and_vibration(cps, config, side)
-    _reset_edge_orientation_if_needed(cps, config, operation_mode, segment.local_end_x, y, rz)
-    if lift_after:
-        _move(cps, config, _pose(segment.local_end_x, y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+    exit_y = y
+    if _is_edge_operation(operation_mode):
+        exit_y = side_safe_y
+        safe_exit_pose = _pose(path_end_x, exit_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
         _move(
             cps,
             config,
-            _pose(segment.local_end_x, y, lift_z, rz),
+            safe_exit_pose,
             velocity_profile="robotspeed",
             wait=True,
         )
-    return _Tool2Position(side, segment.local_end_x, y, rz)
+        _mark_tool2_recovery(side, safe_exit_pose)
+    elif not lift_after:
+        safe_exit_pose = _pose(path_end_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        _move(
+            cps,
+            config,
+            safe_exit_pose,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+        _mark_tool2_recovery(side, safe_exit_pose)
+    if lift_after:
+        _move(cps, config, _pose(path_end_x, exit_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        _move(
+            cps,
+            config,
+            _pose(path_end_x, exit_y, lift_z, rz),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+    return _Tool2Position(side, path_end_x, exit_y, rz)
 
 
 def _run_horizontal_segment_operations(
@@ -480,6 +492,7 @@ def _run_horizontal_segment_operations(
             enter_from_contact=enter_from_contact_for_operation,
             lift_after=lift_after_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
+            reverse_path=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")
@@ -501,12 +514,15 @@ def _run_vertical_side(
     enter_from_contact: bool = False,
     lift_after: bool = True,
     backoff_before_entry: bool = False,
+    reverse_path: bool = False,
 ) -> _Tool2Position:
     rz = TOOL2_SIDE_RZ_DEG[side]
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
     base_x = x
     x = _vertical_x_for_operation(side, base_x, operation_mode)
     side_safe_x = _vertical_x_for_operation(side, base_x, TOOL2_OPERATION_SIDE)
+    path_start_y = end_y if reverse_path else start_y
+    path_end_y = start_y if reverse_path else end_y
     _log(
         config,
         "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f enter_from_contact=%s lift_after=%s",
@@ -532,7 +548,7 @@ def _run_vertical_side(
             _move(
                 cps,
                 config,
-                _pose(side_safe_x, start_y, TOOL2_CONTACT_Z_MM, rz),
+                _pose(side_safe_x, path_start_y, TOOL2_CONTACT_Z_MM, rz),
                 velocity_profile="robotspeed",
                 wait=True,
                 require_seventh_ok=True,
@@ -540,7 +556,7 @@ def _run_vertical_side(
         _move(
             cps,
             config,
-            _pose(x, start_y, TOOL2_CONTACT_Z_MM, rz),
+            _pose(x, path_start_y, TOOL2_CONTACT_Z_MM, rz),
             velocity_profile="robotspeed",
             wait=True,
             require_seventh_ok=True,
@@ -550,11 +566,11 @@ def _run_vertical_side(
             cps,
             config,
             axis7=axis7,
-            prepoint=_pose(x, start_y, lift_z, rz),
+            prepoint=_pose(x, path_start_y, lift_z, rz),
         )
-    _force_ready_at_contact(cps, config, side, operation_mode, x, start_y, rz)
+    _force_ready_at_contact(cps, config, side, operation_mode, x, path_start_y, rz)
     _apply_force_and_vibration(cps, config, side, force)
-    end_pose = _sanding_pose(operation_mode, x, end_y, TOOL2_CONTACT_Z_MM, rz)
+    end_pose = _sanding_pose(operation_mode, x, path_end_y, TOOL2_CONTACT_Z_MM, rz)
     _mark_tool2_recovery(side, end_pose)
     _log(config, "[TableB DXF Tool2] %s %s sanding move to %s", operation_mode, side, end_pose)
     _move(
@@ -567,16 +583,25 @@ def _run_vertical_side(
         wait=True,
     )
     _release_force_and_vibration(cps, config, side)
-    _reset_edge_orientation_if_needed(cps, config, operation_mode, x, end_y, rz)
+    exit_x = x
+    if _is_edge_operation(operation_mode):
+        exit_x = side_safe_x
+        safe_exit_pose = _pose(exit_x, path_end_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        _move(cps, config, safe_exit_pose, velocity_profile="robotspeed", wait=True)
+        _mark_tool2_recovery(side, safe_exit_pose)
+    elif not lift_after:
+        safe_exit_pose = _pose(side_safe_x, path_end_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        _move(cps, config, safe_exit_pose, velocity_profile="robotspeed", wait=True)
+        _mark_tool2_recovery(side, safe_exit_pose)
     if lift_after:
-        _move(cps, config, _pose(x, end_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-        lift_y = _left_side_bottom_lift_y(side, end_y)
+        _move(cps, config, _pose(exit_x, path_end_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        lift_y = _left_side_bottom_lift_y(side, path_end_y)
         if lift_y is not None:
-            _move(cps, config, _pose(x, lift_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-            _move(cps, config, _pose(x, lift_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
-            return _Tool2Position(side, x, lift_y, rz)
-        _move(cps, config, _pose(x, end_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
-    return _Tool2Position(side, x, end_y, rz)
+            _move(cps, config, _pose(exit_x, lift_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+            _move(cps, config, _pose(exit_x, lift_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
+            return _Tool2Position(side, exit_x, lift_y, rz)
+        _move(cps, config, _pose(exit_x, path_end_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
+    return _Tool2Position(side, exit_x, path_end_y, rz)
 
 
 def _run_right_side(
@@ -590,6 +615,7 @@ def _run_right_side(
     enter_from_contact: bool = False,
     lift_after: bool = True,
     backoff_before_entry: bool = False,
+    reverse_path: bool = False,
 ) -> _Tool2Position:
     return _run_vertical_side(
         cps,
@@ -605,6 +631,7 @@ def _run_right_side(
         enter_from_contact=enter_from_contact,
         lift_after=lift_after,
         backoff_before_entry=backoff_before_entry,
+        reverse_path=reverse_path,
     )
 
 
@@ -621,6 +648,7 @@ def _run_left_side(
     enter_from_contact: bool = False,
     lift_after: bool = True,
     backoff_before_entry: bool = False,
+    reverse_path: bool = False,
 ) -> _Tool2Position:
     start_y = y_total if start_from_top else 0.0
     end_y = 0.0 if start_from_top else y_total
@@ -638,6 +666,7 @@ def _run_left_side(
         enter_from_contact=enter_from_contact,
         lift_after=lift_after,
         backoff_before_entry=backoff_before_entry,
+        reverse_path=reverse_path,
     )
 
 
@@ -664,6 +693,7 @@ def _run_right_side_operations(
             enter_from_contact=index > 0,
             lift_after=not has_next_same_pass_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
+            reverse_path=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
@@ -697,6 +727,7 @@ def _run_left_side_operations(
             enter_from_contact=index > 0,
             lift_after=not has_next_same_pass_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
+            reverse_path=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
