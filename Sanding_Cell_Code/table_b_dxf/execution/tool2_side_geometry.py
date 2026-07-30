@@ -6,6 +6,7 @@ from typing import Sequence
 
 TOOL2_APPROACH_OUTWARD_MM = 15.0
 TOOL2_LIFT_Z_MM = -68.0
+TOOL2_BOTTOM_LIFT_Z_MM = -50.0
 TOOL2_CONTACT_Z_MM = 0.0
 
 # Bottom side: with one J7 station, Tool 2 can safely sand 700 mm in local X.
@@ -27,6 +28,11 @@ TOOL2_TOP_REACH_ROWS: tuple[tuple[float, float, float], ...] = (
     (935.0, -650.0, 195.0),
 )
 
+
+def tool2_lift_z_for_side(side: str) -> float:
+    if side == "bottom":
+        return TOOL2_BOTTOM_LIFT_Z_MM
+    return TOOL2_LIFT_Z_MM
 
 def tool2_top_local_x_span_at_y(y_mm: float) -> tuple[float, float] | None:
     """Return Tool 2 top-side local X reach at UCS Y.
@@ -127,3 +133,4 @@ def split_tool2_top_segments(x_total_mm: float, y_total_mm: float) -> list[tuple
         segments.append((axis7, local_start, local_end))
         right = left
     return segments
+
