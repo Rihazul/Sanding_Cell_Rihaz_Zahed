@@ -202,7 +202,8 @@ def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> di
 
         _log(config, "[TableB DXF Robot] === TOOL %s BATCH START ===", physical_tool)
         mounted_tool = _ensure_tool_in_hand(cps, config, physical_tool, mounted_tool)
-        _move_arm_to_task_home(cps, config, f"before tool {physical_tool} operation")
+        if physical_tool != 2:
+            _move_arm_to_task_home(cps, config, f"before tool {physical_tool} operation")
 
         steps = list(batch.get("steps") or [])
         if physical_tool == 2:

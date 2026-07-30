@@ -367,11 +367,13 @@ def _run_horizontal_segment(
     *,
     enter_from_contact: bool = False,
     lift_after: bool = True,
+    backoff_before_entry: bool = False,
 ) -> _Tool2Position:
     side = segment.side
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
     rz = TOOL2_SIDE_RZ_DEG[side]
     y = _horizontal_y_for_operation(side, segment.y, operation_mode)
+    side_safe_y = _horizontal_y_for_operation(side, segment.y, TOOL2_OPERATION_SIDE)
     _log(
         config,
         "[TableB DXF Tool2] %s %s segment j7=%.3f x %.3f -> %.3f y=%.3f enter_from_contact=%s lift_after=%s",
@@ -394,6 +396,15 @@ def _run_horizontal_segment(
             wait=False,
             require_seventh_ok=True,
         )
+        if backoff_before_entry:
+            _move(
+                cps,
+                config,
+                _pose(segment.local_start_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz),
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=True,
+            )
         _move(
             cps,
             config,
@@ -446,6 +457,9 @@ def _run_horizontal_segment_operations(
     *,
     next_side: str | None = None,
 ) -> _Tool2Position:
+    if previous_position is None and segment.side == "top":
+        _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using J6 +180")
+        moveOnlyJ6r(cps, 180.0, config, wait=True)
     _apply_side_transition_j6(cps, config, previous_position, segment.side)
     lift_z = _lift_z_for_transition(previous_position, segment.side)
     enter_from_contact = bool(previous_position and previous_position.side == "bottom" and segment.side == "bottom")
@@ -464,6 +478,7 @@ def _run_horizontal_segment_operations(
             lift_z=lift_z,
             enter_from_contact=enter_from_contact_for_operation,
             lift_after=lift_after_operation,
+            backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")
@@ -484,10 +499,13 @@ def _run_vertical_side(
     lift_z: float | None = None,
     enter_from_contact: bool = False,
     lift_after: bool = True,
+    backoff_before_entry: bool = False,
 ) -> _Tool2Position:
     rz = TOOL2_SIDE_RZ_DEG[side]
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
-    x = _vertical_x_for_operation(side, x, operation_mode)
+    base_x = x
+    x = _vertical_x_for_operation(side, base_x, operation_mode)
+    side_safe_x = _vertical_x_for_operation(side, base_x, TOOL2_OPERATION_SIDE)
     _log(
         config,
         "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f enter_from_contact=%s lift_after=%s",
@@ -509,6 +527,15 @@ def _run_vertical_side(
             wait=False,
             require_seventh_ok=True,
         )
+        if backoff_before_entry:
+            _move(
+                cps,
+                config,
+                _pose(side_safe_x, start_y, TOOL2_CONTACT_Z_MM, rz),
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=True,
+            )
         _move(
             cps,
             config,
@@ -560,6 +587,7 @@ def _run_right_side(
     *,
     enter_from_contact: bool = False,
     lift_after: bool = True,
+    backoff_before_entry: bool = False,
 ) -> _Tool2Position:
     return _run_vertical_side(
         cps,
@@ -574,6 +602,7 @@ def _run_right_side(
         lift_z=lift_z,
         enter_from_contact=enter_from_contact,
         lift_after=lift_after,
+        backoff_before_entry=backoff_before_entry,
     )
 
 
@@ -589,6 +618,7 @@ def _run_left_side(
     start_from_top: bool = False,
     enter_from_contact: bool = False,
     lift_after: bool = True,
+    backoff_before_entry: bool = False,
 ) -> _Tool2Position:
     start_y = y_total if start_from_top else 0.0
     end_y = 0.0 if start_from_top else y_total
@@ -605,6 +635,7 @@ def _run_left_side(
         lift_z=lift_z,
         enter_from_contact=enter_from_contact,
         lift_after=lift_after,
+        backoff_before_entry=backoff_before_entry,
     )
 
 
@@ -630,6 +661,7 @@ def _run_right_side_operations(
             lift_z=lift_z,
             enter_from_contact=index > 0,
             lift_after=not has_next_same_pass_operation,
+            backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
@@ -662,6 +694,7 @@ def _run_left_side_operations(
             start_from_top=start_from_top,
             enter_from_contact=index > 0,
             lift_after=not has_next_same_pass_operation,
+            backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
@@ -791,15 +824,9 @@ def _run_tool2_station_traversal(
     )
 
     stations = _segments_by_station([*bottom_segments, *top_segments])
-    # Tool 2 starts from the Table B homing/aligned orientation, which is the
-    # bottom-side orientation (RZ=90). This makes an initial top pass use the
-    # required bottom -> top J6 +180 transition instead of Cartesian -180.
-    last_position: _Tool2Position | None = _Tool2Position(
-        "bottom",
-        0.0,
-        -15.0,
-        TOOL2_SIDE_RZ_DEG["bottom"],
-    )
+    # Start from the actual homing pose. Do not inject a fake previous side,
+    # otherwise startup performs an extra side-transition before the first pass.
+    last_position: _Tool2Position | None = None
     right_done = False
     left_done = False
 
@@ -977,5 +1004,3 @@ def run_tool2_side_batch(cps: Any, config: dict[str, Any], steps: list[dict[str,
 def run_tool2_side_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) -> None:
     """Compatibility wrapper for callers that still pass one Tool 2 step."""
     run_tool2_side_batch(cps, config, [step])
-
-
