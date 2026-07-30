@@ -19,6 +19,7 @@ TOOL2_HOMING_INWARD_CLEARANCE_MM = 95.0
 TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM = 80.0
 TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM = -80.0
 TOOL2_HOMING_RZ_DEG = 90.0
+TOOL2_HOMING_J6_DEG = 90.012
 
 _TOOL2_SIDE_RZ_DEG = {
     "right": 0.0,
@@ -115,6 +116,44 @@ def _current_cartesian_pose(cps: Any, fallback: list[float] | None = None) -> li
     return None
 
 
+def _current_j6(cps: Any) -> float | None:
+    result: list[Any] = []
+    try:
+        ret = cps.HRIF_ReadActJointPos(0, 0, result)
+    except Exception:
+        ret = -1
+    if ret == 0 and len(result) >= 6:
+        try:
+            return float(result[5])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _is_upper_homing_clearance_zone(pose: list[float]) -> bool:
+    try:
+        return float(pose[1]) > TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM and float(pose[2]) < TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
+    except (TypeError, ValueError, IndexError):
+        return False
+
+
+def _j6_delta_to_homing(cps: Any, config: dict[str, Any], side: str, clearance_pose: list[float]) -> float:
+    if _is_upper_homing_clearance_zone(clearance_pose):
+        current_j6 = _current_j6(cps)
+        if current_j6 is not None:
+            delta = TOOL2_HOMING_J6_DEG - current_j6
+            _log(
+                config,
+                "[TableB DXF Tool2 Recovery] upper clearance J6 normalize current=%.3f target=%.3f delta=%.3f",
+                current_j6,
+                TOOL2_HOMING_J6_DEG,
+                delta,
+            )
+            return delta
+        _log(config, "[TableB DXF Tool2 Recovery] upper clearance J6 read failed; using side fallback for side=%s", side)
+    return float(_TOOL2_TO_HOMING_J6_DEG.get(side, 0.0))
+
+
 def _inward_clearance_pose(side: str, pose: list[float], inward_mm: float) -> list[float]:
     x, y, z, rx, ry, rz = [float(v) for v in pose[:6]]
     if side == "right":
@@ -202,14 +241,14 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
         velocity_profile="robotspeed",
         wait=True,
     )
-    j6_delta = float(_TOOL2_TO_HOMING_J6_DEG.get(side, 0.0))
+    j6_delta = _j6_delta_to_homing(cps, config, side, clearance_pose)
     homing_orientation_pose = list(clearance_pose)
     homing_orientation_pose[4] = 0.0
     homing_orientation_pose[5] = TOOL2_HOMING_RZ_DEG
     if abs(j6_delta) > 1e-6:
         _log(
             config,
-            "[TableB DXF Tool2 Recovery] side=%s applying homing J6 delta=%s before RZ=%s",
+            "[TableB DXF Tool2 Recovery] side=%s applying homing J6 delta=%.3f before RZ=%s",
             side,
             j6_delta,
             TOOL2_HOMING_RZ_DEG,
