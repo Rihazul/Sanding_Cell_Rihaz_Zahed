@@ -121,7 +121,7 @@ const stationLegendKey = (seg) => {
 const TOOL_LABELS = {
   tool_3: 'Tool 3 · Pocket edge',
   tool_4: 'Tool 4 · Frame & zigzag',
-  tool_1: 'Tool 1 · 3D contour',
+  tool_1: 'TOOL 1 · 3D contour',
 };
 const TOOL_FILTER_ORDER = ['tool_3', 'tool_4', 'tool_1'];
 
@@ -359,6 +359,7 @@ function loopAtPoint(loops, worldX, worldY, toleranceWorld) {
  *   selectedToolpathId?: string | null,
  *   selectedFrameSectionId?: string | null,
  *   selectedFramePathId?: string | null,
+ *   selectedOperationToolpathId?: string | null,
  *   onSelectToolpath?: (rectId: string) => void,
  * }} props
  */
@@ -391,6 +392,7 @@ export default function Dxf2DViewer({
   selectedToolpathId = null,
   selectedFrameSectionId = null,
   selectedFramePathId = null,
+  selectedOperationToolpathId = null,
   onSelectToolpath,
 }) {
   const containerRef = React.useRef(null);
@@ -671,6 +673,8 @@ export default function Dxf2DViewer({
   const toolVisible = (tool) => showToolpaths && (toolFilter === 'all' || toolFilter === tool);
 
   const isToolpathStartSegment = (seg) => /_0$/.test(String(seg.id || '')) || seg.seq === 0;
+  const toolpathGroupId = (seg) => String(seg.id || '').replace(/_\d+$/, '');
+  const isSelectedOperationSegment = (seg) => selectedOperationToolpathId != null && toolpathGroupId(seg) === selectedOperationToolpathId;
   // Pocket toolpath overlays (Tool 3 rectangular contour): directional line + a
   // mid-segment arrow showing travel direction, constant pixel size like above.
   const pocketToolpathOverlays = toolVisible('tool_3')
@@ -1216,17 +1220,25 @@ export default function Dxf2DViewer({
                 a mid-segment travel arrow and a start marker at the first corner. */}
             {pocketToolpathOverlays.length > 0 && (
               <g pointerEvents="none">
-                {pocketToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
-                  <g key={`ptp-${seg.id}`}>
-                    {/* Coloured by 7th-axis station when the reach planner has run, so
-                        splits are visible; falls back to the tool colour otherwise. */}
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={2} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
-                    {isStart && (
-                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
-                    )}
-                  </g>
-                ))}
+                {pocketToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => {
+                  const isSelected = isSelectedOperationSegment(seg);
+                  const drawColor = isSelected
+                    ? HIGHLIGHT_STROKE
+                    : seg.station_index === undefined
+                    ? POCKET_TOOLPATH_COLOR
+                    : stationColor(seg.station_index, seg.axis7_position_mm);
+                  return (
+                    <g key={`ptp-${seg.id}`}>
+                      {/* Coloured by 7th-axis station when the reach planner has run, so
+                          splits are visible; falls back to the tool colour otherwise. */}
+                      <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
+                      <polygon points={arrow} fill={drawColor} />
+                      {isStart && (
+                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             )}
 
@@ -1234,15 +1246,23 @@ export default function Dxf2DViewer({
                 mid-segment travel arrow and a start marker at the bottom-right. */}
             {contourToolpathOverlays.length > 0 && (
               <g pointerEvents="none">
-                {contourToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
-                  <g key={`ctp-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={2} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? CONTOUR_TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
-                    {isStart && (
-                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
-                    )}
-                  </g>
-                ))}
+                {contourToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => {
+                  const isSelected = isSelectedOperationSegment(seg);
+                  const drawColor = isSelected
+                    ? HIGHLIGHT_STROKE
+                    : seg.station_index === undefined
+                    ? CONTOUR_TOOLPATH_COLOR
+                    : stationColor(seg.station_index, seg.axis7_position_mm);
+                  return (
+                    <g key={`ctp-${seg.id}`}>
+                      <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
+                      <polygon points={arrow} fill={drawColor} />
+                      {isStart && (
+                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             )}
 
@@ -1250,15 +1270,23 @@ export default function Dxf2DViewer({
                 a start marker at the bottom-right start corner. */}
             {pocketZigzagOverlays.length > 0 && (
               <g pointerEvents="none">
-                {pocketZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
-                  <g key={`pzz-${seg.id}`}>
-                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={1.5} />
-                    <polygon points={arrow} fill={seg.station_index === undefined ? POCKET_ZIGZAG_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
-                    {isStart && (
-                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
-                    )}
-                  </g>
-                ))}
+                {pocketZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => {
+                  const isSelected = isSelectedOperationSegment(seg);
+                  const drawColor = isSelected
+                    ? HIGHLIGHT_STROKE
+                    : seg.station_index === undefined
+                    ? POCKET_ZIGZAG_COLOR
+                    : stationColor(seg.station_index, seg.axis7_position_mm);
+                  return (
+                    <g key={`pzz-${seg.id}`}>
+                      <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 1.5} />
+                      <polygon points={arrow} fill={drawColor} />
+                      {isStart && (
+                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
+                      )}
+                    </g>
+                  );
+                })}
               </g>
             )}
 
@@ -1355,7 +1383,7 @@ export default function Dxf2DViewer({
             {['all', ...TOOL_FILTER_ORDER].map((key) => {
               const active = toolFilter === key;
               const label = key === 'all' ? 'All' : (TOOL_LABELS[key] || key).replace(/^Tool \d+ · /, '').replace(' · ', ' ');
-              const short = key === 'all' ? 'All' : key === 'tool_3' ? 'T3 edge' : key === 'tool_4' ? 'T4 frame' : '3D';
+              const short = key === 'all' ? 'All' : key === 'tool_3' ? 'T3 edge' : key === 'tool_4' ? 'T4 frame' : 'T1 3D';
               return (
                 <button
                   key={key}

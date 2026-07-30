@@ -39,6 +39,8 @@ TOOL_MOTION_PARAMS: dict[str, dict[str, Any]] = {
     "tool_3d": {"runner": "table_b_force_xy"},
     "tool_4_frame": {"runner": "table_b_force_xy"},
     "frame_section": {"runner": "table_b_force_xy"},
+    "tool_2_side": {"runner": "table_b_tool2_side"},
+    "tool_2_edgeOutside": {"runner": "table_b_tool2_side"},
 }
 
 # --- Physical tool mapping -------------------------------------------------
@@ -179,10 +181,19 @@ def _motion_for_tool(tool: str) -> dict[str, Any] | None:
     return None
 
 
-# Tool 2 (side / edge outside) follows the part's outer boundary rather than a
-# toolpath drawn in the viewer, so its path is derived here from the approved outer
-# corner points: the rectangle from the origin (0,0) to the part's max (X, Y).
+# Tool 2 (side / edge outside) sands the door thickness. It does not use the
+# closed XY surface loop used by tools 1/3/4; it runs four independent outer side
+# segments derived from the approved structural outer corner points.
 _OUTER_CORNER_LABEL = "door outer corners"
+
+# Operator-defined Tool 2 side sequence and RZ orientation. The X=min side is
+# named "right" and X=max is named "left" to match the station convention.
+_TOOL2_SIDE_DEFS: tuple[tuple[str, int, float], ...] = (
+    ("right", 1, 0.0),
+    ("bottom", 2, 90.0),
+    ("left", 3, 180.0),
+    ("top", 4, -90.0),
+)
 
 
 def _outer_corner_points(approved: dict[str, Any]) -> list[list[float]] | None:
@@ -196,16 +207,43 @@ def _outer_corner_points(approved: dict[str, Any]) -> list[list[float]] | None:
     return None
 
 
-def _build_tool2_paths(approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]]:
-    """Synthesize the Tool 2 side / edge-outside paths from the outer corners.
-
-    The 2D viewer does not draw Tool 2 toolpaths: the side and outside edge follow
-    the part's outer boundary, so the path is the closed outer rectangle. Both
-    operations run the same outline and are only emitted when the operator
-    configured them.
-    """
+def _outer_bounds(approved: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """Return min_x, min_y, max_x, max_y for the rectangular-bounded door."""
     corners = _outer_corner_points(approved)
     if not corners:
+        return None
+    xs = [float(point[0]) for point in corners]
+    ys = [float(point[1]) for point in corners]
+    min_x = min(xs)
+    min_y = min(ys)
+    max_x = max(xs)
+    max_y = max(ys)
+    if max_x <= min_x or max_y <= min_y:
+        return None
+    return min_x, min_y, max_x, max_y
+
+
+def _tool2_side_points(side_label: str, bounds: tuple[float, float, float, float]) -> list[list[float]]:
+    min_x, min_y, max_x, max_y = bounds
+    if side_label == "right":
+        return [[min_x, min_y], [min_x, max_y]]
+    if side_label == "bottom":
+        return [[min_x, min_y], [max_x, min_y]]
+    if side_label == "left":
+        return [[max_x, min_y], [max_x, max_y]]
+    if side_label == "top":
+        return [[min_x, max_y], [max_x, max_y]]
+    raise ValueError(f"Unknown Tool 2 side label: {side_label}")
+
+
+def _build_tool2_paths(approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]]:
+    """Synthesize Tool 2 side / edge-outside paths from the outer corners.
+
+    Tool 2 is side-face sanding, so each side is an open 2-point line with a fixed
+    RZ. Sequence is right -> bottom -> left -> top to avoid unnecessary J7 travel.
+    """
+    bounds = _outer_bounds(approved)
+    if not bounds:
         return []
 
     paths: list[dict[str, Any]] = []
@@ -219,15 +257,18 @@ def _build_tool2_paths(approved: dict[str, Any], recipe: dict[str, Any]) -> list
             cycle = 0
         if cycle <= 0:
             continue  # operation not selected
-        paths.append({
-            "path_id": f"outer_{recipe_key}",
-            "tool": f"tool_2_{recipe_key}",
-            "operation": label,
-            "closed": True,
-            "points": corners,
-        })
+        for side_label, side_sequence, rz_deg in _TOOL2_SIDE_DEFS:
+            paths.append({
+                "path_id": f"outer_{recipe_key}_{side_label}",
+                "tool": f"tool_2_{recipe_key}",
+                "operation": f"{label} {side_label}",
+                "closed": False,
+                "side_label": side_label,
+                "side_sequence": side_sequence,
+                "rz_deg": rz_deg,
+                "points": _tool2_side_points(side_label, bounds),
+            })
     return paths
-
 
 class TableBDxfExecutionError(RuntimeError):
     """Raised when an approved toolpath cannot be run."""
@@ -567,7 +608,14 @@ def _validate_reach_at_station(step: dict[str, Any]) -> None:
 
 
 
-def _step_station_sort_key(step: dict[str, Any]) -> tuple[float, int, int]:
+def _step_station_sort_key(step: dict[str, Any]) -> tuple[float, int, int, int]:
+    if int(step.get("physical_tool") or 0) == 2:
+        try:
+            side_sequence = int(step.get("side_sequence") or 0)
+        except (TypeError, ValueError):
+            side_sequence = 0
+        return (0.0, side_sequence, 0, int(step.get("_plan_order") or 0))
+
     axis = step.get("axis7_position_mm")
     try:
         axis_value = float(axis)
@@ -578,8 +626,7 @@ def _step_station_sort_key(step: dict[str, Any]) -> tuple[float, int, int]:
         station_value = int(station)
     except (TypeError, ValueError):
         station_value = 0
-    return (axis_value, station_value, int(step.get("_plan_order") or 0))
-
+    return (axis_value, station_value, int(step.get("_plan_order") or 0), 0)
 
 def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
     """Load the approved toolpath and pair each path with its motion parameters.
@@ -635,6 +682,9 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
             "robot_base_points": robot_points,
             "station_index": path.get("station_index"),
             "axis7_position_mm": axis7_position_mm,
+            "side_label": path.get("side_label"),
+            "side_sequence": path.get("side_sequence"),
+            "rz_deg": path.get("rz_deg"),
             "motion": _motion_for_tool(tool),
             "recipe": step_recipe,
             "_plan_order": plan_order,
@@ -805,6 +855,7 @@ def run_approved_toolpath(
         raise TableBDxfExecutionError(str(error)) from error
 
     return {"dry_run": False, **plan, "execution": execution}
+
 
 
 

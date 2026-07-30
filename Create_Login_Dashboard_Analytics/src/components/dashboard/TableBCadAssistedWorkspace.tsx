@@ -620,6 +620,7 @@ export function TableBCadAssistedWorkspace({
   // Info panel position (draggable). null = default top-right; once dragged it stays put.
   const [dxfInfoPos, setDxfInfoPos] = React.useState<{ x: number; y: number } | null>(null);
   const dxfInfoDragRef = React.useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
+  const dxfInfoPanelRef = React.useRef<HTMLDivElement | null>(null);
   const [dxfAssignments, setDxfAssignments] = React.useState<Record<string, string>>({});
   const [dxfSelectionMode, setDxfSelectionMode] = React.useState<'loop' | 'line' | 'ring'>('loop');
   const [dxfSelectedLineIds, setDxfSelectedLineIds] = React.useState<string[]>([]);
@@ -1156,6 +1157,7 @@ export function TableBCadAssistedWorkspace({
   const [dxfSelectedToolpathId, setDxfSelectedToolpathId] = React.useState<string | null>(null);
   const [dxfSelectedFrameSectionId, setDxfSelectedFrameSectionId] = React.useState<string | null>(null);
   const [dxfSelectedFramePathId, setDxfSelectedFramePathId] = React.useState<string | null>(null);
+  const [dxfSelectedOperationToolpathId, setDxfSelectedOperationToolpathId] = React.useState<string | null>(null);
   const [dxfFrameStatus, setDxfFrameStatus] = React.useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [dxfFrameMessage, setDxfFrameMessage] = React.useState<string>('');
   const [isDxfViewerOpen, setIsDxfViewerOpen] = React.useState(false);
@@ -1198,6 +1200,7 @@ export function TableBCadAssistedWorkspace({
     setDxfSelectedToolpathId(null);
     setDxfSelectedFrameSectionId(null);
     setDxfSelectedFramePathId(null);
+    setDxfSelectedOperationToolpathId(null);
     setDxfFrameStatus('idle');
     setDxfFrameMessage('');
   };
@@ -2721,7 +2724,7 @@ export function TableBCadAssistedWorkspace({
     const frameZig = segs.filter((s) => /^frame_zigzag_/.test(s.id));
     const others = segs.filter((s) => !/^frame_zigzag_/.test(s.id));
 
-    const out: { points: number[][] }[] = [];
+    const out: { id?: string; points: number[][] }[] = [];
     const frameGroups = new Map<string, typeof segs>();
     for (const s of frameZig) {
       const key = s.id.replace(/_\d+$/, '');
@@ -2730,7 +2733,8 @@ export function TableBCadAssistedWorkspace({
     }
     for (const list of frameGroups.values()) {
       list.sort((a, b) => a.seq - b.seq);
-      out.push({ points: [list[0].start, ...list.map((s) => s.end)] });
+      const id = list[0].id.replace(/_\d+$/, '');
+      out.push({ id, points: [list[0].start, ...list.map((s) => s.end)] });
     }
 
     // Pocket/contour toolpaths split one continuous path into sub-segments id_0,
@@ -2743,7 +2747,8 @@ export function TableBCadAssistedWorkspace({
     }
     for (const list of groups.values()) {
       list.sort((a, b) => a.seq - b.seq);
-      out.push({ points: [list[0].start, ...list.map((s) => s.end)] });
+      const id = list[0].id.replace(/_\d+$/, '');
+      out.push({ id, points: [list[0].start, ...list.map((s) => s.end)] });
     }
     return out;
   };
@@ -2768,13 +2773,13 @@ export function TableBCadAssistedWorkspace({
         if (l) shapes.push({ label: 'Corners', points: dxfDisplayCornerPoints(l.points) });
       }
       dxfSegmentsToPolylines(forRegion(dxfPocketToolpaths) as never).forEach((p) =>
-        toolpaths.push({ label: 'Pocket contour · Tool 3', points: p.points }),
+        toolpaths.push({ id: p.id, label: 'Pocket contour · Tool 3', points: p.points }),
       );
       dxfSegmentsToPolylines(forRegion(dxfPocketZigzag) as never).forEach((p) =>
-        toolpaths.push({ label: 'Pocket zigzag · Tool 4', points: p.points }),
+        toolpaths.push({ id: p.id, label: 'Pocket zigzag · Tool 4', points: p.points }),
       );
       dxfSegmentsToPolylines(forRegion(dxf3dContourToolpaths) as never).forEach((p) =>
-        toolpaths.push({ label: '3D contour ring', points: p.points }),
+        toolpaths.push({ id: p.id, label: '3D contour ring', points: p.points }),
       );
       // The frame-level zigzag is computed over the WHOLE door, not per-region, so it is
       // NOT attached to each individual frame-level region card (that repeated the whole
@@ -3250,6 +3255,11 @@ export function TableBCadAssistedWorkspace({
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setDxfInfoExpanded({}); // new region opens collapsed
+                                    setDxfSelectedToolpathId(null);
+                                    setDxfSelectedFrameSectionId(null);
+                                    setDxfSelectedFramePathId(null);
+                                    setDxfSelectedOperationToolpathId(null);
+                                    setDxfHoveredRowId(null);
                                     setDxfInfoRowId((prev) => (prev === row.id ? null : row.id));
                                   }}
                                   style={{ ...dxfPlainButtonStyle, padding: '3px 7px', fontSize: '10px', marginRight: '5px' }}
@@ -3307,6 +3317,7 @@ export function TableBCadAssistedWorkspace({
                       selectedToolpathId={dxfSelectedToolpathId}
                       selectedFrameSectionId={dxfSelectedFrameSectionId}
                       selectedFramePathId={dxfSelectedFramePathId}
+                      selectedOperationToolpathId={dxfSelectedOperationToolpathId}
                       onSelectToolpath={(rectId: string) => {
                         setDxfSelectedToolpathId((prev) => (prev === rectId ? null : rectId));
                         console.log('[DXF Frame] toolpath selected', { rect_id: rectId });
@@ -3343,9 +3354,15 @@ export function TableBCadAssistedWorkspace({
                         <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '8px' }}>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(event) => {
+                              const panel = dxfInfoPanelRef.current;
+                              const scrollTop = panel?.scrollTop ?? 0;
                               onActivate?.();
                               toggle(id);
+                              event.currentTarget.blur();
+                              window.requestAnimationFrame(() => {
+                                if (dxfInfoPanelRef.current) dxfInfoPanelRef.current.scrollTop = scrollTop;
+                              });
                             }}
                             style={{ ...dxfPlainButtonStyle, width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px', fontSize: '11px', fontWeight: 800, color: active ? '#be123c' : '#334155', background: active ? '#ffe4e6' : isOpen(id) ? '#f1f5f9' : '#ffffff', borderColor: active ? '#fb7185' : '#cbd5e1' }}
                           >
@@ -3379,6 +3396,7 @@ export function TableBCadAssistedWorkspace({
                       };
                       return (
                         <div
+                          ref={dxfInfoPanelRef}
                           style={{
                             position: 'fixed',
                             ...(dxfInfoPos
@@ -3415,8 +3433,11 @@ export function TableBCadAssistedWorkspace({
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={() => {
                                 setDxfInfoRowId(null);
+                                setDxfHoveredRowId(null);
+                                setDxfSelectedToolpathId(null);
                                 setDxfSelectedFrameSectionId(null);
                                 setDxfSelectedFramePathId(null);
+                                setDxfSelectedOperationToolpathId(null);
                               }}
                               style={{ ...dxfPlainButtonStyle, padding: '2px 8px', fontSize: '11px' }}
                             >
@@ -3449,6 +3470,7 @@ export function TableBCadAssistedWorkspace({
                                 onActivate={isFrameSection ? () => {
                                   setDxfSelectedFrameSectionId(s.id || null);
                                   setDxfSelectedFramePathId(null);
+                                  setDxfSelectedOperationToolpathId(null);
                                 } : undefined}
                               >
                                 <div style={{ fontFamily: 'monospace', color: '#0f172a', wordBreak: 'break-word', fontSize: '10.5px', lineHeight: 1.5 }}>{fmt(s.points)}</div>
@@ -3461,15 +3483,21 @@ export function TableBCadAssistedWorkspace({
                           {info.toolpaths.map((t, i) => {
                             const len = pathLen(t.points);
                             const isFramePath = row.sourceType === 'computed_frame' && !!t.id;
+                            const isOperationPath = row.sourceType !== 'computed_frame' && !!t.id;
                             return (
                               <Section
                                 key={`tp-${i}`}
                                 id={`tp-${i}`}
                                 title={t.label}
                                 count={`${len.toFixed(0)} mm · ${t.points.length} pts`}
-                                active={isFramePath && dxfSelectedFramePathId === t.id}
+                                active={(isFramePath && dxfSelectedFramePathId === t.id) || (isOperationPath && dxfSelectedOperationToolpathId === t.id)}
                                 onActivate={isFramePath ? () => {
                                   setDxfSelectedFramePathId(t.id || null);
+                                  setDxfSelectedFrameSectionId(null);
+                                  setDxfSelectedOperationToolpathId(null);
+                                } : isOperationPath ? () => {
+                                  setDxfSelectedOperationToolpathId(t.id || null);
+                                  setDxfSelectedFramePathId(null);
                                   setDxfSelectedFrameSectionId(null);
                                 } : undefined}
                               >

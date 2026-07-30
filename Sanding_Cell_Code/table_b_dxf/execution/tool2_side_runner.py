@@ -1,0 +1,666 @@
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, NamedTuple
+
+from Server_Better_V2 import (
+    communicate,
+    moveOnlyJ6r,
+    putForceXminus,
+    putForceXplus,
+    putForceYminus1,
+    putForceYplus1,
+    releaseForce,
+    turn_vibration_off,
+    turn_vibration_on,
+    waitForBlending,
+)
+
+from .common import (
+    TableBDxfRobotExecutionError,
+    TableBDxfRobotStopRequested,
+    log as _log,
+    raise_if_stop_requested as _raise_if_stop_requested,
+    stop_active_motion as _stop_active_motion,
+)
+from .motion_config import robot_speed, sanding_speed
+from .tool2_recovery import clear_tool2_recovery_state, record_tool2_recovery_state
+from .tool2_side_geometry import (
+    TOOL2_APPROACH_OUTWARD_MM,
+    TOOL2_CONTACT_Z_MM,
+    TOOL2_LEFT_PREFORCE_LOCAL_X_MM,
+    TOOL2_LIFT_Z_MM,
+    split_tool2_bottom_segments,
+    tool2_left_axis7_position,
+    tool2_top_local_x_span_at_y,
+)
+
+
+TOOL2_OPERATION_SIDE = "side"
+TOOL2_OPERATION_EDGE = "edgeOutside"
+TOOL2_EDGE_RY_DEG = -22.0
+
+TOOL2_SIDE_RZ_DEG: dict[str, float] = {
+    "right": 0.0,
+    "bottom": 90.0,
+    "left": 180.0,
+    "top": -90.0,
+}
+
+# Tool 2 sands the door thickness. The force direction is tied to the physical
+# side being sanded, not to the XY surface force runner used by tools 1/3/4.
+TOOL2_SIDE_FORCE_FUNCTIONS: dict[str, Callable[..., Any]] = {
+    "right": putForceXplus,
+    "bottom": putForceYplus1,
+    "left": putForceXminus,
+    "top": putForceYminus1,
+}
+
+TOOL2_SIDE_FORCE_NAMES: dict[str, str] = {
+    side: force_func.__name__
+    for side, force_func in TOOL2_SIDE_FORCE_FUNCTIONS.items()
+}
+
+
+class _Tool2HorizontalSegment(NamedTuple):
+    side: str
+    axis7: float
+    local_start_x: float
+    local_end_x: float
+    y: float
+
+
+class _Tool2Position(NamedTuple):
+    side: str | None
+    x: float
+    y: float
+
+
+def tool2_side_rz(side: str) -> float:
+    try:
+        return TOOL2_SIDE_RZ_DEG[side]
+    except KeyError as error:
+        raise TableBDxfRobotExecutionError(f"Unknown Tool 2 side for RZ: {side!r}") from error
+
+
+def tool2_side_force_function(side: str) -> Callable[..., Any]:
+    try:
+        return TOOL2_SIDE_FORCE_FUNCTIONS[side]
+    except KeyError as error:
+        raise TableBDxfRobotExecutionError(f"Unknown Tool 2 side for force control: {side!r}") from error
+
+
+def _tool2_tcp(config: dict[str, Any]) -> str:
+    coords = config.get("coords") or {}
+    tcp = coords.get("tcpSideTool") or coords.get("tcptool2plane2")
+    if not tcp:
+        raise TableBDxfRobotExecutionError("Missing Tool 2 TCP config: coords.tcpSideTool or coords.tcptool2plane2")
+    return str(tcp)
+
+
+def _tool2_ucs(config: dict[str, Any]) -> str:
+    try:
+        return str(config["coords"]["ucsTable2"])
+    except KeyError as error:
+        raise TableBDxfRobotExecutionError("Missing Tool 2 UCS config: coords.ucsTable2") from error
+
+
+def _pose(x: float, y: float, z: float, rz: float, *, ry: float = 0.0) -> list[float]:
+    return [float(x), float(y), float(z), 0.0, float(ry), float(rz)]
+
+
+def _is_edge_operation(operation_mode: str) -> bool:
+    return operation_mode == TOOL2_OPERATION_EDGE
+
+
+def _sanding_pose(operation_mode: str, x: float, y: float, z: float, rz: float) -> list[float]:
+    ry = TOOL2_EDGE_RY_DEG if _is_edge_operation(operation_mode) else 0.0
+    return _pose(x, y, z, rz, ry=ry)
+
+
+def _mark_tool2_recovery(side: str, pose: list[float]) -> None:
+    record_tool2_recovery_state(side, pose, active=True)
+
+
+def _move(
+    cps: Any,
+    config: dict[str, Any],
+    point: list[float] | None,
+    *,
+    seventh: float = -1,
+    speed: float | None = None,
+    velocity_profile: str = "robotspeed",
+    wait: bool = True,
+    speed_mode: str | None = None,
+    require_seventh_ok: bool = False,
+) -> None:
+    result = communicate(
+        cps=cps,
+        config=config,
+        point=point,
+        tcp=_tool2_tcp(config),
+        ucs=_tool2_ucs(config),
+        seventh=seventh,
+        speed=robot_speed(config) if speed is None else speed,
+        velocity_profile=velocity_profile,
+        wait=wait,
+        speed_mode=speed_mode,
+        require_seventh_ok=require_seventh_ok,
+    )
+    if result is None:
+        raise TableBDxfRobotExecutionError(f"Tool 2 communicate failed for point={point} seventh={seventh}.")
+
+
+def _move_axis7_and_lifted_prepoint(
+    cps: Any,
+    config: dict[str, Any],
+    *,
+    axis7: float,
+    prepoint: list[float],
+) -> None:
+    """Move J7 and arm together, then block at the lifted prepoint before contact.
+
+    The J7 command is asynchronous. The following wait=True prepoint MoveL acts as
+    the force/contact barrier because communicate() waits for pending J7 idle.
+    """
+    _move(
+        cps,
+        config,
+        None,
+        seventh=axis7,
+        velocity_profile="robotspeed",
+        wait=False,
+        require_seventh_ok=True,
+    )
+    _move(
+        cps,
+        config,
+        prepoint,
+        velocity_profile="robotspeed",
+        wait=True,
+        require_seventh_ok=True,
+    )
+
+
+def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, force: float) -> None:
+    force_func = tool2_side_force_function(side)
+    ok = force_func(
+        cps=cps,
+        force=force,
+        tcp=_tool2_tcp(config),
+        ucs=_tool2_ucs(config),
+        config=config,
+    )
+    if not ok:
+        raise TableBDxfRobotExecutionError(f"Tool 2 {side} force search failed using {force_func.__name__}.")
+    if not turn_vibration_on(cps):
+        raise TableBDxfRobotExecutionError(f"Tool 2 {side} vibration did not turn on.")
+
+
+def _release_force_and_vibration(cps: Any, config: dict[str, Any], side: str) -> None:
+    waitForBlending(cps=cps, config=config)
+    turn_vibration_off(cps)
+    releaseForce(cps=cps, config=config)
+    _raise_if_stop_requested(cps, config, f"after Tool 2 {side} segment")
+
+
+def _force_ready_at_contact(
+    cps: Any,
+    config: dict[str, Any],
+    side: str,
+    operation_mode: str,
+    x: float,
+    y: float,
+    rz: float,
+) -> list[float]:
+    # All travel/placement uses RY=0. Edge bends only after the contact XY/Z is reached.
+    base_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+    _move(cps, config, base_contact, velocity_profile="robotspeed", wait=True)
+    if _is_edge_operation(operation_mode):
+        edge_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG)
+        _move(cps, config, edge_contact, velocity_profile="robotspeed", wait=True)
+        _mark_tool2_recovery(side, edge_contact)
+        return edge_contact
+    _mark_tool2_recovery(side, base_contact)
+    return base_contact
+
+
+def _reset_edge_orientation_if_needed(
+    cps: Any,
+    config: dict[str, Any],
+    operation_mode: str,
+    x: float,
+    y: float,
+    rz: float,
+) -> None:
+    if _is_edge_operation(operation_mode):
+        _move(cps, config, _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0), velocity_profile="robotspeed", wait=True)
+
+
+def _bounds_from_steps(steps: list[dict[str, Any]]) -> tuple[float, float]:
+    xs: list[float] = []
+    ys: list[float] = []
+    for step in steps:
+        for point in step.get("viewer_points") or step.get("points") or []:
+            if isinstance(point, (list, tuple)) and len(point) >= 2:
+                xs.append(float(point[0]))
+                ys.append(float(point[1]))
+    if not xs or not ys:
+        raise TableBDxfRobotExecutionError("Tool 2 batch has no side points to infer door size.")
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
+def _run_horizontal_segment(
+    cps: Any,
+    config: dict[str, Any],
+    force: float,
+    segment: _Tool2HorizontalSegment,
+    operation_mode: str,
+) -> _Tool2Position:
+    side = segment.side
+    rz = TOOL2_SIDE_RZ_DEG[side]
+    _log(
+        config,
+        "[TableB DXF Tool2] %s %s segment j7=%.3f x %.3f -> %.3f y=%.3f",
+        operation_mode,
+        side,
+        segment.axis7,
+        segment.local_start_x,
+        segment.local_end_x,
+        segment.y,
+    )
+    _move_axis7_and_lifted_prepoint(
+        cps,
+        config,
+        axis7=segment.axis7,
+        prepoint=_pose(segment.local_start_x, segment.y, TOOL2_LIFT_Z_MM, rz),
+    )
+    _force_ready_at_contact(cps, config, side, operation_mode, segment.local_start_x, segment.y, rz)
+    _apply_force_and_vibration(cps, config, side, force)
+    end_pose = _sanding_pose(operation_mode, segment.local_end_x, segment.y, TOOL2_CONTACT_Z_MM, rz)
+    _mark_tool2_recovery(side, end_pose)
+    _move(
+        cps,
+        config,
+        end_pose,
+        speed=sanding_speed(config),
+        velocity_profile="sandingspeed",
+        speed_mode="linear",
+        wait=True,
+    )
+    _release_force_and_vibration(cps, config, side)
+    _reset_edge_orientation_if_needed(cps, config, operation_mode, segment.local_end_x, segment.y, rz)
+    _move(
+        cps,
+        config,
+        _pose(segment.local_end_x, segment.y, TOOL2_LIFT_Z_MM, rz),
+        velocity_profile="robotspeed",
+        wait=True,
+    )
+    return _Tool2Position(side, segment.local_end_x, segment.y)
+
+
+def _run_horizontal_segment_operations(
+    cps: Any,
+    config: dict[str, Any],
+    force_by_mode: dict[str, float],
+    operation_modes: list[str],
+    segment: _Tool2HorizontalSegment,
+) -> _Tool2Position:
+    last_position: _Tool2Position | None = None
+    for operation_mode in operation_modes:
+        last_position = _run_horizontal_segment(
+            cps,
+            config,
+            force_by_mode[operation_mode],
+            segment,
+            operation_mode,
+        )
+    if last_position is None:
+        raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")
+    return last_position
+
+
+def _run_vertical_side(
+    cps: Any,
+    config: dict[str, Any],
+    force: float,
+    *,
+    side: str,
+    axis7: float,
+    x: float,
+    start_y: float,
+    end_y: float,
+    operation_mode: str,
+) -> _Tool2Position:
+    rz = TOOL2_SIDE_RZ_DEG[side]
+    _log(
+        config,
+        "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f",
+        operation_mode,
+        side,
+        axis7,
+        start_y,
+        end_y,
+    )
+    _move_axis7_and_lifted_prepoint(
+        cps,
+        config,
+        axis7=axis7,
+        prepoint=_pose(x, start_y, TOOL2_LIFT_Z_MM, rz),
+    )
+    _force_ready_at_contact(cps, config, side, operation_mode, x, start_y, rz)
+    _apply_force_and_vibration(cps, config, side, force)
+    end_pose = _sanding_pose(operation_mode, x, end_y, TOOL2_CONTACT_Z_MM, rz)
+    _mark_tool2_recovery(side, end_pose)
+    _move(
+        cps,
+        config,
+        end_pose,
+        speed=sanding_speed(config),
+        velocity_profile="sandingspeed",
+        speed_mode="linear",
+        wait=True,
+    )
+    _release_force_and_vibration(cps, config, side)
+    _reset_edge_orientation_if_needed(cps, config, operation_mode, x, end_y, rz)
+    _move(cps, config, _pose(x, end_y, TOOL2_LIFT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+    return _Tool2Position(side, x, end_y)
+
+
+def _run_right_side(cps: Any, config: dict[str, Any], force: float, y_total: float, operation_mode: str) -> _Tool2Position:
+    return _run_vertical_side(
+        cps,
+        config,
+        force,
+        side="right",
+        axis7=0.0,
+        x=-15.0,
+        start_y=y_total,
+        end_y=0.0,
+        operation_mode=operation_mode,
+    )
+
+
+def _run_left_side(cps: Any, config: dict[str, Any], force: float, x_total: float, y_total: float, operation_mode: str) -> _Tool2Position:
+    return _run_vertical_side(
+        cps,
+        config,
+        force,
+        side="left",
+        axis7=tool2_left_axis7_position(x_total),
+        x=TOOL2_LEFT_PREFORCE_LOCAL_X_MM,
+        start_y=0.0,
+        end_y=y_total,
+        operation_mode=operation_mode,
+    )
+
+
+def _run_right_side_operations(
+    cps: Any,
+    config: dict[str, Any],
+    force_by_mode: dict[str, float],
+    operation_modes: list[str],
+    y_total: float,
+) -> _Tool2Position:
+    last_position: _Tool2Position | None = None
+    for operation_mode in operation_modes:
+        last_position = _run_right_side(cps, config, force_by_mode[operation_mode], y_total, operation_mode)
+    if last_position is None:
+        raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
+    return last_position
+
+
+def _run_left_side_operations(
+    cps: Any,
+    config: dict[str, Any],
+    force_by_mode: dict[str, float],
+    operation_modes: list[str],
+    x_total: float,
+    y_total: float,
+) -> _Tool2Position:
+    last_position: _Tool2Position | None = None
+    for operation_mode in operation_modes:
+        last_position = _run_left_side(cps, config, force_by_mode[operation_mode], x_total, y_total, operation_mode)
+    if last_position is None:
+        raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
+    return last_position
+
+
+def _split_tool2_bottom_segments_for_traversal(x_total_mm: float) -> list[_Tool2HorizontalSegment]:
+    return [
+        _Tool2HorizontalSegment("bottom", axis7, 0.0, local_x_end, -15.0)
+        for axis7, local_x_end in split_tool2_bottom_segments(x_total_mm)
+    ]
+
+
+def _split_tool2_top_segments_increasing(x_total_mm: float, y_total_mm: float) -> list[_Tool2HorizontalSegment]:
+    x_total = max(0.0, float(x_total_mm))
+    y = float(y_total_mm) + 15.0
+    span = tool2_top_local_x_span_at_y(float(y_total_mm))
+    if x_total <= 0.0 or span is None:
+        return []
+
+    local_min, local_max = span
+    if local_max <= local_min:
+        return []
+
+    segments: list[_Tool2HorizontalSegment] = []
+    start = 0.0
+    first_axis7 = 0.0
+    if local_min <= 0.0 <= local_max:
+        first_end = min(x_total, first_axis7 + local_max)
+        if first_end > start + 1e-6:
+            segments.append(_Tool2HorizontalSegment("top", first_axis7, start - first_axis7, first_end - first_axis7, y))
+            start = first_end
+
+    while start < x_total - 1e-6:
+        axis7 = start - local_min
+        end = min(x_total, axis7 + local_max)
+        if end <= start + 1e-6:
+            break
+        segments.append(_Tool2HorizontalSegment("top", axis7, start - axis7, end - axis7, y))
+        start = end
+    return segments
+
+
+def _segments_by_station(segments: list[_Tool2HorizontalSegment], tolerance_mm: float = 1.0) -> list[tuple[float, list[_Tool2HorizontalSegment]]]:
+    ordered = sorted(segments, key=lambda segment: (segment.axis7, 0 if segment.side == "bottom" else 1))
+    stations: list[tuple[float, list[_Tool2HorizontalSegment]]] = []
+    for segment in ordered:
+        if stations and abs(stations[-1][0] - segment.axis7) <= tolerance_mm:
+            stations[-1][1].append(segment)
+        else:
+            stations.append((segment.axis7, [segment]))
+    return stations
+
+
+def _reverse_horizontal_segment(segment: _Tool2HorizontalSegment) -> _Tool2HorizontalSegment:
+    return _Tool2HorizontalSegment(
+        segment.side,
+        segment.axis7,
+        segment.local_end_x,
+        segment.local_start_x,
+        segment.y,
+    )
+
+
+def _ordered_station_segments(
+    station_segments: list[_Tool2HorizontalSegment],
+    last_position: _Tool2Position | None,
+) -> list[_Tool2HorizontalSegment]:
+    if len(station_segments) <= 1:
+        return station_segments
+
+    by_side = {segment.side: segment for segment in station_segments}
+    if last_position and last_position.side == "bottom":
+        order = ["bottom", "top"]
+    elif last_position and last_position.side == "top":
+        order = ["top", "bottom"]
+    else:
+        order = ["top", "bottom"]
+    return [by_side[side] for side in order if side in by_side]
+
+
+def _run_tool2_station_traversal(
+    cps: Any,
+    config: dict[str, Any],
+    force_by_mode: dict[str, float],
+    x_total: float,
+    y_total: float,
+    operation_modes: list[str],
+) -> None:
+    bottom_segments = _split_tool2_bottom_segments_for_traversal(x_total)
+    top_segments = _split_tool2_top_segments_increasing(x_total, y_total)
+    if not bottom_segments and not top_segments:
+        raise TableBDxfRobotExecutionError("Tool 2 has no reachable top/bottom side segments.")
+
+    _log(
+        config,
+        "[TableB DXF Tool2] operations=%s station traversal bottom_segments=%s top_segments=%s",
+        "+".join(operation_modes),
+        len(bottom_segments),
+        len(top_segments),
+    )
+
+    stations = _segments_by_station([*bottom_segments, *top_segments])
+    last_position: _Tool2Position | None = None
+    right_done = False
+    left_done = False
+
+    for station_index, (axis7, station_segments) in enumerate(stations):
+        _raise_if_stop_requested(cps, config, f"before Tool 2 {'+'.join(operation_modes)} station {station_index + 1}")
+        ordered_segments = _ordered_station_segments(station_segments, last_position)
+
+        if not right_done and abs(axis7) <= 1.0:
+            # At J7=0, run the reachable top split back toward X=0 so the tool
+            # ends near the right-side transition before sanding top->bottom.
+            for segment in [s for s in ordered_segments if s.side == "top"]:
+                last_position = _run_horizontal_segment_operations(
+                    cps,
+                    config,
+                    force_by_mode,
+                    operation_modes,
+                    _reverse_horizontal_segment(segment),
+                )
+            last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total)
+            right_done = True
+            for segment in [s for s in ordered_segments if s.side == "bottom"]:
+                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+            continue
+
+        is_final_station = station_index == len(stations) - 1
+        if is_final_station and not left_done:
+            # Finish near the left side with the closest horizontal segment first, then left side, then the remaining segment.
+            bottom_first = last_position is None or last_position.side == "bottom"
+            first_side = "bottom" if bottom_first else "top"
+            second_side = "top" if bottom_first else "bottom"
+            for segment in [s for s in ordered_segments if s.side == first_side]:
+                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+            last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total)
+            left_done = True
+            for segment in [s for s in ordered_segments if s.side == second_side]:
+                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+            continue
+
+        for segment in ordered_segments:
+            last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+
+    if not right_done:
+        _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total)
+    if not left_done:
+        _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total)
+
+
+def _force_for_steps(steps: list[dict[str, Any]]) -> float:
+    for step in steps:
+        try:
+            force = float((step.get("recipe") or {}).get("force") or 0.0)
+        except (TypeError, ValueError):
+            force = 0.0
+        if force > 0:
+            return force
+    raise TableBDxfRobotExecutionError("Tool 2 batch has no valid force value.")
+
+
+def _operation_mode_for_step(step: dict[str, Any]) -> str:
+    tool = str(step.get("tool") or "")
+    if tool == "tool_2_edgeOutside":
+        return TOOL2_OPERATION_EDGE
+    return TOOL2_OPERATION_SIDE
+
+
+def _operation_groups(steps: list[dict[str, Any]]) -> list[tuple[str, list[dict[str, Any]]]]:
+    groups: dict[str, list[dict[str, Any]]] = {
+        TOOL2_OPERATION_SIDE: [],
+        TOOL2_OPERATION_EDGE: [],
+    }
+    for step in steps:
+        groups[_operation_mode_for_step(step)].append(step)
+    # Physical order for combined Tool 2 work: side first, then edge on the same pass.
+    return [(mode, groups[mode]) for mode in (TOOL2_OPERATION_SIDE, TOOL2_OPERATION_EDGE) if groups[mode]]
+
+
+def _run_tool2_sequence(cps: Any, config: dict[str, Any], steps: list[dict[str, Any]], operation_mode: str) -> int:
+    force = _force_for_steps(steps)
+    x_total, y_total = _bounds_from_steps(steps)
+    _log(
+        config,
+        "[TableB DXF Tool2] %s start x_total=%.3f y_total=%.3f force=%.1f outward=%.1f edge_ry=%.1f",
+        operation_mode,
+        x_total,
+        y_total,
+        force,
+        TOOL2_APPROACH_OUTWARD_MM,
+        TOOL2_EDGE_RY_DEG if _is_edge_operation(operation_mode) else 0.0,
+    )
+
+    _raise_if_stop_requested(cps, config, f"before Tool 2 {operation_mode} batch")
+    _run_tool2_station_traversal(cps, config, {operation_mode: force}, x_total, y_total, [operation_mode])
+    return len(steps)
+
+
+def run_tool2_side_batch(cps: Any, config: dict[str, Any], steps: list[dict[str, Any]]) -> int:
+    """Run selected Tool 2 side/thickness operations.
+
+    `tool_2_side` keeps RY=0 throughout sanding. `tool_2_edgeOutside` travels
+    with RY=0, bends to RY=-22 only after the contact XY/Z is reached, applies
+    force/vibration, sands the pass with RY=-22, then resets RY=0 before moving.
+    """
+    if not steps:
+        return 0
+
+    executed = 0
+    try:
+        groups = _operation_groups(steps)
+        if len(groups) > 1:
+            operation_modes = [mode for mode, _grouped_steps in groups]
+            force_by_mode = {mode: _force_for_steps(grouped_steps) for mode, grouped_steps in groups}
+            x_total, y_total = _bounds_from_steps(steps)
+            _log(
+                config,
+                "[TableB DXF Tool2] combined operations=%s x_total=%.3f y_total=%.3f forces=%s",
+                "+".join(operation_modes),
+                x_total,
+                y_total,
+                force_by_mode,
+            )
+            _raise_if_stop_requested(cps, config, "before combined Tool 2 batch")
+            _run_tool2_station_traversal(cps, config, force_by_mode, x_total, y_total, operation_modes)
+            executed = len(steps)
+        else:
+            for operation_mode, grouped_steps in groups:
+                executed += _run_tool2_sequence(cps, config, grouped_steps, operation_mode)
+        clear_tool2_recovery_state()
+    except TableBDxfRobotStopRequested:
+        raise
+    except Exception:
+        _stop_active_motion(cps, config, "Tool 2 side/edge batch error")
+        raise
+
+    return executed
+
+
+def run_tool2_side_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) -> None:
+    """Compatibility wrapper for callers that still pass one Tool 2 step."""
+    run_tool2_side_batch(cps, config, [step])
