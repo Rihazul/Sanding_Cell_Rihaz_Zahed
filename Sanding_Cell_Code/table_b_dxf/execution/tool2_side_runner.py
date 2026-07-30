@@ -390,8 +390,9 @@ def _run_horizontal_segment_operations(
     keep_contact_after = segment.side == "bottom" and next_side == "bottom"
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
-        is_first_operation = index == 0
-        is_last_operation = index == len(operation_modes) - 1
+        has_next_same_pass_operation = index + 1 < len(operation_modes)
+        enter_from_contact_for_operation = (enter_from_contact and index == 0) or index > 0
+        lift_after_operation = False if has_next_same_pass_operation else not keep_contact_after
         last_position = _run_horizontal_segment(
             cps,
             config,
@@ -399,8 +400,8 @@ def _run_horizontal_segment_operations(
             segment,
             operation_mode,
             lift_z=lift_z,
-            enter_from_contact=enter_from_contact and is_first_operation,
-            lift_after=(not keep_contact_after) if is_last_operation else True,
+            enter_from_contact=enter_from_contact_for_operation,
+            lift_after=lift_after_operation,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")
@@ -419,24 +420,47 @@ def _run_vertical_side(
     end_y: float,
     operation_mode: str,
     lift_z: float | None = None,
+    enter_from_contact: bool = False,
+    lift_after: bool = True,
 ) -> _Tool2Position:
     rz = TOOL2_SIDE_RZ_DEG[side]
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
     _log(
         config,
-        "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f",
+        "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f enter_from_contact=%s lift_after=%s",
         operation_mode,
         side,
         axis7,
         start_y,
         end_y,
+        enter_from_contact,
+        lift_after,
     )
-    _move_axis7_and_lifted_prepoint(
-        cps,
-        config,
-        axis7=axis7,
-        prepoint=_pose(x, start_y, lift_z, rz),
-    )
+    if enter_from_contact:
+        _move(
+            cps,
+            config,
+            None,
+            seventh=axis7,
+            velocity_profile="robotspeed",
+            wait=False,
+            require_seventh_ok=True,
+        )
+        _move(
+            cps,
+            config,
+            _pose(x, start_y, TOOL2_CONTACT_Z_MM, rz),
+            velocity_profile="robotspeed",
+            wait=True,
+            require_seventh_ok=True,
+        )
+    else:
+        _move_axis7_and_lifted_prepoint(
+            cps,
+            config,
+            axis7=axis7,
+            prepoint=_pose(x, start_y, lift_z, rz),
+        )
     _force_ready_at_contact(cps, config, side, operation_mode, x, start_y, rz)
     _apply_force_and_vibration(cps, config, side, force)
     end_pose = _sanding_pose(operation_mode, x, end_y, TOOL2_CONTACT_Z_MM, rz)
@@ -453,11 +477,22 @@ def _run_vertical_side(
     )
     _release_force_and_vibration(cps, config, side)
     _reset_edge_orientation_if_needed(cps, config, operation_mode, x, end_y, rz)
-    _move(cps, config, _pose(x, end_y, tool2_lift_z_for_side(side), rz), velocity_profile="robotspeed", wait=True)
+    if lift_after:
+        _move(cps, config, _pose(x, end_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
     return _Tool2Position(side, x, end_y, rz)
 
 
-def _run_right_side(cps: Any, config: dict[str, Any], force: float, y_total: float, operation_mode: str, lift_z: float | None = None) -> _Tool2Position:
+def _run_right_side(
+    cps: Any,
+    config: dict[str, Any],
+    force: float,
+    y_total: float,
+    operation_mode: str,
+    lift_z: float | None = None,
+    *,
+    enter_from_contact: bool = False,
+    lift_after: bool = True,
+) -> _Tool2Position:
     return _run_vertical_side(
         cps,
         config,
@@ -469,10 +504,23 @@ def _run_right_side(cps: Any, config: dict[str, Any], force: float, y_total: flo
         end_y=0.0,
         operation_mode=operation_mode,
         lift_z=lift_z,
+        enter_from_contact=enter_from_contact,
+        lift_after=lift_after,
     )
 
 
-def _run_left_side(cps: Any, config: dict[str, Any], force: float, x_total: float, y_total: float, operation_mode: str, lift_z: float | None = None) -> _Tool2Position:
+def _run_left_side(
+    cps: Any,
+    config: dict[str, Any],
+    force: float,
+    x_total: float,
+    y_total: float,
+    operation_mode: str,
+    lift_z: float | None = None,
+    *,
+    enter_from_contact: bool = False,
+    lift_after: bool = True,
+) -> _Tool2Position:
     return _run_vertical_side(
         cps,
         config,
@@ -484,6 +532,8 @@ def _run_left_side(cps: Any, config: dict[str, Any], force: float, x_total: floa
         end_y=y_total,
         operation_mode=operation_mode,
         lift_z=lift_z,
+        enter_from_contact=enter_from_contact,
+        lift_after=lift_after,
     )
 
 
@@ -498,8 +548,18 @@ def _run_right_side_operations(
     _apply_side_transition_j6(cps, config, previous_position, "right")
     lift_z = _lift_z_for_transition(previous_position, "right")
     last_position: _Tool2Position | None = None
-    for operation_mode in operation_modes:
-        last_position = _run_right_side(cps, config, force_by_mode[operation_mode], y_total, operation_mode, lift_z=lift_z)
+    for index, operation_mode in enumerate(operation_modes):
+        has_next_same_pass_operation = index + 1 < len(operation_modes)
+        last_position = _run_right_side(
+            cps,
+            config,
+            force_by_mode[operation_mode],
+            y_total,
+            operation_mode,
+            lift_z=lift_z,
+            enter_from_contact=index > 0,
+            lift_after=not has_next_same_pass_operation,
+        )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
     return last_position
@@ -517,8 +577,19 @@ def _run_left_side_operations(
     _apply_side_transition_j6(cps, config, previous_position, "left")
     lift_z = _lift_z_for_transition(previous_position, "left")
     last_position: _Tool2Position | None = None
-    for operation_mode in operation_modes:
-        last_position = _run_left_side(cps, config, force_by_mode[operation_mode], x_total, y_total, operation_mode, lift_z=lift_z)
+    for index, operation_mode in enumerate(operation_modes):
+        has_next_same_pass_operation = index + 1 < len(operation_modes)
+        last_position = _run_left_side(
+            cps,
+            config,
+            force_by_mode[operation_mode],
+            x_total,
+            y_total,
+            operation_mode,
+            lift_z=lift_z,
+            enter_from_contact=index > 0,
+            lift_after=not has_next_same_pass_operation,
+        )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
     return last_position
