@@ -570,7 +570,15 @@ def _run_tool2_station_traversal(
     )
 
     stations = _segments_by_station([*bottom_segments, *top_segments])
-    last_position: _Tool2Position | None = None
+    # Tool 2 starts from the Table B homing/aligned orientation, which is the
+    # bottom-side orientation (RZ=90). This makes an initial top pass use the
+    # required bottom -> top J6 +180 transition instead of Cartesian -180.
+    last_position: _Tool2Position | None = _Tool2Position(
+        "bottom",
+        0.0,
+        -15.0,
+        TOOL2_SIDE_RZ_DEG["bottom"],
+    )
     right_done = False
     left_done = False
 

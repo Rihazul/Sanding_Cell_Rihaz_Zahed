@@ -5,7 +5,7 @@ from typing import Sequence
 
 
 TOOL2_APPROACH_OUTWARD_MM = 15.0
-TOOL2_LIFT_Z_MM = -55.0
+TOOL2_LIFT_Z_MM = -68.0
 TOOL2_CONTACT_Z_MM = 0.0
 
 # Bottom side: with one J7 station, Tool 2 can safely sand 700 mm in local X.

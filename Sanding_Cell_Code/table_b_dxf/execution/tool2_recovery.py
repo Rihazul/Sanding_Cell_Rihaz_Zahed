@@ -129,7 +129,7 @@ def _inward_clearance_pose(side: str, pose: list[float], inward_mm: float) -> li
 def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> bool:
     """Retract Tool 2 safely after a stop before running the normal homing path.
 
-    Tool 2 can only traverse freely at Z <= -55 in Table B plane 2. If the
+    Tool 2 can only traverse freely at Z <= -68 in Table B plane 2. If the
     operator stops during side sanding, the commanded XY is already on the
     15 mm safe-offset line. Homing must lift there first, move inward into a
     safer clearance corridor, then allow the existing homing sequence to continue.
