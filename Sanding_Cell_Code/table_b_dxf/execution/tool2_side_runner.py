@@ -437,6 +437,7 @@ def _run_horizontal_segment(
     _release_force_and_vibration(cps, config, side)
     _reset_edge_orientation_if_needed(cps, config, operation_mode, segment.local_end_x, y, rz)
     if lift_after:
+        _move(cps, config, _pose(segment.local_end_x, y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
         _move(
             cps,
             config,
@@ -466,9 +467,9 @@ def _run_horizontal_segment_operations(
     keep_contact_after = segment.side == "bottom" and next_side == "bottom"
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
-        has_next_same_pass_operation = index + 1 < len(operation_modes)
-        enter_from_contact_for_operation = (enter_from_contact and index == 0) or index > 0
-        lift_after_operation = False if has_next_same_pass_operation else not keep_contact_after
+        combined_mode = len(operation_modes) > 1
+        enter_from_contact_for_operation = False if combined_mode else (enter_from_contact and index == 0)
+        lift_after_operation = True if combined_mode else not keep_contact_after
         last_position = _run_horizontal_segment(
             cps,
             config,
@@ -568,6 +569,7 @@ def _run_vertical_side(
     _release_force_and_vibration(cps, config, side)
     _reset_edge_orientation_if_needed(cps, config, operation_mode, x, end_y, rz)
     if lift_after:
+        _move(cps, config, _pose(x, end_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
         lift_y = _left_side_bottom_lift_y(side, end_y)
         if lift_y is not None:
             _move(cps, config, _pose(x, lift_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
@@ -651,7 +653,7 @@ def _run_right_side_operations(
     lift_z = _lift_z_for_transition(previous_position, "right")
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
-        has_next_same_pass_operation = index + 1 < len(operation_modes)
+        combined_mode = len(operation_modes) > 1
         last_position = _run_right_side(
             cps,
             config,
@@ -659,8 +661,8 @@ def _run_right_side_operations(
             y_total,
             operation_mode,
             lift_z=lift_z,
-            enter_from_contact=index > 0,
-            lift_after=not has_next_same_pass_operation,
+            enter_from_contact=False if combined_mode else index > 0,
+            lift_after=True if combined_mode else index + 1 >= len(operation_modes),
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
@@ -682,7 +684,7 @@ def _run_left_side_operations(
     start_from_top = bool(previous_position and previous_position.side == "top")
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
-        has_next_same_pass_operation = index + 1 < len(operation_modes)
+        combined_mode = len(operation_modes) > 1
         last_position = _run_left_side(
             cps,
             config,
@@ -692,8 +694,8 @@ def _run_left_side_operations(
             operation_mode,
             lift_z=lift_z,
             start_from_top=start_from_top,
-            enter_from_contact=index > 0,
-            lift_after=not has_next_same_pass_operation,
+            enter_from_contact=False if combined_mode else index > 0,
+            lift_after=True if combined_mode else index + 1 >= len(operation_modes),
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
         )
     if last_position is None:
