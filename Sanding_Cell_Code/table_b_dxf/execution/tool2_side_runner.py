@@ -22,7 +22,7 @@ from .common import (
     raise_if_stop_requested as _raise_if_stop_requested,
     stop_active_motion as _stop_active_motion,
 )
-from .joint_safety import guarded_move_j6_to_absolute
+from .joint_safety import guarded_move_only_j6r
 from .motion_config import robot_speed, sanding_speed
 from .tool2_recovery import clear_tool2_recovery_state, record_tool2_recovery_state
 from .tool2_side_geometry import (
@@ -51,14 +51,21 @@ TOOL2_SIDE_RZ_DEG: dict[str, float] = {
     "top": -90.0,
 }
 
-# Measured absolute J6 targets for Tool 2 on plane 2 / tcp_tool2.
-# RZ 0, 90, 180, -90 maps to these joint positions respectively.
-TOOL2_SIDE_J6_DEG: dict[str, float] = {
-    "right": 17.280,
-    "bottom": 106.943,
-    "left": 197.450,
-    "top": 287.780,
+# Coordinate RZ is the source of truth for Tool 2 side orientation.
+# Relative J6 is used only to force the wrist to rotate through the safe direction.
+TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
+    ("bottom", "top"): 180.0,
+    ("top", "bottom"): -180.0,
+    ("top", "right"): -270.0,
+    ("right", "top"): 270.0,
+    ("bottom", "right"): -90.0,
+    ("right", "bottom"): 90.0,
+    ("bottom", "left"): 90.0,
+    ("left", "bottom"): -90.0,
+    ("left", "top"): 90.0,
+    ("top", "left"): -90.0,
 }
+
 # Tool 2 sands the door thickness. The force direction is tied to the physical
 # side being sanded, not to the XY surface force runner used by tools 1/3/4.
 TOOL2_SIDE_FORCE_FUNCTIONS: dict[str, Callable[..., Any]] = {
@@ -281,8 +288,8 @@ def _apply_side_transition_j6(
 ) -> None:
     if previous_position is None or previous_position.side is None or previous_position.side == next_side:
         return
-    target_j6 = TOOL2_SIDE_J6_DEG.get(next_side)
-    if target_j6 is None:
+    j6_delta = TOOL2_SIDE_TRANSITION_J6_DEG.get((previous_position.side, next_side))
+    if j6_delta is None or abs(j6_delta) <= 1e-6:
         return
     if previous_position.side == "top" and next_side == "bottom":
         mid_y = _transition_mid_y(y_total)
@@ -307,18 +314,13 @@ def _apply_side_transition_j6(
     )
     _log(
         config,
-        "[TableB DXF Tool2] side transition %s -> %s using absolute J6 %.3f",
+        "[TableB DXF Tool2] side transition %s -> %s using coordinate RZ %.1f and relative J6 delta %.1f",
         previous_position.side,
         next_side,
-        target_j6,
+        TOOL2_SIDE_RZ_DEG[next_side],
+        j6_delta,
     )
-    guarded_move_j6_to_absolute(
-        cps,
-        target_j6,
-        config,
-        wait=True,
-        context=f"Tool 2 side transition {previous_position.side} -> {next_side}",
-    )
+    guarded_move_only_j6r(cps, j6_delta, config, wait=True, context=f"Tool 2 side transition {previous_position.side} -> {next_side}")
 
 
 def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, force: float) -> None:
@@ -509,15 +511,8 @@ def _run_horizontal_segment_operations(
     y_total: float | None = None,
 ) -> _Tool2Position:
     if previous_position is None and segment.side == "top":
-        target_j6 = TOOL2_SIDE_J6_DEG["top"]
-        _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using absolute J6 %.3f", target_j6)
-        guarded_move_j6_to_absolute(
-            cps,
-            target_j6,
-            config,
-            wait=True,
-            context="Tool 2 initial homing bottom-orientation -> top",
-        )
+        _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using coordinate RZ -90 and relative J6 +180")
+        guarded_move_only_j6r(cps, 180.0, config, wait=True, context="Tool 2 initial homing bottom-orientation -> top")
     _apply_side_transition_j6(cps, config, previous_position, segment.side, y_total)
     lift_z = _lift_z_for_transition(previous_position, segment.side)
     enter_from_contact = bool(previous_position and previous_position.side == "bottom" and segment.side == "bottom")
