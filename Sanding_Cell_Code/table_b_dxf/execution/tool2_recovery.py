@@ -5,8 +5,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from Server_Better_V2 import communicate, moveOnlyJ6r
+from Server_Better_V2 import communicate
 
+from .joint_safety import guarded_move_j6_to_absolute, guarded_move_only_j6r
 from .motion_config import robot_speed
 from .tool2_side_geometry import (
     TOOL2_APPROACH_OUTWARD_MM,
@@ -324,7 +325,16 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
             j6_delta,
             TOOL2_HOMING_RZ_DEG,
         )
-        moveOnlyJ6r(cps, j6_delta, config, wait=True)
+        if _is_upper_homing_clearance_zone(clearance_pose):
+            guarded_move_j6_to_absolute(
+                cps,
+                TOOL2_HOMING_J6_DEG,
+                config,
+                wait=True,
+                context=f"Tool 2 recovery absolute J6 homing from {side}",
+            )
+        else:
+            guarded_move_only_j6r(cps, j6_delta, config, wait=True, context=f"Tool 2 recovery to homing from {side}")
     communicate(
         cps=cps,
         config=config,

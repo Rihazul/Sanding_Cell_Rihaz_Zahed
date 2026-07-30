@@ -5,7 +5,6 @@ from typing import Any, NamedTuple
 
 from Server_Better_V2 import (
     communicate,
-    moveOnlyJ6r,
     putForceXminus,
     putForceXplus,
     putForceYminus1,
@@ -23,6 +22,7 @@ from .common import (
     raise_if_stop_requested as _raise_if_stop_requested,
     stop_active_motion as _stop_active_motion,
 )
+from .joint_safety import guarded_move_j6_to_absolute
 from .motion_config import robot_speed, sanding_speed
 from .tool2_recovery import clear_tool2_recovery_state, record_tool2_recovery_state
 from .tool2_side_geometry import (
@@ -51,20 +51,14 @@ TOOL2_SIDE_RZ_DEG: dict[str, float] = {
     "top": -90.0,
 }
 
-# Explicit wrist direction for side changes. Positive J6 is clockwise on this cell.
-TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
-    ("bottom", "top"): 180.0,
-    ("top", "bottom"): -180.0,
-    ("top", "right"): -270.0,
-    ("right", "top"): 270.0,
-    ("bottom", "right"): -90.0,
-    ("right", "bottom"): 90.0,
-    ("bottom", "left"): 90.0,
-    ("left", "bottom"): -90.0,
-    ("left", "top"): 90.0,
-    ("top", "left"): -90.0,
+# Measured absolute J6 targets for Tool 2 on plane 2 / tcp_tool2.
+# RZ 0, 90, 180, -90 maps to these joint positions respectively.
+TOOL2_SIDE_J6_DEG: dict[str, float] = {
+    "right": 17.280,
+    "bottom": 106.943,
+    "left": 197.450,
+    "top": 287.780,
 }
-
 # Tool 2 sands the door thickness. The force direction is tied to the physical
 # side being sanded, not to the XY surface force runner used by tools 1/3/4.
 TOOL2_SIDE_FORCE_FUNCTIONS: dict[str, Callable[..., Any]] = {
@@ -92,6 +86,7 @@ class _Tool2Position(NamedTuple):
     side: str | None
     x: float
     y: float
+    z: float
     rz: float
 
 
@@ -265,8 +260,9 @@ def _prepare_bottom_side_exit_before_j6(
         clearance_y,
         x,
     )
-    _move(cps, config, _pose(x, y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-    _move(cps, config, _pose(x, y, tool2_lift_z_for_side("bottom"), rz), velocity_profile="robotspeed", wait=True)
+    if previous_position.z > -5.0:
+        _move(cps, config, _pose(x, y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        _move(cps, config, _pose(x, y, tool2_lift_z_for_side("bottom"), rz), velocity_profile="robotspeed", wait=True)
     _move(
         cps,
         config,
@@ -285,8 +281,8 @@ def _apply_side_transition_j6(
 ) -> None:
     if previous_position is None or previous_position.side is None or previous_position.side == next_side:
         return
-    j6_delta = TOOL2_SIDE_TRANSITION_J6_DEG.get((previous_position.side, next_side))
-    if j6_delta is None or abs(j6_delta) <= 1e-6:
+    target_j6 = TOOL2_SIDE_J6_DEG.get(next_side)
+    if target_j6 is None:
         return
     if previous_position.side == "top" and next_side == "bottom":
         mid_y = _transition_mid_y(y_total)
@@ -305,14 +301,24 @@ def _apply_side_transition_j6(
                 wait=True,
             )
     _prepare_bottom_side_exit_before_j6(cps, config, previous_position, next_side, y_total)
+    record_tool2_recovery_state(
+        previous_position.side,
+        _pose(previous_position.x, previous_position.y, previous_position.z, previous_position.rz),
+    )
     _log(
         config,
-        "[TableB DXF Tool2] side transition %s -> %s using J6 delta %.1f",
+        "[TableB DXF Tool2] side transition %s -> %s using absolute J6 %.3f",
         previous_position.side,
         next_side,
-        j6_delta,
+        target_j6,
     )
-    moveOnlyJ6r(cps, j6_delta, config, wait=True)
+    guarded_move_j6_to_absolute(
+        cps,
+        target_j6,
+        config,
+        wait=True,
+        context=f"Tool 2 side transition {previous_position.side} -> {next_side}",
+    )
 
 
 def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, force: float) -> None:
@@ -348,14 +354,15 @@ def _force_ready_at_contact(
     y: float,
     rz: float,
 ) -> list[float]:
-    # All travel/placement uses RY=0. Edge bends only after the contact XY/Z is reached.
-    base_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
-    _move(cps, config, base_contact, velocity_profile="robotspeed", wait=True)
     if _is_edge_operation(operation_mode):
+        # Edge must move to the 5 mm offset and RY=-22 in one command before force starts.
         edge_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG)
-        _move(cps, config, edge_contact, velocity_profile="robotspeed", wait=True)
+        _move(cps, config, edge_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
         _mark_tool2_recovery(side, edge_contact)
         return edge_contact
+
+    base_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+    _move(cps, config, base_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
     _mark_tool2_recovery(side, base_contact)
     return base_contact
 
@@ -424,14 +431,15 @@ def _run_horizontal_segment(
                 wait=True,
                 require_seventh_ok=True,
             )
-        _move(
-            cps,
-            config,
-            _pose(path_start_x, y, TOOL2_CONTACT_Z_MM, rz),
-            velocity_profile="robotspeed",
-            wait=True,
-            require_seventh_ok=True,
-        )
+        if not _is_edge_operation(operation_mode):
+            _move(
+                cps,
+                config,
+                _pose(path_start_x, y, TOOL2_CONTACT_Z_MM, rz),
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=True,
+            )
     else:
         _move_axis7_and_lifted_prepoint(
             cps,
@@ -485,7 +493,8 @@ def _run_horizontal_segment(
             velocity_profile="robotspeed",
             wait=True,
         )
-    return _Tool2Position(side, path_end_x, exit_y, rz)
+    final_z = lift_z if lift_after else TOOL2_CONTACT_Z_MM
+    return _Tool2Position(side, path_end_x, exit_y, final_z, rz)
 
 
 def _run_horizontal_segment_operations(
@@ -500,8 +509,15 @@ def _run_horizontal_segment_operations(
     y_total: float | None = None,
 ) -> _Tool2Position:
     if previous_position is None and segment.side == "top":
-        _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using J6 +180")
-        moveOnlyJ6r(cps, 180.0, config, wait=True)
+        target_j6 = TOOL2_SIDE_J6_DEG["top"]
+        _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using absolute J6 %.3f", target_j6)
+        guarded_move_j6_to_absolute(
+            cps,
+            target_j6,
+            config,
+            wait=True,
+            context="Tool 2 initial homing bottom-orientation -> top",
+        )
     _apply_side_transition_j6(cps, config, previous_position, segment.side, y_total)
     lift_z = _lift_z_for_transition(previous_position, segment.side)
     enter_from_contact = bool(previous_position and previous_position.side == "bottom" and segment.side == "bottom")
@@ -582,14 +598,15 @@ def _run_vertical_side(
                 wait=True,
                 require_seventh_ok=True,
             )
-        _move(
-            cps,
-            config,
-            _pose(x, path_start_y, TOOL2_CONTACT_Z_MM, rz),
-            velocity_profile="robotspeed",
-            wait=True,
-            require_seventh_ok=True,
-        )
+        if not _is_edge_operation(operation_mode):
+            _move(
+                cps,
+                config,
+                _pose(x, path_start_y, TOOL2_CONTACT_Z_MM, rz),
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=True,
+            )
     else:
         _move_axis7_and_lifted_prepoint(
             cps,
@@ -628,9 +645,10 @@ def _run_vertical_side(
         if lift_y is not None:
             _move(cps, config, _pose(exit_x, lift_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
             _move(cps, config, _pose(exit_x, lift_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
-            return _Tool2Position(side, exit_x, lift_y, rz)
+            return _Tool2Position(side, exit_x, lift_y, lift_z, rz)
         _move(cps, config, _pose(exit_x, path_end_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
-    return _Tool2Position(side, exit_x, path_end_y, rz)
+    final_z = lift_z if lift_after else TOOL2_CONTACT_Z_MM
+    return _Tool2Position(side, exit_x, path_end_y, final_z, rz)
 
 
 def _run_right_side(
@@ -860,7 +878,7 @@ def _next_side_in_sequence(
 ) -> str | None:
     if index + 1 < len(sequence):
         return sequence[index + 1].side
-    assumed_position = _Tool2Position(current_side, 0.0, 0.0, TOOL2_SIDE_RZ_DEG[current_side])
+    assumed_position = _Tool2Position(current_side, 0.0, 0.0, TOOL2_CONTACT_Z_MM, TOOL2_SIDE_RZ_DEG[current_side])
     return _next_station_first_side(stations, next_station_index, assumed_position)
 
 

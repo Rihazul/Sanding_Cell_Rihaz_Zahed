@@ -7,7 +7,6 @@ from Server_Better_V2 import (
     communicate,
     getTool11,
     keepTool11,
-    moveOnlyJ6r,
 )
 
 from .common import (
@@ -16,7 +15,9 @@ from .common import (
     log as _log,
     raise_if_stop_requested as _raise_if_stop_requested,
 )
+from .joint_safety import JointSafetyLimitError, guarded_move_j6_to_absolute, guarded_move_only_j6r
 from .motion_config import robot_speed, table_b_ucs, tcp_for_physical_tool
+from .tool2_recovery import TOOL2_HOMING_J6_DEG, recover_tool2_before_homing_if_needed
 from .tool2_side_runner import run_tool2_side_batch
 from .xy_force_runner import run_force_xy_path
 
@@ -70,12 +71,13 @@ def _apply_tool_transition_correction(
         correction["J1"],
         correction["J6"],
     )
-    moveOnlyJ6r(
+    guarded_move_only_j6r(
         cps,
         correction["J6"],
         config,
         J1=correction["J1"],
         wait=True,
+        context=f"Tool {current_tool} -> Tool {requested_tool} transition correction",
     )
 
 
@@ -206,13 +208,31 @@ def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> di
             _move_arm_to_task_home(cps, config, f"before tool {physical_tool} operation")
 
         steps = list(batch.get("steps") or [])
-        if physical_tool == 2:
-            executed_steps += run_tool2_side_batch(cps, config, steps)
-        else:
-            for step in steps:
-                _raise_if_stop_requested(cps, config, "before next path")
-                run_force_xy_path(cps, config, step)
-                executed_steps += 1
+        try:
+            if physical_tool == 2:
+                executed_steps += run_tool2_side_batch(cps, config, steps)
+            else:
+                for step in steps:
+                    _raise_if_stop_requested(cps, config, "before next path")
+                    run_force_xy_path(cps, config, step)
+                    executed_steps += 1
+        except JointSafetyLimitError:
+            if physical_tool == 2:
+                _log(
+                    config,
+                    "[TableB DXF Robot] Tool 2 joint safety limit reached; aborting task and stabilizing to homing.",
+                )
+                recovered = recover_tool2_before_homing_if_needed(cps, config)
+                if not recovered:
+                    guarded_move_j6_to_absolute(
+                        cps,
+                        TOOL2_HOMING_J6_DEG,
+                        config,
+                        wait=True,
+                        context="Tool 2 joint-limit fallback absolute J6 homing",
+                    )
+                _return_to_home_with_tool(cps, config, physical_tool)
+            raise
 
         _return_to_home_with_tool(cps, config, physical_tool)
         _log(config, "[TableB DXF Robot] === TOOL %s BATCH COMPLETE ===", physical_tool)
