@@ -47,6 +47,20 @@ TOOL2_SIDE_RZ_DEG: dict[str, float] = {
     "top": -90.0,
 }
 
+# Explicit wrist direction for side changes. Positive J6 is clockwise on this cell.
+TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
+    ("bottom", "top"): 180.0,
+    ("top", "bottom"): -180.0,
+    ("top", "right"): -270.0,
+    ("right", "top"): 270.0,
+    ("bottom", "right"): -90.0,
+    ("right", "bottom"): 90.0,
+    ("bottom", "left"): 90.0,
+    ("left", "bottom"): -90.0,
+    ("left", "top"): 90.0,
+    ("top", "left"): -90.0,
+}
+
 # Tool 2 sands the door thickness. The force direction is tied to the physical
 # side being sanded, not to the XY surface force runner used by tools 1/3/4.
 TOOL2_SIDE_FORCE_FUNCTIONS: dict[str, Callable[..., Any]] = {
@@ -74,6 +88,7 @@ class _Tool2Position(NamedTuple):
     side: str | None
     x: float
     y: float
+    rz: float
 
 
 def tool2_side_rz(side: str) -> float:
@@ -182,6 +197,27 @@ def _move_axis7_and_lifted_prepoint(
     )
 
 
+def _apply_side_transition_j6(
+    cps: Any,
+    config: dict[str, Any],
+    previous_position: _Tool2Position | None,
+    next_side: str,
+) -> None:
+    if previous_position is None or previous_position.side is None or previous_position.side == next_side:
+        return
+    j6_delta = TOOL2_SIDE_TRANSITION_J6_DEG.get((previous_position.side, next_side))
+    if j6_delta is None or abs(j6_delta) <= 1e-6:
+        return
+    _log(
+        config,
+        "[TableB DXF Tool2] side transition %s -> %s using J6 delta %.1f",
+        previous_position.side,
+        next_side,
+        j6_delta,
+    )
+    moveOnlyJ6r(cps, j6_delta, config, wait=True)
+
+
 def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, force: float) -> None:
     force_func = tool2_side_force_function(side)
     ok = force_func(
@@ -191,7 +227,9 @@ def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, forc
         ucs=_tool2_ucs(config),
         config=config,
     )
-    if not ok:
+    # Existing force helpers return None on normal success. Treat only explicit
+    # False as failure so the sanding MoveL can start after force contact.
+    if ok is False:
         raise TableBDxfRobotExecutionError(f"Tool 2 {side} force search failed using {force_func.__name__}.")
     if not turn_vibration_on(cps):
         raise TableBDxfRobotExecutionError(f"Tool 2 {side} vibration did not turn on.")
@@ -279,6 +317,7 @@ def _run_horizontal_segment(
     _apply_force_and_vibration(cps, config, side, force)
     end_pose = _sanding_pose(operation_mode, segment.local_end_x, segment.y, TOOL2_CONTACT_Z_MM, rz)
     _mark_tool2_recovery(side, end_pose)
+    _log(config, "[TableB DXF Tool2] %s %s sanding move to %s", operation_mode, side, end_pose)
     _move(
         cps,
         config,
@@ -297,7 +336,7 @@ def _run_horizontal_segment(
         velocity_profile="robotspeed",
         wait=True,
     )
-    return _Tool2Position(side, segment.local_end_x, segment.y)
+    return _Tool2Position(side, segment.local_end_x, segment.y, rz)
 
 
 def _run_horizontal_segment_operations(
@@ -306,7 +345,9 @@ def _run_horizontal_segment_operations(
     force_by_mode: dict[str, float],
     operation_modes: list[str],
     segment: _Tool2HorizontalSegment,
+    previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
+    _apply_side_transition_j6(cps, config, previous_position, segment.side)
     last_position: _Tool2Position | None = None
     for operation_mode in operation_modes:
         last_position = _run_horizontal_segment(
@@ -353,6 +394,7 @@ def _run_vertical_side(
     _apply_force_and_vibration(cps, config, side, force)
     end_pose = _sanding_pose(operation_mode, x, end_y, TOOL2_CONTACT_Z_MM, rz)
     _mark_tool2_recovery(side, end_pose)
+    _log(config, "[TableB DXF Tool2] %s %s sanding move to %s", operation_mode, side, end_pose)
     _move(
         cps,
         config,
@@ -365,7 +407,7 @@ def _run_vertical_side(
     _release_force_and_vibration(cps, config, side)
     _reset_edge_orientation_if_needed(cps, config, operation_mode, x, end_y, rz)
     _move(cps, config, _pose(x, end_y, TOOL2_LIFT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-    return _Tool2Position(side, x, end_y)
+    return _Tool2Position(side, x, end_y, rz)
 
 
 def _run_right_side(cps: Any, config: dict[str, Any], force: float, y_total: float, operation_mode: str) -> _Tool2Position:
@@ -402,7 +444,9 @@ def _run_right_side_operations(
     force_by_mode: dict[str, float],
     operation_modes: list[str],
     y_total: float,
+    previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
+    _apply_side_transition_j6(cps, config, previous_position, "right")
     last_position: _Tool2Position | None = None
     for operation_mode in operation_modes:
         last_position = _run_right_side(cps, config, force_by_mode[operation_mode], y_total, operation_mode)
@@ -418,7 +462,9 @@ def _run_left_side_operations(
     operation_modes: list[str],
     x_total: float,
     y_total: float,
+    previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
+    _apply_side_transition_j6(cps, config, previous_position, "left")
     last_position: _Tool2Position | None = None
     for operation_mode in operation_modes:
         last_position = _run_left_side(cps, config, force_by_mode[operation_mode], x_total, y_total, operation_mode)
@@ -542,11 +588,12 @@ def _run_tool2_station_traversal(
                     force_by_mode,
                     operation_modes,
                     _reverse_horizontal_segment(segment),
+                    last_position,
                 )
-            last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total)
+            last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total, last_position)
             right_done = True
             for segment in [s for s in ordered_segments if s.side == "bottom"]:
-                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment, last_position)
             continue
 
         is_final_station = station_index == len(stations) - 1
@@ -556,20 +603,20 @@ def _run_tool2_station_traversal(
             first_side = "bottom" if bottom_first else "top"
             second_side = "top" if bottom_first else "bottom"
             for segment in [s for s in ordered_segments if s.side == first_side]:
-                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
-            last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total)
+                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment, last_position)
+            last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total, last_position)
             left_done = True
             for segment in [s for s in ordered_segments if s.side == second_side]:
-                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+                last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment, last_position)
             continue
 
         for segment in ordered_segments:
-            last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment)
+            last_position = _run_horizontal_segment_operations(cps, config, force_by_mode, operation_modes, segment, last_position)
 
     if not right_done:
-        _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total)
+        _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total, last_position)
     if not left_done:
-        _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total)
+        _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total, last_position)
 
 
 def _force_for_steps(steps: list[dict[str, Any]]) -> float:
