@@ -237,21 +237,32 @@ def _move_axis7_and_lifted_prepoint(
     )
 
 
+def _transition_mid_y(y_total: float | None) -> float | None:
+    if y_total is None:
+        return None
+    return max(0.0, float(y_total) / 2.0)
+
+
 def _prepare_bottom_side_exit_before_j6(
     cps: Any,
     config: dict[str, Any],
     previous_position: _Tool2Position,
     next_side: str,
+    y_total: float | None = None,
 ) -> None:
     if previous_position.side != "bottom" or next_side not in {"top", "left"}:
         return
     rz = TOOL2_SIDE_RZ_DEG["bottom"]
     x = previous_position.x
     y = previous_position.y
+    clearance_y = _transition_mid_y(y_total) if next_side == "top" else None
+    if clearance_y is None:
+        clearance_y = TOOL2_BOTTOM_SIDE_EXIT_Y_MM
     _log(
         config,
-        "[TableB DXF Tool2] bottom exit before %s: prepoint Z=0, lift Z=-50, clearance Y=80 Z=-80 at x=%.3f",
+        "[TableB DXF Tool2] bottom exit before %s: prepoint Z=0, lift Z=-50, clearance Y=%.3f Z=-80 at x=%.3f",
         next_side,
+        clearance_y,
         x,
     )
     _move(cps, config, _pose(x, y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
@@ -259,9 +270,9 @@ def _prepare_bottom_side_exit_before_j6(
     _move(
         cps,
         config,
-        _pose(x, TOOL2_BOTTOM_SIDE_EXIT_Y_MM, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz),
+        _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz),
         velocity_profile="robotspeed",
-        wait=False,
+        wait=True,
     )
 
 
@@ -270,13 +281,30 @@ def _apply_side_transition_j6(
     config: dict[str, Any],
     previous_position: _Tool2Position | None,
     next_side: str,
+    y_total: float | None = None,
 ) -> None:
     if previous_position is None or previous_position.side is None or previous_position.side == next_side:
         return
     j6_delta = TOOL2_SIDE_TRANSITION_J6_DEG.get((previous_position.side, next_side))
     if j6_delta is None or abs(j6_delta) <= 1e-6:
         return
-    _prepare_bottom_side_exit_before_j6(cps, config, previous_position, next_side)
+    if previous_position.side == "top" and next_side == "bottom":
+        mid_y = _transition_mid_y(y_total)
+        if mid_y is not None:
+            _log(
+                config,
+                "[TableB DXF Tool2] top exit before bottom: travel to mid Y=%.3f at Z=%.3f before J6",
+                mid_y,
+                tool2_lift_z_for_side("top"),
+            )
+            _move(
+                cps,
+                config,
+                _pose(previous_position.x, mid_y, tool2_lift_z_for_side("top"), TOOL2_SIDE_RZ_DEG["top"]),
+                velocity_profile="robotspeed",
+                wait=True,
+            )
+    _prepare_bottom_side_exit_before_j6(cps, config, previous_position, next_side, y_total)
     _log(
         config,
         "[TableB DXF Tool2] side transition %s -> %s using J6 delta %.1f",
@@ -469,11 +497,12 @@ def _run_horizontal_segment_operations(
     previous_position: _Tool2Position | None = None,
     *,
     next_side: str | None = None,
+    y_total: float | None = None,
 ) -> _Tool2Position:
     if previous_position is None and segment.side == "top":
         _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using J6 +180")
         moveOnlyJ6r(cps, 180.0, config, wait=True)
-    _apply_side_transition_j6(cps, config, previous_position, segment.side)
+    _apply_side_transition_j6(cps, config, previous_position, segment.side, y_total)
     lift_z = _lift_z_for_transition(previous_position, segment.side)
     enter_from_contact = bool(previous_position and previous_position.side == "bottom" and segment.side == "bottom")
     keep_contact_after = segment.side == "bottom" and next_side == "bottom"
@@ -880,6 +909,7 @@ def _run_tool2_station_traversal(
                     _reverse_horizontal_segment(segment),
                     last_position,
                     next_side=_next_side_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
+                    y_total=y_total,
                 )
             last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total, last_position)
             right_done = True
@@ -893,6 +923,7 @@ def _run_tool2_station_traversal(
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(bottom_sequence, index, stations, station_index + 1, "bottom"),
+                    y_total=y_total,
                 )
             continue
 
@@ -912,6 +943,7 @@ def _run_tool2_station_traversal(
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(first_sequence, index, stations, station_index + 1, first_side),
+                    y_total=y_total,
                 )
             last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total, last_position)
             left_done = True
@@ -925,6 +957,7 @@ def _run_tool2_station_traversal(
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(second_sequence, index, stations, station_index + 1, second_side),
+                    y_total=y_total,
                 )
             continue
 
@@ -937,6 +970,7 @@ def _run_tool2_station_traversal(
                 segment,
                 last_position,
                 next_side=_next_side_in_sequence(ordered_segments, index, stations, station_index + 1, segment.side),
+                y_total=y_total,
             )
 
     if not right_done:

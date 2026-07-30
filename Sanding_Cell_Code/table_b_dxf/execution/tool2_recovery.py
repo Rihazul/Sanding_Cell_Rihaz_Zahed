@@ -117,8 +117,6 @@ def _current_tool2_coord_pose(
         try:
             if len(result) >= 12:
                 return [float(result[i]) for i in range(6, 12)]
-            if len(result) >= 6:
-                return [float(result[i]) for i in range(0, 6)]
         except (TypeError, ValueError):
             pass
     if fallback and len(fallback) >= 6:
@@ -341,4 +339,3 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
 
     clear_tool2_recovery_state()
     return True
-
