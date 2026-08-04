@@ -14,8 +14,23 @@ from smallTable.modelFzigzag import (
     smalldoor3zizag,
     smalldoor4zizag,
 )
+# Tool 2 side / edge-outside passes (same functions Model E / smallmodelfinal5 uses). Model F
+# (UI "Model E - Flat") now also runs Tool 2 on the door sides in addition to its Tool 4 zigzag.
+from smallTable.frame1tool2sidefinal import (
+    door1frametool2side,
+    door2frametool2side,
+    door3frametool2side,
+    door4frametool2side,
+)
+from smallTable.frame1tool2edgefinal import (
+    door1frametool2sideedge,
+    door2frametool2sideedge,
+    door3frametool2sideedge,
+    door4frametool2sideedge,
+)
+from smallTable.frame1tool2sideedge_combined import run_tool2_side_edge_combined
 
-from Server_Better_V2 import keepTool11, setup_logger, getTool11, communicate, move_to_task_safe_point
+from Server_Better_V2 import keepTool11, setup_logger, getTool11, communicate, move_to_task_safe_point, stop_requested
 from modules.CPS import CPSClient
 
 from cycle_data_utils import any_cycles, doors_with_cycles, get_spiral_settings, get_tableA_task_by_door
@@ -73,6 +88,66 @@ def run_zigzag_cycles(
     )
 
 
+def run_tool2side_cycles(count, force, door_num, cps):
+    """Run Tool 2 SIDE passes for one door (same functions as Model E)."""
+    if count <= 0:
+        return
+    door_funcs = {
+        1: door1frametool2side,
+        2: door2frametool2side,
+        3: door3frametool2side,
+        4: door4frametool2side,
+    }
+    try:
+        door_func = door_funcs[door_num]
+    except KeyError:
+        raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
+
+    if stop_requested():
+        raise RuntimeError("[Tool 2 Side] Stop requested.")
+    print(f"\n=== SIDE CYCLES 1/{count} to {count}/{count} (Door {door_num}) ===")
+    door_func(force=force, cps=cps, cycles=count)
+    if stop_requested():
+        raise RuntimeError("[Tool 2 Side] Stop requested.")
+
+
+def run_tool2side_edgecycles(count, force, door_num, cps):
+    """Run Tool 2 EDGE-OUTSIDE passes for one door (same functions as Model E)."""
+    if count <= 0:
+        return
+    door_funcs = {
+        1: door1frametool2sideedge,
+        2: door2frametool2sideedge,
+        3: door3frametool2sideedge,
+        4: door4frametool2sideedge,
+    }
+    try:
+        door_func = door_funcs[door_num]
+    except KeyError:
+        raise ValueError(f"Invalid door number: {door_num}. Must be 1-4")
+
+    if stop_requested():
+        raise RuntimeError("[Tool 2 Edge] Stop requested.")
+    print(f"\n=== EDGE CYCLES 1/{count} to {count}/{count} (Door {door_num}) ===")
+    door_func(force=force, cps=cps, cycles=count)
+    if stop_requested():
+        raise RuntimeError("[Tool 2 Edge] Stop requested.")
+
+
+def is_door_available(doors):
+    return bool(any(doors))
+
+
+def unique_sorted_doors(*door_groups):
+    """Return unique valid door ids as sorted ints."""
+    doors = set()
+    for group in door_groups:
+        for door in group:
+            try:
+                doors.add(int(door))
+            except (TypeError, ValueError):
+                continue
+    return sorted(doors)
 
 
 def _decode_tool_from_ci(ci0, ci1, ci2):
@@ -135,13 +210,19 @@ def sandingModelFTableA(cps=None):
 
     zigzag_by_door = get_tableA_task_by_door(json_config_TableA, "pocketzigzag")
     zig_zag_cycle_doors = doors_with_cycles(zigzag_by_door)
+    # Tool 2 side / edge-outside are RUN for Model F (in addition to the Tool 4 zigzag).
+    tool2side_by_door = get_tableA_task_by_door(json_config_TableA, "side")
+    tool2edge_by_door = get_tableA_task_by_door(json_config_TableA, "edgeOutside")
+    tool2side_cycle_doors = doors_with_cycles(tool2side_by_door)
+    tool2edge_cycle_doors = doors_with_cycles(tool2edge_by_door)
+    tool2_doors = unique_sorted_doors(tool2side_cycle_doors, tool2edge_cycle_doors)
+    has_tool2_batch = any_cycles(tool2side_by_door) or any_cycles(tool2edge_by_door)
+    # These operations still have no geometry on a flat (Model F) door and are ignored.
     ignored_tasks = {
         "frame": get_tableA_task_by_door(json_config_TableA, "frame"),
         "pocketsquare": get_tableA_task_by_door(json_config_TableA, "pocketsquare"),
         "3D": get_tableA_task_by_door(json_config_TableA, "3D"),
         "edgeInside": get_tableA_task_by_door(json_config_TableA, "edgeInside"),
-        "edgeOutside": get_tableA_task_by_door(json_config_TableA, "edgeOutside"),
-        "side": get_tableA_task_by_door(json_config_TableA, "side"),
     }
 
     z = -4
@@ -174,52 +255,99 @@ def sandingModelFTableA(cps=None):
         ci2_local = read_ci_bit(cps, 2)
         return ci0_local, ci1_local, ci2_local
 
-    def wait_tool4_in_hand(timeout_s=3.0, poll_s=0.1):
+    def wait_tool_in_hand(tool_num, timeout_s=3.0, poll_s=0.1):
         deadline = time.monotonic() + max(0.1, float(timeout_s))
         while time.monotonic() < deadline:
             ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
-            tool = _decode_tool_from_ci(ci0_local, ci1_local, ci2_local)
-            if tool == 4:
+            if _decode_tool_from_ci(ci0_local, ci1_local, ci2_local) == tool_num:
                 return True
             time.sleep(max(0.02, float(poll_s)))
         return False
+
+    _TOOL_PLANE1_TCP = {
+        1: "tcptool1plane1",
+        2: "tcptool2plane1",
+        3: "tcptool3plane1",
+        4: "tcptool4plane1",
+    }
+
+    def drop_current_tool_at_station():
+        """Drop whatever tool is currently in hand, at its tool station.
+
+        getTool11 refuses to pick when a tool is already held, so the hand must be empty
+        before a pick. Dropping must happen at the tool station with J7 there first (not
+        wherever a sanding pass ended), which is why this moves J7 to the held tool's plane1
+        station before keepTool11 — the same safe sequence the Tool 4 drop uses.
+        """
+        ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
+        held = _decode_tool_from_ci(ci0_local, ci1_local, ci2_local)
+        if not held or held <= 0:
+            return
+        tcp_key = _TOOL_PLANE1_TCP.get(held)
+        if tcp_key is None:
+            return
+        move_to_task_safe_point(
+            cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
+        )
+        communicate(
+            cps=cps,
+            config=config,
+            seventh=0,
+            tcp=config["coords"][tcp_key],
+            ucs=config["coords"]["ucsTable1"],
+            speed=0.3,
+            wait=True,
+        )
+        keepTool11(cps, toolNumber=held, config=config)
+        communicate(
+            cps=cps,
+            point=config["point"]["safePoint"],
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            seventh=-1,
+            config=config,
+            speed=speeed,
+            wait=True,
+        )
+
+    def ensure_tool_ready(tool_num):
+        """Guarantee `tool_num` is in hand via a safe drop-at-station then pick.
+
+        Mirrors smallmodelfinal5's ensure_tool_in_hand: if the requested tool is already
+        held, do nothing; otherwise drop the currently-held tool at its station (empty hand)
+        and pick the requested tool from the safe point.
+        """
+        ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
+        held = _decode_tool_from_ci(ci0_local, ci1_local, ci2_local)
+        if held == tool_num:
+            return
+        if held and held > 0:
+            drop_current_tool_at_station()
+        move_to_task_safe_point(
+            cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
+        )
+        getTool11(cps, toolNumber=tool_num, config=config)
+        if not wait_tool_in_hand(tool_num, timeout_s=3.0, poll_s=0.1):
+            raise RuntimeError(f"Tool {tool_num} was not confirmed in hand after pick.")
+        move_to_task_safe_point(
+            cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
+        )
 
     try:
         executed_doors = 0
         for task_name, task_by_door in ignored_tasks.items():
             if any_cycles(task_by_door):
                 print(
-                    f"[ModelF] Task '{task_name}' is configured but ignored. "
-                    "Model F runs Tool4 zigzag only."
+                    f"[ModelF] Task '{task_name}' is configured but ignored on a flat door."
                 )
 
-        if not any_cycles(zigzag_by_door):
-            print("No zigzag cycles configured for Model F.")
+        if not any_cycles(zigzag_by_door) and not has_tool2_batch:
+            print("No zigzag or Tool 2 cycles configured for Model F.")
             return
 
         if zig_zag_cycle_doors:
-            ci0, ci1, ci2 = read_ci_triplet(cps)
-            has_tool4 = check_tool(
-                cps=cps, config=config, tool_num=4, ci0=ci0, ci1=ci1, ci2=ci2
-            )
-
-            move_to_task_safe_point(
-                cps=cps,
-                config=config,
-                speed=speeed,
-                velocity_profile="robotspeed",
-            )
-
-            if not has_tool4:
-                getTool11(cps, toolNumber=4, config=config)
-                if not wait_tool4_in_hand(timeout_s=3.0, poll_s=0.1):
-                    raise RuntimeError("Tool 4 was not confirmed in hand after pick.")
-            move_to_task_safe_point(
-                cps=cps,
-                config=config,
-                speed=speeed,
-                velocity_profile="robotspeed",
-            )
+            # Safe drop-at-station then pick (handles a leftover Tool 1/2/3 from a prior run).
+            ensure_tool_ready(4)
 
             for door_number in zig_zag_cycle_doors:
                 cfg = zigzag_by_door.get(int(door_number), {})
@@ -272,12 +400,6 @@ def sandingModelFTableA(cps=None):
                     )
                 executed_doors += 1
 
-            if executed_doors <= 0:
-                raise RuntimeError(
-                    "Model F task finished with zero executed doors. "
-                    "Check cycle/door selection payload."
-                )
-
             move_to_task_safe_point(
                 cps=cps,
                 config=config,
@@ -285,7 +407,14 @@ def sandingModelFTableA(cps=None):
                 velocity_profile="robotspeed",
             )
 
-            if keep_tool_after_task:
+            # Tool 4 disposition after zigzag:
+            #  • If the Tool 2 batch follows, leave Tool 4 mounted here — ensure_tool_ready(2)
+            #    performs the safe drop-at-station of Tool 4 and the Tool 2 pick as one flow,
+            #    so we must NOT drop it twice.
+            #  • Otherwise honour keepToolAfterTask (keep mounted, or drop Tool 4 at station).
+            if has_tool2_batch:
+                print("Tool 2 batch follows: Tool 4 will be dropped during the tool change.")
+            elif keep_tool_after_task:
                 print("Task completed: keeping Tool 4 mounted.")
             else:
                 communicate(
@@ -310,6 +439,76 @@ def sandingModelFTableA(cps=None):
                 )
 
             print("\nModel F zigzag operations completed successfully!")
+
+        # --- Tool 2 batch (side / edge outside) ------------------------------------------
+        # Runs after the Tool 4 zigzag. Picks Tool 2, then for each configured door runs the
+        # side and/or edge passes (combined when both are set), with a safe transition between
+        # doors. Same functions and ordering Model E (smallmodelfinal5) uses.
+        if has_tool2_batch and is_door_available(tool2_doors):
+            # Safe drop-at-station then pick — never drops a tool wherever a pass ended.
+            ensure_tool_ready(2)
+
+            previous_tool2_door = None
+            for door_number in tool2_doors:
+                side_cfg = tool2side_by_door.get(int(door_number), {})
+                side_cycle = int(side_cfg.get("cycle", 0))
+                edge_cfg = tool2edge_by_door.get(int(door_number), {})
+                edge_cycle = int(edge_cfg.get("cycle", 0))
+                if side_cycle <= 0 and edge_cycle <= 0:
+                    continue
+
+                if previous_tool2_door is not None:
+                    print(
+                        f"\n--- Tool 2 / Door-to-Door Safe Transition / "
+                        f"Door {previous_tool2_door} to Door {door_number} ---"
+                    )
+                    move_to_task_safe_point(
+                        cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
+                    )
+
+                if side_cycle > 0 and edge_cycle > 0:
+                    print(f"\n--- Tool 2 / Side+Edge Combined / Door {door_number} ---")
+                    run_tool2_side_edge_combined(
+                        door_number=int(door_number),
+                        side_force=int(side_cfg.get("force", 0)),
+                        side_cycles=side_cycle,
+                        edge_force=int(edge_cfg.get("force", 0)),
+                        edge_cycles=edge_cycle,
+                        cps=cps,
+                    )
+                    executed_doors += 1
+                else:
+                    if side_cycle > 0:
+                        print(f"\n--- Tool 2 / Side / Door {door_number} ---")
+                        run_tool2side_cycles(
+                            side_cycle, int(side_cfg.get("force", 0)), int(door_number), cps,
+                        )
+                        executed_doors += 1
+                    if edge_cycle > 0:
+                        print(f"\n--- Tool 2 / EdgeOutside / Door {door_number} ---")
+                        run_tool2side_edgecycles(
+                            edge_cycle, int(edge_cfg.get("force", 0)), int(door_number), cps,
+                        )
+                        executed_doors += 1
+
+                previous_tool2_door = door_number
+
+            move_to_task_safe_point(
+                cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
+            )
+            if not keep_tool_after_task:
+                # Drop Tool 2 at its station (J7 to station first), same safe sequence as the
+                # tool change, rather than dropping wherever the last pass ended.
+                drop_current_tool_at_station()
+            else:
+                print("Task completed: keeping Tool 2 mounted.")
+            print("\nModel F Tool 2 side/edge operations completed successfully!")
+
+        if executed_doors <= 0:
+            raise RuntimeError(
+                "Model F task finished with zero executed doors. "
+                "Check cycle/door selection payload."
+            )
 
     except Exception as e:
         print(f"\nExecution error: {str(e)}")

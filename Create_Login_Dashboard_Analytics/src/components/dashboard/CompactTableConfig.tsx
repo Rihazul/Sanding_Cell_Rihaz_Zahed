@@ -159,6 +159,9 @@ export function CompactTableConfig({
   const [tableAFrameSizeX, setTableAFrameSizeX] = React.useState<string>('57');
   const [tableAFrameSizeY, setTableAFrameSizeY] = React.useState<string>('57');
   const [tableAFrameSizeConfirmed, setTableAFrameSizeConfirmed] = React.useState<boolean>(false);
+  // Popup that explains, on a simple door diagram, where the X (left/right) and Y (top/bottom)
+  // frame sizes are — so the operator doesn't have to remember which input maps to which edge.
+  const [frameConfigDiagramOpen, setFrameConfigDiagramOpen] = React.useState<boolean>(false);
   const completionTimerRef = React.useRef<number | null>(null);
 
   // --- CAD Assisted Mode: isolated Table B state begins ---
@@ -266,6 +269,33 @@ export function CompactTableConfig({
       dxfToolpathPayload.counts.contour_3d +
       dxfToolpathPayload.counts.frame_zigzag +
       dxfToolpathPayload.counts.frame_section_passes) > 0;
+
+  // Which operation ROWS the operator may configure. This is driven by what the APPROVED
+  // toolpath actually contains, so the config never offers an operation the door has no
+  // geometry for (e.g. 3D contour when there are no 3D regions — configuring that made Start
+  // Task hang). Rules:
+  //   • Before approval → no rows at all (the list appears only after an approval).
+  //   • After approval  → only operations present in the approved counts, plus Tool 2
+  //     (Side / Edge Outside), which sands the door sides and is available on ANY approved
+  //     toolpath regardless of region selection.
+  const tableBAvailableOps = React.useMemo(() => {
+    const available = new Set<string>();
+    if (!isTableBCadAssistedMode) {
+      // Legacy STEP flow keeps every operation (unchanged behaviour).
+      return null;
+    }
+    const approved = tableBPreviewStatus === 'approved' && dxfHasToolpath;
+    if (!approved || !dxfToolpathPayload) return available; // empty → no rows shown
+    const c = dxfToolpathPayload.counts;
+    if ((c.frame_zigzag ?? 0) + (c.frame_section_passes ?? 0) > 0) available.add('Frame');
+    if ((c.pocket_tool4_zigzag ?? 0) > 0) available.add('Pocket ZigZag');
+    if ((c.pocket_tool3 ?? 0) > 0) available.add('Pocket Edge');
+    if ((c.contour_3d ?? 0) > 0) available.add('3D');
+    // Tool 2 is not a region — always available once a toolpath is approved.
+    available.add('Side');
+    available.add('Edge Outside');
+    return available;
+  }, [isTableBCadAssistedMode, tableBPreviewStatus, dxfHasToolpath, dxfToolpathPayload]);
 
   const tableBCanStartTask = isTableBCadAssistedMode
     ? // DXF flow: a toolpath preview exists, was approved, and hasn't changed since.
@@ -689,7 +719,10 @@ export function CompactTableConfig({
       ? `frameX=${values.x};frameY=${values.y}`
       : 'frameX=invalid;frameY=invalid';
   };
-  const isModelFAllowedRow = (label: string) => label === 'Pocket ZigZag';
+  // Model F (UI "Model E - Flat") runs the Tool 4 flat zigzag PLUS Tool 2 side/edge-outside on
+  // the door sides. It still has no pocket-edge / 3D / frame geometry, so only these are offered.
+  const isModelFAllowedRow = (label: string) =>
+    label === 'Pocket ZigZag' || label === 'Side' || label === 'Edge Outside';
   const isTableAOperationAllowed = (selectedModel: string, operationLabel: string) => {
     if (selectedModel === 'modelA' || selectedModel === 'modelB') {
       return operationLabel !== '3D';
@@ -1417,22 +1450,29 @@ export function CompactTableConfig({
           previewStatus: tableBPreviewStatus,
           hasPayload: !!dxfToolpathPayload,
         });
+        // An operation the approved toolpath does not support must never be sent as active,
+        // even if its row still carries a force/cycle from an earlier configuration. This is
+        // the safeguard for the reported hang: configuring 3D on a door with no 3D regions.
+        // cycleFor() forces cycle=0 (backend treats that as "not selected") for any operation
+        // not in the approved availability set. null availability = legacy flow, send as-is.
+        const cycleFor = (label: string, cycle: number) =>
+          tableBAvailableOps === null || tableBAvailableOps.has(label) ? cycle : 0;
         const taskData = {
           // Table B runs the approved DXF toolpath for this job — the backend loads
           // approved_toolpath.json by job_id. `model` is gone; the DXF replaces it.
           job_id: dxfToolpathPayload?.job_id ?? '',
-          frame: { cycle: frameRow.cycle, force: frameRow.force },
+          frame: { cycle: cycleFor('Frame', frameRow.cycle), force: frameRow.force },
           pocketzigzag: {
-            cycle: zigzagRow.cycle,
+            cycle: cycleFor('Pocket ZigZag', zigzagRow.cycle),
             force: zigzagRow.force,
             verticalSpiral: !!zigzagRow.verticalSpiral,
             horizontalSpiral: !!zigzagRow.horizontalSpiral,
             edgeCoverage: !!zigzagRow.edgeCoverage,
           },
-          pocketedge: { cycle: pocketEdgeRow.cycle, force: pocketEdgeRow.force },
-          '3D': { cycle: threeDRow.cycle, force: threeDRow.force },
-          edgeOutside: { cycle: edgeOutsideRow.cycle, force: edgeOutsideRow.force },
-          side: { cycle: sideRow.cycle, force: sideRow.force },
+          pocketedge: { cycle: cycleFor('Pocket Edge', pocketEdgeRow.cycle), force: pocketEdgeRow.force },
+          '3D': { cycle: cycleFor('3D', threeDRow.cycle), force: threeDRow.force },
+          edgeOutside: { cycle: cycleFor('Edge Outside', edgeOutsideRow.cycle), force: edgeOutsideRow.force },
+          side: { cycle: cycleFor('Side', sideRow.cycle), force: sideRow.force },
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: overlapMm,
@@ -1514,7 +1554,10 @@ export function CompactTableConfig({
         );
       });
   const currentDisplayRows = buildDisplayRows(currentRows);
-  const tableBDisplayRows = buildDisplayRows(rows);
+  // Table B: only show operation rows the APPROVED toolpath supports (null = legacy, show all).
+  const tableBDisplayRows = buildDisplayRows(rows).filter(({ row }) =>
+    tableBAvailableOps === null ? true : tableBAvailableOps.has(row.label),
+  );
   const shouldShowTableAOperations = tableName !== 'A' || !!(model || '').trim();
   const scanConfigMismatch =
     tableName === 'A' &&
@@ -1526,11 +1569,25 @@ export function CompactTableConfig({
     tableName === 'A' && value === 'modelB' ? 'modelA' : value;
   const handleModelChange = (newModel: string) => {
     const normalizedModel = normalizeTableAModelKey(newModel);
-    if (tableName === 'A' && normalizedModel !== model && scanCompleted) {
+    const modelActuallyChanged = tableName === 'A' && normalizedModel !== model;
+    if (modelActuallyChanged && scanCompleted) {
       addActivity(
         `Table ${tableName}: Model changed. Saved scan remains on record and will be validated before the task starts.`,
         'warning'
       );
+    }
+    // Frame config is per model: switching models drops the confirmation so the operator sets
+    // and confirms the correct frame sizes for the new model. The reminder re-appears because
+    // the amber "not confirmed" state returns. (Model E - Flat has no frame config, so it just
+    // stays unused there.)
+    if (modelActuallyChanged) {
+      setTableAFrameSizeConfirmed(false);
+      if (getCanonicalModelKey(normalizedModel) !== 'modelF') {
+        addActivity(
+          `Table ${tableName}: Set and confirm the frame sizes for ${formatModelName(normalizedModel)} before scanning.`,
+          'warning'
+        );
+      }
     }
     setModel(normalizedModel);
 
@@ -1818,58 +1875,206 @@ export function CompactTableConfig({
                     </div>
                   </div>
                 )}
+                {/* Frame config button — opens the popup that holds the diagram AND the frame-size
+                    inputs (X/Y + Confirm), so the outside panel no longer takes space. Shown for
+                    every non-flat model (A–D), even when the model has no preview picture. The
+                    amber/green dot mirrors whether the frame sizes are confirmed. */}
                 {tableAPreviewModel && getCanonicalModelKey(tableAPreviewModel) !== 'modelF' && (
-                  <div className="mt-3 rounded-md border border-red-200 bg-red-50/50 p-3">
-                    <div className="mb-2 text-xs font-semibold text-red-700">Frame size used by scan</div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <label className="flex items-center gap-2 text-xs text-slate-700 whitespace-nowrap">
-                        <span>X Frame Size (mm)</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="200"
-                          step="0.1"
-                          value={tableAFrameSizeX}
-                          disabled={isOperating}
-                          onChange={(e) => {
-                            setTableAFrameSizeX(e.target.value);
-                            setTableAFrameSizeConfirmed(false);
-                          }}
-                          className="w-24 rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
-                        />
-                      </label>
-                      <label className="flex items-center gap-2 text-xs text-slate-700 whitespace-nowrap">
-                        <span>Y Frame Size (mm)</span>
-                        <input
-                          type="number"
-                          min="1"
-                          max="200"
-                          step="0.1"
-                          value={tableAFrameSizeY}
-                          disabled={isOperating}
-                          onChange={(e) => {
-                            setTableAFrameSizeY(e.target.value);
-                            setTableAFrameSizeConfirmed(false);
-                          }}
-                          className="w-24 rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
-                        />
-                      </label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={isOperating}
-                        onClick={confirmTableAFrameSizes}
-                        className="h-8 border-red-300 px-4 text-red-700 hover:bg-red-100"
-                      >
-                        Confirm Values
-                      </Button>
-                    </div>
-                    <div className={`mt-2 text-xs ${tableAFrameSizeConfirmed ? 'text-green-700' : 'text-amber-700'}`}>
-                      {tableAFrameSizeConfirmed
-                        ? `Confirmed: X=${tableAFrameSizeX} mm, Y=${tableAFrameSizeY} mm.`
-                        : 'Confirm these values before scanning. They override laser frame-size classification for Table A scan geometry.'}
-                    </div>
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFrameConfigDiagramOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      📐 Frame config
+                      <span
+                        title={tableAFrameSizeConfirmed ? 'Frame sizes confirmed' : 'Frame sizes not confirmed'}
+                        style={{ width: 8, height: 8, borderRadius: '50%', display: 'inline-block', background: tableAFrameSizeConfirmed ? '#16a34a' : '#f59e0b' }}
+                      />
+                    </button>
+                    {/* Prompt the operator to set/confirm the correct frame sizes before scanning. */}
+                    {tableAFrameSizeConfirmed ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
+                        ✓ Frame sizes confirmed
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
+                        ⚠ Set the correct frame sizes before scanning
+                      </span>
+                    )}
                   </div>
+                )}
+                {/* Frame-size diagram popup: a plain door rectangle with its frame band, showing
+                    where the X (left/right) and Y (top/bottom) frame sizes apply. Not a model —
+                    just a reference so the operator doesn't confuse which value goes where.
+                    Rendered via a portal to document.body so position:fixed covers the whole
+                    viewport — the parent Card uses backdrop-blur, which would otherwise trap a
+                    fixed child inside the Card (making the popup look confined to the config box). */}
+                {frameConfigDiagramOpen && createPortal(
+                  <div
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={() => setFrameConfigDiagramOpen(false)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+                  >
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.25)', width: 'min(560px, 96vw)', maxHeight: '92vh', overflow: 'auto' }}
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+                        <div className="text-sm font-semibold text-slate-800">Frame size reference</div>
+                        <button
+                          type="button"
+                          onClick={() => setFrameConfigDiagramOpen(false)}
+                          className="rounded-md px-2 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          title="Close"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="p-4">
+                        <div className="mb-2 text-xs font-semibold text-slate-700">{formatModelName(tableAPreviewModel)}</div>
+                        <p className="mb-3 text-xs text-slate-600">
+                          The frame is the band around the door edge. <b>X frame size</b> is the band width on the
+                          <b> left and right</b> sides; <b>Y frame size</b> is the band width on the <b>top and bottom</b>.
+                          The dashed line is the <b>moulure</b> — the 3D groove Tool 1 sands.
+                        </p>
+                        {/* Door outline (grey) + inner opening (white), leaving the frame band highlighted.
+                            X labels on left/right, Y labels on top/bottom. */}
+                        <svg viewBox="0 0 400 300" style={{ width: '100%', height: 'auto', display: 'block' }}>
+                          {/* Outer door */}
+                          <rect x="40" y="30" width="320" height="240" fill="#e2e8f0" stroke="#334155" strokeWidth="2" rx="4" />
+                          {/* Inner opening (frame band = area between outer and inner) */}
+                          <rect x="95" y="80" width="210" height="140" fill="#ffffff" stroke="#334155" strokeWidth="1.5" rx="2" />
+                          {/* Frame band shading via four rectangles is implied by the gap; add subtle fill */}
+                          <rect x="40" y="30" width="320" height="240" fill="#fca5a5" fillOpacity="0.18" rx="4" />
+                          {(() => {
+                            const key = getCanonicalModelKey(tableAPreviewModel);
+                            const hasExterne = key === 'modelC' || key === 'modelE'; // outer-edge groove
+                            const hasInterne = key === 'modelD' || key === 'modelE'; // inner-edge groove
+                            return (
+                              <>
+                                {/* Moulure Externe: a groove running just inside the OUTER door edge. */}
+                                {hasExterne && (
+                                  <rect x="55" y="45" width="290" height="210" fill="none" stroke="#059669" strokeWidth="3" strokeDasharray="7 4" rx="3">
+                                    <title>Moulure Externe — 3D groove near the outer edge (Tool 1)</title>
+                                  </rect>
+                                )}
+                                {/* Moulure Interne: a groove running just outside the INNER opening. */}
+                                {hasInterne && (
+                                  <rect x="82" y="67" width="236" height="166" fill="none" stroke="#7c3aed" strokeWidth="3" strokeDasharray="7 4" rx="3">
+                                    <title>Moulure Interne — 3D groove near the inner opening (Tool 1)</title>
+                                  </rect>
+                                )}
+                              </>
+                            );
+                          })()}
+                          {/* X frame dimension: left band */}
+                          <g stroke="#dc2626" strokeWidth="1.5">
+                            <line x1="40" y1="150" x2="95" y2="150" />
+                            <line x1="40" y1="145" x2="40" y2="155" />
+                            <line x1="95" y1="145" x2="95" y2="155" />
+                          </g>
+                          <text x="67" y="142" fill="#dc2626" fontSize="12" fontWeight="700" textAnchor="middle">X</text>
+                          {/* X frame dimension: right band */}
+                          <g stroke="#dc2626" strokeWidth="1.5">
+                            <line x1="305" y1="150" x2="360" y2="150" />
+                            <line x1="305" y1="145" x2="305" y2="155" />
+                            <line x1="360" y1="145" x2="360" y2="155" />
+                          </g>
+                          <text x="332" y="142" fill="#dc2626" fontSize="12" fontWeight="700" textAnchor="middle">X</text>
+                          {/* Y frame dimension: top band */}
+                          <g stroke="#2563eb" strokeWidth="1.5">
+                            <line x1="200" y1="30" x2="200" y2="80" />
+                            <line x1="195" y1="30" x2="205" y2="30" />
+                            <line x1="195" y1="80" x2="205" y2="80" />
+                          </g>
+                          <text x="212" y="59" fill="#2563eb" fontSize="12" fontWeight="700" textAnchor="start">Y</text>
+                          {/* Y frame dimension: bottom band */}
+                          <g stroke="#2563eb" strokeWidth="1.5">
+                            <line x1="200" y1="220" x2="200" y2="270" />
+                            <line x1="195" y1="220" x2="205" y2="220" />
+                            <line x1="195" y1="270" x2="205" y2="270" />
+                          </g>
+                          <text x="212" y="249" fill="#2563eb" fontSize="12" fontWeight="700" textAnchor="start">Y</text>
+                        </svg>
+                        <div className="mt-3 flex items-center justify-center gap-6 text-xs">
+                          <span className="inline-flex items-center gap-1.5"><span style={{ width: 14, height: 3, background: '#dc2626', borderRadius: 2, display: 'inline-block' }} /> X = {tableAFrameSizeX || '—'} mm (left & right)</span>
+                          <span className="inline-flex items-center gap-1.5"><span style={{ width: 14, height: 3, background: '#2563eb', borderRadius: 2, display: 'inline-block' }} /> Y = {tableAFrameSizeY || '—'} mm (top & bottom)</span>
+                        </div>
+                        {(() => {
+                          const key = getCanonicalModelKey(tableAPreviewModel);
+                          const hasExterne = key === 'modelC' || key === 'modelE';
+                          const hasInterne = key === 'modelD' || key === 'modelE';
+                          if (!hasExterne && !hasInterne) {
+                            return <div className="mt-1.5 text-center text-xs text-slate-400">No moulure — flat frame (no 3D groove).</div>;
+                          }
+                          return (
+                            <div className="mt-1.5 flex items-center justify-center gap-6 text-xs">
+                              {hasExterne && (
+                                <span className="inline-flex items-center gap-1.5"><span style={{ width: 14, height: 0, borderTop: '3px dashed #059669', display: 'inline-block' }} /> Moulure externe (outer)</span>
+                              )}
+                              {hasInterne && (
+                                <span className="inline-flex items-center gap-1.5"><span style={{ width: 14, height: 0, borderTop: '3px dashed #7c3aed', display: 'inline-block' }} /> Moulure interne (inner)</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        {/* Frame-size inputs, moved here from the outside panel to save space. */}
+                        <div className="mt-4 rounded-md border border-red-200 bg-red-50/50 p-3">
+                          <div className="mb-2 text-xs font-semibold text-red-700">Frame size used by scan</div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className="flex items-center gap-2 text-xs text-slate-700 whitespace-nowrap">
+                              <span>X Frame Size (mm)</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="200"
+                                step="0.1"
+                                value={tableAFrameSizeX}
+                                disabled={isOperating}
+                                onChange={(e) => {
+                                  setTableAFrameSizeX(e.target.value);
+                                  setTableAFrameSizeConfirmed(false);
+                                }}
+                                className="w-24 rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
+                              />
+                            </label>
+                            <label className="flex items-center gap-2 text-xs text-slate-700 whitespace-nowrap">
+                              <span>Y Frame Size (mm)</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max="200"
+                                step="0.1"
+                                value={tableAFrameSizeY}
+                                disabled={isOperating}
+                                onChange={(e) => {
+                                  setTableAFrameSizeY(e.target.value);
+                                  setTableAFrameSizeConfirmed(false);
+                                }}
+                                className="w-24 rounded-md border border-red-200 bg-white px-2 py-1 text-sm focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-300 disabled:bg-gray-100"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              disabled={isOperating}
+                              onClick={confirmTableAFrameSizes}
+                              className="inline-flex h-8 items-center rounded-md border border-red-300 bg-red-100 px-4 text-sm font-semibold text-red-800 shadow-sm transition-colors hover:bg-red-700 hover:border-red-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Confirm Values
+                            </button>
+                          </div>
+                          <div className={`mt-2 text-xs ${tableAFrameSizeConfirmed ? 'text-green-700' : 'text-amber-700'}`}>
+                            {tableAFrameSizeConfirmed
+                              ? `Confirmed: X=${tableAFrameSizeX} mm, Y=${tableAFrameSizeY} mm.`
+                              : 'Confirm these values before scanning. They override laser frame-size classification for Table A scan geometry.'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>,
+                  document.body,
                 )}
                 <div className="mt-2 text-xs">
                   {scanCompleted && scanConfigMismatch ? (
@@ -1888,6 +2093,24 @@ export function CompactTableConfig({
 
               {shouldShowTableAOperations && (
                 <div className="mb-2">
+                  {currentDisplayRows.length > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }} className="mb-1">
+                      <button
+                        type="button"
+                        disabled={isOperating}
+                        title="Clear force and cycle for all operations of the selected model"
+                        onClick={() => {
+                          currentDisplayRows.forEach(({ idx }) => {
+                            handleRowChange(idx, 'force', 0);
+                            handleRowChange(idx, 'cycle', 0);
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ✕ Clear
+                      </button>
+                    </div>
+                  )}
                   <div className="space-y-1">
                     {currentDisplayRows.map(({ row, idx }) => (
                     <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
@@ -2139,8 +2362,39 @@ export function CompactTableConfig({
                   />
                 </div>
               )}
-              {/* Operation rows (Force/Cycle) for the DXF Assisted run */}
+              {/* Operation rows (Force/Cycle) for the DXF Assisted run. The list appears only
+                  after a toolpath preview is approved, and shows just the operations that
+                  approved toolpath supports — so you can't configure an operation the door has
+                  no geometry for. */}
               <div className="mt-2 space-y-1">
+                {tableBDisplayRows.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                    <button
+                      type="button"
+                      disabled={isOperating}
+                      title="Clear force and cycle for all operations below"
+                      onClick={() => {
+                        const shown = new Set(tableBDisplayRows.map(({ row }) => row.label));
+                        setRows((prev: RowConfig[]) =>
+                          prev.map((r) =>
+                            shown.has(r.label)
+                              ? { ...r, force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false }
+                              : r,
+                          ),
+                        );
+                      }}
+                      className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      ✕ Clear
+                    </button>
+                  </div>
+                )}
+                {tableBDisplayRows.length === 0 && (
+                  <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-center text-sm text-gray-500">
+                    Approve a toolpath preview to configure its sanding operations. The list
+                    will show only the operations available on what you approved.
+                  </div>
+                )}
                 {tableBDisplayRows.map(({ row, idx }) => (
                   <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                     {/* Main row: Label + Force + Cycle */}
@@ -2203,43 +2457,8 @@ export function CompactTableConfig({
                         </div>
                       </div>
                     </div>
-
-                    {/* Pocket ZigZag Options - Second line below */}
-                    {row.label === 'Pocket ZigZag' && (
-                      <div className="mt-4 pt-6 border-t border-indigo-100 flex items-center justify-center gap-3">
-                        <span className="text-sm text-gray-500 font-medium">Pattern:</span>
-                        <div className="flex items-center gap-3">
-                          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                            row.verticalSpiral
-                              ? 'bg-blue-500 border-blue-500 text-white'
-                              : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={row.verticalSpiral || false}
-                              onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
-                              disabled={isOperating}
-                              className="sr-only"
-                            />
-                            <span className="text-sm font-medium">↕ Vertical</span>
-                          </label>
-                          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer transition-colors ${
-                            row.horizontalSpiral
-                              ? 'bg-blue-500 border-blue-500 text-white'
-                              : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                          }`}>
-                            <input
-                              type="checkbox"
-                              checked={row.horizontalSpiral || false}
-                              onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
-                              disabled={isOperating}
-                              className="sr-only"
-                            />
-                            <span className="text-sm font-medium">↔ Horizontal</span>
-                          </label>
-                        </div>
-                      </div>
-                    )}
+                    {/* Pocket ZigZag pattern (Vertical/Horizontal) is now chosen in the CAD
+                        viewer, so the front configuration no longer duplicates it here. */}
                   </div>
                 ))}
               </div>

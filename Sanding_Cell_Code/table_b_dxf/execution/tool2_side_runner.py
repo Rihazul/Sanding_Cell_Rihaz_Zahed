@@ -29,6 +29,10 @@ from .tool2_side_geometry import (
     TOOL2_APPROACH_OUTWARD_MM,
     TOOL2_CONTACT_Z_MM,
     TOOL2_LEFT_PREFORCE_LOCAL_X_MM,
+    Tool2HorizontalSegment as _Tool2HorizontalSegment,
+    build_tool2_bottom_segments as _split_tool2_bottom_segments_for_traversal,
+    build_tool2_top_segments_increasing as _split_tool2_top_segments_increasing,
+    group_tool2_segments_by_station as _segments_by_station,
     tool2_lift_z_for_side,
     split_tool2_bottom_segments,
     tool2_left_axis7_position,
@@ -79,14 +83,6 @@ TOOL2_SIDE_FORCE_NAMES: dict[str, str] = {
     side: force_func.__name__
     for side, force_func in TOOL2_SIDE_FORCE_FUNCTIONS.items()
 }
-
-
-class _Tool2HorizontalSegment(NamedTuple):
-    side: str
-    axis7: float
-    local_start_x: float
-    local_end_x: float
-    y: float
 
 
 class _Tool2Position(NamedTuple):
@@ -774,54 +770,6 @@ def _run_left_side_operations(
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
     return last_position
-
-
-def _split_tool2_bottom_segments_for_traversal(x_total_mm: float) -> list[_Tool2HorizontalSegment]:
-    return [
-        _Tool2HorizontalSegment("bottom", axis7, 0.0, local_x_end, -15.0)
-        for axis7, local_x_end in split_tool2_bottom_segments(x_total_mm)
-    ]
-
-
-def _split_tool2_top_segments_increasing(x_total_mm: float, y_total_mm: float) -> list[_Tool2HorizontalSegment]:
-    x_total = max(0.0, float(x_total_mm))
-    y = float(y_total_mm) + 15.0
-    span = tool2_top_local_x_span_at_y(float(y_total_mm))
-    if x_total <= 0.0 or span is None:
-        return []
-
-    local_min, local_max = span
-    if local_max <= local_min:
-        return []
-
-    segments: list[_Tool2HorizontalSegment] = []
-    start = 0.0
-    first_axis7 = 0.0
-    if local_min <= 0.0 <= local_max:
-        first_end = min(x_total, first_axis7 + local_max)
-        if first_end > start + 1e-6:
-            segments.append(_Tool2HorizontalSegment("top", first_axis7, start - first_axis7, first_end - first_axis7, y))
-            start = first_end
-
-    while start < x_total - 1e-6:
-        axis7 = start - local_min
-        end = min(x_total, axis7 + local_max)
-        if end <= start + 1e-6:
-            break
-        segments.append(_Tool2HorizontalSegment("top", axis7, start - axis7, end - axis7, y))
-        start = end
-    return segments
-
-
-def _segments_by_station(segments: list[_Tool2HorizontalSegment], tolerance_mm: float = 1.0) -> list[tuple[float, list[_Tool2HorizontalSegment]]]:
-    ordered = sorted(segments, key=lambda segment: (segment.axis7, 0 if segment.side == "bottom" else 1))
-    stations: list[tuple[float, list[_Tool2HorizontalSegment]]] = []
-    for segment in ordered:
-        if stations and abs(stations[-1][0] - segment.axis7) <= tolerance_mm:
-            stations[-1][1].append(segment)
-        else:
-            stations.append((segment.axis7, [segment]))
-    return stations
 
 
 def _reverse_horizontal_segment(segment: _Tool2HorizontalSegment) -> _Tool2HorizontalSegment:

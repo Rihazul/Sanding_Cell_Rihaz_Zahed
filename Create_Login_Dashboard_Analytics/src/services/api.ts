@@ -804,6 +804,49 @@ export async function computeTableBDxfFrameZigzag(
   }
 }
 
+export interface TableBDxfTool2Toolpath {
+  path_id: string;
+  side_label: string;
+  points: number[][];
+  axis7_position_mm: number;
+  run_index?: number; // execution order (ascending 7th-axis position)
+}
+
+export interface TableBDxfTool2ToolpathsResponse {
+  success: boolean;
+  job_id: string;
+  toolpaths: TableBDxfTool2Toolpath[];
+  axis7_positions_mm: number[];
+  message?: string;
+}
+
+/**
+ * Tool 2 side contact toolpaths, reach-split and tagged with the 7th-axis station the robot
+ * uses. Computed by the backend's Tool 2 reach model (execution/tool2_side_geometry) so the
+ * 2D viewer shows the same paths + J7 stations the robot will run. Needs only the door's
+ * outer bounds (from the 4 outer corners).
+ */
+export async function computeTableBDxfTool2Toolpaths(
+  jobId: string,
+  outerBounds: { min_x: number; min_y: number; max_x: number; max_y: number },
+): Promise<TableBDxfTool2ToolpathsResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/table-b-dxf/tool2-toolpaths/${encodeURIComponent(jobId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outer_bounds: outerBounds }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || `Tool 2 toolpaths failed: ${response.statusText}`);
+    }
+    return data;
+  } catch (error) {
+    console.error('Error computing Table B DXF Tool 2 toolpaths:', error);
+    throw error;
+  }
+}
+
 export async function detectTableBDxfLoops(
   jobId: string,
   selectedEntityIds: string[],

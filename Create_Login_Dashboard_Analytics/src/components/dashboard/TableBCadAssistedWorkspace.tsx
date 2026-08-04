@@ -10,6 +10,7 @@ import {
   detectTableBDxfLoops,
   computeTableBDxfFrameToolpaths,
   computeTableBDxfFrameZigzag,
+  computeTableBDxfTool2Toolpaths,
   planTableBDxfReach,
   type TableBDxfFrameRing,
   type TableBDxfLoop,
@@ -1125,6 +1126,13 @@ export function TableBCadAssistedWorkspace({
   const [dxfFrameZigzag, setDxfFrameZigzag] = React.useState<
     { start: number[]; end: number[]; id: string; tool: string; seq: number }[]
   >([]);
+  // Tool 2 side/edge passes: the four outer door sides, reach-split and tagged with the
+  // 7th-axis station by the backend Tool 2 reach model (execution/tool2_side_geometry), so
+  // the viewer shows the same paths + J7 stations the robot runs. No assign type — derived
+  // only from the door outer corners. Populated on Preview Toolpath.
+  const [dxfTool2Sides, setDxfTool2Sides] = React.useState<
+    { start: number[]; end: number[]; id: string; tool: string; seq: number; side_label: string; station_index: number | null; axis7_position_mm: number | null }[]
+  >([]);
   // The true frame surface polygon(s) = outer door − pockets − 3D, computed by the
   // backend (shapely) with curved edges preserved. Rendered as an overlay to verify
   // the frame region before the section/pass pipeline is built on top of it.
@@ -1192,6 +1200,7 @@ export function TableBCadAssistedWorkspace({
     setDxfPocketZigzag([]);
     setDxf3dContourToolpaths([]);
     setDxfFrameZigzag([]);
+    setDxfTool2Sides([]);
     setDxfFrameArea([]);
     setDxfFrameSections([]);
     setDxfFrameChunks([]);
@@ -2140,6 +2149,60 @@ export function TableBCadAssistedWorkspace({
     setDxfPocketToolpaths(pocketTp);
     setDxfPocketZigzag(pocketZz);
     setDxf3dContourToolpaths(contourTp);
+
+    // Tool 2 sides: fetch the reach-split contact toolpaths + 7th-axis stations from the
+    // backend Tool 2 reach model (the SAME model the robot runs), so the viewer colours each
+    // piece by station like tools 1/3/4. Derived only from the door outer corners — no assign
+    // type. Distinct axis7 positions become station indices (sorted) for the viewer's colour.
+    const t2Bounds = dxfFrameBounds();
+    if (t2Bounds) {
+      try {
+        const t2 = await computeTableBDxfTool2Toolpaths(dxfJobId, {
+          min_x: t2Bounds.min_x,
+          min_y: t2Bounds.min_y,
+          max_x: t2Bounds.max_x,
+          max_y: t2Bounds.max_y,
+        });
+        // Cluster near-equal 7th-axis positions into one VISUAL station so the operator reads
+        // them as the same 7th-axis region. The robot's own grouping (_segments_by_station)
+        // separates positions >1mm apart, but on a door two sides can plan J7 stops a few mm
+        // apart (e.g. top@1397 vs bottom@1400) — colouring those differently looked like
+        // arbitrary grouping. A ~20mm cluster keeps genuinely-different stops distinct while
+        // merging ones that are effectively the same 7th-axis position.
+        const STATION_CLUSTER_MM = 20;
+        const rawPositions = [...(t2.axis7_positions_mm ?? [])].sort((a, b) => a - b);
+        const clusters: number[] = [];
+        for (const p of rawPositions) {
+          if (clusters.length === 0 || Math.abs(p - clusters[clusters.length - 1]) > STATION_CLUSTER_MM) {
+            clusters.push(p);
+          }
+        }
+        const stationOf = (axis: number) => {
+          const idx = clusters.findIndex((a) => Math.abs(a - axis) <= STATION_CLUSTER_MM);
+          return idx >= 0 ? idx : null;
+        };
+        // Backend returns them already ordered by ascending 7th-axis (run order) — Tool 2 is
+        // not a loop, so seq = run order for correct start markers and info ordering.
+        setDxfTool2Sides(
+          (t2.toolpaths ?? []).map((tp, i) => ({
+            start: tp.points[0],
+            end: tp.points[tp.points.length - 1],
+            id: tp.path_id,
+            tool: 'tool_2',
+            seq: tp.run_index ?? i,
+            side_label: tp.side_label,
+            station_index: stationOf(tp.axis7_position_mm),
+            axis7_position_mm: tp.axis7_position_mm,
+          })),
+        );
+        console.log('[DXF Tool2] backend sides', { count: t2.toolpaths?.length ?? 0, stations: clusters.length });
+      } catch (error) {
+        console.error('[DXF Tool2] backend fetch failed', error);
+        setDxfTool2Sides([]);
+      }
+    } else {
+      setDxfTool2Sides([]);
+    }
 
     const outlineForFrame = dxfOutlinePolygon ?? (dxfPartBBox
       ? [
@@ -3312,6 +3375,7 @@ export function TableBCadAssistedWorkspace({
                       frameSections={dxfFrameSections}
                       frameChunks={dxfFrameChunks}
                       frameSectionPaths={dxfFrameSectionPaths}
+                      tool2Sides={dxfTool2Sides}
                       showFrame={dxfShowFrame}
                       showToolpaths={dxfShowToolpaths}
                       selectedToolpathId={dxfSelectedToolpathId}

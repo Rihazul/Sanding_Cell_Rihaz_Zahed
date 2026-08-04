@@ -424,6 +424,49 @@ def plan_table_b_dxf_reach(job_id: str):
         }), 500
 
 
+@table_b_dxf_bp.post("/tool2-toolpaths/<job_id>")
+def compute_table_b_dxf_tool2_toolpaths(job_id: str):
+    """Reach-split Tool 2 side contact toolpaths, tagged with their 7th-axis station.
+
+    Tool 2 sands the door thickness (the four outer sides), not the XY surface, so it has its
+    own reach model in execution/tool2_side_geometry. This endpoint reuses that exact model to
+    return the contact polylines + axis7 positions the robot will run, so the 2D viewer can
+    show the operator the Tool 2 paths coloured by 7th-axis station like the other tools.
+
+    Body: { outer_bounds: {min_x, min_y, max_x, max_y} }
+    """
+    from .execution.tool2_side_geometry import plan_tool2_side_toolpaths
+
+    logger.info("Table B DXF Assisted tool2-toolpaths requested: %s", job_id)
+    payload = request.get_json(silent=True) or {}
+    bounds = payload.get("outer_bounds") or {}
+    try:
+        x_lo = float(bounds["min_x"]); y_lo = float(bounds["min_y"])
+        x_hi = float(bounds["max_x"]); y_hi = float(bounds["max_y"])
+    except (KeyError, TypeError, ValueError):
+        return jsonify({
+            "success": False, "job_id": job_id, "status": "invalid_bounds",
+            "message": "outer_bounds must have numeric min_x, min_y, max_x, max_y.",
+        }), 400
+    if x_hi <= x_lo or y_hi <= y_lo:
+        return jsonify({
+            "success": False, "job_id": job_id, "status": "invalid_bounds",
+            "message": "outer_bounds must have max_x > min_x and max_y > min_y.",
+        }), 400
+    try:
+        toolpaths = plan_tool2_side_toolpaths(x_lo, y_lo, x_hi, y_hi)
+        return jsonify({
+            "success": True, "job_id": job_id, "toolpaths": toolpaths,
+            "axis7_positions_mm": sorted({tp["axis7_position_mm"] for tp in toolpaths}),
+        })
+    except Exception as error:  # noqa: BLE001 - a preview must never fail on planning
+        logger.exception("Table B DXF Assisted tool2-toolpaths failed: %s", error)
+        return jsonify({
+            "success": False, "job_id": job_id,
+            "status": "tool2_toolpaths_failed", "message": str(error),
+        }), 500
+
+
 @table_b_dxf_bp.post("/frame-zigzag/<job_id>")
 def compute_table_b_dxf_frame_zigzag(job_id: str):
     """Zigzag fill of the whole frame surface, clipped to the door outline (curve-aware).

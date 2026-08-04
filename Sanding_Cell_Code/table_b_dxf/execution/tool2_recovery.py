@@ -27,6 +27,16 @@ TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM = -80.0
 TOOL2_HOMING_RZ_DEG = 90.0
 TOOL2_HOMING_J6_DEG = 90.012
 
+# Bottom-side stop -> homing retract (side OR edge). Two combined moves that pull the tool off
+# the bottom edge and up to a safe standoff before the normal homing runs, replacing the older
+# straighten/lift/standoff sequence to avoid redundant motion. RY=-22 and RZ=90 are held across
+# both moves; only Y and Z change. X is left at wherever the pass stopped.
+TOOL2_BOTTOM_RECOVERY_RY_DEG = -22.0
+TOOL2_BOTTOM_RECOVERY_STEP1_Y_MM = -5.0
+TOOL2_BOTTOM_RECOVERY_STEP1_Z_MM = 0.0
+TOOL2_BOTTOM_RECOVERY_STEP2_Y_MM = 20.0
+TOOL2_BOTTOM_RECOVERY_STEP2_Z_MM = -50.0
+
 _TOOL2_SIDE_RZ_DEG = {
     "right": 0.0,
     "bottom": 90.0,
@@ -201,15 +211,6 @@ def _homing_clearance_pose(side: str, side_safe_pose: list[float]) -> list[float
     return clearance_pose
 
 
-def _bottom_homing_clearance_pose(side_safe_pose: list[float]) -> list[float]:
-    clearance_pose = list(side_safe_pose)
-    clearance_pose[1] = TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM
-    clearance_pose[2] = TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
-    clearance_pose[4] = 0.0
-    clearance_pose[5] = _TOOL2_SIDE_RZ_DEG["bottom"]
-    return clearance_pose
-
-
 def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> bool:
     """Retract Tool 2 safely after a stop before running the normal homing path.
 
@@ -232,6 +233,39 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
         return False
 
     speed = robot_speed(config)
+
+    # BOTTOM side (side OR edge): two combined moves off the bottom edge to a safe standoff,
+    # then let normal homing continue. This deliberately bypasses the shared straighten
+    # (RY=0) / 3-step retract used by the other sides, to remove redundant bottom motion.
+    #   Move 1: RY=-22, Y=-5, Z=0  (at the current X, RZ=90 held)
+    #   Move 2: Y=20,  Z=-50       (X, RY=-22, RZ=90 all held)
+    if side == "bottom":
+        cur_x, _cur_y, _cur_z, rx, _ry, _rz = [float(v) for v in current_pose[:6]]
+        rz = _TOOL2_SIDE_RZ_DEG["bottom"]
+        move1 = [cur_x, TOOL2_BOTTOM_RECOVERY_STEP1_Y_MM, TOOL2_BOTTOM_RECOVERY_STEP1_Z_MM,
+                 rx, TOOL2_BOTTOM_RECOVERY_RY_DEG, rz]
+        move2 = [cur_x, TOOL2_BOTTOM_RECOVERY_STEP2_Y_MM, TOOL2_BOTTOM_RECOVERY_STEP2_Z_MM,
+                 rx, TOOL2_BOTTOM_RECOVERY_RY_DEG, rz]
+        _log(
+            config,
+            "[TableB DXF Tool2 Recovery] bottom recovery current=%s move1=%s move2=%s",
+            current_pose, move1, move2,
+        )
+        for point in (move1, move2):
+            communicate(
+                cps=cps,
+                config=config,
+                point=point,
+                tcp=tcp,
+                ucs=ucs,
+                seventh=-1,
+                speed=speed,
+                velocity_profile="robotspeed",
+                wait=True,
+            )
+        clear_tool2_recovery_state()
+        return True
+
     side_safe_pose = _side_safe_contact_pose(side, current_pose)
     clearance_pose = _homing_clearance_pose(side, side_safe_pose)
 
@@ -254,40 +288,6 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
         velocity_profile="robotspeed",
         wait=True,
     )
-    if side == "bottom":
-        bottom_lift_pose = list(side_safe_pose)
-        bottom_lift_pose[2] = tool2_lift_z_for_side("bottom")
-        bottom_clearance_pose = _bottom_homing_clearance_pose(bottom_lift_pose)
-        if abs(float(bottom_lift_pose[2]) - float(side_safe_pose[2])) > 1e-6:
-            communicate(
-                cps=cps,
-                config=config,
-                point=bottom_lift_pose,
-                tcp=tcp,
-                ucs=ucs,
-                seventh=-1,
-                speed=speed,
-                velocity_profile="robotspeed",
-                wait=True,
-            )
-        communicate(
-            cps=cps,
-            config=config,
-            point=bottom_clearance_pose,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        _log(
-            config,
-            "[TableB DXF Tool2 Recovery] bottom recovery completed without J6 adjustment clearance=%s",
-            bottom_clearance_pose,
-        )
-        clear_tool2_recovery_state()
-        return True
     if abs(float(clearance_pose[1]) - float(side_safe_pose[1])) > 1e-6:
         clearance_xy_pose = list(side_safe_pose)
         clearance_xy_pose[1] = clearance_pose[1]

@@ -25,6 +25,23 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
+  // Homing rule: NOT allowed while a task is actively running. It becomes allowed again only
+  // after the operator triggers a Stop (so they can recover), or when nothing is running.
+  // `stopTriggered` re-enables Homing during the window between pressing Stop and isOperating
+  // actually flipping to false. It resets whenever a fresh task starts.
+  const [stopTriggered, setStopTriggered] = useState(false);
+  const wasOperatingRef = useRef(isOperating);
+
+  useEffect(() => {
+    // A new task starting (idle -> operating) clears any prior stop, re-arming the safety gate.
+    if (isOperating && !wasOperatingRef.current) {
+      setStopTriggered(false);
+    }
+    wasOperatingRef.current = isOperating;
+  }, [isOperating]);
+
+  // Homing is blocked only while a task runs AND no stop has been triggered.
+  const homingBlocked = isOperating && !stopTriggered;
 
   const scrollToBottom = () => {
     if (scrollContainerRef.current) {
@@ -86,6 +103,9 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
         addActivity(response.error, 'error');
         return;
       }
+      // A stop was triggered — allow Homing so the operator can recover, even while the task
+      // thread is still unwinding (isOperating may stay true briefly).
+      setStopTriggered(true);
       addActivity('Emergency stop activated!', 'error');
     } catch (error) {
       addActivity(`Failed to send stop: ${error}`, 'error');
@@ -114,10 +134,11 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
         <div className="grid grid-cols-2 gap-3">
           <motion.button
             type="button"
-            whileTap={isOperating ? {} : { scale: 0.95 }}
-            onClick={isOperating ? undefined : (e) => { e.preventDefault(); handleHoming(robotEnabled); }}
-            disabled={isOperating}
-            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${isOperating ? 'brightness-95 cursor-not-allowed' : ''}`}
+            whileTap={homingBlocked ? {} : { scale: 0.95 }}
+            onClick={homingBlocked ? undefined : (e) => { e.preventDefault(); setStopTriggered(false); handleHoming(robotEnabled); }}
+            disabled={homingBlocked}
+            title={homingBlocked ? 'Homing is disabled while a task is running. Press Stop first.' : undefined}
+            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${homingBlocked ? 'brightness-95 cursor-not-allowed' : ''}`}
           >
             {isHoming ? 'Homing...' : 'Homing'}
           </motion.button>

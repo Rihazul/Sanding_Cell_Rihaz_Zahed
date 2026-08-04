@@ -101,19 +101,39 @@ const stationAxisBucket = (axisPositionMm) => {
 };
 
 export const stationColor = (stationIndex, axisPositionMm = null) => {
+  // Colour by the STATION INDEX (0,1,2,... in 7th-axis order) first. The backend assigns each
+  // distinct 7th-axis stop a sequential index per tool, so this gives every different 7th axis
+  // a different palette colour. The old path hashed the raw axis mm (bucket/10 % 8), which made
+  // physically-different 7th-axis positions collide onto the same colour (e.g. J7=0 and J7=800
+  // both mapped to red). Fall back to the axis-mm hash only when no station index is available.
+  if (stationIndex !== null && stationIndex !== undefined) {
+    return STATION_COLORS[stationIndex % STATION_COLORS.length];
+  }
   const axisBucket = stationAxisBucket(axisPositionMm);
   if (axisBucket !== null) {
     return STATION_COLORS[Math.abs(Math.round(axisBucket / 10)) % STATION_COLORS.length];
   }
-  return stationIndex === null || stationIndex === undefined
-    ? STATION_UNREACHABLE_COLOR
-    : STATION_COLORS[stationIndex % STATION_COLORS.length];
+  return STATION_UNREACHABLE_COLOR;
 };
 
+// Colour strictly by STATION RANK (0,1,2,... in increasing-7th-axis order), never by the raw
+// axis mm. Used for Tool 2, where the four sides sit around the perimeter: hashing the mm made
+// adjacent sides blend into one continuous loop and hid that each side is a DIFFERENT 7th-axis
+// stop. Sequential palette colours make each distinct J7 station clearly distinct.
+export const stationColorByIndex = (stationIndex) =>
+  stationIndex === null || stationIndex === undefined
+    ? STATION_UNREACHABLE_COLOR
+    : STATION_COLORS[stationIndex % STATION_COLORS.length];
+
 const stationLegendKey = (seg) => {
+  // Group legend stops by STATION INDEX — the same thing the canvas now colours by — so each
+  // legend stop maps to exactly one on-screen colour and a distinct 7th-axis stop. Fall back to
+  // the axis-mm bucket only when a pass has no station index (unplanned).
+  if (seg.station_index !== null && seg.station_index !== undefined) {
+    return `i:${seg.station_index}`;
+  }
   const axisBucket = stationAxisBucket(seg.axis7_position_mm);
-  if (axisBucket !== null) return `x:${axisBucket}`;
-  return seg.station_index === null || seg.station_index === undefined ? null : `i:${seg.station_index}`;
+  return axisBucket !== null ? `x:${axisBucket}` : null;
 };
 
 // Which tool each pass group belongs to, so the viewer can filter to one tool at a time.
@@ -122,8 +142,9 @@ const TOOL_LABELS = {
   tool_3: 'Tool 3 · Pocket edge',
   tool_4: 'Tool 4 · Frame & zigzag',
   tool_1: 'TOOL 1 · 3D contour',
+  tool_2: 'Tool 2 · Side & edge',
 };
-const TOOL_FILTER_ORDER = ['tool_3', 'tool_4', 'tool_1'];
+const TOOL_FILTER_ORDER = ['tool_3', 'tool_4', 'tool_1', 'tool_2'];
 
 const controlButtonStyle = {
   cursor: 'pointer',
@@ -354,6 +375,7 @@ function loopAtPoint(loops, worldX, worldY, toleranceWorld) {
  *   frameSections?: any[],
  *   frameChunks?: any[],
  *   frameSectionPaths?: any[],
+ *   tool2Sides?: any[],
  *   showFrame?: boolean,
  *   showToolpaths?: boolean,
  *   selectedToolpathId?: string | null,
@@ -387,6 +409,7 @@ export default function Dxf2DViewer({
   frameSections = [],
   frameChunks = [],
   frameSectionPaths = [],
+  tool2Sides = [],
   showFrame = true,
   showToolpaths = true,
   selectedToolpathId = null,
@@ -779,6 +802,35 @@ export default function Dxf2DViewer({
       })
     : [];
 
+  // Tool 2 side/edge passes: the four door outer sides (right → bottom → left → top),
+  // derived only from the outer corners — no assign type. Drawn as a line per side with
+  // a mid-segment travel arrow, so the operator can see the side sequence in the preview.
+  const tool2SideOverlays = toolVisible('tool_2')
+    ? tool2Sides.map((seg) => {
+        const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
+        const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const arrowSize = 11;
+        const mx = (x0 + x1) / 2;
+        const my = (y0 + y1) / 2;
+        const tipX = mx + arrowSize * 0.5 * ux;
+        const tipY = my + arrowSize * 0.5 * uy;
+        const baseX = tipX - arrowSize * ux;
+        const baseY = tipY - arrowSize * uy;
+        const px = -uy;
+        const py = ux;
+        const halfW = arrowSize * 0.5;
+        const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
+        // Each Tool 2 side is its own single-pass contact stroke, so every one gets a start
+        // marker at its own first point — not just the first path (Tool 2 is not a loop).
+        return { seg, x0, y0, x1, y1, arrow, isStart: true };
+      })
+    : [];
+
   // Frame-section preview paths: red passes per chunk (single centerline or a
   // radius-based zigzag), rendered as connected segments with travel arrows and a
   // start marker at the first point of each path.
@@ -825,6 +877,7 @@ export default function Dxf2DViewer({
       tool_3: pocketToolpaths,
       tool_4: [...pocketZigzag, ...frameSectionPaths, ...frameZigzag],
       tool_1: contourToolpaths,
+      tool_2: tool2Sides,
     };
     return TOOL_FILTER_ORDER
       .filter((tool) => (toolFilter === 'all' || toolFilter === tool) && (groups[tool] || []).length > 0)
@@ -839,6 +892,8 @@ export default function Dxf2DViewer({
               count: 0,
               axis: seg.axis7_position_mm,
               stationIndex: seg.station_index,
+              // Colour by station index (each distinct 7th-axis stop → a distinct colour),
+              // matching the canvas. stationColor now prefers the index for all tools.
               color: stationColor(seg.station_index, seg.axis7_position_mm),
             });
           }
@@ -855,7 +910,7 @@ export default function Dxf2DViewer({
         return { tool, label: TOOL_LABELS[tool] || tool, stops, hasUnreachable, planned: byStation.size > 0 };
       })
       .filter((entry) => entry.stops.length > 0 || entry.hasUnreachable);
-  }, [showToolpaths, toolFilter, pocketToolpaths, pocketZigzag, frameSectionPaths, frameZigzag, contourToolpaths]);
+  }, [showToolpaths, toolFilter, pocketToolpaths, pocketZigzag, frameSectionPaths, frameZigzag, contourToolpaths, tool2Sides]);
 
   // The outer boundary fill should follow the real closed door loop when available.
   // Open guide paths can overhang the part edge; use them only as a fallback for DXFs
@@ -947,6 +1002,14 @@ export default function Dxf2DViewer({
           </div>
         ) : (
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' }}>
+            {/* Blink animation for anything highlighted from the Info/list (a region or a
+                toolpath). A pulsing opacity draws the eye to it, which reads more clearly than
+                a static highlight when the pass sits over a similarly-coloured area. */}
+            <style>{`
+              @keyframes dxfHighlightBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+              .dxf-blink { animation: dxfHighlightBlink 1.3s ease-in-out infinite; }
+              @media (prefers-reduced-motion: reduce) { .dxf-blink { animation: none; } }
+            `}</style>
             {/* World-space layer: DXF geometry + frame fills (scale with zoom). */}
             <g transform={`translate(${transform.tx} ${transform.ty}) scale(${-transform.s} ${-transform.s})`}>              {/* Outer-boundary background fill: the full part extent, frame blue,
                   with every assigned region cut out. Drawn FIRST (bottom) so all
@@ -1228,7 +1291,7 @@ export default function Dxf2DViewer({
                     ? POCKET_TOOLPATH_COLOR
                     : stationColor(seg.station_index, seg.axis7_position_mm);
                   return (
-                    <g key={`ptp-${seg.id}`}>
+                    <g key={`ptp-${seg.id}`} className={isSelected ? 'dxf-blink' : undefined}>
                       {/* Coloured by 7th-axis station when the reach planner has run, so
                           splits are visible; falls back to the tool colour otherwise. */}
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
@@ -1254,7 +1317,7 @@ export default function Dxf2DViewer({
                     ? CONTOUR_TOOLPATH_COLOR
                     : stationColor(seg.station_index, seg.axis7_position_mm);
                   return (
-                    <g key={`ctp-${seg.id}`}>
+                    <g key={`ctp-${seg.id}`} className={isSelected ? 'dxf-blink' : undefined}>
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
                       <polygon points={arrow} fill={drawColor} />
                       {isStart && (
@@ -1278,7 +1341,7 @@ export default function Dxf2DViewer({
                     ? POCKET_ZIGZAG_COLOR
                     : stationColor(seg.station_index, seg.axis7_position_mm);
                   return (
-                    <g key={`pzz-${seg.id}`}>
+                    <g key={`pzz-${seg.id}`} className={isSelected ? 'dxf-blink' : undefined}>
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 1.5} />
                       <polygon points={arrow} fill={drawColor} />
                       {isStart && (
@@ -1298,7 +1361,7 @@ export default function Dxf2DViewer({
                   const isSelected = selectedFramePathId != null && pathId === selectedFramePathId;
                   const drawColor = isSelected ? HIGHLIGHT_STROKE : color || TOOLPATH_COLOR;
                   return (
-                    <g key={`fsp-${key}`}>
+                    <g key={`fsp-${key}`} className={isSelected ? 'dxf-blink' : undefined}>
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
                       <polygon points={arrow} fill={drawColor} />
                       {isStart && (
@@ -1321,6 +1384,25 @@ export default function Dxf2DViewer({
                     <polygon points={arrow} fill={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
                     {isStart && (
                       <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
+                    )}
+                  </g>
+                ))}
+              </g>
+            )}
+
+            {/* Tool 2 side/edge passes: the four outer door sides with travel arrows.
+                Coloured by 7th-axis station when planned, else the default toolpath colour. */}
+            {tool2SideOverlays.length > 0 && (
+              <g>
+                {tool2SideOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
+                  <g key={`t2-${seg.id}`}>
+                    <title>{`Tool 2 · Side & edge · ${seg.side_label ?? ''} (${seg.id})`}</title>
+                    {/* Wide transparent hit line so hovering the thin side shows its title. */}
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke="transparent" strokeWidth={10} pointerEvents="stroke" />
+                    <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined || seg.station_index === null ? TOOLPATH_COLOR : stationColorByIndex(seg.station_index)} strokeWidth={2} pointerEvents="none" />
+                    <polygon points={arrow} fill={seg.station_index === undefined || seg.station_index === null ? TOOLPATH_COLOR : stationColorByIndex(seg.station_index)} pointerEvents="none" />
+                    {isStart && (
+                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} pointerEvents="none" />
                     )}
                   </g>
                 ))}
@@ -1383,7 +1465,8 @@ export default function Dxf2DViewer({
             {['all', ...TOOL_FILTER_ORDER].map((key) => {
               const active = toolFilter === key;
               const label = key === 'all' ? 'All' : (TOOL_LABELS[key] || key).replace(/^Tool \d+ · /, '').replace(' · ', ' ');
-              const short = key === 'all' ? 'All' : key === 'tool_3' ? 'T3 edge' : key === 'tool_4' ? 'T4 frame' : 'T1 3D';
+              const SHORT_TOOL_LABELS = { tool_3: 'T3 edge', tool_4: 'T4 frame', tool_1: 'T1 3D', tool_2: 'T2 OUT' };
+              const short = key === 'all' ? 'All' : (SHORT_TOOL_LABELS[key] || key);
               return (
                 <button
                   key={key}
@@ -1454,7 +1537,10 @@ export default function Dxf2DViewer({
             </div>
 
             {!legendCollapsed && (
-              <div style={{ padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }}>
+              // flex:1 + minHeight:0 lets this content take the remaining height under the
+              // capped parent and actually scroll — without minHeight:0 a flex child won't
+              // shrink below its content, so the list was clipped by the parent instead.
+              <div style={{ padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             {toolStationLegend.map((tool) => {
               const totalPasses = tool.stops.reduce((s, x) => s + x.count, 0);
               return (
@@ -1473,7 +1559,7 @@ export default function Dxf2DViewer({
                       <span style={{ width: '16px', height: '3px', borderRadius: '2px', background: stop.color, flex: '0 0 auto' }} />
                       <span>
                         Stop {i + 1}
-                        {stop.axis !== undefined && stop.axis !== null ? ` @ X=${Math.round(stop.axis)}mm` : ''}
+                        {stop.axis !== undefined && stop.axis !== null ? ` · 7th axis @ ${Math.round(stop.axis)}mm` : ''}
                         <span style={{ color: '#64748b' }}> · {stop.count} pass{stop.count === 1 ? '' : 'es'}</span>
                       </span>
                     </span>
