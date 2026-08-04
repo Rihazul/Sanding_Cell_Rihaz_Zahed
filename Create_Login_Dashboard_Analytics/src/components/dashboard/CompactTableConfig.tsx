@@ -19,8 +19,12 @@ import {
   getTableB3DExecutionPreview,
   API_BASE_URL,
   saveTableBDxfApprovedToolpath,
+  getOperationPresets,
+  saveOperationPreset,
   type TableB3DGeneratedToolpaths,
   type TableB3DExecutionPreview,
+  type OperationPresetsTree,
+  type OperationPresetTargets,
 } from '../../services/api';
 // --- Table B DXF (2D CAD Assisted) workspace + panels ---
 import {
@@ -155,6 +159,11 @@ export function CompactTableConfig({
   const [detectedDoorNumbers, setDetectedDoorNumbers] = React.useState<number[] | null>(null);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
+  // Operator-saved Force/Cycle presets (Start / Middle / Finish / Normal default). Loaded once
+  // from the backend; Table A is per-model, Table B is model-agnostic.
+  const [operationPresets, setOperationPresets] = React.useState<OperationPresetsTree>({ tableA: {}, tableB: {} });
+  // When set, shows the "Save preset — pick a slot" modal (Start / Middle / Finish / default).
+  const [savePresetPromptOpen, setSavePresetPromptOpen] = React.useState<boolean>(false);
   const [previewAttemptIndexA, setPreviewAttemptIndexA] = React.useState<number>(0);
   const [tableAFrameSizeX, setTableAFrameSizeX] = React.useState<string>('57');
   const [tableAFrameSizeY, setTableAFrameSizeY] = React.useState<string>('57');
@@ -834,6 +843,24 @@ export function CompactTableConfig({
   React.useEffect(() => {
     setPreviewAttemptIndexA(0);
   }, [tableAPreviewModel]);
+
+  // Load saved Force/Cycle presets once so the Start/Middle/Finish/Default buttons can apply them.
+  // Normalize the result so a missing branch never blanks the buttons, and surface any fetch
+  // failure (previously swallowed) so a stale/unreachable backend is visible rather than looking
+  // like the presets were deleted.
+  React.useEffect(() => {
+    getOperationPresets()
+      .then((tree) => {
+        setOperationPresets({
+          tableA: tree?.tableA ?? {},
+          tableB: tree?.tableB ?? {},
+        });
+        console.log('[Presets] loaded', tree);
+      })
+      .catch((err) => {
+        console.error('[Presets] failed to load — saved presets will not appear', err);
+      });
+  }, []);
 
   React.useEffect(() => {
     console.log(`Table ${tableName}: addActivity prop changed:`, !!addActivity);
@@ -1627,6 +1654,205 @@ export function CompactTableConfig({
     }
   };
 
+  // --- Force/Cycle presets (Start / Middle / Finish / Normal default) -----------------------
+  // Presets are model-agnostic for BOTH tables: one shared set of slots per table, reusable
+  // across any model. Save snapshots the currently-visible rows; load fills the visible ops.
+  const PRESET_TARGET_LABELS: Record<string, string> = {
+    start: 'Start',
+    middle: 'Middle',
+    finish: 'Finish',
+    default: 'Normal default (anytime)',
+  };
+
+  const snapshotPresetValues = (displayRows: { row: RowConfig; idx: number }[]) => {
+    const values: Record<string, { force: number; cycle: number }> = {};
+    displayRows.forEach(({ row }) => {
+      values[row.label] = { force: Number(row.force) || 0, cycle: Number(row.cycle) || 0 };
+    });
+    return values;
+  };
+
+  // The Save button just opens the pick-a-slot modal (after validating there's something to save).
+  const handleSavePreset = () => {
+    if (isOperating) return;
+    const displayRows = tableName === 'A' ? currentDisplayRows : tableBDisplayRows;
+    if (displayRows.length === 0) {
+      addActivity(`Table ${tableName}: No operations visible to save.`, 'warning');
+      return;
+    }
+    setSavePresetPromptOpen(true);
+  };
+
+  // Actually persist the current values into the chosen slot (called from the modal buttons).
+  // Both tables are model-agnostic — presets are reusable across any model.
+  const savePresetToTarget = async (target: 'start' | 'middle' | 'finish' | 'default') => {
+    setSavePresetPromptOpen(false);
+    const displayRows = tableName === 'A' ? currentDisplayRows : tableBDisplayRows;
+    try {
+      const updated = await saveOperationPreset({
+        table: tableName,
+        target,
+        values: snapshotPresetValues(displayRows),
+      });
+      setOperationPresets(updated);
+      const label = PRESET_TARGET_LABELS[target];
+      addActivity(`Table ${tableName}: Config saved for ${label}.`, 'success');
+    } catch (e) {
+      addActivity(`Table ${tableName}: Failed to save preset - ${(e as Error).message}`, 'error');
+    }
+  };
+
+  const resolvePreset = (target: string): Record<string, { force: number; cycle: number }> | null => {
+    const slot = target as keyof OperationPresetTargets;
+    const branch = tableName === 'A' ? operationPresets.tableA : operationPresets.tableB;
+    return branch?.[slot] ?? null;
+  };
+
+  // A preset "has values" only if at least one operation has a non-zero force or cycle. An
+  // all-zero save (e.g. after Clear) is treated as empty → no check mark, and load warns.
+  const presetHasValues = (p: Record<string, { force: number; cycle: number }> | null): boolean =>
+    !!p && Object.values(p).some((v) => (Number(v.force) || 0) > 0 || (Number(v.cycle) || 0) > 0);
+
+  // Drives the Load button styling so the operator can see which slots actually hold values.
+  const presetExists = (target: string): boolean => presetHasValues(resolvePreset(target));
+
+  const handleLoadPreset = (target: string) => {
+    if (isOperating) return;
+    const preset = resolvePreset(target);
+    const label = PRESET_TARGET_LABELS[target];
+    if (!presetHasValues(preset)) {
+      addActivity(`Table ${tableName}: No "${label}" preset saved (or it is empty).`, 'warning');
+      // Make the empty case obvious (a quiet log line looked like "same config loaded").
+      const swal = getSwal();
+      if (swal?.fire) {
+        swal.fire({ title: `No "${label}" preset`, text: `Nothing is saved in the ${label} slot. Save one first.`, icon: 'info' });
+      }
+      return;
+    }
+    if (tableName === 'A') {
+      let applied = 0;
+      currentDisplayRows.forEach(({ row, idx }) => {
+        const v = preset[row.label];
+        if (!v) return;
+        handleRowChange(idx, 'force', Number(v.force) || 0);
+        handleRowChange(idx, 'cycle', Number(v.cycle) || 0);
+        applied += 1;
+      });
+      addActivity(`Table A: Loaded "${label}" into ${applied} operation(s).`, applied ? 'success' : 'warning');
+    } else {
+      const shown = new Set(tableBDisplayRows.map(({ row }) => row.label));
+      let applied = 0;
+      setRows((prev: RowConfig[]) =>
+        prev.map((r) => {
+          if (!shown.has(r.label)) return r;
+          const v = preset[r.label];
+          if (!v) return r;
+          applied += 1;
+          return { ...r, force: Number(v.force) || 0, cycle: Number(v.cycle) || 0 };
+        }),
+      );
+      addActivity(`Table B: Loaded "${label}" into ${applied} operation(s).`, applied ? 'success' : 'warning');
+    }
+  };
+
+  // Preset button row rendered beside the Clear button in both tables.
+  const renderPresetButtons = () => {
+    const disabled = isOperating;
+    const loadBtn = (target: string, text: string) => {
+      const has = presetExists(target);
+      return (
+        <button
+          key={target}
+          type="button"
+          disabled={disabled}
+          title={
+            has
+              ? `Load the ${PRESET_TARGET_LABELS[target]} preset into the operations below`
+              : `No ${PRESET_TARGET_LABELS[target]} preset saved yet`
+          }
+          onClick={() => handleLoadPreset(target)}
+          className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed ${
+            has
+              ? 'border-blue-300 bg-blue-50 text-blue-700 hover:border-blue-500 hover:bg-blue-100'
+              : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+          }`}
+        >
+          {text}{has ? ' ✓' : ''}
+        </button>
+      );
+    };
+    return (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-xs font-semibold text-slate-500 mr-0.5" title="Save the current force/cycle values as a preset, or load a saved preset into the operations below.">
+          Config presets:
+        </span>
+        <button
+          type="button"
+          disabled={disabled}
+          title="Save the current force/cycle values as a preset (choose Start / Middle / Finish / Normal default)"
+          onClick={handleSavePreset}
+          className="inline-flex items-center gap-1 rounded-md border border-green-400 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 shadow-sm hover:bg-green-600 hover:border-green-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          💾 Save
+        </button>
+        <span className="text-xs text-slate-400">Load:</span>
+        {loadBtn('start', 'Start')}
+        {loadBtn('middle', 'Middle')}
+        {loadBtn('finish', 'Finish')}
+        {loadBtn('default', 'Default')}
+        {renderSavePresetModal()}
+      </div>
+    );
+  };
+
+  // Modal to pick which slot to save the current config into. Uses a portal + our own buttons
+  // (the SweetAlert lite shim does not support radio inputs), so the choices are always visible.
+  const renderSavePresetModal = () =>
+    savePresetPromptOpen
+      ? createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setSavePresetPromptOpen(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.25)', width: 'min(420px, 96vw)' }}
+            >
+              <div className="border-b border-slate-200 px-4 py-2.5">
+                <div className="text-sm font-semibold text-slate-800">Save config preset</div>
+                <div className="mt-0.5 text-xs text-slate-500">
+                  Save the current force/cycle values for Table {tableName} (reusable across models). Pick a slot:
+                </div>
+              </div>
+              <div className="p-4 grid grid-cols-2 gap-2">
+                {(['start', 'middle', 'finish', 'default'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => savePresetToTarget(t)}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    {PRESET_TARGET_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end border-t border-slate-200 px-4 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => setSavePresetPromptOpen(false)}
+                  className="rounded-md px-3 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   const toggleRowDoor = (label: string, doorNumber: number) => {
     if (detectedDoorNumbers !== null && !detectedDoorNumbers.includes(doorNumber)) {
       return;
@@ -2094,7 +2320,8 @@ export function CompactTableConfig({
               {shouldShowTableAOperations && (
                 <div className="mb-2">
                   {currentDisplayRows.length > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }} className="mb-1">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px', flexWrap: 'wrap' }} className="mb-1">
+                      {renderPresetButtons()}
                       <button
                         type="button"
                         disabled={isOperating}
@@ -2244,51 +2471,49 @@ export function CompactTableConfig({
                         </div>
                       </div>
 
-                      {/* Pocket ZigZag Options - Second line below */}
+                      {/* Pocket ZigZag pattern — compact inline row. */}
                       {row.label === 'Pocket ZigZag' && (
-                        <div className="mt-4 pt-6 border-t border-indigo-100">
-                          <div className="flex items-center justify-center gap-3">
+                        <div className="mt-2 pt-2 border-t border-indigo-100">
+                          <div className="flex items-center justify-center gap-4 flex-wrap">
                             <span className="text-sm text-gray-500 font-medium">Pattern:</span>
-                            <div className="flex items-center gap-3">
-                              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                                row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
-                              } ${
-                                row.verticalSpiral || row.cycle > 1
-                                  ? 'bg-blue-500 border-blue-500 text-white'
-                                  : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                              }`}>
-                                <input
-                                  type="checkbox"
-                                  checked={row.verticalSpiral || row.cycle > 1}
-                                  onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
-                                  disabled={isOperating || row.cycle > 1}
-                                  className="sr-only"
-                                />
-                                <span className="text-sm font-medium">↕ Vertical</span>
-                              </label>
-                              <label className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-colors ${
-                                row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
-                              } ${
-                                row.horizontalSpiral || row.cycle > 1
-                                  ? 'bg-blue-500 border-blue-500 text-white'
-                                  : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
-                              }`}>
-                                <input
-                                  type="checkbox"
-                                  checked={row.horizontalSpiral || row.cycle > 1}
-                                  onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
-                                  disabled={isOperating || row.cycle > 1}
-                                  className="sr-only"
-                                />
-                                <span className="text-sm font-medium">↔ Horizontal</span>
-                              </label>
-                            </div>
+                            <label className={`inline-flex items-center justify-center gap-1 min-w-[110px] px-3 py-1 rounded-md border text-xs font-semibold transition-colors ${
+                              row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                            } ${
+                              row.verticalSpiral || row.cycle > 1
+                                ? 'bg-blue-500 border-blue-500 text-white'
+                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={row.verticalSpiral || row.cycle > 1}
+                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
+                                disabled={isOperating || row.cycle > 1}
+                                className="sr-only"
+                              />
+                              ↕ Vertical
+                            </label>
+                            <label className={`inline-flex items-center justify-center gap-1 min-w-[110px] px-3 py-1 rounded-md border text-xs font-semibold transition-colors ${
+                              row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                            } ${
+                              row.horizontalSpiral || row.cycle > 1
+                                ? 'bg-blue-500 border-blue-500 text-white'
+                                : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
+                            }`}>
+                              <input
+                                type="checkbox"
+                                checked={row.horizontalSpiral || row.cycle > 1}
+                                onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
+                                disabled={isOperating || row.cycle > 1}
+                                className="sr-only"
+                              />
+                              ↔ Horizontal
+                            </label>
+                            {row.cycle > 1 && (
+                              <span className="text-xs font-medium text-indigo-700">
+                                (&gt;1 cycle runs both patterns)
+                              </span>
+                            )}
                           </div>
-                          {row.cycle > 1 && (
-                            <p className="mt-2 text-center text-xs font-medium text-indigo-700">
-                              More than 1 cycle selected: every cycle will run both Vertical and Horizontal patterns.
-                            </p>
-                          )}
                         </div>
                       )}
                     </div>
@@ -2368,7 +2593,8 @@ export function CompactTableConfig({
                   no geometry for. */}
               <div className="mt-2 space-y-1">
                 {tableBDisplayRows.length > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px', flexWrap: 'wrap' }}>
+                    {renderPresetButtons()}
                     <button
                       type="button"
                       disabled={isOperating}

@@ -166,6 +166,7 @@ export interface DxfToolpathPreviewPayload {
     pocket_zigzag_orientation?: 'vertical' | 'horizontal';
     pocket_overlap_mm?: number;
     frame_overlap_mm?: number;
+    pocket_edge_margin_mm?: number;
     pocket_zigzag_cycle_patterns?: {
       selected_orientation: 'vertical' | 'horizontal';
       alternate_orientation: 'vertical' | 'horizontal';
@@ -1112,6 +1113,11 @@ export function TableBCadAssistedWorkspace({
   // Operator-set pocket overlap (mm, 0..100). Higher overlap → smaller pass step
   // → more passes; 0 → passes just touch (fewest passes).
   const [dxfPocketOverlap, setDxfPocketOverlap] = React.useState(0);
+  // Operator-set Tool 3 (pocket edge) SAFETY MARGIN (mm), added to the fixed tool-size offset
+  // (38.1 mm X / 50.8 mm Y). A larger margin keeps the pass farther from the pocket edge.
+  // Default 4.5 mm matches the previous hardcoded value.
+  const TOOL3_DEFAULT_EDGE_MARGIN_MM = 4.5;
+  const [dxfPocketEdgeMargin, setDxfPocketEdgeMargin] = React.useState(TOOL3_DEFAULT_EDGE_MARGIN_MM);
   const [dxfPocketZigzagOrientation, setDxfPocketZigzagOrientation] = React.useState<'vertical' | 'horizontal'>('vertical');
   // Operator-set FRAME overlap (mm, 0..100) — same idea but for the big frame
   // rectangle (chunk) zigzag passes. Independent of the pocket overlap.
@@ -1222,6 +1228,20 @@ export function TableBCadAssistedWorkspace({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isDxfViewerOpen]);
+
+  // Close the 2D CAD viewer automatically the moment the operator APPROVES (the status
+  // TRANSITIONS to 'approved'), so they land back on the Table B config without an extra
+  // Close click. We watch the transition — not the mere fact that it is approved — so
+  // re-opening the viewer afterwards to review or change something does NOT auto-close it.
+  const prevPreviewStatusRef = React.useRef(previewStatus);
+  React.useEffect(() => {
+    const justApproved =
+      prevPreviewStatusRef.current !== 'approved' && previewStatus === 'approved' && !previewStale;
+    prevPreviewStatusRef.current = previewStatus;
+    if (justApproved && isDxfViewerOpen) {
+      setIsDxfViewerOpen(false);
+    }
+  }, [previewStatus, previewStale, isDxfViewerOpen]);
   const handleLoadDxfIntoViewer = async (file: File) => {
     setDxfFileName(file.name);
     setDxfViewerStatus('loading');
@@ -1293,9 +1313,12 @@ export function TableBCadAssistedWorkspace({
   };
 
   // Tool 3 (rectangular contour) TCP offset from each pocket edge, in millimeters.
-  // The tool center sits 38.1/50.8 mm in from the pocket edge, plus a 4.5 mm margin.
-  const TOOL3_OFFSET_X_MM = 38.1 + 4.5;
-  const TOOL3_OFFSET_Y_MM = 50.8 + 4.5;
+  // The tool center sits 38.1 mm (X) / 50.8 mm (Y) in from the pocket edge — the fixed tool
+  // size — PLUS the operator-set safety margin (dxfPocketEdgeMargin, default 4.5 mm).
+  const TOOL3_SIZE_X_MM = 38.1;
+  const TOOL3_SIZE_Y_MM = 50.8;
+  const TOOL3_OFFSET_X_MM = TOOL3_SIZE_X_MM + dxfPocketEdgeMargin;
+  const TOOL3_OFFSET_Y_MM = TOOL3_SIZE_Y_MM + dxfPocketEdgeMargin;
 
   // Build the Tool 3 rectangular-contour toolpath for every assigned pocket. The
   // path is an inner rectangle offset in from the 4 corners, traced as 4 lines
@@ -2459,6 +2482,7 @@ export function TableBCadAssistedWorkspace({
         pocket_zigzag_orientation: dxfPocketZigzagOrientation,
         pocket_overlap_mm: dxfPocketOverlap,
         frame_overlap_mm: dxfFrameOverlap,
+        pocket_edge_margin_mm: dxfPocketEdgeMargin,
         pocket_zigzag_cycle_patterns: pocketZigzagCyclePatterns,
       },
       regions,
@@ -3170,6 +3194,25 @@ export function TableBCadAssistedWorkspace({
                       onChange={(event) => {
                         const v = Number(event.target.value);
                         setDxfPocketOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                      }}
+                      style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                    />
+                    mm
+                  </label>
+                  <label
+                    title="Tool 3 pocket-edge safety margin, added to the fixed tool size (38.1 X / 50.8 Y). Larger = pass sits farther from the pocket edge. Applied on the next Preview Toolpath."
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}
+                  >
+                    Pocket Edge Offset
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={dxfPocketEdgeMargin}
+                      onChange={(event) => {
+                        const v = Number(event.target.value);
+                        setDxfPocketEdgeMargin(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : TOOL3_DEFAULT_EDGE_MARGIN_MM);
                       }}
                       style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
                     />

@@ -69,6 +69,36 @@ export async function saveModalData(tableAData: {
   });
 }
 
+// --- Operation Force/Cycle presets (Start / Middle / Finish / Normal default) ---------------
+// Table A presets are per model key; Table B presets are model-agnostic (one set reusable
+// across uploaded models). A leaf is just {force, cycle} for one operation label.
+export interface OperationPresetLeaf { force: number; cycle: number; }
+export type OperationPresetTargets = {
+  start?: Record<string, OperationPresetLeaf>;
+  middle?: Record<string, OperationPresetLeaf>;
+  finish?: Record<string, OperationPresetLeaf>;
+  default?: Record<string, OperationPresetLeaf>;
+};
+export interface OperationPresetsTree {
+  // Both tables are model-agnostic: one shared set of slots per table, reusable across models.
+  tableA: OperationPresetTargets;
+  tableB: OperationPresetTargets;
+}
+
+export async function getOperationPresets(): Promise<OperationPresetsTree> {
+  const res = await apiCall('/get_operation_presets', 'GET');
+  return (res?.presets as OperationPresetsTree) ?? { tableA: {}, tableB: {} };
+}
+
+export async function saveOperationPreset(payload: {
+  table: 'A' | 'B';
+  target: 'start' | 'middle' | 'finish' | 'default';
+  values: Record<string, OperationPresetLeaf>;
+}): Promise<OperationPresetsTree> {
+  const res = await apiCall('/save_operation_preset', 'POST', payload);
+  return (res?.presets as OperationPresetsTree) ?? { tableA: {}, tableB: {} };
+}
+
 // Door configuration type for Table A
 export interface DoorConfig {
   doorNumber: number;

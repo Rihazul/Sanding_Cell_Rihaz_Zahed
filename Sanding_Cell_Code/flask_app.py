@@ -464,6 +464,54 @@ TABLEA_SCAN_META_PATH = os.path.join(
     ".tablea_scan_meta.json",
 )
 
+# Operator-saved Force/Cycle presets (Start / Middle / Finish / Normal default). Table A is
+# per-model; Table B is model-agnostic (one set reusable across uploaded models). Shared JSON
+# so presets persist across restarts and machines hitting the same server.
+OPERATION_PRESETS_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "configs",
+    "operation_presets.json",
+)
+
+
+def _empty_presets() -> dict:
+    return {"tableA": {}, "tableB": {}}
+
+
+_PRESET_SLOTS = ("start", "middle", "finish", "default")
+
+
+def _load_operation_presets() -> dict:
+    try:
+        if not os.path.exists(OPERATION_PRESETS_PATH):
+            return _empty_presets()
+        with open(OPERATION_PRESETS_PATH, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            return _empty_presets()
+        payload.setdefault("tableA", {})
+        payload.setdefault("tableB", {})
+        # Both tables are now model-agnostic (flat slot -> {label: {force,cycle}}). Drop any
+        # legacy per-model keys from an older format so lookups and the UI stay clean.
+        for key in ("tableA", "tableB"):
+            branch = payload.get(key)
+            if isinstance(branch, dict):
+                payload[key] = {s: v for s, v in branch.items() if s in _PRESET_SLOTS and isinstance(v, dict)}
+            else:
+                payload[key] = {}
+        return payload
+    except Exception:
+        return _empty_presets()
+
+
+def _save_operation_presets(payload: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(OPERATION_PRESETS_PATH), exist_ok=True)
+        with open(OPERATION_PRESETS_PATH, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+    except Exception:
+        pass
+
 
 def _load_j7_home_state() -> bool:
     try:
@@ -1051,6 +1099,51 @@ def get_modal_data():
         return jsonify(modal_data_store)
     else:
         return jsonify(default_data)
+
+
+############################################################################################
+# Operation Force/Cycle presets (Start / Middle / Finish / Normal default)
+@app.route('/get_operation_presets', methods=['GET'])
+def get_operation_presets():
+    try:
+        return jsonify({'status': 'success', 'presets': _load_operation_presets()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Error loading presets: {str(e)}'})
+
+
+@app.route('/save_operation_preset', methods=['POST'])
+def save_operation_preset():
+    """Save one preset slot. Load-merge: only the addressed table -> target slot is replaced,
+    so other slots are preserved. Both tables are model-agnostic: one shared set of slots per
+    table, reusable across any model."""
+    try:
+        body = request.json or {}
+        table = str(body.get('table', '')).strip()          # 'A' | 'B'
+        target = str(body.get('target', '')).strip()        # start | middle | finish | default
+        values = body.get('values', {})                     # { label: {force, cycle} }
+
+        if table not in ('A', 'B'):
+            return jsonify({'status': 'error', 'message': 'Invalid table'}), 400
+        if target not in ('start', 'middle', 'finish', 'default'):
+            return jsonify({'status': 'error', 'message': 'Invalid target'}), 400
+        if not isinstance(values, dict):
+            return jsonify({'status': 'error', 'message': 'Invalid values'}), 400
+
+        clean = {}
+        for label, v in values.items():
+            if isinstance(v, dict):
+                clean[str(label)] = {
+                    'force': int(v.get('force', 0) or 0),
+                    'cycle': int(v.get('cycle', 0) or 0),
+                }
+
+        presets = _load_operation_presets()
+        key = 'tableA' if table == 'A' else 'tableB'
+        presets.setdefault(key, {})[target] = clean
+        _save_operation_presets(presets)
+        return jsonify({'status': 'success', 'presets': presets})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': f'Error saving preset: {str(e)}'})
 
 
 @app.route('/logs/history', methods=['GET'])
