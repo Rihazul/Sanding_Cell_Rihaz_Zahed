@@ -378,6 +378,26 @@ def _bounds_from_steps(steps: list[dict[str, Any]]) -> tuple[float, float]:
     return max(xs) - min(xs), max(ys) - min(ys)
 
 
+def _cycles_for_steps(steps: list[dict[str, Any]]) -> int:
+    cycles = 0
+    for step in steps:
+        try:
+            value = int((step.get("recipe") or {}).get("cycle") or 0)
+        except (TypeError, ValueError):
+            value = 0
+        cycles = max(cycles, value)
+    return max(1, cycles)
+
+
+def _ping_pong_axis_targets(start: float, end: float, cycles: int) -> list[float]:
+    cycle_count = max(1, int(cycles or 1))
+    return [end if index % 2 == 1 else start for index in range(1, cycle_count + 1)]
+
+
+def _last_ping_pong_target(start: float, end: float, cycles: int) -> float:
+    return _ping_pong_axis_targets(start, end, cycles)[-1]
+
+
 def _run_horizontal_segment(
     cps: Any,
     config: dict[str, Any],
@@ -390,6 +410,7 @@ def _run_horizontal_segment(
     lift_after: bool = True,
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
+    cycles: int = 1,
 ) -> _Tool2Position:
     side = segment.side
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
@@ -400,13 +421,14 @@ def _run_horizontal_segment(
     path_end_x = segment.local_start_x if reverse_path else segment.local_end_x
     _log(
         config,
-        "[TableB DXF Tool2] %s %s segment j7=%.3f x %.3f -> %.3f y=%.3f enter_from_contact=%s lift_after=%s",
+        "[TableB DXF Tool2] %s %s segment j7=%.3f x %.3f -> %.3f y=%.3f cycles=%s enter_from_contact=%s lift_after=%s",
         operation_mode,
         side,
         segment.axis7,
         path_start_x,
         path_end_x,
         y,
+        max(1, int(cycles or 1)),
         enter_from_contact,
         lift_after,
     )
@@ -447,23 +469,34 @@ def _run_horizontal_segment(
         )
     _force_ready_at_contact(cps, config, side, operation_mode, path_start_x, y, rz)
     _apply_force_and_vibration(cps, config, side, force)
-    end_pose = _sanding_pose(operation_mode, path_end_x, y, TOOL2_CONTACT_Z_MM, rz)
-    _mark_tool2_recovery(side, end_pose)
-    _log(config, "[TableB DXF Tool2] %s %s sanding move to %s", operation_mode, side, end_pose)
-    _move(
-        cps,
-        config,
-        end_pose,
-        speed=sanding_speed(config),
-        velocity_profile="sandingspeed",
-        speed_mode="linear",
-        wait=True,
-    )
+    cycle_targets = _ping_pong_axis_targets(path_start_x, path_end_x, cycles)
+    for cycle_index, target_x in enumerate(cycle_targets, start=1):
+        target_pose = _sanding_pose(operation_mode, target_x, y, TOOL2_CONTACT_Z_MM, rz)
+        _mark_tool2_recovery(side, target_pose)
+        _log(
+            config,
+            "[TableB DXF Tool2] %s %s sanding cycle %s/%s move to %s",
+            operation_mode,
+            side,
+            cycle_index,
+            len(cycle_targets),
+            target_pose,
+        )
+        _move(
+            cps,
+            config,
+            target_pose,
+            speed=sanding_speed(config),
+            velocity_profile="sandingspeed",
+            speed_mode="linear",
+            wait=True,
+        )
+    final_x = _last_ping_pong_target(path_start_x, path_end_x, cycles)
     _release_force_and_vibration(cps, config, side)
     exit_y = y
     if _is_edge_operation(operation_mode):
         exit_y = side_safe_y
-        safe_exit_pose = _pose(path_end_x, exit_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        safe_exit_pose = _pose(final_x, exit_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
         _move(
             cps,
             config,
@@ -473,7 +506,7 @@ def _run_horizontal_segment(
         )
         _mark_tool2_recovery(side, safe_exit_pose)
     elif not lift_after:
-        safe_exit_pose = _pose(path_end_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        safe_exit_pose = _pose(final_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
         _move(
             cps,
             config,
@@ -483,16 +516,16 @@ def _run_horizontal_segment(
         )
         _mark_tool2_recovery(side, safe_exit_pose)
     if lift_after:
-        _move(cps, config, _pose(path_end_x, exit_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        _move(cps, config, _pose(final_x, exit_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
         _move(
             cps,
             config,
-            _pose(path_end_x, exit_y, lift_z, rz),
+            _pose(final_x, exit_y, lift_z, rz),
             velocity_profile="robotspeed",
             wait=True,
         )
     final_z = lift_z if lift_after else TOOL2_CONTACT_Z_MM
-    return _Tool2Position(side, path_end_x, exit_y, final_z, rz)
+    return _Tool2Position(side, final_x, exit_y, final_z, rz)
 
 
 def _run_horizontal_segment_operations(
@@ -500,6 +533,7 @@ def _run_horizontal_segment_operations(
     config: dict[str, Any],
     force_by_mode: dict[str, float],
     operation_modes: list[str],
+    cycles_by_mode: dict[str, int],
     segment: _Tool2HorizontalSegment,
     previous_position: _Tool2Position | None = None,
     *,
@@ -518,6 +552,9 @@ def _run_horizontal_segment_operations(
         has_next_same_pass_operation = index + 1 < len(operation_modes)
         enter_from_contact_for_operation = (enter_from_contact and index == 0) or index > 0
         lift_after_operation = False if has_next_same_pass_operation else not keep_contact_after
+        reverse_for_operation = False
+        if index > 0 and _is_edge_operation(operation_mode) and last_position is not None:
+            reverse_for_operation = abs(last_position.x - segment.local_end_x) < abs(last_position.x - segment.local_start_x)
         last_position = _run_horizontal_segment(
             cps,
             config,
@@ -528,7 +565,8 @@ def _run_horizontal_segment_operations(
             enter_from_contact=enter_from_contact_for_operation,
             lift_after=lift_after_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
-            reverse_path=index > 0 and _is_edge_operation(operation_mode),
+            reverse_path=reverse_for_operation,
+            cycles=cycles_by_mode.get(operation_mode, 1),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")
@@ -551,6 +589,7 @@ def _run_vertical_side(
     lift_after: bool = True,
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
+    cycles: int = 1,
 ) -> _Tool2Position:
     rz = TOOL2_SIDE_RZ_DEG[side]
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
@@ -561,12 +600,13 @@ def _run_vertical_side(
     path_end_y = start_y if reverse_path else end_y
     _log(
         config,
-        "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f enter_from_contact=%s lift_after=%s",
+        "[TableB DXF Tool2] %s %s side j7=%.3f y %.3f -> %.3f cycles=%s enter_from_contact=%s lift_after=%s",
         operation_mode,
         side,
         axis7,
         start_y,
         end_y,
+        max(1, int(cycles or 1)),
         enter_from_contact,
         lift_after,
     )
@@ -607,39 +647,50 @@ def _run_vertical_side(
         )
     _force_ready_at_contact(cps, config, side, operation_mode, x, path_start_y, rz)
     _apply_force_and_vibration(cps, config, side, force)
-    end_pose = _sanding_pose(operation_mode, x, path_end_y, TOOL2_CONTACT_Z_MM, rz)
-    _mark_tool2_recovery(side, end_pose)
-    _log(config, "[TableB DXF Tool2] %s %s sanding move to %s", operation_mode, side, end_pose)
-    _move(
-        cps,
-        config,
-        end_pose,
-        speed=sanding_speed(config),
-        velocity_profile="sandingspeed",
-        speed_mode="linear",
-        wait=True,
-    )
+    cycle_targets = _ping_pong_axis_targets(path_start_y, path_end_y, cycles)
+    for cycle_index, target_y in enumerate(cycle_targets, start=1):
+        target_pose = _sanding_pose(operation_mode, x, target_y, TOOL2_CONTACT_Z_MM, rz)
+        _mark_tool2_recovery(side, target_pose)
+        _log(
+            config,
+            "[TableB DXF Tool2] %s %s sanding cycle %s/%s move to %s",
+            operation_mode,
+            side,
+            cycle_index,
+            len(cycle_targets),
+            target_pose,
+        )
+        _move(
+            cps,
+            config,
+            target_pose,
+            speed=sanding_speed(config),
+            velocity_profile="sandingspeed",
+            speed_mode="linear",
+            wait=True,
+        )
+    final_y = _last_ping_pong_target(path_start_y, path_end_y, cycles)
     _release_force_and_vibration(cps, config, side)
     exit_x = x
     if _is_edge_operation(operation_mode):
         exit_x = side_safe_x
-        safe_exit_pose = _pose(exit_x, path_end_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        safe_exit_pose = _pose(exit_x, final_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
         _move(cps, config, safe_exit_pose, velocity_profile="robotspeed", wait=True)
         _mark_tool2_recovery(side, safe_exit_pose)
     elif not lift_after:
-        safe_exit_pose = _pose(side_safe_x, path_end_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+        safe_exit_pose = _pose(side_safe_x, final_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
         _move(cps, config, safe_exit_pose, velocity_profile="robotspeed", wait=True)
         _mark_tool2_recovery(side, safe_exit_pose)
     if lift_after:
-        _move(cps, config, _pose(exit_x, path_end_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-        lift_y = _left_side_bottom_lift_y(side, path_end_y)
+        _move(cps, config, _pose(exit_x, final_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        lift_y = _left_side_bottom_lift_y(side, final_y)
         if lift_y is not None:
             _move(cps, config, _pose(exit_x, lift_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
             _move(cps, config, _pose(exit_x, lift_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
             return _Tool2Position(side, exit_x, lift_y, lift_z, rz)
-        _move(cps, config, _pose(exit_x, path_end_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
+        _move(cps, config, _pose(exit_x, final_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
     final_z = lift_z if lift_after else TOOL2_CONTACT_Z_MM
-    return _Tool2Position(side, exit_x, path_end_y, final_z, rz)
+    return _Tool2Position(side, exit_x, final_y, final_z, rz)
 
 
 def _run_right_side(
@@ -654,6 +705,7 @@ def _run_right_side(
     lift_after: bool = True,
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
+    cycles: int = 1,
 ) -> _Tool2Position:
     return _run_vertical_side(
         cps,
@@ -670,6 +722,7 @@ def _run_right_side(
         lift_after=lift_after,
         backoff_before_entry=backoff_before_entry,
         reverse_path=reverse_path,
+        cycles=cycles,
     )
 
 
@@ -687,6 +740,7 @@ def _run_left_side(
     lift_after: bool = True,
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
+    cycles: int = 1,
 ) -> _Tool2Position:
     start_y = y_total if start_from_top else 0.0
     end_y = 0.0 if start_from_top else y_total
@@ -705,6 +759,7 @@ def _run_left_side(
         lift_after=lift_after,
         backoff_before_entry=backoff_before_entry,
         reverse_path=reverse_path,
+        cycles=cycles,
     )
 
 
@@ -713,6 +768,7 @@ def _run_right_side_operations(
     config: dict[str, Any],
     force_by_mode: dict[str, float],
     operation_modes: list[str],
+    cycles_by_mode: dict[str, int],
     y_total: float,
     previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
@@ -731,7 +787,8 @@ def _run_right_side_operations(
             enter_from_contact=index > 0,
             lift_after=not has_next_same_pass_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
-            reverse_path=index > 0 and _is_edge_operation(operation_mode),
+            reverse_path=(index > 0 and _is_edge_operation(operation_mode) and last_position is not None and abs(last_position.y - 0.0) < abs(last_position.y - y_total)),
+            cycles=cycles_by_mode.get(operation_mode, 1),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
@@ -743,6 +800,7 @@ def _run_left_side_operations(
     config: dict[str, Any],
     force_by_mode: dict[str, float],
     operation_modes: list[str],
+    cycles_by_mode: dict[str, int],
     x_total: float,
     y_total: float,
     previous_position: _Tool2Position | None = None,
@@ -750,9 +808,14 @@ def _run_left_side_operations(
     _apply_side_transition_j6(cps, config, previous_position, "left")
     lift_z = _lift_z_for_transition(previous_position, "left")
     start_from_top = bool(previous_position and previous_position.side == "top")
+    entry_start_y = y_total if start_from_top else 0.0
+    entry_end_y = 0.0 if start_from_top else y_total
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
         has_next_same_pass_operation = index + 1 < len(operation_modes)
+        reverse_for_operation = False
+        if index > 0 and _is_edge_operation(operation_mode) and last_position is not None:
+            reverse_for_operation = abs(last_position.y - entry_end_y) < abs(last_position.y - entry_start_y)
         last_position = _run_left_side(
             cps,
             config,
@@ -765,7 +828,8 @@ def _run_left_side_operations(
             enter_from_contact=index > 0,
             lift_after=not has_next_same_pass_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
-            reverse_path=index > 0 and _is_edge_operation(operation_mode),
+            reverse_path=reverse_for_operation,
+            cycles=cycles_by_mode.get(operation_mode, 1),
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
@@ -829,6 +893,7 @@ def _run_tool2_station_traversal(
     cps: Any,
     config: dict[str, Any],
     force_by_mode: dict[str, float],
+    cycles_by_mode: dict[str, int],
     x_total: float,
     y_total: float,
     operation_modes: list[str],
@@ -867,12 +932,13 @@ def _run_tool2_station_traversal(
                     config,
                     force_by_mode,
                     operation_modes,
+                    cycles_by_mode,
                     _reverse_horizontal_segment(segment),
                     last_position,
                     next_side=_next_side_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
                     y_total=y_total,
                 )
-            last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total, last_position)
+            last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, y_total, last_position)
             right_done = True
             bottom_sequence = [s for s in ordered_segments if s.side == "bottom"]
             for index, segment in enumerate(bottom_sequence):
@@ -881,6 +947,7 @@ def _run_tool2_station_traversal(
                     config,
                     force_by_mode,
                     operation_modes,
+                    cycles_by_mode,
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(bottom_sequence, index, stations, station_index + 1, "bottom"),
@@ -901,12 +968,13 @@ def _run_tool2_station_traversal(
                     config,
                     force_by_mode,
                     operation_modes,
+                    cycles_by_mode,
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(first_sequence, index, stations, station_index + 1, first_side),
                     y_total=y_total,
                 )
-            last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total, last_position)
+            last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, x_total, y_total, last_position)
             left_done = True
             second_sequence = [s for s in ordered_segments if s.side == second_side]
             for index, segment in enumerate(second_sequence):
@@ -915,6 +983,7 @@ def _run_tool2_station_traversal(
                     config,
                     force_by_mode,
                     operation_modes,
+                    cycles_by_mode,
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(second_sequence, index, stations, station_index + 1, second_side),
@@ -928,6 +997,7 @@ def _run_tool2_station_traversal(
                 config,
                 force_by_mode,
                 operation_modes,
+                cycles_by_mode,
                 segment,
                 last_position,
                 next_side=_next_side_in_sequence(ordered_segments, index, stations, station_index + 1, segment.side),
@@ -935,9 +1005,9 @@ def _run_tool2_station_traversal(
             )
 
     if not right_done:
-        _run_right_side_operations(cps, config, force_by_mode, operation_modes, y_total, last_position)
+        _run_right_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, y_total, last_position)
     if not left_done:
-        _run_left_side_operations(cps, config, force_by_mode, operation_modes, x_total, y_total, last_position)
+        _run_left_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, x_total, y_total, last_position)
 
 
 def _force_for_steps(steps: list[dict[str, Any]]) -> float:
@@ -971,20 +1041,22 @@ def _operation_groups(steps: list[dict[str, Any]]) -> list[tuple[str, list[dict[
 
 def _run_tool2_sequence(cps: Any, config: dict[str, Any], steps: list[dict[str, Any]], operation_mode: str) -> int:
     force = _force_for_steps(steps)
+    cycles = _cycles_for_steps(steps)
     x_total, y_total = _bounds_from_steps(steps)
     _log(
         config,
-        "[TableB DXF Tool2] %s start x_total=%.3f y_total=%.3f force=%.1f outward=%.1f edge_ry=%.1f",
+        "[TableB DXF Tool2] %s start x_total=%.3f y_total=%.3f force=%.1f cycles=%s outward=%.1f edge_ry=%.1f",
         operation_mode,
         x_total,
         y_total,
         force,
+        cycles,
         TOOL2_APPROACH_OUTWARD_MM,
         TOOL2_EDGE_RY_DEG if _is_edge_operation(operation_mode) else 0.0,
     )
 
     _raise_if_stop_requested(cps, config, f"before Tool 2 {operation_mode} batch")
-    _run_tool2_station_traversal(cps, config, {operation_mode: force}, x_total, y_total, [operation_mode])
+    _run_tool2_station_traversal(cps, config, {operation_mode: force}, {operation_mode: cycles}, x_total, y_total, [operation_mode])
     return len(steps)
 
 
@@ -1004,17 +1076,19 @@ def run_tool2_side_batch(cps: Any, config: dict[str, Any], steps: list[dict[str,
         if len(groups) > 1:
             operation_modes = [mode for mode, _grouped_steps in groups]
             force_by_mode = {mode: _force_for_steps(grouped_steps) for mode, grouped_steps in groups}
+            cycles_by_mode = {mode: _cycles_for_steps(grouped_steps) for mode, grouped_steps in groups}
             x_total, y_total = _bounds_from_steps(steps)
             _log(
                 config,
-                "[TableB DXF Tool2] combined operations=%s x_total=%.3f y_total=%.3f forces=%s",
+                "[TableB DXF Tool2] combined operations=%s x_total=%.3f y_total=%.3f forces=%s cycles=%s",
                 "+".join(operation_modes),
                 x_total,
                 y_total,
                 force_by_mode,
+                cycles_by_mode,
             )
             _raise_if_stop_requested(cps, config, "before combined Tool 2 batch")
-            _run_tool2_station_traversal(cps, config, force_by_mode, x_total, y_total, operation_modes)
+            _run_tool2_station_traversal(cps, config, force_by_mode, cycles_by_mode, x_total, y_total, operation_modes)
             executed = len(steps)
         else:
             for operation_mode, grouped_steps in groups:

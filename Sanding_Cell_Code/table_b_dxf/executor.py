@@ -400,17 +400,21 @@ def _same_cycle_station(a: dict[str, Any], b: dict[str, Any]) -> bool:
         return False
     a_axis = _float_or_none(a.get("axis7_position_mm"))
     b_axis = _float_or_none(b.get("axis7_position_mm"))
-    if a_axis is None or b_axis is None or abs(a_axis - b_axis) > 0.5:
-        return False
+    if a_axis is not None and b_axis is not None:
+        # Vertical and horizontal patterns are planned independently, so their
+        # station_index can differ even when the real 7th-axis stop is identical.
+        return abs(a_axis - b_axis) <= 0.5
     return a.get("station_index") == b.get("station_index")
 
 
 def _stitch_compatible_pocket_zigzag_paths(paths: list[dict[str, Any]], tolerance_mm: float = 5.0) -> list[dict[str, Any]]:
-    """Merge alternate pocket-zigzag cycles that already touch in the same J7 window.
+    """Merge pocket-zigzag cycle paths that can run under one force contact.
 
-    The robot runner applies force/release per path. Stitching compatible cycle
-    paths here keeps vertical->horizontal cycle changes continuous instead of
-    lifting and returning to the original preview start point.
+    Cycle alternation is generated as separate vertical/horizontal preview paths,
+    but the robot should not lift and re-force between compatible cycles. If the
+    next path is the same pocket window and same 7th-axis station, append it to
+    the current MoveL chain. A small endpoint gap skips the duplicate point; a
+    larger gap becomes a normal in-contact connector inside that same window.
     """
     stitched: list[dict[str, Any]] = []
     for path in paths:
@@ -427,17 +431,17 @@ def _stitch_compatible_pocket_zigzag_paths(paths: list[dict[str, Any]], toleranc
         previous_pts = _xy_points(previous.get("points") or [])
         if previous_pts and _same_cycle_station(previous, path):
             gap = _point_distance(previous_pts[-1], pts[0])
-            if gap <= tolerance_mm:
-                merged_pts = list(previous_pts)
-                if gap <= 0.5:
-                    merged_pts.extend(pts[1:])
-                else:
-                    merged_pts.extend(pts)
-                previous["points"] = merged_pts
-                previous["path_id"] = f"{previous.get('path_id', 'pocketzigzag')}+{path.get('path_id', 'cycle')}"
-                previous["operation"] = f"{previous.get('operation', 'Pocket zigzag')} + {path.get('operation', 'Pocket zigzag')}"
-                previous["cycle_orientation"] = f"{previous.get('cycle_orientation', '')}+{path.get('cycle_orientation', '')}"
-                continue
+            merged_pts = list(previous_pts)
+            if gap <= 0.5:
+                merged_pts.extend(pts[1:])
+            else:
+                merged_pts.extend(pts)
+            previous["points"] = merged_pts
+            previous["path_id"] = f"{previous.get('path_id', 'pocketzigzag')}+{path.get('path_id', 'cycle')}"
+            previous["operation"] = f"{previous.get('operation', 'Pocket zigzag')} + {path.get('operation', 'Pocket zigzag')}"
+            previous["cycle_orientation"] = f"{previous.get('cycle_orientation', '')}+{path.get('cycle_orientation', '')}"
+            previous["continuous_cycle_chain"] = True
+            continue
 
         stitched.append(path)
     return stitched
