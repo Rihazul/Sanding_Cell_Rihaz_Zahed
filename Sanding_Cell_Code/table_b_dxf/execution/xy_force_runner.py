@@ -220,17 +220,37 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
             require_seventh_ok=True,
         )
     else:
+        # Non-simultaneous / same-7th-axis toolpath switch. Previously this bundled
+        # seventh=axis7 into the pre-pose MoveL. When J7 was already at that station (a
+        # same-station switch), the bundled move's "done" state could settle on J7 (already
+        # idle) rather than the arm, so at high speed force control started while the arm was
+        # still moving and it hovered searching from the wrong point. Mirror the working J7
+        # branch: position J7 first only if it must move, THEN a DEDICATED arm-only MoveL to
+        # the pre-pose (seventh=-1, wait=True) so the arm fully settles before force control.
+        if axis7_position is not None:
+            communicate(
+                cps=cps,
+                config=config,
+                point=None,
+                tcp=tcp,
+                ucs=ucs,
+                seventh=axis7_position,
+                speed=robot_speed(config),
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=True,
+            )
         communicate(
             cps=cps,
             config=config,
             point=start_pre_pose,
             tcp=tcp,
             ucs=ucs,
-            seventh=axis7_position if axis7_position is not None else -1,
+            seventh=-1,
             speed=robot_speed(config),
             velocity_profile="robotspeed",
             wait=True,
-            require_seventh_ok=axis7_position is not None,
+            require_seventh_ok=False,
         )
 
     vibration_on = False
