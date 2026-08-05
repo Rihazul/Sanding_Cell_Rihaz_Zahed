@@ -396,6 +396,109 @@ def _get_tool_in_hand(cps):
     return ci_decoded
 
 
+# DI station sensors: each tool's dock has a sensor. 0 = tool ABSENT from its station (i.e. in
+# the hand or in use); 1 = tool docked. Mapping mirrors the DI fallback in _get_tool_in_hand.
+#   DI7 -> tool 1, DI5 -> tool 2, DI6 -> tool 3, DI4 -> tool 4.
+_DI_STATION_BIT_TO_TOOL = {7: 1, 5: 2, 6: 3, 4: 4}
+_TOOL_TO_DI_STATION_BIT = {tool: bit for bit, tool in _DI_STATION_BIT_TO_TOOL.items()}
+
+def _tools_off_station(cps, sensors=None):
+    """Tools whose DOCK sensor reports the tool is absent (DI == 0), i.e. currently off-station.
+
+    Returns (off_tools, readable): off_tools is the set of tool numbers whose station is empty;
+    readable is False if any of the four station DIs could not be read (so absence is unknown).
+    """
+    if sensors is None:
+        sensors = _read_tool_sensors(cps)
+    off_tools = set()
+    readable = True
+    for bit, tool in _DI_STATION_BIT_TO_TOOL.items():
+        val = sensors.get(f"di{bit}")
+        if val is None:
+            readable = False
+            continue
+        if val == 0:  # absent from dock -> in hand / in use
+            off_tools.add(tool)
+    return off_tools, readable
+
+
+def _tool_station_state(cps, tool_number, sensors=None):
+    """Return True if docked, False if off-station, None if the tool station DI is unreadable."""
+    bit = _TOOL_TO_DI_STATION_BIT.get(int(tool_number))
+    if bit is None:
+        return None
+    if sensors is None:
+        sensors = _read_tool_sensors(cps)
+    val = sensors.get(f"di{bit}")
+    if val is None:
+        return None
+    return bool(val == 1)
+
+
+def _off_station_tool_from_di(cps, sensors=None):
+    """Return the single off-station tool from DI, or None when DI cannot prove it uniquely."""
+    off_tools, readable = _tools_off_station(cps, sensors)
+    if not readable or len(off_tools) != 1:
+        return None
+    return next(iter(off_tools))
+
+
+def _get_tool_in_hand_for_drop(cps):
+    """Tool identification for drop/recovery only.
+
+    CI remains the required proof for a successful pick. This helper allows DI fallback only
+    when deciding which mounted/off-station tool should be returned to its holder.
+    """
+    sensors = _read_tool_sensors(cps)
+    ci_decoded = _decode_tool_from_ci(sensors["ci0"], sensors["ci1"], sensors["ci2"])
+    if ci_decoded in (1, 2, 3, 4):
+        return ci_decoded
+
+    off_tool = _off_station_tool_from_di(cps, sensors)
+    if off_tool in (1, 2, 3, 4):
+        return off_tool
+
+    if ci_decoded == 0:
+        return 0
+    return None
+
+def _hand_is_confirmed_empty(cps):
+    """True ONLY when the sensors positively confirm the gripper is empty.
+
+    The gripper is confirmed empty when BOTH readings agree there is no tool:
+      * CI bits are all readable and decode to the empty pattern (0), AND
+      * all four DI station sensors are readable and report every tool docked (=1).
+    Any ambiguity -- a CI read failure, an unrecognized CI pattern, a DI read failure, or ANY
+    tool reported off its dock -- returns False. Callers use this to REFUSE a pick unless the
+    hand is provably empty, so an already-held (but unidentified) tool never triggers a second
+    pick and a two-tool collision.
+    """
+    # Returns (is_empty, sensors, reason). `reason` is a short, plain-language phrase for the
+    # operator — the raw sensor values go only to the log via _sensor_detail(sensors).
+    sensors = _read_tool_sensors(cps)
+    ci0, ci1, ci2 = sensors["ci0"], sensors["ci1"], sensors["ci2"]
+    if any(v is None for v in (ci0, ci1, ci2)):
+        return False, sensors, "tool sensor could not be read"
+    if _decode_tool_from_ci(ci0, ci1, ci2) != 0:
+        return False, sensors, "a tool is already in the gripper"
+
+    off_tools, readable = _tools_off_station(cps, sensors)
+    if not readable:
+        return False, sensors, "tool station sensor could not be read"
+    if off_tools:
+        names = " and ".join(f"Tool {t}" for t in sorted(off_tools))
+        return False, sensors, f"{names} is off its holder (likely already in the gripper)"
+    return True, sensors, "gripper empty"
+
+
+def _sensor_detail(sensors):
+    """Raw CI/DI values for the LOG only (kept out of operator-facing messages)."""
+    return (
+        f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
+        f"DI4={sensors['di4']} DI5={sensors['di5']} DI6={sensors['di6']} DI7={sensors['di7']}"
+    )
+
+
 def _verify_tool_attached(cps, tool_number, config):
     if tool_number not in (1, 2, 3, 4):
         return True
@@ -453,22 +556,20 @@ def _verify_tool_attached(cps, tool_number, config):
     if detected is None:
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
-            message="Failed to read tool sensor inputs (CI/DI).",
+            message="Could not read the tool sensor. Please check the tool.",
         )
         return False
 
     sensors = _read_tool_sensors(cps)
-    sensor_msg = (
-        f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
-        f"DI4={sensors['di4']} DI5={sensors['di5']} DI6={sensors['di6']} DI7={sensors['di7']}"
-    )
-    detected_label = "none" if detected == 0 else f"tool {detected}"
+    if config.get("logger"):
+        detected_label = "none" if detected == 0 else f"tool {detected}"
+        config["logger"].warning(
+            "[toolPick] Tool %s not confirmed after pick (detected %s) %s",
+            tool_number, detected_label, _sensor_detail(sensors),
+        )
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
-        message=(
-            f"Tool {tool_number} not detected after pick (detected {detected_label}). "
-            f"{sensor_msg}. Check the tool station or sensors."
-        ),
+        message=f"Tool {tool_number} was not detected after picking. Please check the tool.",
     )
     return False
 
@@ -506,10 +607,6 @@ def _verify_tool_released(cps, config, expected_tool_number=None):
         time.sleep(poll_s)
 
     sensors = _read_tool_sensors(cps)
-    sensor_msg = (
-        f"CI0={sensors['ci0']} CI1={sensors['ci1']} CI2={sensors['ci2']} "
-        f"DI4={sensors['di4']} DI5={sensors['di5']} DI6={sensors['di6']} DI7={sensors['di7']}"
-    )
     if detected is None:
         detected_label = "unknown (sensor read failed)"
     elif detected == 0:
@@ -517,17 +614,16 @@ def _verify_tool_released(cps, config, expected_tool_number=None):
     else:
         detected_label = f"tool {detected}"
 
-    expected_msg = (
-        f" (expected release of tool {expected_tool_number})"
-        if expected_tool_number is not None
-        else ""
-    )
+    if config.get("logger"):
+        config["logger"].warning(
+            "[toolRelease] not confirmed (expected %s, detected %s) %s",
+            expected_tool_number, detected_label, _sensor_detail(sensors),
+        )
+
+    tool_txt = f"Tool {expected_tool_number}" if expected_tool_number is not None else "The tool"
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
-        message=(
-            f"Tool release not confirmed{expected_msg}. "
-            f"Detected {detected_label}. {sensor_msg}"
-        ),
+        message=f"{tool_txt} was not confirmed as dropped. Please check the tool holder.",
     )
     return False
 
@@ -2960,11 +3056,18 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             float(pick_fast),
             float(pick_slow),
         )
-        current_tool = _get_tool_in_hand(cps)
-        if current_tool and current_tool > 0:
+        # Refuse to pick unless the gripper is PROVABLY empty (CI empty AND every tool docked).
+        # If CI can't identify the tool but DI shows one off its station, a tool is already in
+        # hand — picking again would collide. Any unreadable/ambiguous state also refuses.
+        is_empty, sensors, reason = _hand_is_confirmed_empty(cps)
+        if not is_empty:
+            if config.get("logger"):
+                config["logger"].warning(
+                    "[toolPick] refused Tool %s: %s (%s)", toolNumber, reason, _sensor_detail(sensors)
+                )
             msg_to_frontend(
                 api_url=config["server"]["frontEnd_messaging_url"],
-                message=f"Tool {current_tool} already in hand. Drop it before picking Tool {toolNumber}.",
+                message=f"Cannot pick Tool {toolNumber} — {reason}.",
             )
             return False
         if stop_requested():
@@ -7470,6 +7573,73 @@ def move_to_task_safe_point(cps, config, speed, *, velocity_profile="robotspeed"
         wait=True,
     )
 
+def _recover_failed_pick_with_di(cps, toolNumber, config, *, start_from_safe=True):
+    """Recover when the pick valve may hold a tool but CI does not confirm it.
+
+    DI is station-level feedback. If the requested tool is reported off-station after a
+    failed CI pick confirmation, return that same tool immediately and block the task.
+    """
+    sensors = _read_tool_sensors(cps)
+    station_state = _tool_station_state(cps, toolNumber, sensors)
+    off_tool = _off_station_tool_from_di(cps, sensors)
+    if config.get("logger"):
+        config["logger"].warning(
+            "[toolPickRecovery] Tool %s pick not confirmed by CI. station_state=%s off_tool=%s %s",
+            toolNumber,
+            station_state,
+            off_tool,
+            _sensor_detail(sensors),
+        )
+
+    if station_state is False or off_tool == int(toolNumber):
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message=(
+                f"Tool {toolNumber} may be in the gripper, but CI did not confirm it. "
+                f"Returning Tool {toolNumber}; check Tool {toolNumber} sensor before retrying."
+            ),
+        )
+        try:
+            keepTool11(
+                cps,
+                toolNumber=toolNumber,
+                config=config,
+                goToSafe=True,
+                startFromSafe=start_from_safe,
+                verify_release=False,
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Tool {toolNumber} pick was not confirmed and automatic return failed. "
+                f"Operator must inspect/remove the tool before continuing. {exc}"
+            ) from exc
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message=f"Tool {toolNumber} returned. Check Tool {toolNumber} CI sensor before retrying.",
+        )
+        return
+
+    if off_tool is not None and off_tool != int(toolNumber):
+        raise RuntimeError(
+            f"Tool {toolNumber} pick was not confirmed, and DI reports Tool {off_tool} off-station. "
+            "Operator must inspect/remove the tool before continuing."
+        )
+
+    if station_state is True:
+        msg_to_frontend(
+            api_url=config["server"]["frontEnd_messaging_url"],
+            message=(
+                f"Tool {toolNumber} was not picked; station still reports Tool {toolNumber} docked. "
+                f"Check Tool {toolNumber}."
+            ),
+        )
+        return
+
+    raise RuntimeError(
+        f"Tool {toolNumber} pick was not confirmed and DI could not prove the tool location. "
+        "Operator must inspect/remove the tool before continuing."
+    )
+
 def getTool11(
     cps, toolNumber, config, startFromSafe=True, exitToSafe=True
 ):  # Tool postion dile nibe
@@ -7491,11 +7661,18 @@ def getTool11(
     # Keep override neutral so linear profile commands are not flattened.
     setSpeed(cps, 1.0, config=config)
 
-    current_tool = _get_tool_in_hand(cps)
-    if current_tool and current_tool > 0:
+    # Refuse to pick unless the gripper is PROVABLY empty (CI empty AND every tool docked).
+    # If CI can't identify the tool but DI shows one off its station, a tool is already in hand
+    # — picking again would collide. Any unreadable/ambiguous state also refuses.
+    is_empty, sensors, reason = _hand_is_confirmed_empty(cps)
+    if not is_empty:
+        if config.get("logger"):
+            config["logger"].warning(
+                "[toolPick] refused Tool %s: %s (%s)", toolNumber, reason, _sensor_detail(sensors)
+            )
         msg_to_frontend(
             api_url=config["server"]["frontEnd_messaging_url"],
-            message=f"Tool {current_tool} already in hand. Drop it before picking Tool {toolNumber}.",
+            message=f"Cannot pick Tool {toolNumber} — {reason}.",
         )
         return False
 
@@ -7614,8 +7791,13 @@ def getTool11(
         if settle_s > 0:
             time.sleep(settle_s)
         if not _verify_tool_attached(cps, toolNumber, config):
+            _recover_failed_pick_with_di(
+                cps,
+                toolNumber,
+                config,
+                start_from_safe=bool(exitToSafe),
+            )
             return False
-
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Collection Successful!",
@@ -7624,7 +7806,7 @@ def getTool11(
 
 
 def keepTool11(
-    cps, toolNumber, config, goToSafe=True, startFromSafe=True
+    cps, toolNumber, config, goToSafe=True, startFromSafe=True, verify_release=True
 ):  # Tool Postion a rekhe dibe
     if not config["settings"]["useTool"]:
         return
@@ -7764,16 +7946,30 @@ def keepTool11(
 
     # Confirm the released state directly. Checking for attachment here caused
     # every successful drop to wait for the full attachment-check timeout.
-    if not _verify_tool_released(
-        cps=cps, config=config, expected_tool_number=toolNumber
-    ):
-        # One short settle retry helps when CI/DI transitions lag slightly.
-        time.sleep(0.25)
+    if verify_release:
         if not _verify_tool_released(
             cps=cps, config=config, expected_tool_number=toolNumber
         ):
-            raise RuntimeError("Tool release not confirmed after drop command.")
-
+            # One short settle retry helps when CI/DI transitions lag slightly.
+            time.sleep(0.25)
+            if not _verify_tool_released(
+                cps=cps, config=config, expected_tool_number=toolNumber
+            ):
+                raise RuntimeError("Tool release not confirmed after drop command.")
+    else:
+        station_state = None
+        start = time.monotonic()
+        while True:
+            station_state = _tool_station_state(cps, toolNumber)
+            if station_state is True:
+                break
+            if time.monotonic() - start >= 1.0:
+                break
+            time.sleep(0.05)
+        if station_state is False:
+            raise RuntimeError(f"Tool {toolNumber} station did not confirm tool returned.")
+        if station_state is None:
+            raise RuntimeError(f"Tool {toolNumber} station sensor is unreadable after return.")
     msg_to_frontend(
         api_url=config["server"]["frontEnd_messaging_url"],
         message=f"Tool {toolNumber} Kept Successfully",

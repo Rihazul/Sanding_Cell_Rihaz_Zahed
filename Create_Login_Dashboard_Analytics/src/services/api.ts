@@ -414,9 +414,20 @@ export async function getRobotStatus() {
   return apiCall('/robot_status', 'GET');
 }
 
-// Get process status (used for homing completion)
-export async function getProcessStatus() {
-  return apiCall('/process_status', 'GET');
+// Live robot/tool message pushed from the backend (drained via /process_status).
+export interface RobotMessage { seq: number; text: string; ts: number; }
+export interface ProcessStatusResponse {
+  status?: string;
+  homingRequired?: boolean;
+  homingReason?: string;
+  messages?: RobotMessage[]; // new messages since the sinceSeq passed in
+  latestSeq?: number;        // current highest message seq (advance the cursor from this)
+}
+
+// Get process status (used for homing completion AND to drain live robot/tool messages).
+// Pass the last seen message seq so the backend returns only newer messages.
+export async function getProcessStatus(sinceSeq = 0): Promise<ProcessStatusResponse> {
+  return apiCall(`/process_status?sinceSeq=${encodeURIComponent(sinceSeq)}`, 'GET');
 }
 
 export async function getHomingStatus() {

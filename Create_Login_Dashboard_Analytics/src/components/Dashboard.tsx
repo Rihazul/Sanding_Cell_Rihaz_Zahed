@@ -7,7 +7,7 @@ import { SlidingPanel } from './dashboard/SlidingPanel';
 import { CompactTableConfig, type RowConfig, type DoorConfig } from './dashboard/CompactTableConfig';
 import { Button } from './ui/button';
 import { Settings } from 'lucide-react';
-import { checkToolStatus, getHomingStatus, getModalData, getRobotStatus, getStopperState, getTableState } from '../services/api';
+import { checkToolStatus, getHomingStatus, getModalData, getProcessStatus, getRobotStatus, getStopperState, getTableState } from '../services/api';
 
 interface DashboardProps {
   onNavigateToAnalytics: () => void;
@@ -48,6 +48,10 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [t3Pending, setT3Pending] = useState<ToolPending | null>(null);
   const [t4Pending, setT4Pending] = useState<ToolPending | null>(null);
   const hardwarePollInFlightRef = useRef(false);
+  // Cursor for draining live robot/tool messages from /process_status. Starts null so the
+  // first poll adopts the backend's current seq WITHOUT replaying old buffered messages.
+  const messageSeqRef = useRef<number | null>(null);
+  const messagePollInFlightRef = useRef(false);
 
   // Initialize basic settings from backend (if available)
   useEffect(() => {
@@ -82,6 +86,45 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
 
   useEffect(() => {
     let cancelled = false;
+
+    // Drain live robot/tool messages the backend pushed (e.g. "Cannot pick Tool 2: gripper not
+    // confirmed empty ...") into the activity log so the operator actually sees them. Uses a
+    // seq cursor so each message appears exactly once; the first poll adopts the current seq
+    // without replaying the backlog.
+    const classifyMessage = (text: string): 'info' | 'success' | 'warning' | 'error' => {
+      const t = text.toLowerCase();
+      if (/(fail|cannot|error|collision|abort)/.test(t)) return 'error';
+      if (/(not detected|not confirmed|off its holder|already in the gripper|could not be read|not dropped|check the|please check|stopped)/.test(t)) return 'warning';
+      if (/(complete|success|confirmed|done|started)/.test(t)) return 'success';
+      return 'info';
+    };
+    const drainRobotMessages = async () => {
+      if (messagePollInFlightRef.current) return;
+      messagePollInFlightRef.current = true;
+      try {
+        const since = messageSeqRef.current;
+        const res = await getProcessStatus(since ?? 0);
+        if (cancelled) return;
+        if (since === null) {
+          // First poll: adopt the current seq, don't replay old buffered messages.
+          messageSeqRef.current = Number(res?.latestSeq ?? 0);
+          return;
+        }
+        const msgs = Array.isArray(res?.messages) ? res!.messages! : [];
+        for (const m of msgs) {
+          addActivity(m.text, classifyMessage(m.text));
+        }
+        if (msgs.length > 0) {
+          messageSeqRef.current = Math.max(since, ...msgs.map((m) => Number(m.seq) || 0));
+        } else if (typeof res?.latestSeq === 'number') {
+          messageSeqRef.current = Math.max(since, res.latestSeq);
+        }
+      } catch {
+        // Ignore poll errors; next tick retries.
+      } finally {
+        messagePollInFlightRef.current = false;
+      }
+    };
 
     const refreshHardwareStatus = async () => {
       if (hardwarePollInFlightRef.current) return;
@@ -224,11 +267,14 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
     };
 
     refreshHardwareStatus();
+    drainRobotMessages();
     const intervalId = window.setInterval(refreshHardwareStatus, 1000);
+    const messageIntervalId = window.setInterval(drainRobotMessages, 1000);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      window.clearInterval(messageIntervalId);
     };
   }, []);
 

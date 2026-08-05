@@ -3,7 +3,7 @@ from flask_cors import CORS
 from threading import Thread, Timer
 from Server_Better_V2 import handle_client, request_stop, clear_stop, stop_requested
 from Server_Better_V2 import getTool11, keepTool11, communicate, laser, stopper_statusmod, set_table_state, moveOnlyJ6r
-from Server_Better_V2 import _get_tool_in_hand, _read_tool_sensors
+from Server_Better_V2 import _get_tool_in_hand, _get_tool_in_hand_for_drop, _read_tool_sensors
 from Server_Better_V2 import setup_logger
 import yaml, requests
 from modules.CPS import CPSClient, RbtClient, PluginClient
@@ -827,6 +827,33 @@ process_state = {
     'status': 'completed',  # Can be 'in_progress' or 'completed'
     'last_action': None,
 }
+
+# Live robot/tool messages for the UI. The backend's msg_to_frontend posts to /trigger; we
+# buffer those here with a monotonic sequence id so the UI's /process_status poll can drain
+# every new message (nothing lost between polls). The old flash_message socket had no UI
+# listener, so this is the working delivery path.
+import threading as _threading
+_robot_messages = []            # list of {"seq": int, "text": str, "ts": float}
+_robot_message_seq = 0
+_robot_messages_lock = _threading.Lock()
+_ROBOT_MESSAGES_MAX = 200       # keep the most recent N so the buffer can't grow unbounded
+
+
+def _push_robot_message(text: str) -> int:
+    global _robot_message_seq
+    if not text:
+        return _robot_message_seq
+    with _robot_messages_lock:
+        _robot_message_seq += 1
+        _robot_messages.append({"seq": _robot_message_seq, "text": str(text), "ts": time.time()})
+        if len(_robot_messages) > _ROBOT_MESSAGES_MAX:
+            del _robot_messages[:-_ROBOT_MESSAGES_MAX]
+        return _robot_message_seq
+
+
+def _robot_messages_since(since_seq: int) -> list:
+    with _robot_messages_lock:
+        return [m for m in _robot_messages if m["seq"] > since_seq]
 tool_override_state = {1: False, 2: False, 3: False, 4: False}
 # Require homing after every app/server restart.
 # Do not trust persisted state across process restarts.
@@ -1074,10 +1101,12 @@ def trigger():
     # Extract the message
     message = data.get('message', 'No message provided')
 
-    # Send the message to all connected WebSocket clients
+    # Buffer for the UI's /process_status poll (the reliable delivery path), and also emit the
+    # legacy WebSocket event for any client still listening.
+    seq = _push_robot_message(message)
     socketio.emit('flash_message', {"message": message})
 
-    return jsonify({"status": "Message sent"}), 200
+    return jsonify({"status": "Message sent", "seq": seq}), 200
 
 ############################################################################################
 # Save modal data
@@ -1706,7 +1735,7 @@ def _wait_cps_ready_after_stop(config, max_wait_s=STOP_TO_HOMING_PROBE_TIMEOUT_S
     return False
 
 
-def _get_tool_in_hand_stable(cps, attempts=4, delay_s=0.08):
+def _get_tool_in_hand_stable(cps, attempts=4, delay_s=0.08, allow_di_fallback=False):
     """
     Read tool-in-hand with short retries to reduce transient CI/DI flicker.
     Returns first stable valid decode in 0..4 when possible; otherwise last read.
@@ -1727,6 +1756,10 @@ def _get_tool_in_hand_stable(cps, attempts=4, delay_s=0.08):
                 return detected
         if idx < attempts - 1:
             time.sleep(max(0.0, float(delay_s)))
+    if allow_di_fallback and last in (-1, None):
+        fallback = _get_tool_in_hand_for_drop(cps)
+        if fallback in (0, 1, 2, 3, 4):
+            return fallback
     return last
 
 
@@ -1786,6 +1819,41 @@ def _manual_switch_tool_response(cps, current_tool, target_tool, config):
         "status": "success",
         "message": f"Tool {current_tool} dropped and Tool {target_tool} picked successfully",
     })
+
+def _manual_uncertain_pick_response(cps, detected_tool, target_tool, config):
+    """Use DI-only recovery for manual switching when CI cannot identify the mounted tool."""
+    recovery_tool = _get_tool_in_hand_stable(cps, allow_di_fallback=True)
+    if recovery_tool in (1, 2, 3, 4):
+        socketio.emit(
+            'flash_message',
+            {
+                "message": (
+                    f"Tool CI is uncertain, but DI reports Tool {recovery_tool} off-station. "
+                    f"Dropping Tool {recovery_tool} before picking Tool {target_tool}."
+                )
+            },
+        )
+        try:
+            return _manual_switch_tool_response(cps, recovery_tool, target_tool, config)
+        except RuntimeError as exc:
+            socketio.emit('flash_message', {"message": f"Tool switch failed: {exc}"})
+            return jsonify({"error": str(exc)}), 409
+
+    sensors = _read_tool_sensors(cps)
+    sensor_msg = (
+        f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
+        f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
+    )
+    socketio.emit(
+        'flash_message',
+        {
+            "message": (
+                f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
+                f"{sensor_msg}. Operator must inspect/remove the tool before continuing."
+            )
+        },
+    )
+    return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
 
 def _disconnect_global_cps_for_child_start():
     """Disconnect and reset CPS once before starting a child."""
@@ -2084,21 +2152,7 @@ def tool_toggle():
                 # cps.HRIF_DisConnect(0)
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             elif detected_tool in (-1, None):
-                sensors = _read_tool_sensors(cps)
-                sensor_msg = (
-                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
-                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
-                )
-                socketio.emit(
-                    'flash_message',
-                    {
-                        "message": (
-                            f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
-                            f"{sensor_msg}"
-                        )
-                    },
-                )
-                return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
+                return _manual_uncertain_pick_response(cps, detected_tool, tool_num, config_data_UI)
             else:
                 try:
                     return _manual_switch_tool_response(cps, detected_tool, tool_num, config_data_UI)
@@ -2124,7 +2178,7 @@ def tool_toggle():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            detected_tool = _get_tool_in_hand_stable(cps)
+            detected_tool = _get_tool_in_hand_stable(cps, allow_di_fallback=True)
             if detected_tool == tool_num:
                 # Keep the tool
                 try:
@@ -2227,21 +2281,7 @@ def tool_toggle2():
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             elif detected_tool in (-1, None):
-                sensors = _read_tool_sensors(cps)
-                sensor_msg = (
-                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
-                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
-                )
-                socketio.emit(
-                    'flash_message',
-                    {
-                        "message": (
-                            f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
-                            f"{sensor_msg}"
-                        )
-                    },
-                )
-                return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
+                return _manual_uncertain_pick_response(cps, detected_tool, tool_num, config_data_UI)
             else:
                 try:
                     return _manual_switch_tool_response(cps, detected_tool, tool_num, config_data_UI)
@@ -2255,7 +2295,7 @@ def tool_toggle2():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            detected_tool = _get_tool_in_hand_stable(cps)
+            detected_tool = _get_tool_in_hand_stable(cps, allow_di_fallback=True)
             if detected_tool == tool_num:
                 try:
                     keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
@@ -2350,21 +2390,7 @@ def tool_toggle1():
                 socketio.emit('flash_message', {"message": f"Picked Tool {tool_num}"})
                 return jsonify({"status": "success", "message": f"Tool {tool_num} picked successfully"})
             elif detected_tool in (-1, None):
-                sensors = _read_tool_sensors(cps)
-                sensor_msg = (
-                    f"CI0={sensors.get('ci0')} CI1={sensors.get('ci1')} CI2={sensors.get('ci2')} "
-                    f"DI4={sensors.get('di4')} DI5={sensors.get('di5')} DI6={sensors.get('di6')} DI7={sensors.get('di7')}"
-                )
-                socketio.emit(
-                    'flash_message',
-                    {
-                        "message": (
-                            f"Tool state uncertain (detected={detected_tool}); blocking pick for safety. "
-                            f"{sensor_msg}"
-                        )
-                    },
-                )
-                return jsonify({"error": "Tool state uncertain; cannot pick"}), 409
+                return _manual_uncertain_pick_response(cps, detected_tool, tool_num, config_data_UI)
             else:
                 try:
                     return _manual_switch_tool_response(cps, detected_tool, tool_num, config_data_UI)
@@ -2378,7 +2404,7 @@ def tool_toggle1():
                 return jsonify({"error": "Failed to connect to CPS client"}), 500
             cps = CPS
             force_keep = bool(data.get("forceKeep")) or bool(data.get("force"))
-            detected_tool = _get_tool_in_hand_stable(cps)
+            detected_tool = _get_tool_in_hand_stable(cps, allow_di_fallback=True)
             if detected_tool == tool_num:
                 try:
                     keepTool11(cps, toolNumber=tool_num, config=config_data_UI)
@@ -2877,11 +2903,20 @@ def robot_status():
 @app.route('/process_status', methods=['GET'])
 def process_status():
     required, reason = _compute_homing_requirement()
+    # Drain live robot/tool messages the UI has not seen yet. The UI passes ?sinceSeq=<last>
+    # and shows each returned message; latestSeq lets it advance its cursor even when idle.
+    try:
+        since_seq = int(request.args.get('sinceSeq', 0))
+    except (TypeError, ValueError):
+        since_seq = 0
+    new_messages = _robot_messages_since(since_seq)
     return jsonify(
         {
             'status': process_state.get('status', 'completed'),
             'homingRequired': required,
             'homingReason': reason,
+            'messages': new_messages,
+            'latestSeq': _robot_message_seq,
         }
     )
 

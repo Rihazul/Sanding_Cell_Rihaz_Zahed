@@ -4,6 +4,7 @@ from typing import Any
 
 from Server_Better_V2 import (
     _get_tool_in_hand,
+    _get_tool_in_hand_for_drop,
     communicate,
     getTool11,
     keepTool11,
@@ -48,6 +49,13 @@ def _read_tool_in_hand(cps: Any) -> int | None:
     return _normalize_tool_in_hand(_get_tool_in_hand(cps))
 
 
+def _read_tool_in_hand_for_drop(cps: Any) -> int | None:
+    raw_tool = _get_tool_in_hand_for_drop(cps)
+    if raw_tool is None:
+        return None
+    return _normalize_tool_in_hand(raw_tool)
+
+
 def _j7_reference_tool(tool: int | None, fallback_tool: int = 3) -> int:
     # J7-only commands still require a TCP/UCS argument. Tool 2 side execution is
     # separate and may not share the XY force-runner TCP, so use a supported TCP as
@@ -85,7 +93,20 @@ def _ensure_tool_in_hand(
     cps: Any, config: dict[str, Any], requested_tool: int, mounted_tool: int | None
 ) -> int:
     _raise_if_stop_requested(cps, config, "before tool-state read")
-    sensor_tool = _read_tool_in_hand(cps)
+    di_fallback_tool = None
+    try:
+        sensor_tool = _read_tool_in_hand(cps)
+    except TableBDxfRobotExecutionError as error:
+        di_fallback_tool = _read_tool_in_hand_for_drop(cps)
+        if di_fallback_tool is None:
+            raise
+        _log(
+            config,
+            "[TableB DXF Robot] CI could not identify mounted tool (%s); DI reports Tool %s off-station for recovery",
+            error,
+            di_fallback_tool,
+        )
+        sensor_tool = di_fallback_tool
     if mounted_tool is not None and sensor_tool != mounted_tool:
         _log(
             config,
@@ -95,9 +116,22 @@ def _ensure_tool_in_hand(
         )
     current_tool = sensor_tool
     if current_tool == requested_tool:
+        if di_fallback_tool == requested_tool:
+            _return_j7_to_zero(cps, config, _j7_reference_tool(current_tool, requested_tool))
+            keepTool11(
+                cps,
+                toolNumber=current_tool,
+                config=config,
+                goToSafe=True,
+                startFromSafe=True,
+                verify_release=False,
+            )
+            raise TableBDxfRobotExecutionError(
+                f"Tool {requested_tool} is off-station but CI could not confirm it. "
+                f"Tool {requested_tool} was returned; check Tool {requested_tool} sensor before retrying."
+            )
         _log(config, "[TableB DXF Robot] Tool %s already mounted", requested_tool)
         return requested_tool
-
     _raise_if_stop_requested(cps, config, "before tool change")
 
     # All tool changes start with the rail at the calibrated tool station.
@@ -111,12 +145,14 @@ def _ensure_tool_in_hand(
             config=config,
             goToSafe=False,
             startFromSafe=True,
+            verify_release=(di_fallback_tool != current_tool),
         )
-        dropped_state = _read_tool_in_hand(cps)
-        if dropped_state is not None:
-            raise TableBDxfRobotExecutionError(
-                f"Tool {current_tool} drop was not confirmed; CI still reports Tool {dropped_state}."
-            )
+        if di_fallback_tool != current_tool:
+            dropped_state = _read_tool_in_hand(cps)
+            if dropped_state is not None:
+                raise TableBDxfRobotExecutionError(
+                    f"Tool {current_tool} drop was not confirmed; CI still reports Tool {dropped_state}."
+                )
         _apply_tool_transition_correction(cps, config, current_tool, requested_tool)
         start_from_safe = False
     else:
