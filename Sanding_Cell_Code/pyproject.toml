@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "cadquery>=2.4.0",
     "ezdxf>=1.4,<2.0",
     "flask>=3.0.3",
     "flask-cors>=5.0.0",
