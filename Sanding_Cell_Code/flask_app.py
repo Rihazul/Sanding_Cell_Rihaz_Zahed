@@ -288,8 +288,21 @@ def _enforce_model_f_tablea_payload(table_data):
             tasks[key] = _zero_task_payload(tasks.get(key))
 
 
+# Log files written by setup_logger() in Server_Better_V2:
+#   app.log                    - the active file
+#   app.log.2026-08-06_13      - TimedRotatingFileHandler(when="H") backups
+#   app_21924.log              - per-PID fallback, used when app.log is already locked
+#                                by another process (the launcher runs the backend as a
+#                                child, so this is the NORMAL case on Windows, not an edge case)
+# Matching only "app.log*" silently hid every fallback file from the analytics UI.
+LOG_FILE_RE = re.compile(r"^app(?:\.log|_\d+\.log)")
+
+# The file formatter is "%(asctime)s - %(levelname)s - [Line: %(lineno)d] - %(message)s".
+# The location field is matched non-greedily so a message that itself contains " - "
+# is kept whole; a greedy .* would swallow everything up to the LAST separator and
+# report only the message's final fragment.
 LOG_LINE_RE = re.compile(
-    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<level>[A-Z]+) - .* - (?P<msg>.*)$"
+    r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<level>[A-Z]+) - .*? - (?P<msg>.*)$"
 )
 
 
@@ -1204,7 +1217,7 @@ def get_logs_history():
 
     files = []
     for name in os.listdir(logs_dir):
-        if name.startswith("app.log"):
+        if LOG_FILE_RE.match(name):
             full_path = os.path.join(logs_dir, name)
             if os.path.isfile(full_path):
                 files.append(full_path)
