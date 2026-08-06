@@ -4,12 +4,14 @@ from collections.abc import Callable
 from typing import Any, NamedTuple
 
 from Server_Better_V2 import (
+    clear_stop,
     communicate,
     putForceXminus,
     putForceXplus,
     putForceYminus1,
     putForceYplus1,
     releaseForce,
+    request_stop,
     turn_vibration_off,
     turn_vibration_on,
     waitForBlending,
@@ -24,7 +26,11 @@ from .common import (
 )
 from .joint_safety import guarded_move_only_j6r
 from .motion_config import robot_speed, sanding_speed
-from .tool2_recovery import clear_tool2_recovery_state, record_tool2_recovery_state
+from .tool2_recovery import (
+    clear_tool2_recovery_state,
+    record_tool2_recovery_state,
+    tool2_backoff_from_contact_on_stop,
+)
 from .tool2_side_geometry import (
     TOOL2_APPROACH_OUTWARD_MM,
     TOOL2_CONTACT_Z_MM,
@@ -1095,6 +1101,11 @@ def run_tool2_side_batch(cps: Any, config: dict[str, Any], steps: list[dict[str,
                 executed += _run_tool2_sequence(cps, config, grouped_steps, operation_mode)
         clear_tool2_recovery_state()
     except TableBDxfRobotStopRequested:
+        # Operator pressed Stop: motion is already halted and force is OFF (stop_active_motion
+        # ran inside raise_if_stop_requested). Back the tool 5 mm straight off the door
+        # corner/side with no force so it releases the contact and leaves no mark. The
+        # recovery state is left intact so a later Homing runs the full Tool 2 recovery.
+        tool2_backoff_from_contact_on_stop(cps, config)
         raise
     except Exception:
         _stop_active_motion(cps, config, "Tool 2 side/edge batch error")

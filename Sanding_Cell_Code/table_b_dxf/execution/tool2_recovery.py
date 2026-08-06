@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from Server_Better_V2 import communicate
+from Server_Better_V2 import clear_stop, communicate, request_stop
 
 from .joint_safety import guarded_move_j6_to_absolute, guarded_move_only_j6r
 from .motion_config import robot_speed
@@ -36,6 +36,20 @@ TOOL2_BOTTOM_RECOVERY_STEP1_Y_MM = -5.0
 TOOL2_BOTTOM_RECOVERY_STEP1_Z_MM = 0.0
 TOOL2_BOTTOM_RECOVERY_STEP2_Y_MM = 20.0
 TOOL2_BOTTOM_RECOVERY_STEP2_Z_MM = -50.0
+
+# On STOP during Tool 2 side/edge sanding, back the tool straight off the door corner/side by
+# this much along the side's force axis (opposite the force direction), with NO force, so it
+# releases the contact immediately and leaves no mark. Homing then runs the normal Tool 2
+# recovery. Per side: (axis_index_in_pose, signed_direction_away_from_door).
+#   right presses +X -> back off -X;  left presses -X -> back off +X
+#   bottom presses +Y -> back off -Y; top  presses -Y -> back off +Y
+TOOL2_STOP_BACKOFF_MM = 5.0
+_TOOL2_STOP_BACKOFF_AXIS = {
+    "right": (0, -1.0),
+    "left": (0, +1.0),
+    "bottom": (1, -1.0),
+    "top": (1, +1.0),
+}
 
 _TOOL2_SIDE_RZ_DEG = {
     "right": 0.0,
@@ -96,6 +110,69 @@ def clear_tool2_recovery_state() -> None:
         _STATE_PATH.unlink(missing_ok=True)
     except Exception:
         pass
+
+
+def tool2_backoff_from_contact_on_stop(cps: Any, config: dict[str, Any]) -> bool:
+    """On STOP, back Tool 2 straight off the door side/corner by TOOL2_STOP_BACKOFF_MM.
+
+    Moves outward along the side's force axis (opposite the force direction) with NO force,
+    so the pressed contact is released immediately and no mark is left. Force control is
+    already OFF (stop_active_motion) at this point, so this is a pure position move.
+
+    communicate() and its wait loop both bail while the stop flag is latched, so we clear it
+    only for this single retract move and re-latch it afterward, preserving the caller's
+    "stopped" semantics. Best-effort: never raises; homing still runs the full Tool 2
+    recovery afterward. Returns True if a back-off move was issued.
+    """
+    logger = config.get("logger") if isinstance(config, dict) else None
+    state = _load_tool2_recovery_state()
+    if not state:
+        return False
+    side = str(state.get("side") or "")
+    axis_dir = _TOOL2_STOP_BACKOFF_AXIS.get(side)
+    if axis_dir is None:
+        return False
+    axis_index, direction = axis_dir
+    try:
+        tcp = _tool2_tcp(config)
+        ucs = _tool2_ucs(config)
+        fallback_pose = state.get("last_commanded_pose") if isinstance(state.get("last_commanded_pose"), list) else None
+        current_pose = _current_tool2_coord_pose(cps, tcp, ucs, fallback_pose)
+        if current_pose is None:
+            if logger:
+                logger.info("[TableB DXF Tool2 Recovery] stop back-off skipped: no current pose for side=%s", side)
+            return False
+        backoff_pose = [float(v) for v in current_pose[:6]]
+        backoff_pose[axis_index] += direction * TOOL2_STOP_BACKOFF_MM
+        if logger:
+            logger.info(
+                "[TableB DXF Tool2 Recovery] stop back-off side=%s axis=%s %.1fmm away: %s -> %s",
+                side,
+                "X" if axis_index == 0 else "Y",
+                TOOL2_STOP_BACKOFF_MM,
+                current_pose[:3],
+                backoff_pose[:3],
+            )
+        clear_stop()
+        try:
+            communicate(
+                cps=cps,
+                config=config,
+                point=backoff_pose,
+                tcp=tcp,
+                ucs=ucs,
+                seventh=-1,
+                speed=robot_speed(config),
+                velocity_profile="robotspeed",
+                wait=True,
+            )
+        finally:
+            request_stop()
+        return True
+    except Exception as exc:
+        if logger:
+            logger.warning("[TableB DXF Tool2 Recovery] stop back-off failed (continuing): %s", exc)
+        return False
 
 
 def _load_tool2_recovery_state() -> dict[str, Any] | None:
