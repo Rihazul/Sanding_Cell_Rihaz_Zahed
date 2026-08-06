@@ -22,6 +22,7 @@ from .common import (
 )
 from .motion_config import (
     force_fast_approach_mm,
+    force_sanding_overshoot_mm,
     orientation,
     preheight_z_mm,
     robot_speed,
@@ -293,7 +294,14 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     ucs = table_b_ucs(config)
     rxyz = orientation(config)
     pre_z = preheight_z_mm(config)
-    force_control_z = pre_z
+    # Sanding-point Z is commanded BELOW the surface (pre_z + overshoot; +Z is toward the
+    # surface on Table B) so the trajectory pushes the tool INTO the surface and force
+    # control merely caps the pressure. Commanding the old Z=pre_z (above the surface) let
+    # the position setpoint pull the tool up faster than the Z force loop could correct at
+    # fast XY speed, so it hovered. pre_z itself stays above the surface for the pre-approach
+    # and the lift-off; only the in-contact sanding points use the overshot Z.
+    sanding_overshoot_mm = force_sanding_overshoot_mm(config)
+    force_control_z = pre_z + sanding_overshoot_mm
     # Fast pre-approach: the arm arrives at pre_z in free space, then force control
     # crawls the WHOLE remaining air gap to the surface at the slow search velocity.
     # That gap varies per toolpath (surface height + residual settle), so at a fixed

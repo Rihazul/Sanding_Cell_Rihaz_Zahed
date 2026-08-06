@@ -1210,9 +1210,9 @@ def putForceZplus(
         config["logger"].error(f"Failed to set max search velocities: {nret}")
         return False
 
-    dFp = 0.8
+    dFp = 0.4  # 0.8
     dFi = 0.001
-    dFd = 0.02
+    dFd = 0.05  # 0.02
     dTp = 0.8
     dTi = 0.001
     dTd = 0.02
@@ -1222,7 +1222,7 @@ def putForceZplus(
         config["logger"].error(f"Failed to set PID control params: {nRet}")
         return False
 
-    Mass = [80, 80, 80, 10, 10, 10]
+    Mass = [80, 80, 60, 10, 10, 10]
     nRet = cps.HRIF_SetMassParams(0, 0, Mass)
     time.sleep(0.0001)
     if nRet != 0:

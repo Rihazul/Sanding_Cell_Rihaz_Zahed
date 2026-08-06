@@ -12,6 +12,18 @@ TABLE_B_PREHEIGHT_Z_MM = -17.0
 # contact time consistent instead of randomly long. Must stay safely ABOVE the real
 # surface (never descend into it). Set to 0 to disable (old all-slow behavior).
 TABLE_B_FORCE_FAST_APPROACH_MM = 6.0
+# How far (mm) BELOW the surface to command the sanding-point Z during force control.
+# The sanding MoveL points otherwise command Z = preheight (-17), which sits ABOVE the
+# real surface — so the position setpoint pulls the tool UP while force control fights
+# to press it DOWN. At slow XY speed the force loop wins and pressure is constant; at
+# fast XY speed the surface height changes faster than the (bandwidth-limited) Z force
+# loop can correct, the up-pulling setpoint wins, and the tool hovers off the surface.
+# By commanding Z past the surface (preheight + this overshoot, since +Z is toward the
+# surface on Table B), the trajectory pushes INTO the surface and force control simply
+# CAPS the pressure at the force goal — the tool physically cannot hover at any speed.
+# Must exceed the deepest surface dip so the setpoint always lands below the real
+# surface. Force control still limits how hard it presses. Set to 0 for old behavior.
+TABLE_B_FORCE_SANDING_OVERSHOOT_MM = 8.0
 TABLE_B_ORIENTATION = [180.0, 0.0, 0.0]
 TABLE_B_UCS_KEY = "ucsTable2"
 
@@ -45,6 +57,11 @@ def preheight_z_mm(config: dict[str, Any]) -> float:
 def force_fast_approach_mm(config: dict[str, Any]) -> float:
     # Clamp to >= 0; a negative value would move the tool away from the surface.
     return max(0.0, _float_override(config, "forceFastApproachMm", TABLE_B_FORCE_FAST_APPROACH_MM))
+
+
+def force_sanding_overshoot_mm(config: dict[str, Any]) -> float:
+    # Clamp to >= 0; the sanding Z setpoint is pushed toward/into the surface by this much.
+    return max(0.0, _float_override(config, "forceSandingOvershootMm", TABLE_B_FORCE_SANDING_OVERSHOOT_MM))
 
 
 
