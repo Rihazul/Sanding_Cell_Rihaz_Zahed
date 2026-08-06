@@ -4,6 +4,14 @@ from typing import Any
 
 
 TABLE_B_PREHEIGHT_Z_MM = -17.0
+# How far (mm) to descend FAST (regular robot speed, no force control) from the
+# pre-height TOWARD the surface before starting the slow force search. On Table B
+# "toward the surface" is the +Z direction of the pose frame, so the fast move
+# targets (preheight_z + this). This closes the large, variable air gap quickly so
+# the slow 7 mm/s force search only ever crawls the last few mm to contact — making
+# contact time consistent instead of randomly long. Must stay safely ABOVE the real
+# surface (never descend into it). Set to 0 to disable (old all-slow behavior).
+TABLE_B_FORCE_FAST_APPROACH_MM = 6.0
 TABLE_B_ORIENTATION = [180.0, 0.0, 0.0]
 TABLE_B_UCS_KEY = "ucsTable2"
 
@@ -32,6 +40,11 @@ def _float_override(config: dict[str, Any], key: str, default: float) -> float:
 
 def preheight_z_mm(config: dict[str, Any]) -> float:
     return _float_override(config, "preheightZMm", TABLE_B_PREHEIGHT_Z_MM)
+
+
+def force_fast_approach_mm(config: dict[str, Any]) -> float:
+    # Clamp to >= 0; a negative value would move the tool away from the surface.
+    return max(0.0, _float_override(config, "forceFastApproachMm", TABLE_B_FORCE_FAST_APPROACH_MM))
 
 
 

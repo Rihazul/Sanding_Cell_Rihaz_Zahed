@@ -52,6 +52,13 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   // first poll adopts the backend's current seq WITHOUT replaying old buffered messages.
   const messageSeqRef = useRef<number | null>(null);
   const messagePollInFlightRef = useRef(false);
+  // Suppresses duplicate robot messages: the backend can emit the same text from more than one
+  // code path (e.g. "Homing Completed Successfully!" from two homing stages), which showed up
+  // twice in the activity log. We remember each text's last-shown time and drop an identical
+  // message that arrives within the dedup window, so the operator sees each event once — even if
+  // another message is interleaved between the two duplicates.
+  const recentRobotMessagesRef = useRef<Map<string, number>>(new Map());
+  const ROBOT_MESSAGE_DEDUP_MS = 8000;
 
   // Initialize basic settings from backend (if available)
   useEffect(() => {
@@ -111,8 +118,23 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
           return;
         }
         const msgs = Array.isArray(res?.messages) ? res!.messages! : [];
+        const now = Date.now();
+        const recent = recentRobotMessagesRef.current;
+        // Prune stale entries so the map can't grow unbounded over a long session.
+        for (const [key, at] of recent) {
+          if (now - at >= ROBOT_MESSAGE_DEDUP_MS) recent.delete(key);
+        }
         for (const m of msgs) {
-          addActivity(m.text, classifyMessage(m.text));
+          const text = (m.text ?? '').trim();
+          if (!text) continue;
+          const shownAt = recent.get(text);
+          // Drop an identical message repeated within the dedup window (duplicate emit from the
+          // backend). Distinct messages, or the same one after the window, always show.
+          if (shownAt !== undefined && now - shownAt < ROBOT_MESSAGE_DEDUP_MS) {
+            continue;
+          }
+          recent.set(text, now);
+          addActivity(text, classifyMessage(text));
         }
         if (msgs.length > 0) {
           messageSeqRef.current = Math.max(since, ...msgs.map((m) => Number(m.seq) || 0));
