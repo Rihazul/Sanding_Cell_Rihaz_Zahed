@@ -13,7 +13,6 @@ from flask_socketio import SocketIO
 # Get the absolute path to flask_app.py (important when running as an executable)
 import os
 import sys
-from werkzeug.utils import secure_filename
 import logging
 import threading
 from contextlib import contextmanager
@@ -24,8 +23,6 @@ from datetime import datetime
 # Reduce noisy werkzeug request logs.
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
-# for right table model plotting and sanding
-from FileUtils.upload import upload3DModel
 import json
 import copy
 import math
@@ -44,10 +41,6 @@ def _get_scan_table_a():
 def _get_homingtotal():
     from smallTable.homingtotal import homingtotal
     return homingtotal
-
-UPLOAD_FOLDER = './3DModels'
-ALLOWED_EXTENSIONS = {'stp'}
-os.makedirs(UPLOAD_FOLDER,exist_ok=True)
 
 FLASK_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(FLASK_DIR, os.pardir))
@@ -109,10 +102,6 @@ def _run_tableb_dxf_task_child(job_id, recipe, success_marker=None):
                 cps.HRIF_DisConnect(0)
             except Exception:
                 pass
-
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def _scan_summary_from_data(scan_data):
@@ -1698,42 +1687,6 @@ def start_TableA_process():
 
 ############################################################################################
 
-
-
-@app.route('/upload_3d_file', methods=['POST'])
-def upload_3d_file():
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'message': 'No file part'})
-
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'success': False, 'message': 'No selected file'})
-
-
-    if file and allowed_file(file.filename):
-        try:
-            # Secure the filename and save the file
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(UPLOAD_FOLDER, filename)
-            file.save(filepath)
-
-            upload3DModel(filepath)
-
-            return jsonify({
-                'success': True,
-                'message': 'File uploaded successfully',
-                'filename': filename
-            })
-        except Exception as e:
-            return jsonify({
-                'success': False,
-                'message': f'Error processing file: {str(e)}'
-            })
-
-    return jsonify({
-        'success': False,
-        'message': 'Invalid file type'
-    })
 
 
 ############################################################################################
