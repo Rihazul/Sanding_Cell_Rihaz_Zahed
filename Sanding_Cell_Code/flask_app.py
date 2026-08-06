@@ -314,6 +314,50 @@ def _read_last_lines(path, max_lines=2000):
         return []
 
 
+# Per-file severity counts for the history list, keyed by (path, mtime, size).
+# Hourly rotated files are immutable once closed, so a file only ever needs counting
+# once no matter how often the UI polls; the active app.log re-counts when it grows.
+_LOG_COUNT_CACHE = {}
+_LOG_COUNT_CACHE_LOCK = threading.Lock()
+_LOG_COUNT_CACHE_MAX = 512
+
+
+def _counts_for_file(path, per_file_lines, cutoff_date, include_all, days):
+    """Return {date_key: {total, success, warning, error, info}} for one log file."""
+    try:
+        stat = os.stat(path)
+        key = (path, int(stat.st_mtime), stat.st_size, per_file_lines)
+    except OSError:
+        return {}
+
+    with _LOG_COUNT_CACHE_LOCK:
+        cached = _LOG_COUNT_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    per_file = {}
+    for line in _read_last_lines(path, per_file_lines):
+        m = LOG_LINE_RE.match(line.strip())
+        if not m:
+            continue
+        try:
+            ts = datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M:%S,%f")
+        except Exception:
+            continue
+        date_key = ts.strftime("%Y-%m-%d")
+        bucket = per_file.setdefault(
+            date_key, {"total": 0, "success": 0, "warning": 0, "error": 0, "info": 0}
+        )
+        bucket["total"] += 1
+        bucket[_level_to_type(m.group("level"))] += 1
+
+    with _LOG_COUNT_CACHE_LOCK:
+        if len(_LOG_COUNT_CACHE) >= _LOG_COUNT_CACHE_MAX:
+            _LOG_COUNT_CACHE.clear()
+        _LOG_COUNT_CACHE[key] = per_file
+    return per_file
+
+
 def _level_to_type(level: str) -> str:
     lvl = (level or "").upper()
     if lvl in {"ERROR", "CRITICAL"}:
@@ -1211,6 +1255,13 @@ def get_logs_history():
 
     include_all = str(request.args.get('all', 'false')).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
+    # Summary mode returns per-day COUNTS with no entry bodies. The history list only
+    # ever shows a date and an activity count, so shipping every message for every day
+    # was sending tens of MB per poll (and the UI then threw it all away). Entries are
+    # fetched per-day via ?date=YYYY-MM-DD when the operator actually opens one.
+    summary_only = str(request.args.get('summary', 'false')).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+    only_date = (request.args.get('date') or '').strip() or None
+
     logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
     if not os.path.isdir(logs_dir):
         return jsonify({"logs": [], "source": logs_dir, "message": "logs directory not found"})
@@ -1223,11 +1274,46 @@ def get_logs_history():
                 files.append(full_path)
     files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
 
+    # Hourly rotated names carry their own date (app.log.YYYY-MM-DD_HH). When one day is
+    # requested we can skip whole files by name alone, instead of reading and parsing
+    # every line of months of history just to discard almost all of it.
+    if only_date:
+        def _file_may_contain(path):
+            name = os.path.basename(path)
+            match = re.search(r"(\d{4}-\d{2}-\d{2})", name)
+            if not match:
+                return True  # active app.log / app_<pid>.log: no date in the name, must read it
+            return match.group(1) == only_date
+        files = [path for path in files if _file_may_contain(path)]
+
     grouped = {}
+    counts = {}
     entry_id = 1
     cutoff_date = datetime.now().date()
 
-    for path in files:
+    if summary_only:
+        # Counts come from a per-file cache keyed on mtime/size, so repeated polls of an
+        # unchanged history folder cost a stat() per file instead of re-parsing every line.
+        for path in files:
+            for date_key, bucket in _counts_for_file(
+                path, per_file_lines, cutoff_date, include_all, days
+            ).items():
+                try:
+                    age_days = (cutoff_date - datetime.strptime(date_key, "%Y-%m-%d").date()).days
+                except Exception:
+                    continue
+                if not include_all and (age_days < 0 or age_days >= days):
+                    continue
+                target = counts.setdefault(
+                    date_key, {"total": 0, "success": 0, "warning": 0, "error": 0, "info": 0}
+                )
+                for name, value in bucket.items():
+                    target[name] = target.get(name, 0) + value
+        files_iter = []
+    else:
+        files_iter = files
+
+    for path in files_iter:
         for line in _read_last_lines(path, per_file_lines):
             m = LOG_LINE_RE.match(line.strip())
             if not m:
@@ -1241,6 +1327,9 @@ def get_logs_history():
                 continue
 
             date_key = ts.strftime("%Y-%m-%d")
+            if only_date and date_key != only_date:
+                continue
+
             grouped.setdefault(date_key, [])
             grouped[date_key].append({
                 "id": entry_id,
@@ -1251,13 +1340,24 @@ def get_logs_history():
             entry_id += 1
 
     daily_logs = []
-    for date_key, entries in grouped.items():
-        entries.sort(key=lambda e: e["timestamp"], reverse=False)
-        daily_logs.append({
-            "date": date_key,
-            "displayDate": _format_display_date(date_key),
-            "entries": entries,
-        })
+    if summary_only:
+        for date_key, bucket in counts.items():
+            daily_logs.append({
+                "date": date_key,
+                "displayDate": _format_display_date(date_key),
+                "entries": [],
+                "counts": bucket,
+                "entryCount": bucket["total"],
+            })
+    else:
+        for date_key, entries in grouped.items():
+            entries.sort(key=lambda e: e["timestamp"], reverse=False)
+            daily_logs.append({
+                "date": date_key,
+                "displayDate": _format_display_date(date_key),
+                "entries": entries,
+                "entryCount": len(entries),
+            })
 
     daily_logs.sort(key=lambda d: d["date"], reverse=True)
     return jsonify({
@@ -1266,6 +1366,8 @@ def get_logs_history():
         "includeAll": include_all,
         "days": days,
         "filesScanned": len(files),
+        "summary": summary_only,
+        "date": only_date,
     })
 
 ############################################################################################

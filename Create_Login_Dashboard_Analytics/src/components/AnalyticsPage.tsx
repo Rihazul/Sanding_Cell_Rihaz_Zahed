@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { LayoutDashboard, Calendar, Clock, ChevronRight, Activity } from 'lucide-react';
-import { getLogsHistory, type HistoricalLogDay } from '../services/api';
+import { getLogsHistory, getLogsForDate, type HistoricalLogDay } from '../services/api';
 
 interface LogEntry {
   id: number;
@@ -21,12 +21,16 @@ interface DailyLog {
   displayDate: string;
   entries: LogEntry[];
   isLive?: boolean;
+  /** From summary mode: counts for the list row, without the entry bodies. */
+  entryCount?: number;
+  counts?: { total: number; success: number; warning: number; error: number; info: number };
 }
 
 export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: AnalyticsPageProps) {
   const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
   const [backendLogs, setBackendLogs] = useState<HistoricalLogDay[]>([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [loadingEntries, setLoadingEntries] = useState(false);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -86,7 +90,32 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
     date: day.date,
     displayDate: day.displayDate,
     entries: day.entries,
+    entryCount: day.entryCount,
+    counts: day.counts,
   }))];
+
+  // The list rows come from summary mode, so entries[] is empty and the counts arrive
+  // precomputed. Fall back to counting entries for the live session, which is local.
+  const openLog = async (log: DailyLog) => {
+    if (log.isLive || (log.entries && log.entries.length > 0)) {
+      setSelectedLog(log);
+      return;
+    }
+    setSelectedLog({ ...log, entries: [] });
+    setLoadingEntries(true);
+    try {
+      const res = await getLogsForDate(log.date);
+      const day = Array.isArray(res?.logs)
+        ? res.logs.find((d: HistoricalLogDay) => d.date === log.date)
+        : undefined;
+      setSelectedLog({ ...log, entries: (day?.entries ?? []) as LogEntry[] });
+    } catch (err) {
+      setHistoryError(err instanceof Error ? err.message : 'Failed to load entries for that day');
+      setSelectedLog({ ...log, entries: [] });
+    } finally {
+      setLoadingEntries(false);
+    }
+  };
 
   const getEntryTypeColor = (type: LogEntry['type']) => {
     switch (type) {
@@ -107,11 +136,24 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
     return colors[type];
   };
 
-  const getLogSummary = (entries: LogEntry[]) => {
-    const errors = entries.filter(e => e.type === 'error').length;
-    const warnings = entries.filter(e => e.type === 'warning').length;
-    const success = entries.filter(e => e.type === 'success').length;
-    return { errors, warnings, success, total: entries.length };
+  // Prefer the counts the backend already computed (summary mode ships no entry
+  // bodies); only fall back to counting locally for the live session.
+  const getLogSummary = (log: DailyLog) => {
+    if (log.counts) {
+      return {
+        errors: log.counts.error,
+        warnings: log.counts.warning,
+        success: log.counts.success,
+        total: log.counts.total,
+      };
+    }
+    const entries = log.entries || [];
+    return {
+      errors: entries.filter(e => e.type === 'error').length,
+      warnings: entries.filter(e => e.type === 'warning').length,
+      success: entries.filter(e => e.type === 'success').length,
+      total: log.entryCount ?? entries.length,
+    };
   };
 
   return (
@@ -144,12 +186,12 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
         {/* Logs List */}
         <div className="space-y-4">
           {historicalLogs.map((log) => {
-            const summary = getLogSummary(log.entries);
+            const summary = getLogSummary(log);
             return (
               <Card 
                 key={log.date + (log.isLive ? '-live' : '')} 
                 className={`cursor-pointer hover:shadow-lg transition-all duration-200 border-0 ${log.isLive ? 'ring-2 ring-green-400' : ''}`}
-                onClick={() => setSelectedLog(log)}
+                onClick={() => { void openLog(log); }}
               >
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -228,6 +270,12 @@ export function AnalyticsPage({ onNavigateToDashboard, liveActivities }: Analyti
 
             {/* Modal Body - Scrollable */}
             <div className="activity-log-modal-body">
+              {loadingEntries && selectedLog.entries.length === 0 && (
+                <div className="activity-log-line text-gray-500">Loading entries…</div>
+              )}
+              {!loadingEntries && selectedLog.entries.length === 0 && (
+                <div className="activity-log-line text-gray-500">No entries for this day.</div>
+              )}
               {selectedLog.entries.map((entry) => (
                 <div key={entry.id} className="activity-log-line">
                   <span className="text-gray-500 font-mono">[{entry.timestamp}]</span>{' '}

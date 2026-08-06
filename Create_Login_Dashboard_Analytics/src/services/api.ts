@@ -459,14 +459,32 @@ export interface HistoricalLogDay {
   date: string;
   displayDate: string;
   entries: HistoricalLogEntry[];
+  /** Present in summary responses: activity count for the day without the bodies. */
+  entryCount?: number;
+  counts?: { total: number; success: number; warning: number; error: number; info: number };
 }
 
+/**
+ * Day list for the history view. Uses summary mode: the backend returns per-day COUNTS
+ * only. Pulling every message for every day meant tens of MB per poll and many seconds
+ * of backend work, all for a list that only shows a date and a count.
+ */
 export async function getLogsHistory(days = 14, perFileLines = 2000, includeAll = false): Promise<{
   logs: HistoricalLogDay[];
   source?: string;
   message?: string;
 }> {
-  const query = `?days=${encodeURIComponent(days)}&per_file_lines=${encodeURIComponent(perFileLines)}&all=${includeAll ? 'true' : 'false'}`;
+  const query = `?days=${encodeURIComponent(days)}&per_file_lines=${encodeURIComponent(perFileLines)}&all=${includeAll ? 'true' : 'false'}&summary=true`;
+  return apiCall(`/logs/history${query}`, 'GET');
+}
+
+/** Entries for ONE day, fetched when the operator opens it. */
+export async function getLogsForDate(date: string, perFileLines = 60000): Promise<{
+  logs: HistoricalLogDay[];
+  source?: string;
+  message?: string;
+}> {
+  const query = `?date=${encodeURIComponent(date)}&per_file_lines=${encodeURIComponent(perFileLines)}&all=true`;
   return apiCall(`/logs/history${query}`, 'GET');
 }
 
