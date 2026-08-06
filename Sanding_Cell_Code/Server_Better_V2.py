@@ -2987,10 +2987,10 @@ def handle_client(config, homingState=False, startSanding=True, scan=False, cps=
             return False
 
         config["logger"].info("[HomingFunc] DONE! Success to reach J7 home position")
-        msg_to_frontend(
-            api_url=config["server"]["frontEnd_messaging_url"],
-            message="Homing Completed Successfully!",
-        )
+        # Do NOT send a "Homing Completed" operator message here. The frontend homing handler
+        # (RobotStatusCard.handleHoming) already reports completion once, after it confirms the
+        # homed state. Emitting it from the backend too — and again from homingFunction1 — made
+        # the operator see the same success two/three times. Keep the log line above for debug.
         return True
 
 
@@ -8442,10 +8442,8 @@ def homingFunction1(cps, config):
         time.sleep(origin_poll_s)
     # seventhGoToPos(cps, position=0, speed=UISettings['control']['linearAxisSpeed'] * config['7thAxis']['speed'], config=config)
     config["logger"].info("[HomingFunc] DONE! Success to reach 0th position")
-    msg_to_frontend(
-        api_url=config["server"]["frontEnd_messaging_url"],
-        message="Homing Completed Successfully!",
-    )
+    # Completion is reported once by the frontend homing handler (see note at the J7-home site).
+    # Backend no longer emits a duplicate "Homing Completed" operator message here.
 
 
 def laser(cps, valveState: str, config):  # Tool valve for grabbing or throwing
