@@ -5,9 +5,11 @@ import time
 from typing import Any
 
 from Server_Better_V2 import (
+    clear_stop,
     communicate,
     putForceZplus,
     releaseForce,
+    request_stop,
     stop_requested,
     turn_vibration_off,
     turn_vibration_on,
@@ -273,6 +275,93 @@ def _contact_force_threshold(config: dict[str, Any], physical_tool: int) -> floa
     # contact-search loop; putForceZplus still sends the operator force as the
     # controller goal, so it does not cap sanding force.
     return _table_b_motion_value(config, "tool1ContactForceThresholdN", 2.0)
+
+
+def _lift_to_preheight_no_force(
+    cps: Any,
+    config: dict[str, Any],
+    current_xy: list[float],
+    pre_z: float,
+    rxyz: list[float],
+    tcp: str,
+    ucs: str,
+    physical_tool: int,
+) -> None:
+    """On STOP, lift the tool straight up to the pre-height (-17) with NO force.
+
+    Force control must already be OFF (stop_active_motion disables it) so this is a pure
+    position move that releases the surface immediately — no pressure, no dragging, no
+    marks. We lift straight up from the tool's ACTUAL XY (falling back to the last commanded
+    XY), changing only Z, so there is no lateral scrub across the surface. Best-effort: never
+    raise, so stop cleanup always completes even if the controller rejects the move.
+
+    Tool 2 is out of scope (it is not run by this runner), so this is only reached for
+    Tools 1/3/4.
+    """
+    if physical_tool not in (1, 3, 4):
+        return
+    logger = config.get("logger") if isinstance(config, dict) else None
+    try:
+        # Read the tool's ACTUAL XY/Z. A mid-move stop halts the tool between commanded
+        # points, so the last commanded current_xy is not exactly where the tool is; lifting
+        # from the actual XY makes the retract a true straight-up move with no lateral scrub
+        # across the surface. We also use actual Z to ensure we only move AWAY from the
+        # surface: on Table B +Z is toward the surface, so lifting means going to a
+        # LESS-positive Z (pre_z). If the tool is already at/above pre_z, skip so we never
+        # command a move back down into the surface.
+        actual_xy = None
+        actual_z = None
+        result = []
+        try:
+            if cps.HRIF_ReadActPos(0, 0, result) == 0 and len(result) >= 9:
+                actual_xy = [float(result[6]), float(result[7])]
+                actual_z = float(result[8])
+        except Exception:
+            actual_xy = None
+            actual_z = None
+        if actual_z is not None and actual_z <= pre_z + 0.5:
+            # Already at or above the retract height; nothing to lift.
+            if logger:
+                logger.info(
+                    "[TableB DXF Robot] stop-lift skipped: already at/above pre-height "
+                    "(actual Z=%.2f, pre_z=%.2f).",
+                    actual_z, pre_z,
+                )
+            return
+        # Prefer the actual XY (straight-up lift); fall back to the last commanded XY if the
+        # position read failed.
+        lift_xy = actual_xy if actual_xy is not None else current_xy
+        lift_pose = _pose_from_xy(lift_xy, pre_z, rxyz)
+        if logger:
+            logger.info(
+                "[TableB DXF Robot] stop-lift: retracting tool to pre-height %.2f mm with no force.",
+                pre_z,
+            )
+        # communicate() and its wait loop both bail on a latched stop flag, so a MoveL issued
+        # while stop is active would be a no-op. The lift IS the intended stop action, so we
+        # clear the flag only for the duration of this single retract move, then re-latch it in
+        # the finally so the caller's "stopped" semantics (raise + cleanup) are preserved.
+        # Motion is already halted and force control already OFF at this point.
+        clear_stop()
+        try:
+            communicate(
+                cps=cps,
+                config=config,
+                point=lift_pose,
+                tcp=tcp,
+                ucs=ucs,
+                seventh=-1,
+                speed=robot_speed(config),
+                velocity_profile="robotspeed",
+                wait=True,
+            )
+        finally:
+            request_stop()
+    except Exception as exc:
+        if logger:
+            logger.warning("[TableB DXF Robot] stop-lift failed (continuing): %s", exc)
+
+
 def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) -> None:
     """Run one approved XY path with Table B Z+ force control.
 
@@ -498,7 +587,15 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         if force_applied:
             releaseForce(cps, config, wait_for_blending=False)
         if stopped or stop_requested():
+            # CNC-style stop: halt motion, turn OFF force control, then lift the tool straight
+            # up to the pre-height (-17) with NO force, so it releases the surface immediately
+            # and never drags or leaves marks. From -17 the operator can re-send the task or
+            # home. Force control is disabled inside _stop_active_motion BEFORE this lift, so
+            # the retract MoveL is a pure position move (no pressure into the surface).
             _stop_active_motion(cps, config, "after stop cleanup")
+            _lift_to_preheight_no_force(
+                cps, config, current_xy, pre_z, rxyz, tcp, ucs, physical_tool
+            )
             if not stopped:
                 raise TableBDxfRobotStopRequested("Table B DXF operation stopped by user.")
         else:
