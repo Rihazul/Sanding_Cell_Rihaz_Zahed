@@ -1,4 +1,4 @@
-"""Simultaneity demo: 7th axis (J7) and robot arm moving at the same time.
+"""Simultaneity demo: 7th axis (J7) and robot arm covering the Table B XY plane.
 
 Runs on Table B (UCS Plane_2) with the tool 3 Plane 2 TCP so the demo can be done
 with the arm holding tool 3.
@@ -6,39 +6,49 @@ with the arm holding tool 3.
 MOTION ONLY - no force control, no vibration. Everything happens at a safe
 standoff height above the table, so the tool never touches the surface.
 
-Shape of the demo
------------------
-The work is laid out as a list of STATIONS. Each station is one 7th-axis position
-paired with its own set of Plane_2 points, and the arm traces those points like a
-short sanding pass (small hops with a brief dwell at each point) so an observer can
-see the arm working.
+The coordinate idea this demo is built on
+-----------------------------------------
+Table B is ~2000 mm in X and ~900 mm in Y, but the arm alone can only reach a
+window of roughly 700 mm in X. The 7th axis carries the robot BASE along X, and
+the base is the origin the arm's points are measured from - so when J7 moves, the
+whole reachable envelope SLIDES with it.
 
-The interesting part is the TRANSIT between stations. Moving from one station to
-the next means J7 must travel AND the arm must reposition to the next point set:
+That means a target written in fixed, global table coordinates has to have the
+7th-axis position SUBTRACTED out before it is sent to the arm:
 
-  SEQUENTIAL    J7 moves with wait=True, then the arm moves. Times add up.
-  SIMULTANEOUS  J7 moves with wait=False (returns as soon as the move is accepted),
-                then the arm moves immediately. Both travel together, so the transit
-                costs roughly the slower axis instead of the sum.
+    local_x = global_x - j7        (Y is untouched - the rail only translates X)
 
-`communicate` provides the interlock for the simultaneous case: an async J7 move
-sets `_j7_async_pending`, and the next waited point move blocks on
-`waitForSeventhAxisIdle` before returning. The arm is free to fly during J7 travel,
-but the demo never starts a station's pass until J7 has actually settled. This
-mirrors the proven path in table_b_dxf/execution/xy_force_runner.py.
+This is the same conversion the production planner does, see
+`_robot_base_points` in table_b_dxf/executor.py.
 
-By default the script just runs the SIMULTANEOUS sequence once, straight through -
-that is the version worth filming. Pass --mode both if you also want the sequential
-baseline for a timing comparison.
+That subtraction is what makes the two axes genuinely coordinated rather than
+merely moving at the same time. Every waypoint here is authored in GLOBAL table
+coordinates - a real position on the 2000 x 900 table. For each one the demo picks
+a legal J7 station, converts the point into the arm's local frame, and then drives
+BOTH at once. The tool tracks a straight global line across the whole table while
+the rail slides underneath it and the arm continuously re-aims to compensate.
+
+The visible result: the tool traces one long, straight, continuous path across the
+full 2 m table - something neither axis could do alone.
+
+How the two axes overlap
+------------------------
+`communicate` with wait=False dispatches J7 and returns immediately, so the arm
+MoveL that follows travels at the same time. The async J7 sets `_j7_async_pending`,
+and the next waited point move blocks on `waitForSeventhAxisIdle`, so the demo
+never advances to the next waypoint until BOTH axes have settled. Same proven path
+as table_b_dxf/execution/xy_force_runner.py.
+
+Every waypoint is validated against the REAL tool 3 reach envelope
+(table_b_dxf/tool_reach.py) before anything moves, so an out-of-reach point is
+reported up front instead of faulting mid-demo.
 
 Usage:
     python test_simultaneous_j7_arm.py                  # the show: one simultaneous run
+    python test_simultaneous_j7_arm.py --dry-run        # print plan + reach check, no motion
     python test_simultaneous_j7_arm.py --loop 3         # repeat for longer footage
     python test_simultaneous_j7_arm.py --countdown 10   # more time to start recording
-    python test_simultaneous_j7_arm.py --dwell 1.5      # longer pause at each point
-    python test_simultaneous_j7_arm.py --passes 2       # repeat each station's pass
     python test_simultaneous_j7_arm.py --mode both      # + sequential baseline, for timings
-    python test_simultaneous_j7_arm.py --dry-run        # print the plan, no motion
 """
 
 import argparse
@@ -58,6 +68,15 @@ from Server_Better_V2 import (
     stop_requested,
     waitForBlending,
 )
+from table_b_dxf.tool_reach import (
+    AXIS7_MAX_MM,
+    AXIS7_MIN_MM,
+    reach_span_at_y,
+    station_window_for_point,
+)
+
+# Tool 3 is what the demo is filmed with; its reach envelope gates every waypoint.
+REACH_TOOL = "tool_3"
 
 # Table B pose frame, matching table_b_dxf/execution/motion_config.py.
 ORIENTATION = [180.0, 0.0, 0.0]
@@ -65,51 +84,47 @@ ORIENTATION = [180.0, 0.0, 0.0]
 # pre-height, so -60 keeps the tool clearly in the air for this motion-only demo.
 DEMO_Z_MM = -60.0
 
-# The demo sequence: each station is one 7th-axis position plus the Plane_2 points
-# the arm traces there. The points are small XY hops (a few cm) so each station
-# reads as a short "sanding pass" rather than a big traverse - the big motion is
-# meant to be the J7 transit between stations.
+# Usable extent of the Table B XY plane for this demo, in GLOBAL table coordinates.
+TABLE_X_MM = 2000.0
+TABLE_Y_MM = 900.0
+
+
+def _sweep(y, x_start, x_end, count):
+    """Waypoints along one straight global line in X - the full-table traverse."""
+    if count < 2:
+        return [[float(x_start), float(y)]]
+    step = (float(x_end) - float(x_start)) / (count - 1)
+    return [[float(x_start) + step * i, float(y)] for i in range(count)]
+
+
+# The demo route, in GLOBAL Table B coordinates (X across the 2 m length, Y across
+# the 900 mm width). No station numbers here on purpose: the J7 position for each
+# waypoint is COMPUTED from the geometry, which is the whole point of the demo.
 #
-# XY values are in the Plane_2 frame; Z and orientation are held constant.
-STATIONS = [
+# Legs 1 and 3 are long full-table sweeps - these are the money shots, where the
+# rail and the arm visibly move together to hold a straight line. Leg 2 is a short
+# Y step at the far end, and leg 4 a mid-table zigzag, to break up the motion.
+DEMO_LEGS = [
     {
-        "name": "Station 1 (near)",
-        "j7": 300.0,
-        "points": [
-            [150.0, 150.0],
-            [260.0, 150.0],
-            [260.0, 230.0],
-            [150.0, 230.0],
-        ],
+        "name": "Sweep out (low Y)",
+        "points": _sweep(y=250.0, x_start=200.0, x_end=1800.0, count=9),
     },
     {
-        "name": "Station 2 (mid)",
-        "j7": 750.0,
-        "points": [
-            [200.0, 260.0],
-            [320.0, 260.0],
-            [320.0, 340.0],
-            [200.0, 340.0],
-        ],
+        "name": "Cross over (far end)",
+        "points": [[1800.0, 250.0], [1800.0, 450.0], [1650.0, 450.0]],
     },
     {
-        "name": "Station 3 (far)",
-        "j7": 1200.0,
-        "points": [
-            [260.0, 180.0],
-            [380.0, 180.0],
-            [380.0, 260.0],
-            [260.0, 260.0],
-        ],
+        "name": "Sweep back (mid Y)",
+        "points": _sweep(y=450.0, x_start=1650.0, x_end=250.0, count=9),
     },
     {
-        "name": "Station 4 (return)",
-        "j7": 550.0,
+        "name": "Zigzag (mid table)",
         "points": [
-            [180.0, 300.0],
-            [300.0, 300.0],
-            [300.0, 380.0],
-            [180.0, 380.0],
+            [250.0, 450.0],
+            [500.0, 620.0],
+            [800.0, 450.0],
+            [1100.0, 620.0],
+            [1400.0, 450.0],
         ],
     },
 ]
@@ -122,8 +137,83 @@ def load_config():
         return yaml.safe_load(file)
 
 
-def pose(xy, z, rxyz):
-    return [float(xy[0]), float(xy[1]), float(z), rxyz[0], rxyz[1], rxyz[2]]
+def station_for_point(global_x, global_y, bias):
+    """Pick a legal 7th-axis position for a global table point.
+
+    `station_window_for_point` gives the full range of J7 positions from which the
+    tool can reach this point. `bias` selects where inside that window to sit:
+    0 = as far left as legal, 1 = as far right, 0.5 = centred.
+
+    Returns (station_mm, local_x_mm) or None when the point is unreachable.
+    """
+    window = station_window_for_point(REACH_TOOL, float(global_x), float(global_y))
+    if window is None:
+        return None
+    low, high = window
+    # Constrain to the rail's real travel before choosing inside the window.
+    low = max(low, AXIS7_MIN_MM)
+    high = min(high, AXIS7_MAX_MM)
+    if low > high:
+        return None
+    bias = min(1.0, max(0.0, float(bias)))
+    station = low + (high - low) * bias
+    return station, float(global_x) - station
+
+
+def validate_route(legs, base_bias=0.5, swing=0.10):
+    """Resolve every waypoint to (station, local_x) and collect any unreachable ones.
+
+    Beyond just finding a legal station, this deliberately makes the ARM move too.
+    Centring in the reach window (a constant bias) is legal but dull: over a long
+    straight sweep the window slides at the same rate as the target, so local_x
+    goes CONSTANT and the rail ends up doing all the visible work.
+
+    To avoid that, the bias is swung back and forth between waypoints. The global
+    point is unchanged - it is still the exact same place on the table - but the
+    work is re-divided between the two axes each step, so the arm reaches out and
+    draws back while the rail advances. Both axes are then plainly in motion, which
+    is the whole point of the footage.
+
+    Returns (resolved_legs, problems). Doing this before connecting means a bad
+    point is a printed message, never a fault partway through a take.
+    """
+    resolved = []
+    problems = []
+    for leg in legs:
+        entries = []
+        for index, (global_x, global_y) in enumerate(leg["points"]):
+            if not (0.0 <= global_x <= TABLE_X_MM and 0.0 <= global_y <= TABLE_Y_MM):
+                problems.append(
+                    f"{leg['name']}: ({global_x:.0f}, {global_y:.0f}) is outside the "
+                    f"{TABLE_X_MM:.0f} x {TABLE_Y_MM:.0f} demo area"
+                )
+                continue
+            # Alternate the split so the arm visibly extends and retracts as J7 advances.
+            bias = base_bias + (swing if index % 2 == 0 else -swing)
+            solution = station_for_point(global_x, global_y, bias)
+            if solution is None:
+                span = reach_span_at_y(REACH_TOOL, global_y)
+                detail = f"local span at Y={global_y:.0f} is {span}" if span else f"Y={global_y:.0f} outside envelope"
+                problems.append(
+                    f"{leg['name']}: ({global_x:.0f}, {global_y:.0f}) unreachable for {REACH_TOOL} ({detail})"
+                )
+                continue
+            station, local_x = solution
+            entries.append(
+                {
+                    "global": [global_x, global_y],
+                    "station": station,
+                    "local_x": local_x,
+                    "y": global_y,
+                }
+            )
+        resolved.append({"name": leg["name"], "entries": entries})
+    return resolved, problems
+
+
+def pose_from_entry(entry, z):
+    """Arm pose in the base-local frame: X has the 7th-axis position subtracted out."""
+    return [entry["local_x"], entry["y"], float(z), ORIENTATION[0], ORIENTATION[1], ORIENTATION[2]]
 
 
 def read_j7_position(cps):
@@ -153,10 +243,9 @@ def abort_if_stopped(config, where):
 
 
 def dwell(config, seconds, where):
-    """Hold position for a moment so the demo is easy to follow.
+    """Hold position briefly so the demo is easy to follow.
 
-    Sleeps in slices so an emergency stop is noticed promptly instead of only
-    after the full dwell has elapsed.
+    Sleeps in slices so an emergency stop is noticed promptly.
     """
     if seconds <= 0:
         return
@@ -181,14 +270,14 @@ def move_j7(cps, config, target, tcp, ucs, speed, wait):
         require_seventh_ok=True,
     )
     if result is None:
-        raise RuntimeError(f"7th-axis move to {target} failed (require_seventh_ok).")
+        raise RuntimeError(f"7th-axis move to {target:.1f} failed (require_seventh_ok).")
 
 
 def move_arm(cps, config, point, tcp, ucs, speed, profile="robotspeed"):
     """Command an arm-only MoveL (seventh=-1) and wait for it.
 
     When a preceding J7 move was started async, `communicate` also blocks here
-    until J7 reports idle, so a transit is not done until BOTH axes are.
+    until J7 reports idle, so a waypoint is not done until BOTH axes are.
     """
     communicate(
         cps=cps,
@@ -204,106 +293,84 @@ def move_arm(cps, config, point, tcp, ucs, speed, profile="robotspeed"):
     )
 
 
-def run_station_pass(cps, config, station, *, tcp, ucs, speed, z, dwell_s, passes):
-    """Trace this station's point set like a short sanding pass (no force, no vibration)."""
-    points = station["points"]
-    for pass_index in range(passes):
-        # Alternate direction on repeat passes so it looks like back-and-forth work.
-        ordered = points if pass_index % 2 == 0 else list(reversed(points))
-        for point_index, xy in enumerate(ordered, start=1):
-            abort_if_stopped(config, f"{station['name']} pass")
-            config["logger"].info(
-                "[simul-demo] %s | pass %s/%s point %s/%s -> %s",
-                station["name"],
-                pass_index + 1,
-                passes,
-                point_index,
-                len(ordered),
-                xy,
-            )
-            move_arm(cps, config, pose(xy, z, ORIENTATION), tcp, ucs, speed, profile="sandingspeed")
-            dwell(config, dwell_s, f"{station['name']} dwell")
-    waitForBlending(cps=cps, config=config)
+def go_to_waypoint(cps, config, entry, *, simultaneous, tcp, ucs, speed, z, label, dwell_s):
+    """Drive J7 and the arm to one GLOBAL table point.
 
-
-def run_transit(cps, config, station, *, simultaneous, tcp, ucs, speed, z, label):
-    """Move J7 to this station AND the arm to its first point.
-
-    Returns elapsed wall-clock seconds, which is what the two modes are compared on.
+    The global point is held constant; what differs between modes is only whether
+    the rail and the arm travel together or one after the other.
     """
-    abort_if_stopped(config, f"{label} start")
+    abort_if_stopped(config, label)
 
-    j7_target = station["j7"]
-    first_point = pose(station["points"][0], z, ORIENTATION)
-    j7_before = read_j7_position(cps)
+    station = entry["station"]
+    arm_point = pose_from_entry(entry, z)
+
     config["logger"].info(
-        "[simul-demo] %s | mode=%s j7: %s -> %s | arm -> %s",
+        "[simul-demo] %s | global=(%.0f, %.0f) -> j7=%.1f + local_x=%.1f",
         label,
-        "SIMULTANEOUS" if simultaneous else "SEQUENTIAL",
-        f"{j7_before:.1f}" if j7_before is not None else "?",
-        j7_target,
-        station["points"][0],
+        entry["global"][0],
+        entry["global"][1],
+        station,
+        entry["local_x"],
     )
 
     start = time.time()
     if simultaneous:
-        # Fire J7 and do NOT wait, so the arm move below overlaps its travel.
-        move_j7(cps, config, j7_target, tcp, ucs, speed, wait=False)
-        dispatch_s = time.time() - start
-        move_arm(cps, config, first_point, tcp, ucs, speed)
-        config["logger"].info(
-            "[simul-demo] %s | J7 dispatch returned in %.3fs (arm moved during J7 travel)",
-            label,
-            dispatch_s,
-        )
+        # Rail and arm travel together; the arm re-aims as the base slides under it.
+        move_j7(cps, config, station, tcp, ucs, speed, wait=False)
+        move_arm(cps, config, arm_point, tcp, ucs, speed, profile="sandingspeed")
     else:
-        # Baseline: J7 fully completes before the arm starts.
-        move_j7(cps, config, j7_target, tcp, ucs, speed, wait=True)
-        j7_done_s = time.time() - start
-        move_arm(cps, config, first_point, tcp, ucs, speed)
-        config["logger"].info(
-            "[simul-demo] %s | J7 finished alone in %.3fs, then the arm moved",
-            label,
-            j7_done_s,
-        )
+        # Baseline: rail finishes first, then the arm moves. Visibly stop-start.
+        move_j7(cps, config, station, tcp, ucs, speed, wait=True)
+        move_arm(cps, config, arm_point, tcp, ucs, speed, profile="sandingspeed")
 
     elapsed = time.time() - start
-    abort_if_stopped(config, f"{label} end")
-    config["logger"].info("[simul-demo] %s | transit done in %.3fs", label, elapsed)
+    dwell(config, dwell_s, f"{label} dwell")
     return elapsed
 
 
-def run_mode(cps, config, *, simultaneous, tcp, ucs, speed, z, dwell_s, passes, stations):
-    """Walk every station: transit to it (timed), then trace its point set."""
+def run_mode(cps, config, *, simultaneous, resolved, tcp, ucs, speed, z, dwell_s, passes):
+    """Trace the whole global route, leg by leg."""
     mode_name = "SIMULTANEOUS" if simultaneous else "SEQUENTIAL"
-    print(f"\n=== {mode_name} : {len(stations)} stations ===")
+    print(f"\n=== {mode_name} ===")
 
-    transit_times = []
-    for index, station in enumerate(stations, start=1):
-        label = f"transit {index}/{len(stations)} -> {station['name']}"
-        elapsed = run_transit(
-            cps, config, station,
-            simultaneous=simultaneous,
-            tcp=tcp, ucs=ucs, speed=speed, z=z,
-            label=label,
-        )
-        transit_times.append(elapsed)
-        print(f"  {station['name']:<20} j7={station['j7']:>7.1f}  transit {elapsed:.3f}s")
+    total = 0.0
+    count = 0
+    for pass_index in range(passes):
+        if passes > 1:
+            print(f"-- pass {pass_index + 1}/{passes} --")
+        for leg_index, leg in enumerate(resolved, start=1):
+            entries = leg["entries"]
+            if not entries:
+                continue
+            j7_span = (
+                min(entry["station"] for entry in entries),
+                max(entry["station"] for entry in entries),
+            )
+            print(
+                f"  Leg {leg_index}: {leg['name']:<22} "
+                f"{len(entries)} pts, j7 {j7_span[0]:.0f} -> {j7_span[1]:.0f} mm"
+            )
+            leg_start = time.time()
+            for point_index, entry in enumerate(entries, start=1):
+                total += go_to_waypoint(
+                    cps, config, entry,
+                    simultaneous=simultaneous,
+                    tcp=tcp, ucs=ucs, speed=speed, z=z,
+                    dwell_s=dwell_s,
+                    label=f"leg {leg_index} pt {point_index}/{len(entries)}",
+                )
+                count += 1
+            print(f"     leg took {time.time() - leg_start:.1f}s")
+            waitForBlending(cps=cps, config=config)
 
-        run_station_pass(
-            cps, config, station,
-            tcp=tcp, ucs=ucs, speed=speed, z=z,
-            dwell_s=dwell_s, passes=passes,
-        )
-
-    average = sum(transit_times) / len(transit_times) if transit_times else 0.0
-    print(f"{mode_name}: {len(transit_times)} transits, average {average:.3f}s per transit")
+    average = total / count if count else 0.0
+    print(f"{mode_name}: {count} waypoints, {average:.3f}s average move time")
     return average
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="7th axis + arm simultaneity demo (Plane_2 / tool3plane2). Motion only - no force, no vibration.",
+        description="7th axis + arm simultaneity demo over the Table B XY plane (Plane_2 / tool3plane2). Motion only.",
     )
     parser.add_argument(
         "--mode",
@@ -311,13 +378,32 @@ def parse_args():
         default="sim",
         help=(
             "sim = one continuous simultaneous run, best for filming (default). "
-            "seq = sequential only. both = sequential baseline then simultaneous, for timing comparison."
+            "seq = sequential only. both = sequential baseline then simultaneous."
         ),
     )
-    parser.add_argument("--dwell", type=float, default=1.0, help="Seconds to hold at each point (default 1.0).")
-    parser.add_argument("--passes", type=int, default=1, help="Passes over each station's point set (default 1).")
+    parser.add_argument("--dwell", type=float, default=0.3, help="Seconds to hold at each waypoint (default 0.3).")
+    parser.add_argument("--passes", type=int, default=1, help="Times to trace the route per run (default 1).")
     parser.add_argument("--speed", type=float, default=None, help="Speed ratio override (default: UI robotSpeed).")
     parser.add_argument("--z", type=float, default=DEMO_Z_MM, help=f"Demo Z height in Plane_2 (default {DEMO_Z_MM}).")
+    parser.add_argument(
+        "--station-bias",
+        type=float,
+        default=0.5,
+        help=(
+            "Centre of the J7 window to work from: 0 = as far left as legal, "
+            "1 = as far right, 0.5 = centred (default)."
+        ),
+    )
+    parser.add_argument(
+        "--swing",
+        type=float,
+        default=0.10,
+        help=(
+            "How much to alternate the work split between rail and arm at each waypoint. "
+            "0 = none (arm goes still on long sweeps), 0.10 = balanced (default). "
+            "Much above ~0.2 the rail starts thrashing back and forth between points."
+        ),
+    )
     parser.add_argument(
         "--countdown",
         type=float,
@@ -330,7 +416,7 @@ def parse_args():
         default=1,
         help="Run the whole sequence this many times back-to-back, for longer footage (default 1).",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Print the plan and exit without connecting or moving.")
+    parser.add_argument("--dry-run", action="store_true", help="Print the plan and reach check, then exit without moving.")
     return parser.parse_args()
 
 
@@ -350,11 +436,16 @@ def countdown(config, seconds):
     print("  GO\n", flush=True)
 
 
-def print_plan(stations, z):
-    print("\nDemo sequence:")
-    for index, station in enumerate(stations, start=1):
-        points = ", ".join(f"({xy[0]:.0f},{xy[1]:.0f})" for xy in station["points"])
-        print(f"  {index}. {station['name']:<20} j7={station['j7']:>7.1f}  points: {points}")
+def print_plan(resolved, z):
+    print("\nRoute (global table coords -> j7 + arm-local X):")
+    for leg_index, leg in enumerate(resolved, start=1):
+        print(f"  Leg {leg_index}: {leg['name']}")
+        for entry in leg["entries"]:
+            gx, gy = entry["global"]
+            print(
+                f"      global ({gx:7.1f}, {gy:6.1f})   j7 {entry['station']:7.1f}"
+                f"   local_x {entry['local_x']:7.1f}"
+            )
     print(f"  (all points at Z={z} with orientation {ORIENTATION})")
 
 
@@ -367,16 +458,42 @@ def main():
     ucs = config["coords"]["ucsTable2"]
     speed = args.speed if args.speed is not None else float(config["UI"]["robotSpeed"])
 
-    print("=== 7th Axis + Arm Simultaneity Demo (motion only) ===")
+    print("=== Table B XY Simultaneity Demo (motion only) ===")
     print(f"TCP           : {tcp}")
     print(f"UCS           : {ucs}")
     print(f"Speed ratio   : {speed}")
+    print(f"Table area    : {TABLE_X_MM:.0f} x {TABLE_Y_MM:.0f} mm   reach model: {REACH_TOOL}")
     print(f"Mode          : {args.mode}   dwell={args.dwell}s   passes={args.passes}   loop={args.loop}")
     print("Force control : DISABLED    Vibration: DISABLED")
-    print_plan(STATIONS, args.z)
+
+    resolved, problems = validate_route(DEMO_LEGS, args.station_bias, args.swing)
+    print_plan(resolved, args.z)
+
+    if problems:
+        print(f"\n{len(problems)} unreachable/out-of-area waypoint(s):")
+        for problem in problems:
+            print(f"  - {problem}")
+        print("Fix DEMO_LEGS (or adjust --station-bias) before running on the robot.")
+        return 2
+
+    total_points = sum(len(leg["entries"]) for leg in resolved)
+    stations = [entry["station"] for leg in resolved for entry in leg["entries"]]
+    locals_x = [entry["local_x"] for leg in resolved for entry in leg["entries"]]
+    # Sum of per-step motion on each axis. Both must be non-trivial, otherwise one
+    # axis is coasting and the footage will not show simultaneity.
+    rail_travel = sum(abs(b - a) for a, b in zip(stations, stations[1:]))
+    arm_travel = sum(abs(b - a) for a, b in zip(locals_x, locals_x[1:]))
+    print(
+        f"\nReach check OK: {total_points} waypoints, "
+        f"j7 range {min(stations):.0f} - {max(stations):.0f} mm (limit {AXIS7_MIN_MM:.0f} - {AXIS7_MAX_MM:.0f})."
+    )
+    print(
+        f"Axis motion    : rail {rail_travel:.0f} mm total, arm local X {arm_travel:.0f} mm total "
+        f"(both should be large - raise --swing if the arm figure is small)."
+    )
 
     if args.dry_run:
-        print("\nDry run - no connection made, no motion commanded.")
+        print("Dry run - no connection made, no motion commanded.")
         return 0
 
     # The demo moves the arm in free air; make sure nothing is left latched.
@@ -405,27 +522,28 @@ def main():
                 sequential_avg = run_mode(
                     cps, config,
                     simultaneous=False,
+                    resolved=resolved,
                     tcp=tcp, ucs=ucs, speed=speed, z=args.z,
-                    dwell_s=args.dwell, passes=args.passes, stations=STATIONS,
+                    dwell_s=args.dwell, passes=args.passes,
                 )
             if args.mode in ("both", "sim"):
                 simultaneous_avg = run_mode(
                     cps, config,
                     simultaneous=True,
+                    resolved=resolved,
                     tcp=tcp, ucs=ucs, speed=speed, z=args.z,
-                    dwell_s=args.dwell, passes=args.passes, stations=STATIONS,
+                    dwell_s=args.dwell, passes=args.passes,
                 )
 
         print("\n=== Sequence complete - you can stop recording ===")
         if sequential_avg is not None:
-            print(f"Sequential   : {sequential_avg:.3f}s per transit")
+            print(f"Sequential   : {sequential_avg:.3f}s per waypoint")
         if simultaneous_avg is not None:
-            print(f"Simultaneous : {simultaneous_avg:.3f}s per transit")
+            print(f"Simultaneous : {simultaneous_avg:.3f}s per waypoint")
         if sequential_avg and simultaneous_avg:
             saved = sequential_avg - simultaneous_avg
             percent = (saved / sequential_avg * 100.0) if sequential_avg else 0.0
-            print(f"Saved        : {saved:.3f}s per transit ({percent:.1f}% faster)")
-            print("A clear saving means J7 and the arm really did travel together.")
+            print(f"Saved        : {saved:.3f}s per waypoint ({percent:.1f}% faster)")
         return 0
     except RuntimeError as error:
         print(f"\nDemo aborted: {error}")
