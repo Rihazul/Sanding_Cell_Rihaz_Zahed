@@ -172,6 +172,21 @@ def _requires_j7_idle_before_prepoint(
     return float(current_pose[1]) < low_y_limit
 
 
+def _requires_high_negative_x_escape_before_low_y(
+    physical_tool: int,
+    current_pose: list[float] | None,
+    target_xy: list[float],
+) -> bool:
+    """Avoid direct high negative-X to low-Y moves that can fold J3."""
+    low_y_limit = _low_y_limit_for_tool(physical_tool)
+    if low_y_limit is None or current_pose is None or len(current_pose) < 2 or len(target_xy) < 2:
+        return False
+    current_x = float(current_pose[0])
+    current_y = float(current_pose[1])
+    target_y = float(target_xy[1])
+    return current_y >= low_y_limit and current_x < 0.0 and target_y < low_y_limit
+
+
 def _read_current_joints_for_transition(cps: Any, config: dict[str, Any]) -> list[float] | None:
     try:
         return read_current_joints(cps)
@@ -484,6 +499,83 @@ def _escape_low_y_during_j7(
     return True
 
 
+def _escape_high_negative_x_during_j7(
+    cps: Any,
+    config: dict[str, Any],
+    *,
+    physical_tool: int,
+    current_pose: list[float] | None,
+    axis7_position: float | None,
+    pre_z: float,
+    rxyz: list[float],
+    tcp: str,
+    ucs: str,
+) -> bool:
+    """Move from top negative-X to X=0 before descending into the low-Y zone."""
+    low_y_limit = _low_y_limit_for_tool(physical_tool)
+    if low_y_limit is None or axis7_position is None or current_pose is None or len(current_pose) < 3:
+        return False
+
+    current_x = float(current_pose[0])
+    current_y = float(current_pose[1])
+    current_z = float(current_pose[2])
+    if current_y < low_y_limit or current_x >= 0.0:
+        return False
+
+    escape_y = max(current_y, low_y_limit + _low_y_escape_margin_mm(config))
+    _log(
+        config,
+        "[TableB DXF Robot] high negative-X escape during J7: current=(%.1f, %.1f, %.1f) escape=(0.0, %.1f, %.1f) j7=%.1f",
+        current_x,
+        current_y,
+        current_z,
+        escape_y,
+        pre_z,
+        float(axis7_position),
+    )
+
+    if current_z > pre_z + 0.5:
+        communicate(
+            cps=cps,
+            config=config,
+            point=[current_x, current_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=robot_speed(config),
+            velocity_profile="robotspeed",
+            wait=True,
+            require_seventh_ok=False,
+        )
+    j7_result = communicate(
+        cps=cps,
+        config=config,
+        point=None,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=axis7_position,
+        speed=robot_speed(config),
+        velocity_profile="robotspeed",
+        wait=False,
+        require_seventh_ok=True,
+    )
+    if j7_result is None:
+        raise TableBDxfRobotExecutionError("7th-axis async move failed during high negative-X escape.")
+    communicate(
+        cps=cps,
+        config=config,
+        point=[0.0, escape_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=robot_speed(config),
+        velocity_profile="robotspeed",
+        wait=True,
+        require_seventh_ok=True,
+    )
+    return True
+
+
 def _lift_to_preheight_no_force(
     cps: Any,
     config: dict[str, Any],
@@ -614,8 +706,15 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     simultaneous_j7_robot = _simultaneous_j7_robot_enabled(config)
     current_pose = _read_current_coord_pose(cps, tcp, ucs)
     low_y_j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, current_pose)
+    high_negative_x_escape_before_low_y = _requires_high_negative_x_escape_before_low_y(
+        physical_tool, current_pose, points[0]
+    )
     joint_j7_idle_before_prepoint, current_joints, joint_guard_reason = _joint_transition_guard(cps, config)
-    j7_idle_before_prepoint = low_y_j7_idle_before_prepoint or joint_j7_idle_before_prepoint
+    j7_idle_before_prepoint = (
+        low_y_j7_idle_before_prepoint
+        or high_negative_x_escape_before_low_y
+        or joint_j7_idle_before_prepoint
+    )
     current_y = current_pose[1] if current_pose and len(current_pose) >= 2 else None
     current_j3 = current_joints[2] if current_joints and len(current_joints) >= 3 else None
 
@@ -630,7 +729,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -640,6 +739,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         simultaneous_j7_robot,
         j7_idle_before_prepoint,
         low_y_j7_idle_before_prepoint,
+        high_negative_x_escape_before_low_y,
         joint_guard_reason,
         "None" if current_y is None else f"{float(current_y):.1f}",
         "None" if current_j3 is None else f"{float(current_j3):.1f}",
@@ -693,6 +793,18 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         j7_positioned_by_escape = False
         if axis7_position is not None and low_y_j7_idle_before_prepoint:
             j7_positioned_by_escape = _escape_low_y_during_j7(
+                cps,
+                config,
+                physical_tool=physical_tool,
+                current_pose=current_pose,
+                axis7_position=axis7_position,
+                pre_z=pre_z,
+                rxyz=rxyz,
+                tcp=tcp,
+                ucs=ucs,
+            )
+        elif axis7_position is not None and high_negative_x_escape_before_low_y:
+            j7_positioned_by_escape = _escape_high_negative_x_during_j7(
                 cps,
                 config,
                 physical_tool=physical_tool,
