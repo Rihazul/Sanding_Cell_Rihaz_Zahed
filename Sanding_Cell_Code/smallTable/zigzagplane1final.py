@@ -29,6 +29,7 @@ from Server_Better_V2 import (
 )
 
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
+from smallTable.stop_lift import stop_lift_to_preheight_tableA
 from cycle_data_utils import get_inverse_overlap_step
 from smallTable.scancord import (
     read_scan_results,
@@ -970,54 +971,70 @@ def _run_small_door_zigzag(
                 raise RuntimeError("[ZigZag] Failed to establish Z- force contact.")
             turn_vibration_on(cps)
 
+            first_zigzag_xy = (first_point[0], first_point[1])
+            try:
+                total_cycles = max(int(item[0]) for item in valid_cycle_paths)
 
-            total_cycles = max(int(item[0]) for item in valid_cycle_paths)
-
-            # Send each orientation chunk explicitly while keeping force contact.
-            # Batching prevents very large horizontal paths from overfilling the motion queue.
-            BATCH_WAIT_EVERY = 8
-            sent_points = 0
-            for path_index, (cycle_number, cycle_orientation, cycle_points) in enumerate(valid_cycle_paths):
-                if stop_requested():
-                    raise RuntimeError("[ZigZag] Stop requested.")
-                print(
-                    f"[ZigZag] Running cycle {cycle_number}/{total_cycles} "
-                    f"orientation={cycle_orientation}, points={len(cycle_points)}"
-                )
-
-                if path_index == 0:
-                    points_to_send = cycle_points[1:]  # Skip first point (already at it)
-                else:
-                    points_to_send = cycle_points
-
-                for point_index, point_b in enumerate(points_to_send):
+                # Send each orientation chunk explicitly while keeping force contact.
+                # Batching prevents very large horizontal paths from overfilling the motion queue.
+                BATCH_WAIT_EVERY = 8
+                sent_points = 0
+                for path_index, (cycle_number, cycle_orientation, cycle_points) in enumerate(valid_cycle_paths):
                     if stop_requested():
                         raise RuntimeError("[ZigZag] Stop requested.")
-                    sent_points += 1
-                    is_last_path = path_index == len(valid_cycle_paths) - 1
-                    is_last_point = is_last_path and point_index == len(points_to_send) - 1
-                    is_batch_end = sent_points % BATCH_WAIT_EVERY == 0
-
-                    communicate(
-                        cps=cps,
-                        config=config,
-                        point=point_b,
-                        tcp=config["coords"]["tcptool4plane1"],
-                        ucs=config["coords"]["ucsTable1"],
-                        seventh=-1,
-                        speed=sanding_speed,
-                        velocity_profile="sandingspeed",
-                        speed_mode="linear",
-                        wait=is_last_point or is_batch_end,
+                    print(
+                        f"[ZigZag] Running cycle {cycle_number}/{total_cycles} "
+                        f"orientation={cycle_orientation}, points={len(cycle_points)}"
                     )
 
-            waitForBlending(
-                cps=cps,
-                config=config,
-                timeout_s=_resolve_sanding_blend_timeout(config),
-            )
-        turn_vibration_off(cps)
-        releaseForce(cps=cps, config=config)
+                    if path_index == 0:
+                        points_to_send = cycle_points[1:]  # Skip first point (already at it)
+                    else:
+                        points_to_send = cycle_points
+
+                    for point_index, point_b in enumerate(points_to_send):
+                        if stop_requested():
+                            raise RuntimeError("[ZigZag] Stop requested.")
+                        sent_points += 1
+                        is_last_path = path_index == len(valid_cycle_paths) - 1
+                        is_last_point = is_last_path and point_index == len(points_to_send) - 1
+                        is_batch_end = sent_points % BATCH_WAIT_EVERY == 0
+
+                        communicate(
+                            cps=cps,
+                            config=config,
+                            point=point_b,
+                            tcp=config["coords"]["tcptool4plane1"],
+                            ucs=config["coords"]["ucsTable1"],
+                            seventh=-1,
+                            speed=sanding_speed,
+                            velocity_profile="sandingspeed",
+                            speed_mode="linear",
+                            wait=is_last_point or is_batch_end,
+                        )
+
+                waitForBlending(
+                    cps=cps,
+                    config=config,
+                    timeout_s=_resolve_sanding_blend_timeout(config),
+                )
+            finally:
+                if stop_requested():
+                    # Operator Stop: lift straight up to the zigzag pre-point height (its own
+                    # "lift above surface" Z) with no force so the tool releases the surface
+                    # immediately. From there operator can re-send the task or run homing.
+                    stop_lift_to_preheight_tableA(
+                        cps,
+                        config,
+                        tcp=config["coords"]["tcptool4plane1"],
+                        ucs=config["coords"]["ucsTable1"],
+                        preheight_z_mm=float(prepointp1[2]),
+                        robot_speed=robot_speed,
+                        last_xy=first_zigzag_xy,
+                    )
+                else:
+                    turn_vibration_off(cps)
+                    releaseForce(cps=cps, config=config)
 
     cycle_paths = [
         (

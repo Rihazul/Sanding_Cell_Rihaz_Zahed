@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,putForceXminus,stop_requested
+from smallTable.stop_lift import stop_lift_to_preheight_tableA
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -188,23 +189,37 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
 
             waitForBlending(cps=cps, config=config)
     finally:
-        if vibration_on:
-            turn_vibration_off(cps)
-        if force_applied:
-            releaseForce(cps=cps, config=config)
-        if exit_point is not None:
-            print(f"[Tool1ForcePath] {label}: exit lift {exit_point}")
-            communicate(
-                cps=cps,
-                config=config,
-                point=exit_point,
+        if stop_requested():
+            # Operator Stop: release force and lift straight up to pre-height with no force,
+            # so the tool releases the surface immediately (no drag/marks). From there the
+            # operator can re-send the task or run homing.
+            stop_lift_to_preheight_tableA(
+                cps,
+                config,
                 tcp=config['coords']['tcptool1plane1'],
                 ucs=config['coords']['ucsTable1'],
-                seventh=-1,
-                speed=robot_speed,
-                velocity_profile="robotspeed",
-                wait=True,
+                preheight_z_mm=FORCE_APPROACH_Z_MM,
+                robot_speed=robot_speed,
+                last_xy=(approach_point[0], approach_point[1]),
             )
+        else:
+            if vibration_on:
+                turn_vibration_off(cps)
+            if force_applied:
+                releaseForce(cps=cps, config=config)
+            if exit_point is not None:
+                print(f"[Tool1ForcePath] {label}: exit lift {exit_point}")
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=exit_point,
+                    tcp=config['coords']['tcptool1plane1'],
+                    ucs=config['coords']['ucsTable1'],
+                    seventh=-1,
+                    speed=robot_speed,
+                    velocity_profile="robotspeed",
+                    wait=True,
+                )
 
 
 

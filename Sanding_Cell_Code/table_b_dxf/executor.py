@@ -369,10 +369,97 @@ def _ordered_pattern_paths(paths: list[dict[str, Any]], current_end: list[float]
     return ordered
 
 
+def _rebuild_serpentine_from_corner(
+    window_points: list[list[float]],
+    orientation: str,
+    start_corner: list[float] | None,
+) -> list[list[float]] | None:
+    """Rebuild a window's serpentine so it STARTS at the corner nearest start_corner and
+    sweeps into the window from there — giving true continuous alternation between cycles.
+
+    A serpentine has two independent directions: the sweep axis (long passes) and the step
+    axis (offset between passes). Reversing the flattened point list only flips both together,
+    so it cannot express "continue from the exact end corner and sweep the right way". Here we
+    recover the lane grid from the points and re-emit it from the chosen start corner:
+
+      - vertical   : passes run along Y, step across X.
+      - horizontal : passes run along X, step across Y.
+
+    Continuity rule (matches operator spec):
+      * first lane = the step-axis extreme NEAREST the previous end's step coordinate;
+      * first sweep goes from the previous end's sweep coordinate toward the opposite extreme;
+      * subsequent lanes step AWAY from the start corner (serpentine).
+
+    So e.g. a vertical pass ending on the LEFT continues as a horizontal pass sweeping RIGHT
+    from that left corner; ending on the RIGHT continues sweeping LEFT; a horizontal pass
+    ending TOP-left continues as a vertical pass going DOWN from top-left; ending BOTTOM-left
+    continues going UP. Returns None if the grid can't be recovered (caller falls back).
+    """
+    pts = _xy_points(window_points)
+    if len(pts) < 2:
+        return None
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    x_lo, x_hi = min(xs), max(xs)
+    y_lo, y_hi = min(ys), max(ys)
+
+    if orientation == "vertical":
+        sweep_lo, sweep_hi = y_lo, y_hi          # passes run along Y
+        lane_values = sorted({round(p[0], 3) for p in pts})  # lanes at distinct X
+        step_lo, step_hi = x_lo, x_hi
+    else:  # horizontal: passes run along X
+        sweep_lo, sweep_hi = x_lo, x_hi
+        lane_values = sorted({round(p[1], 3) for p in pts})  # lanes at distinct Y
+        step_lo, step_hi = y_lo, y_hi
+    if len(lane_values) < 1:
+        return None
+
+    # Decide the start corner from the previous end. With no previous end we keep the default
+    # bottom-right origin (step at min, sweep at min) so the first cycle is unchanged.
+    have_start = start_corner is not None and len(start_corner) >= 2
+    ex = float(start_corner[0]) if have_start else 0.0
+    ey = float(start_corner[1]) if have_start else 0.0
+
+    if orientation == "vertical":
+        step_coord, sweep_coord = ex, ey  # step across X, sweep along Y
+    else:
+        step_coord, sweep_coord = ey, ex  # step across Y, sweep along X
+
+    step_start_near_hi = have_start and abs(step_coord - step_hi) < abs(step_coord - step_lo)
+    sweep_start_at_hi = have_start and abs(sweep_coord - sweep_hi) < abs(sweep_coord - sweep_lo)
+
+    # Lanes ordered so the FIRST lane is nearest the start corner's step coordinate.
+    ordered_lanes = list(reversed(lane_values)) if step_start_near_hi else lane_values
+
+    out: list[list[float]] = []
+    sweep_at_hi = sweep_start_at_hi  # first pass starts at this sweep end
+    for lane in ordered_lanes:
+        a = sweep_hi if sweep_at_hi else sweep_lo
+        b = sweep_lo if sweep_at_hi else sweep_hi
+        if orientation == "vertical":
+            p0, p1 = [lane, a], [lane, b]
+        else:
+            p0, p1 = [a, lane], [b, lane]
+        # Avoid duplicating the shared endpoint between consecutive lanes.
+        if out and _point_distance(out[-1], p0) <= 1e-6:
+            out.append(p1)
+        else:
+            out.extend([p0, p1])
+        sweep_at_hi = not sweep_at_hi  # serpentine
+    return out if len(out) >= 2 else None
+
+
 def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
     base = str(path.get("split_from_path_id") or path.get("path_id") or "")
     # Triangular pockets use Tool 4 spiral fill, not vertical/horizontal rows.
     match = re.search(r"(.+?_tool4_tri)(?:_|$)", base)
+    if match:
+        return match.group(1)
+    # Rectangular-spiral pockets: match BEFORE the generic _tool4 rule so the "_rect" marker
+    # survives in the window key. A wide pocket is divided into per-reach-window sections
+    # (`_tool4_rect_sec{n}`), each an independent spiral window; capture the section suffix so
+    # sections group separately. Narrow pockets are `_tool4_rect` (no section).
+    match = re.search(r"(.+?_tool4_rect(?:_sec\d+)?)(?:_|$)", base)
     if match:
         return match.group(1)
     match = re.search(r"(.+?_tool4_sec\d+)", base)
@@ -386,6 +473,10 @@ def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
 
 def _is_triangle_pocket_zigzag_window(window_key: str) -> bool:
     return "_tool4_tri" in str(window_key)
+
+
+def _is_rect_spiral_pocket_zigzag_window(window_key: str) -> bool:
+    return "_tool4_rect" in str(window_key)
 
 
 def _group_pocket_zigzag_windows(paths: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -457,41 +548,61 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
     if not isinstance(patterns, dict):
         return None
 
-    selected = patterns.get("selected_orientation") or settings.get("pocket_zigzag_orientation") or "vertical"
-    selected = "horizontal" if selected == "horizontal" else "vertical"
+    raw_selected = patterns.get("selected_orientation") or settings.get("pocket_zigzag_orientation") or "vertical"
+    rect_spiral_selected = raw_selected == "rectspiral"
+    selected = "horizontal" if raw_selected == "horizontal" else "vertical"
     alternate = "vertical" if selected == "horizontal" else "horizontal"
     vertical_paths = [dict(path) for path in (patterns.get("vertical_paths") or [])]
     horizontal_paths = [dict(path) for path in (patterns.get("horizontal_paths") or [])]
+    spiral_paths = [dict(path) for path in (patterns.get("spiral_paths") or [])]
     by_orientation = {"vertical": vertical_paths, "horizontal": horizontal_paths}
-    if not by_orientation[selected] or not by_orientation[alternate]:
-        return None
 
     grouped = {
         "vertical": _group_pocket_zigzag_windows(vertical_paths),
         "horizontal": _group_pocket_zigzag_windows(horizontal_paths),
+        "rectspiral": _group_pocket_zigzag_windows(spiral_paths),
     }
+
     window_order: list[str] = []
-    for path in by_orientation[selected]:
-        key = _pocket_zigzag_window_key(path)
-        if key not in window_order:
-            window_order.append(key)
-    for path in by_orientation[alternate]:
-        key = _pocket_zigzag_window_key(path)
-        if key not in window_order:
-            window_order.append(key)
+    if rect_spiral_selected:
+        # Rectangular spiral has no vertical/horizontal alternation; every cycle reruns the
+        # same spiral window (reversed from the cursor for the return pass). Drive the window
+        # order purely from the spiral paths.
+        if not spiral_paths:
+            return None
+        for path in spiral_paths:
+            key = _pocket_zigzag_window_key(path)
+            if key not in window_order:
+                window_order.append(key)
+    else:
+        if not by_orientation[selected] or not by_orientation[alternate]:
+            return None
+        for path in by_orientation[selected]:
+            key = _pocket_zigzag_window_key(path)
+            if key not in window_order:
+                window_order.append(key)
+        for path in by_orientation[alternate]:
+            key = _pocket_zigzag_window_key(path)
+            if key not in window_order:
+                window_order.append(key)
 
     expanded: list[dict[str, Any]] = []
     cursor: list[float] | None = None
     for window_key in window_order:
         triangle_window = _is_triangle_pocket_zigzag_window(window_key)
+        rect_spiral_window = _is_rect_spiral_pocket_zigzag_window(window_key)
+        # Spiral-type windows (triangle or rectangular) have no vertical/horizontal fill:
+        # reuse the same spiral each cycle and let _ordered_pattern_paths reverse it from the
+        # cursor for the return pass. They must NOT go through the serpentine rebuild.
+        spiral_window = triangle_window or rect_spiral_window
         for cycle_index in range(1, cycles + 1):
             orientation = selected if cycle_index % 2 == 1 else alternate
             if triangle_window:
-                # Triangle pockets do not have vertical/horizontal fill. Reuse the
-                # spiral path each cycle and allow ordering reversal from the current
-                # end point so the robot does not reposition unnecessarily.
                 orientation = "triangle_spiral"
                 window_paths = grouped[selected].get(window_key) or grouped[alternate].get(window_key) or []
+            elif rect_spiral_window:
+                orientation = "rectangular_spiral"
+                window_paths = grouped["rectspiral"].get(window_key) or []
             else:
                 window_paths = grouped[orientation].get(window_key) or []
             if not window_paths:
@@ -501,13 +612,28 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 pts = _xy_points(path.get("points") or [])
                 if len(pts) < 2:
                     continue
+                # For vertical/horizontal fill, rebuild this window's serpentine so it STARTS
+                # at the corner where the previous cycle ended and sweeps the correct way
+                # (continuous alternation, no lift). Reversal alone can't do this. Spiral
+                # windows keep the reordered/reversed path. Falls back to pts on failure. Only
+                # the first path of a window seeds from the cross-cycle cursor; further paths in
+                # the same window continue from the running end so lanes stay contiguous.
+                if not spiral_window:
+                    rebuilt = _rebuild_serpentine_from_corner(pts, orientation, cursor)
+                    if rebuilt and len(rebuilt) >= 2:
+                        pts = rebuilt
                 expanded_path = dict(path)
                 expanded_path["points"] = pts
                 expanded_path["path_id"] = (
                     f"{path.get('path_id') or f'pocketzigzag_{path_index}'}"
                     f"__{window_key}__cycle{cycle_index}_{orientation}"
                 )
-                operation_label = "Pocket zigzag triangle spiral" if triangle_window else f"Pocket zigzag {orientation}"
+                if triangle_window:
+                    operation_label = "Pocket zigzag triangle spiral"
+                elif rect_spiral_window:
+                    operation_label = "Pocket zigzag rectangular spiral"
+                else:
+                    operation_label = f"Pocket zigzag {orientation}"
                 expanded_path["operation"] = f"{operation_label} cycle {cycle_index}"
                 expanded_path["recipe_override"] = {"force": zigzag_recipe["force"], "cycle": 1}
                 expanded_path["cycle_index"] = cycle_index

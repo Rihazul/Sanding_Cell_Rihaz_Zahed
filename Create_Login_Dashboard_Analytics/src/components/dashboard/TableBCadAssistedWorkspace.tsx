@@ -163,15 +163,16 @@ export interface DxfToolpathPreviewPayload {
     frame_chunks: number;
   };
   settings?: {
-    pocket_zigzag_orientation?: 'vertical' | 'horizontal';
+    pocket_zigzag_orientation?: 'vertical' | 'horizontal' | 'rectspiral';
     pocket_overlap_mm?: number;
     frame_overlap_mm?: number;
     pocket_edge_margin_mm?: number;
     pocket_zigzag_cycle_patterns?: {
-      selected_orientation: 'vertical' | 'horizontal';
+      selected_orientation: 'vertical' | 'horizontal' | 'rectspiral';
       alternate_orientation: 'vertical' | 'horizontal';
       vertical_paths: DxfToolpathPath[];
       horizontal_paths: DxfToolpathPath[];
+      spiral_paths?: DxfToolpathPath[];
     };
   };
   // Region corner points (geometry the operator assigned).
@@ -1118,7 +1119,7 @@ export function TableBCadAssistedWorkspace({
   // Default 4.5 mm matches the previous hardcoded value.
   const TOOL3_DEFAULT_EDGE_MARGIN_MM = 4.5;
   const [dxfPocketEdgeMargin, setDxfPocketEdgeMargin] = React.useState(TOOL3_DEFAULT_EDGE_MARGIN_MM);
-  const [dxfPocketZigzagOrientation, setDxfPocketZigzagOrientation] = React.useState<'vertical' | 'horizontal'>('vertical');
+  const [dxfPocketZigzagOrientation, setDxfPocketZigzagOrientation] = React.useState<'vertical' | 'horizontal' | 'rectspiral'>('vertical');
   // Operator-set FRAME overlap (mm, 0..100) — same idea but for the big frame
   // rectangle (chunk) zigzag passes. Independent of the pocket overlap.
   const [dxfFrameOverlap, setDxfFrameOverlap] = React.useState(0);
@@ -1501,9 +1502,98 @@ export function TableBCadAssistedWorkspace({
     });
     return segments;
   };
+
+  // Rectangular spiral fill for a rectangular (sub-)box. Starts at the BOTTOM-RIGHT corner of
+  // the box and winds inward CCW (up the right edge, across the top, down the left, across the
+  // bottom), stepping in by `step` (= pocket pass spacing) each ring until the inset box
+  // collapses, then finishes at the center. One continuous corner->center path. `idPrefix`
+  // already carries the `_tool4_rect` marker (and a `_sec{n}` window tag for wide pockets);
+  // segment ids append `_${i}`. `seqBase` offsets seq across sections.
+  const buildRectSpiralTool4Segments = (
+    idPrefix: string,
+    bxLo: number,
+    bxHi: number,
+    byLo: number,
+    byHi: number,
+    step: number,
+    seqBase = 0,
+  ) => {
+    const s = Math.max(step, 1e-6);
+    const points: number[][] = [];
+    const pushPt = (p: number[]) => {
+      const last = points[points.length - 1];
+      if (!last || Math.hypot(last[0] - p[0], last[1] - p[1]) > 1e-6) points.push(p);
+    };
+
+    // Pure rectangular spiral — straight lines only, no curves, no diagonals. From the
+    // bottom-right corner, walk each edge once (up right, left across top, down left, right
+    // across bottom) and step that bound inward by `s`, forming evenly spaced concentric
+    // rectangles. When the remaining region becomes a thin corridor (one dimension can no
+    // longer take a full ring), stop spiralling and finish with a SINGLE straight pass along
+    // the center of that corridor to its far end. This avoids the skinny up/down zigzag a tall
+    // pocket would otherwise leave in the middle, and the stacked bottom hops at high overlap.
+    let left = bxLo;
+    let right = bxHi;
+    let bottom = byLo;
+    let top = byHi;
+    let cur = [right, bottom];
+    pushPt(cur); // start at the bottom-right corner
+
+    const finishCorridor = () => {
+      const w = right - left;
+      const h = top - bottom;
+      if (w <= 1e-9 || h <= 1e-9) return;
+      if (h >= w) {
+        // Vertical corridor: hop to its center X (straight, at the current Y) then run one
+        // straight pass to the far Y end. Skip the hop if already at center (avoids a tiny
+        // back-and-forth jog).
+        const cx = (left + right) / 2;
+        if (Math.abs(cur[0] - cx) > 1e-6) pushPt([cx, cur[1]]);
+        const farY = Math.abs(cur[1] - bottom) < Math.abs(cur[1] - top) ? top : bottom;
+        pushPt([cx, farY]);
+      } else {
+        // Horizontal corridor: mirror on X.
+        const cy = (bottom + top) / 2;
+        if (Math.abs(cur[1] - cy) > 1e-6) pushPt([cur[0], cy]);
+        const farX = Math.abs(cur[0] - left) < Math.abs(cur[0] - right) ? right : left;
+        pushPt([farX, cy]);
+      }
+    };
+
+    // Spiral one edge at a time, checking AFTER each edge whether the remaining region is now
+    // a thin corridor (one dimension can no longer take a full ring). Breaking mid-ring the
+    // moment a corridor appears — rather than only at the ring top — prevents the last ring's
+    // "across" move from overshooting into the corridor and then reversing (the back-and-forth
+    // jog). The corridor is then finished with one straight center pass.
+    const isCorridor = () => right - left <= s + 1e-9 || top - bottom <= s + 1e-9;
+    while (!isCorridor()) {
+      pushPt([right, top]); cur = [right, top]; right -= s; // up the right edge
+      if (isCorridor()) break;
+      pushPt([left, top]); cur = [left, top]; top -= s; // across the top
+      if (isCorridor()) break;
+      pushPt([left, bottom]); cur = [left, bottom]; left += s; // down the left edge
+      if (isCorridor()) break;
+      pushPt([right, bottom]); cur = [right, bottom]; bottom += s; // across the bottom
+    }
+    finishCorridor();
+
+    const segments: { start: number[]; end: number[]; id: string; tool: string; seq: number }[] = [];
+    for (let i = 0; i < points.length - 1; i++) {
+      if (Math.hypot(points[i][0] - points[i + 1][0], points[i][1] - points[i + 1][1]) <= 1e-6) continue;
+      segments.push({
+        start: points[i],
+        end: points[i + 1],
+        id: `${idPrefix}_${i}`,
+        tool: 'tool_4',
+        seq: seqBase + i,
+      });
+    }
+    return segments;
+  };
+
   const computeDxfPocketZigzag = (
     scope: Set<string> | null,
-    orientation: 'vertical' | 'horizontal' = dxfPocketZigzagOrientation,
+    orientation: 'vertical' | 'horizontal' | 'rectspiral' = dxfPocketZigzagOrientation,
     forceWindowSections = false,
   ) => {
     const off = TOOL4_OFFSET_MM / dxfMmPerUnit;
@@ -1558,6 +1648,34 @@ export function TableBCadAssistedWorkspace({
         console.warn('[Pocket Toolpath] pocket too small for Tool 4 offset, skipped', pk.id);
         continue;
       }
+
+      // Rectangular spiral. A spiral can't be split mid-ring, so a pocket wider than the arm
+      // reach window (TOOL4_HORIZONTAL_WINDOW_MM) is divided into <=window X-sections like the
+      // horizontal pattern, and EACH section gets its own corner->center spiral at its own J7
+      // station. Each section id carries both markers: `_tool4_rect` (spiral handling) and
+      // `_sec{n}` (per-window grouping / reach), so the backend treats each as an independent
+      // spiral window. Narrow pockets are a single section = one clean spiral.
+      if (orientation === 'rectspiral') {
+        const xSpan = bxHi - bxLo;
+        const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
+        const sectionCount = Math.max(1, Math.ceil(xSpan / maxWindow));
+        const sectionWidth = xSpan / sectionCount;
+        console.log('[Pocket Toolpath] Tool 4 rectangular spiral', {
+          pocket: pk.id,
+          overlap_mm: overlap,
+          step_mm: stepMmEffective,
+          sections: sectionCount,
+        });
+        for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+          const sxLo = bxLo + sectionIndex * sectionWidth;
+          const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+          segments.push(
+            ...buildRectSpiralTool4Segments(`${pk.id}_tool4_rect_sec${sectionIndex + 1}`, sxLo, sxHi, byLo, byHi, step, sectionIndex * 10000),
+          );
+        }
+        continue;
+      }
+
       const pushPointPath = (pathPoints: number[][], idPrefix: string, seqBase: number) => {
         for (let i = 0; i < pathPoints.length - 1; i++) {
           segments.push({
@@ -2151,11 +2269,13 @@ export function TableBCadAssistedWorkspace({
     const rawPocketZz = computeDxfPocketZigzag(scope, dxfPocketZigzagOrientation);
     const rawPocketZzCycleVertical = computeDxfPocketZigzag(scope, 'vertical', true);
     const rawPocketZzCycleHorizontal = computeDxfPocketZigzag(scope, 'horizontal', true);
+    const rawPocketZzCycleSpiral = computeDxfPocketZigzag(scope, 'rectspiral', true);
     const rawContourTp = computeDxf3dContourToolpaths(scope);
     const plannedPocketTp = await planSegmentsForTool(rawPocketTp, 'Pocket contour (Tool 3)', true, 'tool_3');
     const plannedPocketZz = await planSegmentsForTool(rawPocketZz, 'Pocket zigzag (Tool 4)', false, 'tool_4');
     const plannedPocketZzCycleVertical = await planSegmentsForTool(rawPocketZzCycleVertical, 'Pocket zigzag vertical cycle pattern (Tool 4)', false, 'tool_4');
     const plannedPocketZzCycleHorizontal = await planSegmentsForTool(rawPocketZzCycleHorizontal, 'Pocket zigzag horizontal cycle pattern (Tool 4)', false, 'tool_4');
+    const plannedPocketZzCycleSpiral = await planSegmentsForTool(rawPocketZzCycleSpiral, 'Pocket rectangular spiral cycle pattern (Tool 4)', false, 'tool_4');
     const plannedContourTp = await planSegmentsForTool(rawContourTp, '3D contour ring', true, 'tool_1');
     const pocketTp = plannedPocketTp.segments;
     const pocketZz = plannedPocketZz.segments;
@@ -2167,6 +2287,7 @@ export function TableBCadAssistedWorkspace({
       alternate_orientation: alternatePocketZigzagOrientation,
       vertical_paths: plannedPocketZzCycleVertical.paths,
       horizontal_paths: plannedPocketZzCycleHorizontal.paths,
+      spiral_paths: plannedPocketZzCycleSpiral.paths,
     };
     const contourTpPaths = plannedContourTp.paths;
     setDxfPocketToolpaths(pocketTp);
@@ -3222,12 +3343,18 @@ export function TableBCadAssistedWorkspace({
                     Pocket ZigZag
                     <select
                       value={dxfPocketZigzagOrientation}
-                      onChange={(event) => setDxfPocketZigzagOrientation(event.target.value === 'horizontal' ? 'horizontal' : 'vertical')}
-                      title="Tool 4 pocket zigzag pattern orientation"
+                      onChange={(event) => {
+                        const v = event.target.value;
+                        setDxfPocketZigzagOrientation(
+                          v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
+                        );
+                      }}
+                      title="Tool 4 pocket fill pattern"
                       style={{ padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
                     >
                       <option value="vertical">Vertical</option>
                       <option value="horizontal">Horizontal</option>
+                      <option value="rectspiral">Rectangular Spiral</option>
                     </select>
                   </label>
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}>

@@ -8,6 +8,7 @@ import yaml
 import math
 import json
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
+from smallTable.tool2_stop_backoff import tool2_backoff_on_stop
 from smallTable.scancord import (
     read_scan_results,
     get_door_position,
@@ -18,6 +19,12 @@ from smallTable.scancord import (
     get_x_values,
     get_y_values
 )
+
+# Physical J7 (7th-axis) travel limit in mm. Big-door Tool 2 top-half jumps are clamped to
+# this so the arm never commands past reach and crashes into the door; the top-half X is then
+# compensated by the clamp shortfall. See door4frametool2sidebig.
+TOOL2_J7_MAX_MM = 2310.0
+
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -191,6 +198,17 @@ def _run_tool2_side_process(
                 cps.HRIF_SetForceControlState(0, 0, 0)
             except Exception:
                 pass
+            # Operator Stop: back the tool 5 mm off the door along the force axis with RY=0
+            # (side poses carry RY=0) and no force, so it releases the edge and leaves no mark.
+            tool2_backoff_on_stop(
+                cps,
+                config,
+                tcp=tcp,
+                ucs=ucs,
+                force_func=force_func,
+                robot_speed=robot_speed,
+                last_pose=last_point_sent,
+            )
         else:
             releaseForce(cps=cps, config=config)
 
@@ -1937,12 +1955,25 @@ def door4frametool2side(force,cps,cycles=1):
         print("p4:", p4)
 
         #7th axis postion
-        x1=get_door_position(4) 
+        x1=get_door_position(4)
         print("x1:", x1)
 
         #7th axis position for the top
-        x2=x1+(p4[0]-p1[0])
-        print("x2:", x2)
+        # Big doors are sanded in two J7 stations: the bottom half at x1, the top half after
+        # jumping J7. The scan measured the door at J7 = x1, so the top X points were laid out
+        # assuming J7 jumps the full door length. On door 4, x1 is already ~1928 mm, so
+        # x1 + door_len exceeds the physical J7 max (TOOL2_J7_MAX_MM = 2310) and the arm can't
+        # reach — it crashes. We CLAMP the top J7 to the max; then the arm base only actually
+        # travels (2310 - x1) instead of door_len, so the top-half X points must be shifted by
+        # that ACTUAL travel to line up with the door from the clamped station. When the door
+        # fits (x1 + door_len <= 2310), no clamp happens and topxshift is not applied.
+        door_len_x = p4[0] - p1[0]
+        x2_desired = x1 + door_len_x
+        clamped = x2_desired > TOOL2_J7_MAX_MM
+        x2 = TOOL2_J7_MAX_MM if clamped else x2_desired
+        # Actual J7 travel from the scan station to the clamped top station.
+        topxshift = (TOOL2_J7_MAX_MM - x1) if clamped else 0.0
+        print("x2 (clamped):", x2, "x2_desired:", x2_desired, "clamped:", clamped, "topxshift:", topxshift)
 
         #prehoming
         prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
@@ -1984,28 +2015,30 @@ def door4frametool2side(force,cps,cycles=1):
         print("rightpoints:", rightpoints)
 
         #UpRightPoints
+        # Top-half points live in the J7-shifted frame; add topxshift to every X so a clamped
+        # J7 (short by topxshift) still reaches the same physical door points.
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2-3,p2[1]/2,5,0,0,0]
+        uprightpoint4=[-distance*2-3+topxshift,p2[1]/2,5,0,0,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2-3,p2[1]/2,5,0,0,0]
+        uprightpoint4pre=[-distance*2-3+topxshift,p2[1]/2,5,0,0,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2-3,p2[1]/2+2,5,0,0,0]
+        uprightpoint4up=[-distance*2-3+topxshift,p2[1]/2+2,5,0,0,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2-3,p2[1],5,0,0,0]
+        uprightpoint2=[-distance*2-3+topxshift,p2[1],5,0,0,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2-3,p2[1],5,0,0,0]
+        uprightpoint2pre=[-distance*2-3+topxshift,p2[1],5,0,0,0]
         print("uprightpoint2pre:", uprightpoint2pre)
-        
+
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
         print("uprightpoints:", uprightpoints)
 
-        
+
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,120,0,0,0]
+        prehomeuprightpoint=[(-distance*2)-10+topxshift,p2[1]/2,120,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
-        extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,-90]
+        extraupright=[(-distance*2)-10+topxshift,p2[1]+30,80,0,0,-90]
         print("extraupright:",extraupright)
 
         #Extraright
@@ -2027,29 +2060,29 @@ def door4frametool2side(force,cps,cycles=1):
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]+4,5,0,0,-90]
+        uptoppoint1=[-distance*2+topxshift,p2[1]+4,5,0,0,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]+10,5,0,0,-90]
+        preuptoppoint1=[-distance*2+topxshift,p2[1]+10,5,0,0,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]+4,5,0,0,-90]
+        uptoppoint12=[-distance*2+2+topxshift,p2[1]+4,5,0,0,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[p1[0],p3[1]+4,5,0,0,-90]
+        uptoppoint2=[p1[0]+topxshift,p3[1]+4,5,0,0,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[p1[0],p3[1]+10,5,0,0,-90]
+        preuptoppoint2=[p1[0]+topxshift,p3[1]+10,5,0,0,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[p1[0]+10,p3[1],80,0,0,-180]
+        upextratop=[p1[0]+10+topxshift,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
         extratop=[p3[0]+20,p3[1]+30,80,0,0,-180]
         print("extratop:", extratop)
 
-        #LeftPoints 
+        #LeftPoints
         leftpoint1=[p3[0]+2,p3[1],5,0,0,-180]
         print("leftpoint1:", leftpoint1)
         preleftpoint1=[p3[0]+1+10,p3[1],5,0,0,-180]
@@ -2075,23 +2108,23 @@ def door4frametool2side(force,cps,cycles=1):
         lefthalfpointsdown=[leftpoint5pre,leftpoint5,leftpoint5down,leftpoint2,preleftpoint2]
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
-        #Left Points for Bigdoor UP
-        upleftpoint3=[p1[0]+3,p3[1],5,0,0,-180]
+        #Left Points for Bigdoor UP (shifted-frame; add topxshift on X)
+        upleftpoint3=[p1[0]+3+topxshift,p3[1],5,0,0,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[p1[0]+10,p3[1],5,0,0,-180]
+        upleftpoint3pre=[p1[0]+10+topxshift,p3[1],5,0,0,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[p1[0]+3,p3[1]-2,5,0,0,-180]
+        upleftpoint3down=[p1[0]+3+topxshift,p3[1]-2,5,0,0,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[p1[0]+3,p3[1]/2,5,0,0,-180]
+        upleftpoint5=[p1[0]+3+topxshift,p3[1]/2,5,0,0,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[p1[0]+10,p3[1]/2,5,0,0,-180]
+        upleftpoint5pre=[p1[0]+10+topxshift,p3[1]/2,5,0,0,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
-        #Extrea Upleft Points Homing
-        upleftextrahome=[p1[0]+10,p3[1]/2,100,0,0,-180]
+        #Extrea Upleft Points Homing (shifted-frame; add topxshift on X)
+        upleftextrahome=[p1[0]+10+topxshift,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 

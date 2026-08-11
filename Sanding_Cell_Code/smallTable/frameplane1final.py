@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Components.RobotState import RobotState
 import yaml
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,stop_requested
+from smallTable.stop_lift import stop_lift_to_preheight_tableA
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -655,6 +656,18 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
         print("[FrameDebug] releaseForce START")
         releaseForce(cps=cps, config=config, wait_for_blending=False)
         print("[FrameDebug] releaseForce DONE")
+        if stop_requested():
+            # Operator Stop: lift straight up to pre-height with no force so the tool
+            # releases the surface immediately. From there operator can re-send or home.
+            stop_lift_to_preheight_tableA(
+                cps,
+                config,
+                tcp=tcp,
+                ucs=ucs,
+                preheight_z_mm=FORCE_APPROACH_Z_MM,
+                robot_speed=robot_speed,
+                last_xy=(force_approach_point[0], force_approach_point[1]),
+            )
         print("[FrameDebug] _run_linear_sanding_process END")
 
 

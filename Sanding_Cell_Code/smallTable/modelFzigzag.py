@@ -27,6 +27,7 @@ from smallTable.scancord import (
     get_y_values,
 )
 from cycle_data_utils import get_inverse_overlap_step
+from smallTable.stop_lift import stop_lift_to_preheight_tableA
 
 TRANSFER_LIFT_Z_MM = 70.0
 FORCE_APPROACH_LIFT_MM = 15.0
@@ -439,42 +440,57 @@ def _perform_process_top(
         raise RuntimeError("Force seek failed before Model F sanding start point.")
 
     turn_vibration_on(cps)
-    total_cycles = max(int(item[0]) for item in valid_cycle_paths)
-    BATCH_WAIT_EVERY = 8
-    sent_points = 0
-    for path_index, (cycle_number, cycle_orientation, cycle_points) in enumerate(valid_cycle_paths):
-        if stop_requested():
-            raise RuntimeError("[ModelF] Stop requested.")
-        print(
-            f"[ModelF] Continuous cycle {cycle_number}/{total_cycles} "
-            f"orientation={cycle_orientation}, points={len(cycle_points)}"
-        )
-        if path_index == 0:
-            points_to_send = cycle_points[1:]
-        else:
-            points_to_send = cycle_points
-
-        for point_index, point in enumerate(points_to_send):
+    try:
+        total_cycles = max(int(item[0]) for item in valid_cycle_paths)
+        BATCH_WAIT_EVERY = 8
+        sent_points = 0
+        for path_index, (cycle_number, cycle_orientation, cycle_points) in enumerate(valid_cycle_paths):
             if stop_requested():
                 raise RuntimeError("[ModelF] Stop requested.")
-            sent_points += 1
-            is_last_path = path_index == len(valid_cycle_paths) - 1
-            is_last_point = is_last_path and point_index == len(points_to_send) - 1
-            is_batch_end = sent_points % BATCH_WAIT_EVERY == 0
-            communicate(
-                cps=cps,
-                config=config,
-                point=point,
+            print(
+                f"[ModelF] Continuous cycle {cycle_number}/{total_cycles} "
+                f"orientation={cycle_orientation}, points={len(cycle_points)}"
+            )
+            if path_index == 0:
+                points_to_send = cycle_points[1:]
+            else:
+                points_to_send = cycle_points
+
+            for point_index, point in enumerate(points_to_send):
+                if stop_requested():
+                    raise RuntimeError("[ModelF] Stop requested.")
+                sent_points += 1
+                is_last_path = path_index == len(valid_cycle_paths) - 1
+                is_last_point = is_last_path and point_index == len(points_to_send) - 1
+                is_batch_end = sent_points % BATCH_WAIT_EVERY == 0
+                communicate(
+                    cps=cps,
+                    config=config,
+                    point=point,
+                    tcp=config["coords"]["tcptool4plane1"],
+                    ucs=config["coords"]["ucsTable1"],
+                    seventh=-1,
+                    speed=sanding_speed,
+                    velocity_profile="sandingspeed",
+                    wait=is_last_point or is_batch_end,
+                )
+        waitForBlending(cps=cps, config=config)
+    finally:
+        if stop_requested():
+            # Operator Stop: lift straight up (contact Z + 15 mm) with no force so the tool
+            # releases the surface immediately. From there operator can re-send or home.
+            stop_lift_to_preheight_tableA(
+                cps,
+                config,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
-                wait=is_last_point or is_batch_end,
+                preheight_z_mm=float(start_point[2]) + FORCE_APPROACH_LIFT_MM,
+                robot_speed=robot_speed,
+                last_xy=(start_point[0], start_point[1]),
             )
-    waitForBlending(cps=cps, config=config)
-    turn_vibration_off(cps)
-    releaseForce(cps=cps, config=config)
+        else:
+            turn_vibration_off(cps)
+            releaseForce(cps=cps, config=config)
 
     last_point = valid_cycle_paths[-1][2][-1]
     last_lift = _with_lift(last_point, FORCE_APPROACH_LIFT_MM)

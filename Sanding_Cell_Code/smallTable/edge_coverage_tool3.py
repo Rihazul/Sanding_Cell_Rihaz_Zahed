@@ -8,6 +8,7 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
+from smallTable.stop_lift import stop_lift_to_preheight_tableA
 from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
 import math
@@ -304,8 +305,21 @@ def execute_edge_coverage(
         print("[Edge Coverage] Completed linear edge path")
         return True
     finally:
-        turn_vibration_off(cps)
-        releaseForce(cps=cps, config=config)
+        if stop_requested():
+            # Operator Stop: lift straight up (contact Z + 15 mm clearance) with no force so
+            # the tool releases the surface immediately. From there operator can re-send or home.
+            stop_lift_to_preheight_tableA(
+                cps,
+                config,
+                tcp=config["coords"][tcp_key],
+                ucs=config["coords"][ucs_key],
+                preheight_z_mm=float(edge_points[0][2]) + 15.0,
+                robot_speed=_resolve_robot_speed(config),
+                last_xy=(edge_points[0][0], edge_points[0][1]),
+            )
+        else:
+            turn_vibration_off(cps)
+            releaseForce(cps=cps, config=config)
 
 
 def _load_config():

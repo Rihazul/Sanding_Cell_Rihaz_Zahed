@@ -83,6 +83,17 @@ def run_tablea_task_child(model_key, recent_matching_scan=False):
         if ret != 0:
             raise RuntimeError(f"Table A child CPS connect failed (ret={ret})")
 
+        # If a previous run was stopped mid Tool 2 side/edge (tool backed 5 mm off the door),
+        # lift it off the surface and (for non-top sides) turn the wrist to homing J6 BEFORE any
+        # table/stopper motion or sanding, so restarting the task recovers safely first.
+        try:
+            from smallTable.tool2_stop_backoff import recover_tool2_after_stop_if_needed
+
+            if recover_tool2_after_stop_if_needed(cps, config):
+                logger.info("[TableA Child] Tool 2 stop recovery completed before task start")
+        except Exception as recovery_exc:
+            logger.warning("[TableA Child] Tool 2 stop recovery skipped: %s", recovery_exc)
+
         # Operation routing uses swapped IO table IDs on this cell:
         # Table A operation requires Table A at 45 degrees and Table B horizontal.
         if recent_matching_scan:

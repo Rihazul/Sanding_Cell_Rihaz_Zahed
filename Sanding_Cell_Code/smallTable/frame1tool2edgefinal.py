@@ -9,6 +9,7 @@ import math
 import time
 import json
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
+from smallTable.tool2_stop_backoff import tool2_backoff_on_stop
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
 from smallTable.scancord import (
@@ -24,6 +25,11 @@ from smallTable.scancord import (
 
 J7_IDLE_TIMEOUT_S = 45.0
 J7_IDLE_POLL_S = 0.02
+
+# Physical J7 (7th-axis) travel limit in mm. Big-door Tool 2 top-half jumps are clamped to
+# this so the arm never commands past reach and crashes into the door; the top-half X is then
+# compensated by the clamp shortfall. See door4frametool2sideedgebig.
+TOOL2_J7_MAX_MM = 2310.0
 
 def load_config():
     """Loads configuration from config.yaml."""
@@ -208,6 +214,17 @@ def _run_tool2_edge_process(
                 cps.HRIF_SetForceControlState(0, 0, 0)
             except Exception:
                 pass
+            # Operator Stop: back the tool 5 mm off the door along the force axis with RY=22
+            # (edge poses carry RY=22) and no force, so it releases the edge and leaves no mark.
+            tool2_backoff_on_stop(
+                cps,
+                config,
+                tcp=tcp,
+                ucs=ucs,
+                force_func=force_func,
+                robot_speed=robot_speed,
+                last_pose=last_sent_point,
+            )
         else:
             releaseForce(cps=cps, config=config)
 
@@ -1943,12 +1960,20 @@ def door4frametool2sideedge(force,cps,cycles=1):
         print("p4:", p4)
 
         #7th axis postion
-        x1=get_door_position(4) 
+        x1=get_door_position(4)
         print("x1:", x1)
 
         #7th axis position for the top
-        x2=x1+(p4[0]-p1[0])
-        print("x2:", x2)
+        # Clamp the big-door top J7 to the physical max; when clamped the arm base only travels
+        # (2310 - x1) instead of the full door length, so shift the top-half X by that ACTUAL
+        # travel to line up with the door from the clamped station. See side file for detail.
+        door_len_x = p4[0] - p1[0]
+        x2_desired = x1 + door_len_x
+        clamped = x2_desired > TOOL2_J7_MAX_MM
+        x2 = TOOL2_J7_MAX_MM if clamped else x2_desired
+        # Actual J7 travel from the scan station to the clamped top station.
+        topxshift = (TOOL2_J7_MAX_MM - x1) if clamped else 0.0
+        print("x2 (clamped):", x2, "x2_desired:", x2_desired, "clamped:", clamped, "topxshift:", topxshift)
 
         #prehoming
         prehoming=[(p4[0]-p1[0])+10,p3[1]/2,100,0,0,-180]
@@ -1990,28 +2015,30 @@ def door4frametool2sideedge(force,cps,cycles=1):
         print("rightpoints:", rightpoints)
 
         #UpRightPoints
+        # Top-half points live in the J7-shifted frame; add topxshift to every X so a clamped
+        # J7 (short by topxshift) still reaches the same physical door points.
         distance=(p4[0]-p1[0])/2
         print("distance:", distance)
-        uprightpoint4=[-distance*2,p2[1]/2,10,0,22,0]
+        uprightpoint4=[-distance*2+topxshift,p2[1]/2,10,0,22,0]
         print("uprightpoint4:", uprightpoint4)
-        uprightpoint4pre=[-distance*2,p2[1]/2,10,0,22,0]
+        uprightpoint4pre=[-distance*2+topxshift,p2[1]/2,10,0,22,0]
         print("uprightpoint4pre:", uprightpoint4pre)
-        uprightpoint4up=[-distance*2,p2[1]/2+2,10,0,22,0]
+        uprightpoint4up=[-distance*2+topxshift,p2[1]/2+2,10,0,22,0]
         print("uprightpoint4up:", uprightpoint4up)
-        uprightpoint2=[-distance*2,p2[1],10,0,22,0]
+        uprightpoint2=[-distance*2+topxshift,p2[1],10,0,22,0]
         print("uprightpoint2:", uprightpoint2)
-        uprightpoint2pre=[-distance*2,p2[1],10,0,22,0]
+        uprightpoint2pre=[-distance*2+topxshift,p2[1],10,0,22,0]
         print("uprightpoint2pre:", uprightpoint2pre)
-        
+
         uprightpoints=[uprightpoint4pre,uprightpoint4,uprightpoint4up,uprightpoint2,uprightpoint2pre]
         print("uprightpoints:", uprightpoints)
 
-        
+
         #prehome Up right point
-        prehomeuprightpoint=[(-distance*2)-10,p2[1]/2,100,0,0,0]
+        prehomeuprightpoint=[(-distance*2)-10+topxshift,p2[1]/2,100,0,0,0]
         print("prehomeuprightpoint:", prehomeuprightpoint)
         #ExtraUpright
-        extraupright=[(-distance*2)-10,p2[1]+30,80,0,0,-90]
+        extraupright=[(-distance*2)-10+topxshift,p2[1]+30,80,0,0,-90]
         print("extraupright:",extraupright)
 
         #Extraright
@@ -2033,22 +2060,22 @@ def door4frametool2sideedge(force,cps,cycles=1):
         print("toppoints:", toppoints)
 
         #Up points for Big Door
-        uptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
+        uptoppoint1=[-distance*2+topxshift,p2[1]-5,10,0,22,-90]
         print("uptoppoint1:", uptoppoint1)
-        preuptoppoint1=[-distance*2,p2[1]-5,10,0,22,-90]
+        preuptoppoint1=[-distance*2+topxshift,p2[1]-5,10,0,22,-90]
         print("preuptoppoint1:", preuptoppoint1)
-        uptoppoint12=[-distance*2+2,p2[1]-5,10,0,22,-90]
+        uptoppoint12=[-distance*2+2+topxshift,p2[1]-5,10,0,22,-90]
         print("uptoppoint12:", uptoppoint12)
-        uptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
+        uptoppoint2=[p1[0]+topxshift,p3[1]-5,10,0,22,-90]
         print("uptoppoint2:", uptoppoint2)
-        preuptoppoint2=[p1[0],p3[1]-5,10,0,22,-90]
+        preuptoppoint2=[p1[0]+topxshift,p3[1]-5,10,0,22,-90]
         print("preuptoppoint2:", preuptoppoint2)
 
         uptoppoints=[preuptoppoint1,uptoppoint1,uptoppoint12,uptoppoint2,preuptoppoint2]
         print("uptoppoints:", uptoppoints)
 
         #Up extra top points
-        upextratop=[p1[0]+10,p3[1],80,0,0,-180]
+        upextratop=[p1[0]+10+topxshift,p3[1],80,0,0,-180]
         print("upextratop:", upextratop)
 
         #Extratop
@@ -2081,23 +2108,23 @@ def door4frametool2sideedge(force,cps,cycles=1):
         lefthalfpointsdown=[leftpoint5pre,leftpoint5,leftpoint5down,leftpoint2,preleftpoint2]
         print("lefthalfpointsdown:", lefthalfpointsdown)
 
-        #Left Points for Bigdoor UP
-        upleftpoint3=[p1[0]+3,p3[1],10,0,22,-180]
+        #Left Points for Bigdoor UP (shifted-frame; add topxshift on X)
+        upleftpoint3=[p1[0]+3+topxshift,p3[1],10,0,22,-180]
         print("upleftpoint3:", upleftpoint3)
-        upleftpoint3pre=[p1[0]+10,p3[1],10,0,22,-180]
+        upleftpoint3pre=[p1[0]+10+topxshift,p3[1],10,0,22,-180]
         print("upleftpoint3pre:", upleftpoint3pre)
-        upleftpoint3down=[p1[0]+3,p3[1]-2,10,0,22,-180]
+        upleftpoint3down=[p1[0]+3+topxshift,p3[1]-2,10,0,22,-180]
         print("upleftpoint3down:", upleftpoint3down)
-        upleftpoint5=[p1[0]+3,p3[1]/2,10,0,22,-180]
+        upleftpoint5=[p1[0]+3+topxshift,p3[1]/2,10,0,22,-180]
         print("upleftpoint5:", upleftpoint5)
-        upleftpoint5pre=[p1[0]+10,p3[1]/2,10,0,22,-180]
+        upleftpoint5pre=[p1[0]+10+topxshift,p3[1]/2,10,0,22,-180]
         print("upleftpoint5pre:", upleftpoint5pre)
 
         upleftpoints=[upleftpoint3pre,upleftpoint3,upleftpoint3down,upleftpoint5,upleftpoint5pre]
         print("upleftpoints:", upleftpoints)
 
-        #Extrea Upleft Points Homing
-        upleftextrahome=[p1[0]+10,p3[1]/2,100,0,0,-180]
+        #Extrea Upleft Points Homing (shifted-frame; add topxshift on X)
+        upleftextrahome=[p1[0]+10+topxshift,p3[1]/2,100,0,0,-180]
         print("upleftextrahome:", upleftextrahome)
 
 

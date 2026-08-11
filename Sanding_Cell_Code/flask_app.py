@@ -1019,6 +1019,12 @@ def _run_homing_child(config_data_UI):
 
         if recover_tool2_before_homing_if_needed(cps, config_data_UI):
             config_data_UI["logger"].info("[homing child] Tool 2 recovery completed before homing")
+        # Table A (small table) Tool 2 side/edge stop recovery: lift off the door and (for non-top
+        # sides) turn the wrist to homing J6 before the normal homing runs.
+        from smallTable.tool2_stop_backoff import recover_tool2_after_stop_if_needed
+
+        if recover_tool2_after_stop_if_needed(cps, config_data_UI):
+            config_data_UI["logger"].info("[homing child] Table A Tool 2 stop recovery completed before homing")
         homing_ok = handle_client(config_data_UI, homingState=True, startSanding=False, cps=cps)
         if not homing_ok:
             raise RuntimeError("Homing sequence did not complete successfully")
@@ -1063,6 +1069,12 @@ def _run_homing_inline(config_data_UI):
 
             if recover_tool2_before_homing_if_needed(CPS, config_data_UI):
                 config_data_UI["logger"].info("[homing inline] Tool 2 recovery completed before homing")
+            # Table A (small table) Tool 2 side/edge stop recovery: lift off the door and (for
+            # non-top sides) turn the wrist to homing J6 before the normal homing runs.
+            from smallTable.tool2_stop_backoff import recover_tool2_after_stop_if_needed
+
+            if recover_tool2_after_stop_if_needed(CPS, config_data_UI):
+                config_data_UI["logger"].info("[homing inline] Table A Tool 2 stop recovery completed before homing")
             homing_ok = bool(
                 handle_client(config_data_UI, homingState=True, startSanding=False, cps=CPS)
             )

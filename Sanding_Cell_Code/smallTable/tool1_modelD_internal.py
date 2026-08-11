@@ -17,6 +17,7 @@ from Server_Better_V2 import (
     releaseForce,
 )
 from smallTable.scancord import get_door_position, get_inner_corner_point, get_y_values
+from smallTable.stop_lift import stop_lift_to_preheight_tableA
 
 
 INTERNAL_OFFSET_MM = 17.0
@@ -369,7 +370,19 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None, cycles=1):
                 f"[ModelD] cleanup start door={door_number} pass={pass_number} "
                 f"vibration_on={vibration_on} force_applied={force_applied}"
             )
-            if vibration_on:
+            if stop_requested():
+                # Operator Stop: lift straight up to pre-height (+13) with no force so the
+                # tool releases the surface immediately. From there operator can re-send or home.
+                stop_lift_to_preheight_tableA(
+                    cps,
+                    config,
+                    tcp=tcp,
+                    ucs=ucs,
+                    preheight_z_mm=FORCE_APPROACH_Z_MM,
+                    robot_speed=robot_speed,
+                    last_xy=(force_start_point[0], force_start_point[1]),
+                )
+            elif vibration_on:
                 try:
                     print(
                         f"[ModelD] waitForBlending start door={door_number} "
@@ -394,7 +407,8 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None, cycles=1):
                     f"[ModelD] vibration OFF done door={door_number} "
                     f"pass={pass_number}"
                 )
-            if force_applied:
+            if force_applied and not stop_requested():
+                # On stop the release already happened inside stop_lift_to_preheight_tableA.
                 print(
                     f"[ModelD] releaseForce start door={door_number} "
                     f"pass={pass_number}"
