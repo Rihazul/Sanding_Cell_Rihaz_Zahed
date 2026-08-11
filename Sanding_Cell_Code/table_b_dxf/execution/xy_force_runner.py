@@ -32,6 +32,7 @@ from .motion_config import (
     table_b_ucs,
     tcp_for_physical_tool,
 )
+from ..tool_reach import TOOL_REACH, reach_span_at_y
 
 
 def _pose_from_xy(xy: list[float], z_mm: float, rxyz: list[float]) -> list[float]:
@@ -117,6 +118,35 @@ def _should_wait_for_motion_point(point_index: int, total_points: int, flush_eve
     if point_index >= total_points:
         return True
     return flush_every > 0 and point_index % flush_every == 0
+
+
+def _requires_j7_idle_before_prepoint(physical_tool: int, points: list[list[float]]) -> bool:
+    """Low-Y paths are joint-sensitive, so do not move arm to final local X while J7 moves."""
+    spec = TOOL_REACH.get(f"tool_{physical_tool}") or {}
+    try:
+        low_y_limit = float(spec.get("rect_below_y"))
+    except (TypeError, ValueError):
+        return False
+    return any(float(point[1]) < low_y_limit for point in points)
+
+
+def _assert_robot_base_points_reachable(step: dict[str, Any], physical_tool: int, points: list[list[float]]) -> None:
+    """Final execution guard against stale or unsafe approved points."""
+    reach_tool = f"tool_{physical_tool}"
+    for point in points:
+        x, y = float(point[0]), float(point[1])
+        span = reach_span_at_y(reach_tool, y)
+        if span is None:
+            raise TableBDxfRobotExecutionError(
+                f"Path {step.get('path_id')} has unreachable Y={y:.1f} for Tool {physical_tool}."
+            )
+        lo, hi = span
+        if x < lo - 1e-6 or x > hi + 1e-6:
+            raise TableBDxfRobotExecutionError(
+                f"Path {step.get('path_id')} is unsafe for Tool {physical_tool}: "
+                f"robot-base point=({x:.1f}, {y:.1f}) outside local reach [{lo:.1f}, {hi:.1f}]. "
+                "Preview and approve the toolpath again with a legal 7th-axis stop."
+            )
 
 
 def _wait_force_stabilized(cps, config, force_goal_n, contact_threshold_n):
@@ -378,6 +408,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         raise TableBDxfRobotExecutionError(f"Unsupported physical tool: {physical_tool}")
 
     points = _path_points(step)
+    _assert_robot_base_points_reachable(step, physical_tool, points)
     is_closed = _is_closed_path(step, points)
     tcp = tcp_for_physical_tool(config, physical_tool)
     ucs = table_b_ucs(config)
@@ -404,6 +435,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     axis7_position = step.get("axis7_position_mm")
     flush_every = _motion_queue_flush_every(config)
     simultaneous_j7_robot = _simultaneous_j7_robot_enabled(config)
+    j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, points)
 
     if force <= 0:
         raise TableBDxfRobotExecutionError(
@@ -416,7 +448,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -424,12 +456,13 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         "loop" if is_closed else "pingpong",
         flush_every,
         simultaneous_j7_robot,
+        j7_idle_before_prepoint,
         force,
         axis7_position,
     )
 
     start_pre_pose = _pose_from_xy(points[0], pre_z, rxyz)
-    if axis7_position is not None and simultaneous_j7_robot:
+    if axis7_position is not None and simultaneous_j7_robot and not j7_idle_before_prepoint:
         j7_result = communicate(
             cps=cps,
             config=config,
@@ -459,13 +492,17 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
             require_seventh_ok=True,
         )
     else:
-        # Non-simultaneous / same-7th-axis toolpath switch. Previously this bundled
+        # Non-simultaneous / same-7th-axis / low-Y toolpath switch. Previously this bundled
         # seventh=axis7 into the pre-pose MoveL. When J7 was already at that station (a
         # same-station switch), the bundled move's "done" state could settle on J7 (already
         # idle) rather than the arm, so at high speed force control started while the arm was
         # still moving and it hovered searching from the wrong point. Mirror the working J7
         # branch: position J7 first only if it must move, THEN a DEDICATED arm-only MoveL to
         # the pre-pose (seventh=-1, wait=True) so the arm fully settles before force control.
+        #
+        # Low-Y paths are also forced through this branch. During async J7 travel the arm can
+        # be commanded toward a final local X that is only safe after the rail arrives; that
+        # can fold J3 into its limit. Park the rail first for those paths.
         if axis7_position is not None:
             communicate(
                 cps=cps,
