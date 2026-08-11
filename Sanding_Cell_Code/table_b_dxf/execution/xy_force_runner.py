@@ -22,6 +22,7 @@ from .common import (
     raise_if_stop_requested as _raise_if_stop_requested,
     stop_active_motion as _stop_active_motion,
 )
+from .joint_safety import JOINT_LIMITS_DEG, read_current_joints
 from .motion_config import (
     force_fast_approach_mm,
     force_sanding_overshoot_mm,
@@ -114,20 +115,100 @@ def _simultaneous_j7_robot_enabled(config: dict[str, Any]) -> bool:
     return bool(value)
 
 
+def _joint_transition_margin_deg(config: dict[str, Any]) -> float:
+    value = None
+    if isinstance(config, dict):
+        motion_cfg = config.get("tableBDxfMotion")
+        if isinstance(motion_cfg, dict):
+            value = motion_cfg.get("jointTransitionLimitMarginDeg")
+        if value is None:
+            value = (config.get("door") or {}).get("tableBDxfJointTransitionLimitMarginDeg")
+        if value is None:
+            value = (config.get("settings") or {}).get("tableBDxfJointTransitionLimitMarginDeg")
+    try:
+        return max(0.0, float(value)) if value is not None else 10.0
+    except (TypeError, ValueError):
+        return 10.0
+
+
 def _should_wait_for_motion_point(point_index: int, total_points: int, flush_every: int) -> bool:
     if point_index >= total_points:
         return True
     return flush_every > 0 and point_index % flush_every == 0
 
 
-def _requires_j7_idle_before_prepoint(physical_tool: int, points: list[list[float]]) -> bool:
-    """Low-Y paths are joint-sensitive, so do not move arm to final local X while J7 moves."""
+def _low_y_limit_for_tool(physical_tool: int) -> float | None:
     spec = TOOL_REACH.get(f"tool_{physical_tool}") or {}
     try:
-        low_y_limit = float(spec.get("rect_below_y"))
+        return float(spec.get("rect_below_y"))
     except (TypeError, ValueError):
+        return None
+
+
+def _read_current_coord_pose(cps: Any, tcp: str, ucs: str) -> list[float] | None:
+    result: list[Any] = []
+    try:
+        ret = cps.HRIF_ReadActCoord(0, 0, tcp, ucs, result)
+    except Exception:
+        ret = -1
+    if ret == 0 and len(result) >= 12:
+        try:
+            return [float(result[i]) for i in range(6, 12)]
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _requires_j7_idle_before_prepoint(
+    physical_tool: int,
+    current_pose: list[float] | None,
+) -> bool:
+    """If the arm is currently low/bottom, do not move it while J7 is travelling."""
+    low_y_limit = _low_y_limit_for_tool(physical_tool)
+    if low_y_limit is None:
         return False
-    return any(float(point[1]) < low_y_limit for point in points)
+    if current_pose is None or len(current_pose) < 2:
+        return True
+    return float(current_pose[1]) < low_y_limit
+
+
+def _read_current_joints_for_transition(cps: Any, config: dict[str, Any]) -> list[float] | None:
+    try:
+        return read_current_joints(cps)
+    except TableBDxfRobotExecutionError as exc:
+        _log(
+            config,
+            "[TableB DXF Robot] joint transition guard could not read joints; using non-simultaneous J7. %s",
+            exc,
+        )
+        return None
+
+
+def _joint_transition_guard(
+    cps: Any,
+    config: dict[str, Any],
+) -> tuple[bool, list[float] | None, str]:
+    """Return whether J7 should finish before arm motion because a joint is near a limit."""
+    joints = _read_current_joints_for_transition(cps, config)
+    if joints is None:
+        return True, None, "joint_read_failed"
+
+    margin = _joint_transition_margin_deg(config)
+    risks: list[str] = []
+    for index, value in enumerate(joints[:6]):
+        low, high = JOINT_LIMITS_DEG[index]
+        safe_low = low + margin
+        safe_high = high - margin
+        if value <= safe_low or value >= safe_high:
+            risks.append(f"J{index + 1}={value:.1f} outside transition window [{safe_low:.1f}, {safe_high:.1f}]")
+    if risks:
+        return True, joints, "; ".join(risks)
+    return False, joints, "ok"
+
+
+def _is_negative_x_in_low_y_zone(physical_tool: int, x: float, y: float) -> bool:
+    low_y_limit = _low_y_limit_for_tool(physical_tool)
+    return low_y_limit is not None and float(y) < low_y_limit and float(x) < 0.0
 
 
 def _assert_robot_base_points_reachable(step: dict[str, Any], physical_tool: int, points: list[list[float]]) -> None:
@@ -135,6 +216,13 @@ def _assert_robot_base_points_reachable(step: dict[str, Any], physical_tool: int
     reach_tool = f"tool_{physical_tool}"
     for point in points:
         x, y = float(point[0]), float(point[1])
+        if _is_negative_x_in_low_y_zone(physical_tool, x, y):
+            low_y_limit = _low_y_limit_for_tool(physical_tool)
+            raise TableBDxfRobotExecutionError(
+                f"Path {step.get('path_id')} is unsafe for Tool {physical_tool}: "
+                f"robot-base point=({x:.1f}, {y:.1f}) has negative X in the low-Y zone "
+                f"(Y < {float(low_y_limit):.1f}). Regenerate/approve with a legal 7th-axis stop."
+            )
         span = reach_span_at_y(reach_tool, y)
         if span is None:
             raise TableBDxfRobotExecutionError(
@@ -435,7 +523,12 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     axis7_position = step.get("axis7_position_mm")
     flush_every = _motion_queue_flush_every(config)
     simultaneous_j7_robot = _simultaneous_j7_robot_enabled(config)
-    j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, points)
+    current_pose = _read_current_coord_pose(cps, tcp, ucs)
+    low_y_j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, current_pose)
+    joint_j7_idle_before_prepoint, current_joints, joint_guard_reason = _joint_transition_guard(cps, config)
+    j7_idle_before_prepoint = low_y_j7_idle_before_prepoint or joint_j7_idle_before_prepoint
+    current_y = current_pose[1] if current_pose and len(current_pose) >= 2 else None
+    current_j3 = current_joints[2] if current_joints and len(current_joints) >= 3 else None
 
     if force <= 0:
         raise TableBDxfRobotExecutionError(
@@ -448,7 +541,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -457,6 +550,10 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         flush_every,
         simultaneous_j7_robot,
         j7_idle_before_prepoint,
+        low_y_j7_idle_before_prepoint,
+        joint_guard_reason,
+        "None" if current_y is None else f"{float(current_y):.1f}",
+        "None" if current_j3 is None else f"{float(current_j3):.1f}",
         force,
         axis7_position,
     )
@@ -500,9 +597,10 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         # branch: position J7 first only if it must move, THEN a DEDICATED arm-only MoveL to
         # the pre-pose (seventh=-1, wait=True) so the arm fully settles before force control.
         #
-        # Low-Y paths are also forced through this branch. During async J7 travel the arm can
-        # be commanded toward a final local X that is only safe after the rail arrives; that
-        # can fold J3 into its limit. Park the rail first for those paths.
+        # If the current TCP pose is already in the low-Y/bottom constrained zone, or a
+        # joint is near its physical limit, async J7 travel can fold the arm into a limit.
+        # Park the rail first only in those guarded cases; normal high-Y transitions can
+        # remain simultaneous.
         if axis7_position is not None:
             communicate(
                 cps=cps,

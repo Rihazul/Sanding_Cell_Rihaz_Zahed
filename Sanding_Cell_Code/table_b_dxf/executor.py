@@ -16,7 +16,7 @@ import re
 from typing import Any
 
 from .jobs import load_approved_toolpath
-from .tool_reach import reach_span_at_y
+from .tool_reach import TOOL_REACH, reach_span_at_y
 
 logger = logging.getLogger(__name__)
 
@@ -704,6 +704,19 @@ def _reach_tool_for_physical_tool(physical_tool: int) -> str | None:
     return None
 
 
+def _low_y_limit_for_reach_tool(reach_tool: str) -> float | None:
+    spec = TOOL_REACH.get(reach_tool) or {}
+    try:
+        return float(spec.get("rect_below_y"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_negative_local_x_in_low_y_zone(reach_tool: str, local_x: float, y: float) -> bool:
+    low_y_limit = _low_y_limit_for_reach_tool(reach_tool)
+    return low_y_limit is not None and float(y) < low_y_limit and float(local_x) < 0.0
+
+
 def _sample_segment_points(points: list[list[float]], max_step_mm: float = 25.0) -> list[list[float]]:
     if len(points) < 2:
         return [list(point) for point in points]
@@ -749,6 +762,14 @@ def _validate_reach_at_station(step: dict[str, Any]) -> None:
                 f"Path {step.get('path_id')} has unreachable Y={y:.1f} for {reach_tool}."
             )
         local_x = x - axis
+        if _is_negative_local_x_in_low_y_zone(reach_tool, local_x, y):
+            low_y_limit = _low_y_limit_for_reach_tool(reach_tool)
+            raise TableBDxfExecutionError(
+                f"Path {step.get('path_id')} violates {reach_tool} low-Y safety at J7={axis:.1f} mm: "
+                f"viewer=({x:.1f}, {y:.1f}) -> local_x={local_x:.1f}. "
+                f"When Y < {float(low_y_limit):.1f}, local X must stay >= 0. "
+                "Regenerate/approve the toolpath with a legal 7th-axis stop."
+            )
         lo, hi = span
         if local_x < lo - 1e-6 or local_x > hi + 1e-6:
             raise TableBDxfExecutionError(

@@ -130,6 +130,9 @@ door:
   # Move J7 and the robot arm to the next Table B DXF prepoint at the same time.
   # Force starts only after the arm is at preheight and J7 is confirmed idle.
   tableBDxfSimultaneousJ7Robot: true
+  # If any robot joint is within this many degrees of its physical limit before a
+  # Table B DXF Tool 1/3/4 transition, finish J7 first instead of moving J7+arm together.
+  tableBDxfJointTransitionLimitMarginDeg: 10.0
   # homingSpeed: 1.0
 
 point:
