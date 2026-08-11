@@ -97,6 +97,7 @@ class _Tool2Position(NamedTuple):
     y: float
     z: float
     rz: float
+    axis7: float | None = None
 
 
 def tool2_side_rz(side: str) -> float:
@@ -417,6 +418,7 @@ def _run_horizontal_segment(
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
     cycles: int = 1,
+    sequential_j7_entry: bool = False,
 ) -> _Tool2Position:
     side = segment.side
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
@@ -467,12 +469,31 @@ def _run_horizontal_segment(
                 require_seventh_ok=True,
             )
     else:
-        _move_axis7_and_lifted_prepoint(
-            cps,
-            config,
-            axis7=segment.axis7,
-            prepoint=_pose(path_start_x, y, lift_z, rz),
-        )
+        prepoint = _pose(path_start_x, y, lift_z, rz)
+        if sequential_j7_entry:
+            _log(
+                config,
+                "[TableB DXF Tool2] %s station change uses sequential J7 before bottom prepoint j7=%.3f",
+                side,
+                segment.axis7,
+            )
+            _move(
+                cps,
+                config,
+                None,
+                seventh=segment.axis7,
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=True,
+            )
+            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        else:
+            _move_axis7_and_lifted_prepoint(
+                cps,
+                config,
+                axis7=segment.axis7,
+                prepoint=prepoint,
+            )
     _force_ready_at_contact(cps, config, side, operation_mode, path_start_x, y, rz)
     _apply_force_and_vibration(cps, config, side, force)
     cycle_targets = _ping_pong_axis_targets(path_start_x, path_end_x, cycles)
@@ -531,7 +552,7 @@ def _run_horizontal_segment(
             wait=True,
         )
     final_z = lift_z if lift_after else TOOL2_CONTACT_Z_MM
-    return _Tool2Position(side, final_x, exit_y, final_z, rz)
+    return _Tool2Position(side, final_x, exit_y, final_z, rz, segment.axis7)
 
 
 def _run_horizontal_segment_operations(
@@ -544,6 +565,7 @@ def _run_horizontal_segment_operations(
     previous_position: _Tool2Position | None = None,
     *,
     next_side: str | None = None,
+    next_axis7: float | None = None,
     y_total: float | None = None,
 ) -> _Tool2Position:
     if previous_position is None and segment.side == "top":
@@ -551,8 +573,28 @@ def _run_horizontal_segment_operations(
         guarded_move_only_j6r(cps, 180.0, config, wait=True, context="Tool 2 initial homing bottom-orientation -> top")
     _apply_side_transition_j6(cps, config, previous_position, segment.side, y_total)
     lift_z = _lift_z_for_transition(previous_position, segment.side)
-    enter_from_contact = bool(previous_position and previous_position.side == "bottom" and segment.side == "bottom")
-    keep_contact_after = segment.side == "bottom" and next_side == "bottom"
+    same_station_entry = bool(
+        previous_position
+        and previous_position.side == "bottom"
+        and segment.side == "bottom"
+        and previous_position.axis7 is not None
+        and abs(float(previous_position.axis7) - float(segment.axis7)) <= 1.0
+    )
+    same_station_next = bool(
+        segment.side == "bottom"
+        and next_side == "bottom"
+        and next_axis7 is not None
+        and abs(float(next_axis7) - float(segment.axis7)) <= 1.0
+    )
+    bottom_station_change_entry = bool(
+        previous_position
+        and previous_position.side == "bottom"
+        and segment.side == "bottom"
+        and previous_position.axis7 is not None
+        and abs(float(previous_position.axis7) - float(segment.axis7)) > 1.0
+    )
+    enter_from_contact = same_station_entry
+    keep_contact_after = same_station_next
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
         has_next_same_pass_operation = index + 1 < len(operation_modes)
@@ -573,6 +615,7 @@ def _run_horizontal_segment_operations(
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
             reverse_path=reverse_for_operation,
             cycles=cycles_by_mode.get(operation_mode, 1),
+            sequential_j7_entry=bottom_station_change_entry and index == 0,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")
@@ -693,10 +736,10 @@ def _run_vertical_side(
         if lift_y is not None:
             _move(cps, config, _pose(exit_x, lift_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
             _move(cps, config, _pose(exit_x, lift_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
-            return _Tool2Position(side, exit_x, lift_y, lift_z, rz)
+            return _Tool2Position(side, exit_x, lift_y, lift_z, rz, axis7)
         _move(cps, config, _pose(exit_x, final_y, lift_z, rz), velocity_profile="robotspeed", wait=True)
     final_z = lift_z if lift_after else TOOL2_CONTACT_Z_MM
-    return _Tool2Position(side, exit_x, final_y, final_z, rz)
+    return _Tool2Position(side, exit_x, final_y, final_z, rz, axis7)
 
 
 def _run_right_side(
@@ -882,6 +925,29 @@ def _next_station_first_side(
     return ordered[0].side
 
 
+def _next_segment_in_sequence(
+    sequence: list[_Tool2HorizontalSegment],
+    index: int,
+    stations: list[tuple[float, list[_Tool2HorizontalSegment]]],
+    next_station_index: int,
+    current_side: str,
+) -> _Tool2HorizontalSegment | None:
+    if index + 1 < len(sequence):
+        return sequence[index + 1]
+    assumed_position = _Tool2Position(
+        current_side,
+        0.0,
+        0.0,
+        TOOL2_CONTACT_Z_MM,
+        TOOL2_SIDE_RZ_DEG[current_side],
+        None,
+    )
+    if next_station_index >= len(stations):
+        return None
+    ordered = _ordered_station_segments(stations[next_station_index][1], assumed_position)
+    return ordered[0] if ordered else None
+
+
 def _next_side_in_sequence(
     sequence: list[_Tool2HorizontalSegment],
     index: int,
@@ -889,10 +955,19 @@ def _next_side_in_sequence(
     next_station_index: int,
     current_side: str,
 ) -> str | None:
-    if index + 1 < len(sequence):
-        return sequence[index + 1].side
-    assumed_position = _Tool2Position(current_side, 0.0, 0.0, TOOL2_CONTACT_Z_MM, TOOL2_SIDE_RZ_DEG[current_side])
-    return _next_station_first_side(stations, next_station_index, assumed_position)
+    next_segment = _next_segment_in_sequence(sequence, index, stations, next_station_index, current_side)
+    return next_segment.side if next_segment is not None else None
+
+
+def _next_axis7_in_sequence(
+    sequence: list[_Tool2HorizontalSegment],
+    index: int,
+    stations: list[tuple[float, list[_Tool2HorizontalSegment]]],
+    next_station_index: int,
+    current_side: str,
+) -> float | None:
+    next_segment = _next_segment_in_sequence(sequence, index, stations, next_station_index, current_side)
+    return float(next_segment.axis7) if next_segment is not None else None
 
 
 def _run_tool2_station_traversal(
@@ -942,6 +1017,7 @@ def _run_tool2_station_traversal(
                     _reverse_horizontal_segment(segment),
                     last_position,
                     next_side=_next_side_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
+                    next_axis7=_next_axis7_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
                     y_total=y_total,
                 )
             last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, y_total, last_position)
@@ -957,6 +1033,7 @@ def _run_tool2_station_traversal(
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(bottom_sequence, index, stations, station_index + 1, "bottom"),
+                    next_axis7=_next_axis7_in_sequence(bottom_sequence, index, stations, station_index + 1, "bottom"),
                     y_total=y_total,
                 )
             continue
@@ -978,6 +1055,7 @@ def _run_tool2_station_traversal(
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(first_sequence, index, stations, station_index + 1, first_side),
+                    next_axis7=_next_axis7_in_sequence(first_sequence, index, stations, station_index + 1, first_side),
                     y_total=y_total,
                 )
             last_position = _run_left_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, x_total, y_total, last_position)
@@ -993,6 +1071,7 @@ def _run_tool2_station_traversal(
                     segment,
                     last_position,
                     next_side=_next_side_in_sequence(second_sequence, index, stations, station_index + 1, second_side),
+                    next_axis7=_next_axis7_in_sequence(second_sequence, index, stations, station_index + 1, second_side),
                     y_total=y_total,
                 )
             continue
@@ -1007,6 +1086,7 @@ def _run_tool2_station_traversal(
                 segment,
                 last_position,
                 next_side=_next_side_in_sequence(ordered_segments, index, stations, station_index + 1, segment.side),
+                next_axis7=_next_axis7_in_sequence(ordered_segments, index, stations, station_index + 1, segment.side),
                 y_total=y_total,
             )
 

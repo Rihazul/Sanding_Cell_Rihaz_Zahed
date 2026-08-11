@@ -395,6 +395,95 @@ def _contact_force_threshold(config: dict[str, Any], physical_tool: int) -> floa
     return _table_b_motion_value(config, "tool1ContactForceThresholdN", 2.0)
 
 
+def _low_y_escape_margin_mm(config: dict[str, Any]) -> float:
+    return max(0.0, _table_b_motion_value(config, "lowYEscapeMarginMm", 25.0))
+
+
+def _escape_low_y_during_j7(
+    cps: Any,
+    config: dict[str, Any],
+    *,
+    physical_tool: int,
+    current_pose: list[float] | None,
+    axis7_position: float | None,
+    pre_z: float,
+    rxyz: list[float],
+    tcp: str,
+    ucs: str,
+) -> bool:
+    """Move out of the bottom reach constraint while J7 is travelling.
+
+    A destination point may be legal at high Y with negative local X, but the linear
+    transition from a bottom pose can briefly command negative X while Y is still low. Keep
+    local X non-negative during the low-Y escape, then reposition to the real target after
+    the arm is above the constrained zone and J7 is idle.
+    """
+    low_y_limit = _low_y_limit_for_tool(physical_tool)
+    if low_y_limit is None or axis7_position is None or current_pose is None or len(current_pose) < 3:
+        return False
+
+    current_x = float(current_pose[0])
+    current_y = float(current_pose[1])
+    current_z = float(current_pose[2])
+    if current_y >= low_y_limit:
+        return False
+
+    escape_x = max(0.0, current_x)
+    escape_y = low_y_limit + _low_y_escape_margin_mm(config)
+    _log(
+        config,
+        "[TableB DXF Robot] low-Y escape during J7: current=(%.1f, %.1f, %.1f) escape=(%.1f, %.1f, %.1f) j7=%.1f",
+        current_x,
+        current_y,
+        current_z,
+        escape_x,
+        escape_y,
+        pre_z,
+        float(axis7_position),
+    )
+
+    if current_z > pre_z + 0.5:
+        communicate(
+            cps=cps,
+            config=config,
+            point=[current_x, current_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=robot_speed(config),
+            velocity_profile="robotspeed",
+            wait=True,
+            require_seventh_ok=False,
+        )
+    j7_result = communicate(
+        cps=cps,
+        config=config,
+        point=None,
+        tcp=tcp,
+        ucs=ucs,
+        seventh=axis7_position,
+        speed=robot_speed(config),
+        velocity_profile="robotspeed",
+        wait=False,
+        require_seventh_ok=True,
+    )
+    if j7_result is None:
+        raise TableBDxfRobotExecutionError("7th-axis async move failed during low-Y escape.")
+    communicate(
+        cps=cps,
+        config=config,
+        point=[escape_x, escape_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+        tcp=tcp,
+        ucs=ucs,
+        seventh=-1,
+        speed=robot_speed(config),
+        velocity_profile="robotspeed",
+        wait=True,
+        require_seventh_ok=True,
+    )
+    return True
+
+
 def _lift_to_preheight_no_force(
     cps: Any,
     config: dict[str, Any],
@@ -601,7 +690,20 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         # joint is near its physical limit, async J7 travel can fold the arm into a limit.
         # Park the rail first only in those guarded cases; normal high-Y transitions can
         # remain simultaneous.
-        if axis7_position is not None:
+        j7_positioned_by_escape = False
+        if axis7_position is not None and low_y_j7_idle_before_prepoint:
+            j7_positioned_by_escape = _escape_low_y_during_j7(
+                cps,
+                config,
+                physical_tool=physical_tool,
+                current_pose=current_pose,
+                axis7_position=axis7_position,
+                pre_z=pre_z,
+                rxyz=rxyz,
+                tcp=tcp,
+                ucs=ucs,
+            )
+        if axis7_position is not None and not j7_positioned_by_escape:
             communicate(
                 cps=cps,
                 config=config,
