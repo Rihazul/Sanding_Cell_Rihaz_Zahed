@@ -133,6 +133,9 @@ door:
   # If any robot joint is within this many degrees of its physical limit before a
   # Table B DXF Tool 1/3/4 transition, finish J7 first instead of moving J7+arm together.
   tableBDxfJointTransitionLimitMarginDeg: 10.0
+  # When leaving a low-Y/bottom pose for Tool 1/3/4, move above the low-Y reach
+  # threshold by this margin before shifting J7 so local X cannot go negative.
+  lowYEscapeMarginMm: 25.0
   # homingSpeed: 1.0
 
 point:
@@ -174,8 +177,8 @@ point:
   tool1home : [314.698, -141.833, 394.000, -0.964, -1.336, -179.346]
   tool1 : [314.698,  -141.836, 155.082, -0.964, -1.337, -179.345]
 
-  tool3 : [455.853, 136.609, 154.342, -1.594, 0.997, 0.042]
-  tool3home : [455.859, 136.611, 378.761, -1.593, 0.995, 0.042]
+  tool3 : [455.788, 137.483, 155, -0.079, 1.383, 0.155]
+  tool3home : [455.788, 137.483, 380, -0.079, 1.383, 0.155]
 
 tool:
   tool2height: 185
