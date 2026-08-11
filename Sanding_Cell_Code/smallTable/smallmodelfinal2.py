@@ -493,6 +493,7 @@ def sandingModelBTableA(cps=None):
 
                 if zigzag_cycle > 0:
                     orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
+                    movement = "rectangular_spiral" if bool(zigzag_cfg.get("rectangularSpiral")) else "zigzag"
                     run_zigzag_cycles(
                         zigzag_cycle,
                         int(zigzag_cfg.get("force", 0)),
@@ -500,7 +501,7 @@ def sandingModelBTableA(cps=None):
                         z,
                         cps,
                         orientation=orientation,
-                        movement="zigzag",
+                        movement=movement,
                         spiral_settings=spiral_settings,
                     )
                     work_executed = True

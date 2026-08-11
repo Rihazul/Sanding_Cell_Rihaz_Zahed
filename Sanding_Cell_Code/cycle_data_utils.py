@@ -68,7 +68,7 @@ def get_spiral_settings(cycle_data: Mapping[str, Any]) -> SpiralSettings:
     turns = _clamp(float(turns), 10.0, 20.0)
     orientation = str(cfg.get("orientation") or "vertical").strip().lower()
     movement = str(cfg.get("movement") or "zigzag").lower()
-    if movement not in {"zigzag", "rect"}:
+    if movement not in {"zigzag", "rect", "rectangular_spiral"}:
         movement = "zigzag"
     if orientation not in {"vertical", "horizontal", "both"}:
         orientation = "vertical"
@@ -96,21 +96,33 @@ def _extract_task_fields(task_cfg: Mapping[str, Any]) -> Dict[str, Any]:
         else:
             orientation = "vertical"
     edge_flag = _to_bool(task_cfg.get("edge"), _to_bool(task_cfg.get("edgeCoverage"), False))
+    rectangular_spiral = _to_bool(task_cfg.get("rectangularSpiral"), False)
+    movement = str(task_cfg.get("movement") or "").strip().lower()
+    if rectangular_spiral:
+        movement = "rectangular_spiral"
+    elif movement not in {"zigzag", "rect", "rectangular_spiral"}:
+        movement = "zigzag"
     return {
         "cycle": _to_int(task_cfg.get("cycle"), 0),
         "force": _to_int(task_cfg.get("force"), 0),
         # Pocket ZigZag options (safe defaults)
         "verticalSpiral": vertical_spiral,
         "horizontalSpiral": horizontal_spiral,
+        "rectangularSpiral": rectangular_spiral,
         "edgeCoverage": edge_flag,
         "edge": edge_flag,
         "orientation": orientation,
+        "movement": movement,
     }
 
 
 def _normalize_tablea_task_fields(task_key: str, fields: Dict[str, Any]) -> Dict[str, Any]:
     """Enforce Table A Pocket ZigZag multi-cycle orientation behavior."""
-    if task_key == "pocketzigzag" and _to_int(fields.get("cycle"), 0) > 1:
+    if (
+        task_key == "pocketzigzag"
+        and _to_int(fields.get("cycle"), 0) > 1
+        and str(fields.get("movement") or "zigzag") != "rectangular_spiral"
+    ):
         fields["verticalSpiral"] = True
         fields["horizontalSpiral"] = True
         fields["orientation"] = "both"
@@ -160,8 +172,10 @@ def get_tableA_task_by_door(tableA_cfg: Mapping[str, Any], task_key: str) -> Dic
                     fields["orientation"] = str(shared_fields.get("orientation") or fields.get("orientation") or "vertical")
                     fields["verticalSpiral"] = _to_bool(shared_fields.get("verticalSpiral"), fields.get("verticalSpiral", False))
                     fields["horizontalSpiral"] = _to_bool(shared_fields.get("horizontalSpiral"), fields.get("horizontalSpiral", False))
+                    fields["rectangularSpiral"] = _to_bool(shared_fields.get("rectangularSpiral"), fields.get("rectangularSpiral", False))
                     fields["edgeCoverage"] = _to_bool(shared_fields.get("edgeCoverage"), fields.get("edgeCoverage", False))
                     fields["edge"] = fields["edgeCoverage"]
+                    fields["movement"] = str(shared_fields.get("movement") or fields.get("movement") or "zigzag")
 
             by_door[door_num] = _normalize_tablea_task_fields(task_key, fields)
         return by_door

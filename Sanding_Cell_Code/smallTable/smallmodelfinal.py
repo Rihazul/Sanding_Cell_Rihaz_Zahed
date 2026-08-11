@@ -535,6 +535,7 @@ def sandingModelATableA(cps=None):
 
                 if zigzag_cycle > 0:
                     orientation = str(zigzag_cfg.get("orientation") or "vertical").lower()
+                    movement = "rectangular_spiral" if bool(zigzag_cfg.get("rectangularSpiral")) else "zigzag"
                     print(f"\n--- Tool 4 / Zigzag / Door {door_number} ---")
                     run_zigzag_cycles(
                         zigzag_cycle,
@@ -543,7 +544,7 @@ def sandingModelATableA(cps=None):
                         z,
                         cps,
                         orientation=orientation,
-                        movement="zigzag",
+                        movement=movement,
                         spiral_settings=spiral_settings,
                     )
                     work_executed = True

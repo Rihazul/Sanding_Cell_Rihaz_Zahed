@@ -111,6 +111,7 @@ export interface DoorConfig {
     // Pocket ZigZag specific options
     verticalSpiral?: boolean;
     horizontalSpiral?: boolean;
+    rectangularSpiral?: boolean;
     edgeCoverage?: boolean;
     // Derived helpers
     orientation?: 'vertical' | 'horizontal' | 'both';
@@ -131,6 +132,7 @@ export async function startTableAProcess(data: {
   robotSpeed: string;
   sandingSpeed: string;
   inverseOverlapping: number;
+  tableAPocketEdgeOffsetMm?: number;
   spiralSettings?: SpiralSettingsPayload;
   tableAFrameSize?: { x: number | null; y: number | null };
 }) {
@@ -179,8 +181,9 @@ export async function startTableAProcess(data: {
 
   const getPocketZigZagMeta = () => {
     const derive = (row?: DoorConfig['rows'][number]) => {
-      const verticalSpiral = !!row?.verticalSpiral;
-      const horizontalSpiral = !!row?.horizontalSpiral;
+      const rectangularSpiral = !!row?.rectangularSpiral;
+      const verticalSpiral = !rectangularSpiral && !!row?.verticalSpiral;
+      const horizontalSpiral = !rectangularSpiral && !!row?.horizontalSpiral;
       const orientation: 'vertical' | 'horizontal' | 'both' =
         verticalSpiral && horizontalSpiral
           ? 'both'
@@ -188,7 +191,8 @@ export async function startTableAProcess(data: {
             ? 'horizontal'
             : 'vertical';
       const edge = false;
-      return { orientation, edge };
+      const movement = rectangularSpiral ? 'rectangular_spiral' : 'zigzag';
+      return { orientation, edge, rectangularSpiral, movement };
     };
 
     for (const door of data.doorConfigs) {
@@ -209,8 +213,9 @@ export async function startTableAProcess(data: {
       if (!key) continue;
       const base = { cycle: row.cycle || 0, force: row.force || 0 };
       if (row.label === 'Pocket ZigZag') {
-        const verticalSpiral = !!row.verticalSpiral;
-        const horizontalSpiral = !!row.horizontalSpiral;
+        const rectangularSpiral = !!row.rectangularSpiral;
+        const verticalSpiral = !rectangularSpiral && !!row.verticalSpiral;
+        const horizontalSpiral = !rectangularSpiral && !!row.horizontalSpiral;
         const orientation: 'vertical' | 'horizontal' | 'both' =
           verticalSpiral && horizontalSpiral
             ? 'both'
@@ -222,8 +227,10 @@ export async function startTableAProcess(data: {
           ...base,
           verticalSpiral,
           horizontalSpiral,
+          rectangularSpiral,
           edgeCoverage,
           orientation,
+          movement: rectangularSpiral ? 'rectangular_spiral' : 'zigzag',
           edge: edgeCoverage,
         };
       } else {
@@ -259,6 +266,7 @@ export async function startTableAProcess(data: {
     robotSpeed: data.robotSpeed,
     sandingSpeed: data.sandingSpeed,
     inverseOverlapping: data.inverseOverlapping,
+    tableAPocketEdgeOffsetMm: data.tableAPocketEdgeOffsetMm ?? 4,
     spiralSettings: data.spiralSettings,
   };
 
@@ -317,6 +325,7 @@ export async function startTableBProcess(data: {
     force: number;
     verticalSpiral?: boolean;
     horizontalSpiral?: boolean;
+    rectangularSpiral?: boolean;
     edgeCoverage?: boolean;
   };
   // Pocket Edge drives Tool 3; it is configured separately from Pocket ZigZag (Tool 4).

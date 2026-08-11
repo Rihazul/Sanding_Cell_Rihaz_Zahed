@@ -148,6 +148,57 @@ def _calculate_zigzag_pass_spacing(span_mm: float, requested_step_mm: float):
     return intervals, span / intervals
 
 
+def _same_xy(a, b, tol=0.01):
+    try:
+        return abs(float(a[0]) - float(b[0])) <= tol and abs(float(a[1]) - float(b[1])) <= tol
+    except (TypeError, ValueError, IndexError):
+        return False
+
+
+def _generate_rectangular_spiral_coords(
+    *,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+    z: float,
+    rx: float,
+    ry: float,
+    rz: float,
+    step_mm: float,
+):
+    """Generate an inward rectangular spiral from the same bottom-right start as vertical zigzag."""
+    left = min(float(x_min), float(x_max))
+    right = max(float(x_min), float(x_max))
+    top = min(float(y_min), float(y_max))
+    bottom = max(float(y_min), float(y_max))
+    step = max(1.0, float(step_mm))
+    points = []
+
+    while right - left > 1.0 and bottom - top > 1.0:
+        ring = [
+            [right, bottom, z, rx, ry, rz],
+            [right, top, z, rx, ry, rz],
+            [left, top, z, rx, ry, rz],
+            [left, bottom, z, rx, ry, rz],
+        ]
+        for point in ring:
+            if not points or not _same_xy(points[-1], point):
+                points.append(point)
+
+        left += step
+        right -= step
+        top += step
+        bottom -= step
+
+    if right >= left and bottom >= top:
+        center = [(left + right) / 2.0, (top + bottom) / 2.0, z, rx, ry, rz]
+        if not points or not _same_xy(points[-1], center):
+            points.append(center)
+
+    return points
+
+
 def _linear_speed_to_turns(speed_mm_s: float) -> int:
     """Map 100–300 mm/s to 20–10 turns (faster speed -> fewer turns)."""
     speed = _clamp(speed_mm_s, 100.0, 300.0)
@@ -658,7 +709,19 @@ def generate_zigzag_path(
         ry_sanding = 0.0
         rz_sanding = 0.0
 
-        if movement_mode == "rect":
+        if movement_mode == "rectangular_spiral":
+            zigzag_coords = _generate_rectangular_spiral_coords(
+                x_min=x_min,
+                x_max=x_max,
+                y_min=y_min,
+                y_max=y_max,
+                z=z_zigzag,
+                rx=rx_sanding,
+                ry=ry_sanding,
+                rz=rz_sanding,
+                step_mm=step_mm,
+            )
+        elif movement_mode == "rect":
             zigzag_coords = [
                 [modified_Point1[0], modified_Point1[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
                 [modified_Point2[0], modified_Point2[1], z_zigzag, rx_sanding, ry_sanding, rz_sanding],
@@ -736,7 +799,7 @@ def generate_zigzag_path(
             point[1] = abs(point[1])
             point[0] = abs(point[0])
 
-        if movement_mode == "rect":
+        if movement_mode in {"rect", "rectangular_spiral"}:
             prepoint = [
                 abs(zigzag_coords[0][0]) + 0.5,
                 zigzag_coords[0][1],
@@ -802,6 +865,9 @@ def _build_zigzag_operation_sequence(requested_orientation, cycles, movement="zi
     total_cycles = max(1, int(cycles))
     requested = str(requested_orientation or "vertical").strip().lower()
     movement_mode = str(movement or "zigzag").strip().lower()
+
+    if movement_mode == "rectangular_spiral":
+        return tuple((cycle_number, "vertical") for cycle_number in range(1, total_cycles + 1))
 
     if requested == "horizontal":
         single_orientation = "horizontal"
@@ -990,7 +1056,8 @@ def _run_small_door_zigzag(
                     if path_index == 0:
                         points_to_send = cycle_points[1:]  # Skip first point (already at it)
                     else:
-                        points_to_send = cycle_points
+                        previous_point = valid_cycle_paths[path_index - 1][2][-1]
+                        points_to_send = cycle_points[1:] if _same_xy(previous_point, cycle_points[0]) else cycle_points
 
                     for point_index, point_b in enumerate(points_to_send):
                         if stop_requested():
@@ -1036,14 +1103,15 @@ def _run_small_door_zigzag(
                     turn_vibration_off(cps)
                     releaseForce(cps=cps, config=config)
 
-    cycle_paths = [
-        (
-            cycle_number,
-            cycle_orientation,
-            paths_by_orientation[cycle_orientation],
-        )
-        for cycle_number, cycle_orientation in operation_sequence
-    ]
+    movement_mode = str(movement or "zigzag").strip().lower()
+    cycle_paths = []
+    for cycle_number, cycle_orientation in operation_sequence:
+        base_path = paths_by_orientation[cycle_orientation]
+        if movement_mode == "rectangular_spiral" and cycle_number % 2 == 0:
+            cycle_path = list(reversed(base_path))
+        else:
+            cycle_path = base_path
+        cycle_paths.append((cycle_number, cycle_orientation, cycle_path))
     for idx, seventh_pos in enumerate(seventh_positions):
         first_split = split and idx == 0
         if not first_split:

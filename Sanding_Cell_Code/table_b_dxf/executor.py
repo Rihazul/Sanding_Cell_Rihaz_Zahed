@@ -458,10 +458,13 @@ def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
     # Rectangular-spiral pockets: match BEFORE the generic _tool4 rule so the "_rect" marker
     # survives in the window key. A wide pocket is divided into per-reach-window sections
     # (`_tool4_rect_sec{n}`), each an independent spiral window; capture the section suffix so
-    # sections group separately. Narrow pockets are `_tool4_rect` (no section).
-    match = re.search(r"(.+?_tool4_rect(?:_sec\d+)?)(?:_|$)", base)
+    # sections group separately. Narrow pockets are `_tool4_rect` (no section). The INWARD
+    # variant is `_tool4_rect...` and the OUTWARD variant `_tool4_rectout...`; normalize `rectout`
+    # -> `rect` so the in/out spirals of the SAME section map to ONE window key and stitch into a
+    # single continuous force contact.
+    match = re.search(r"(.+?_tool4_rect)(?:out)?((?:_sec\d+)?)(?:_|$)", base)
     if match:
-        return match.group(1)
+        return match.group(1) + match.group(2)
     match = re.search(r"(.+?_tool4_sec\d+)", base)
     if match:
         return match.group(1)
@@ -555,12 +558,18 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
     vertical_paths = [dict(path) for path in (patterns.get("vertical_paths") or [])]
     horizontal_paths = [dict(path) for path in (patterns.get("horizontal_paths") or [])]
     spiral_paths = [dict(path) for path in (patterns.get("spiral_paths") or [])]
+    # Offset-outward spiral variant (rings shifted by s/2, threaded between the inward rings) so
+    # even cycles spiral OUT on a different path instead of reversing the inward line. Both in and
+    # out normalize to the SAME window key per section (see _pocket_zigzag_window_key) so they
+    # stitch continuously. Missing/empty (older approved payloads) -> falls back to inward.
+    spiral_out_paths = [dict(path) for path in (patterns.get("spiral_out_paths") or [])]
     by_orientation = {"vertical": vertical_paths, "horizontal": horizontal_paths}
 
     grouped = {
         "vertical": _group_pocket_zigzag_windows(vertical_paths),
         "horizontal": _group_pocket_zigzag_windows(horizontal_paths),
         "rectspiral": _group_pocket_zigzag_windows(spiral_paths),
+        "rectspiral_out": _group_pocket_zigzag_windows(spiral_out_paths),
     }
 
     window_order: list[str] = []
@@ -601,8 +610,20 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 orientation = "triangle_spiral"
                 window_paths = grouped[selected].get(window_key) or grouped[alternate].get(window_key) or []
             elif rect_spiral_window:
-                orientation = "rectangular_spiral"
-                window_paths = grouped["rectspiral"].get(window_key) or []
+                # Alternate IN / OUT so the spiral never retraces (no reversed ping-pong):
+                # odd cycles = inward spiral (corner->center); even cycles = the offset-outward
+                # spiral (center->corner on rings threaded between the inward rings). Fall back to
+                # the inward spiral when no offset-out variant was shipped (older payloads).
+                if cycle_index % 2 == 1:
+                    orientation = "rectangular_spiral_in"
+                    window_paths = grouped["rectspiral"].get(window_key) or []
+                else:
+                    orientation = "rectangular_spiral_out"
+                    window_paths = (
+                        grouped["rectspiral_out"].get(window_key)
+                        or grouped["rectspiral"].get(window_key)
+                        or []
+                    )
             else:
                 window_paths = grouped[orientation].get(window_key) or []
             if not window_paths:

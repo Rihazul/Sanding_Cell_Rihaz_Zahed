@@ -16,6 +16,21 @@ import time
 import yaml
 
 
+DEFAULT_TABLEA_POCKET_EDGE_OFFSET_MM = 4.0
+MAX_TABLEA_POCKET_EDGE_OFFSET_MM = 50.0
+
+
+def _resolve_tablea_pocket_edge_offset(default=DEFAULT_TABLEA_POCKET_EDGE_OFFSET_MM):
+    """Read operator-selected Tool 3 pocket-edge margin from cycleData.json."""
+    try:
+        json_config = _load_json_config()
+        raw_value = json_config.get("tableAPocketEdgeOffsetMm", default)
+        value = float(raw_value)
+    except Exception:
+        value = float(default)
+    return max(0.0, min(MAX_TABLEA_POCKET_EDGE_OFFSET_MM, value))
+
+
 def _resolve_edge_speed(config):
     """
     Resolve edge coverage speed directly from cycleData.json `sandingSpeed`.
@@ -361,11 +376,13 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation, cycles=1):
     config["logger"] = setup_logger(config["settings"]["debug"])
 
     x_coords, y_coords, z_coords, seventh_pos = _build_pocket_xy_for_door(door_num, z)
+    edge_margin = _resolve_tablea_pocket_edge_offset()
     edge_points = build_edge_coverage_path(
         x_coords=x_coords,
         y_coords=y_coords,
         z_coords=z_coords,
         orientation=orientation,
+        edge_margin=edge_margin,
     )
     if not edge_points:
         return

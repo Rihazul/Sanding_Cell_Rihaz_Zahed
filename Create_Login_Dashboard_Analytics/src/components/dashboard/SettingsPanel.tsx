@@ -9,6 +9,8 @@ interface SettingsPanelProps {
   setInverseOverlapping: (overlap: number[]) => void;
   sandingSpeed: number[];
   setSandingSpeed: (speed: number[]) => void;
+  tableAPocketEdgeOffset: number[];
+  setTableAPocketEdgeOffset: (offset: number[]) => void;
 }
 
 export function SettingsPanel({
@@ -18,15 +20,22 @@ export function SettingsPanel({
   setInverseOverlapping,
   sandingSpeed,
   setSandingSpeed,
+  tableAPocketEdgeOffset,
+  setTableAPocketEdgeOffset,
 }: SettingsPanelProps) {
   const ROBOT_MAX_SPEED = 400;
   const ROBOT_MAX_ACCEL = 1950;
   const SANDING_MAX_SPEED = 275;
   const SANDING_MAX_ACCEL = 350;
   const POCKET_MAX_OVERLAP_MM = 100;
+  const TABLE_A_POCKET_EDGE_OFFSET_MAX_MM = 50;
   const robotSpeedMmS = Math.round((robotSpeed[0] / 100) * ROBOT_MAX_SPEED);
   const sandingSpeedMmS = Math.round((sandingSpeed[0] / 100) * SANDING_MAX_SPEED);
   const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
+  const tableAPocketEdgeOffsetMm = Math.max(
+    0,
+    Math.min(TABLE_A_POCKET_EDGE_OFFSET_MAX_MM, tableAPocketEdgeOffset[0] ?? 4)
+  );
 
   return (
     <Card className="shadow-lg border-0">
@@ -49,11 +58,28 @@ export function SettingsPanel({
         {/* Inverse Overlapping */}
         <div>
           <div className="flex justify-between mb-2">
-            <label className="text-sm">Pocket Overlap</label>
+            <label className="text-sm">Table A Pocket Overlap</label>
             <span className="text-sm text-gray-600">{overlapMm} mm {overlapMm === 0 ? '(no overlap)' : overlapMm >= 100 ? '(~3/4 tool overlap)' : ''}</span>
           </div>
           <Slider value={inverseOverlapping} onValueChange={setInverseOverlapping} min={0} max={100} step={1} className="[&_[role=slider]]:bg-purple-500" />
           <div className="mt-1 text-xs text-gray-500">0 mm = no overlap, 100 mm = ~3/4 tool overlap</div>
+        </div>
+
+        {/* Table A Pocket Edge Offset */}
+        <div>
+          <div className="flex justify-between mb-2">
+            <label className="text-sm">Table A Pocket Edge Offset</label>
+            <span className="text-sm text-gray-600">{tableAPocketEdgeOffsetMm} mm</span>
+          </div>
+          <Slider
+            value={tableAPocketEdgeOffset}
+            onValueChange={setTableAPocketEdgeOffset}
+            min={0}
+            max={TABLE_A_POCKET_EDGE_OFFSET_MAX_MM}
+            step={1}
+            className="[&_[role=slider]]:bg-emerald-500"
+          />
+          <div className="mt-1 text-xs text-gray-500">Added to Tool 3 fixed pocket-edge offset. Larger = farther from the pocket edge.</div>
         </div>
 
         {/* Sanding Speed */}

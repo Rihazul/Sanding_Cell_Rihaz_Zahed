@@ -51,6 +51,7 @@ export type RowConfig = {
   // Pocket ZigZag specific options
   verticalSpiral?: boolean;
   horizontalSpiral?: boolean;
+  rectangularSpiral?: boolean;
   edgeCoverage?: boolean;
 };
 
@@ -118,6 +119,7 @@ interface CompactTableConfigProps {
   robotSpeed: number[];
   sandingSpeed: number[];
   inverseOverlapping: number[];
+  tableAPocketEdgeOffset?: number[];
   spiralSettings?: {
     enabled: boolean;
     speedPercent: number;
@@ -143,6 +145,7 @@ export function CompactTableConfig({
   robotSpeed,
   sandingSpeed,
   inverseOverlapping,
+  tableAPocketEdgeOffset,
   spiralSettings,
   robotPowerEnabled = true,
   homingRequired = false,
@@ -151,6 +154,7 @@ export function CompactTableConfig({
 }: CompactTableConfigProps) {
   console.log('CompactTableConfig rendering:', tableName, 'rows:', rows.length, 'addActivity:', !!addActivity);
   const POCKET_MAX_OVERLAP_MM = 100;
+  const TABLE_A_POCKET_EDGE_OFFSET_MAX_MM = 50;
 
   const [selectedDoor, setSelectedDoor] = React.useState<number>(1);
   const [scanCompleted, setScanCompleted] = React.useState<boolean>(false);
@@ -246,6 +250,7 @@ export function CompactTableConfig({
             cycle: row.cycle,
             verticalSpiral: !!row.verticalSpiral,
             horizontalSpiral: !!row.horizontalSpiral,
+            rectangularSpiral: !!row.rectangularSpiral,
             edgeCoverage: !!row.edgeCoverage,
           })),
           selections: tableBSelections,
@@ -1301,6 +1306,7 @@ export function CompactTableConfig({
               cycle: templateRow.cycle,
               verticalSpiral: templateRow.verticalSpiral,
               horizontalSpiral: templateRow.horizontalSpiral,
+              rectangularSpiral: templateRow.rectangularSpiral,
               edgeCoverage: templateRow.edgeCoverage,
             };
           });
@@ -1316,6 +1322,7 @@ export function CompactTableConfig({
                 cycle: 0,
                 verticalSpiral: false,
                 horizontalSpiral: false,
+                rectangularSpiral: false,
                 edgeCoverage: false,
               };
             }
@@ -1326,6 +1333,7 @@ export function CompactTableConfig({
                 cycle: 0,
                 verticalSpiral: false,
                 horizontalSpiral: false,
+                rectangularSpiral: false,
                 edgeCoverage: false,
               };
             }
@@ -1363,11 +1371,16 @@ export function CompactTableConfig({
 
         // Build payload with all door configurations
         const overlapMm = Math.max(0, Math.min(POCKET_MAX_OVERLAP_MM, inverseOverlapping[0] ?? 0));
+        const tableAPocketEdgeOffsetMm = Math.max(
+          0,
+          Math.min(TABLE_A_POCKET_EDGE_OFFSET_MAX_MM, tableAPocketEdgeOffset?.[0] ?? 4)
+        );
         const taskData = {
           doorConfigs: effectiveDoorConfigs,
           robotSpeed: (robotSpeed[0] / 100).toFixed(2),
           sandingSpeed: (sandingSpeed[0] / 100).toFixed(2),
           inverseOverlapping: overlapMm,
+          tableAPocketEdgeOffsetMm,
           spiralSettings,
           tableAFrameSize: getTableAFrameSizeValues(),
         };
@@ -1548,6 +1561,7 @@ export function CompactTableConfig({
           (row.cycle ?? 0) > 0 ||
           !!row.verticalSpiral ||
           !!row.horizontalSpiral ||
+          !!row.rectangularSpiral ||
           !!row.edgeCoverage
         );
       });
@@ -1636,7 +1650,12 @@ export function CompactTableConfig({
           if (!targetDoors.includes(dc.doorNumber)) return dc;
           const newRows = [...dc.rows];
           const updatedRow = { ...newRows[idx], [field]: value };
-          if (rowLabel === 'Pocket ZigZag' && field === 'cycle' && Number(value) > 1) {
+          if (
+            rowLabel === 'Pocket ZigZag' &&
+            field === 'cycle' &&
+            Number(value) > 1 &&
+            !updatedRow.rectangularSpiral
+          ) {
             updatedRow.verticalSpiral = true;
             updatedRow.horizontalSpiral = true;
             updatedRow.edgeCoverage = false;
@@ -1965,7 +1984,7 @@ export function CompactTableConfig({
     }
   };
 
-  const handlePocketZigZagOptionChange = (idx: number, option: 'verticalSpiral' | 'horizontalSpiral' | 'edgeCoverage', checked: boolean) => {
+  const handlePocketZigZagOptionChange = (idx: number, option: 'verticalSpiral' | 'horizontalSpiral' | 'rectangularSpiral' | 'edgeCoverage', checked: boolean) => {
     if (tableName === 'A' && doorConfigs && setDoorConfigs) {
       const rowLabel = rows[idx]?.label;
       if (!rowLabel) return;
@@ -2003,6 +2022,12 @@ export function CompactTableConfig({
           }
 
           (nextRow as any)[option] = checked;
+          if (checked && option === 'rectangularSpiral') {
+            nextRow.verticalSpiral = false;
+            nextRow.horizontalSpiral = false;
+          } else if (checked && (option === 'verticalSpiral' || option === 'horizontalSpiral')) {
+            nextRow.rectangularSpiral = false;
+          }
 
           newRows[idx] = nextRow;
           return { ...dc, rows: newRows };
@@ -2018,6 +2043,13 @@ export function CompactTableConfig({
           }
           if (option === 'horizontalSpiral' && checked) {
             nextRow.verticalSpiral = false;
+          }
+          if (option === 'rectangularSpiral' && checked) {
+            nextRow.verticalSpiral = false;
+            nextRow.horizontalSpiral = false;
+          }
+          if ((option === 'verticalSpiral' || option === 'horizontalSpiral') && checked) {
+            nextRow.rectangularSpiral = false;
           }
         }
 
@@ -2479,13 +2511,13 @@ export function CompactTableConfig({
                             <label className={`inline-flex items-center justify-center gap-1 min-w-[110px] px-3 py-1 rounded-md border text-xs font-semibold transition-colors ${
                               row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
                             } ${
-                              row.verticalSpiral || row.cycle > 1
+                              (row.verticalSpiral || (row.cycle > 1 && !row.rectangularSpiral))
                                 ? 'bg-blue-500 border-blue-500 text-white'
                                 : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
                             }`}>
                               <input
                                 type="checkbox"
-                                checked={row.verticalSpiral || row.cycle > 1}
+                                checked={row.verticalSpiral || (row.cycle > 1 && !row.rectangularSpiral)}
                                 onChange={(e) => handlePocketZigZagOptionChange(idx, 'verticalSpiral', e.target.checked)}
                                 disabled={isOperating || row.cycle > 1}
                                 className="sr-only"
@@ -2495,22 +2527,45 @@ export function CompactTableConfig({
                             <label className={`inline-flex items-center justify-center gap-1 min-w-[110px] px-3 py-1 rounded-md border text-xs font-semibold transition-colors ${
                               row.cycle > 1 ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
                             } ${
-                              row.horizontalSpiral || row.cycle > 1
+                              (row.horizontalSpiral || (row.cycle > 1 && !row.rectangularSpiral))
                                 ? 'bg-blue-500 border-blue-500 text-white'
                                 : 'bg-white border-gray-200 text-gray-700 hover:border-blue-400'
                             }`}>
                               <input
                                 type="checkbox"
-                                checked={row.horizontalSpiral || row.cycle > 1}
+                                checked={row.horizontalSpiral || (row.cycle > 1 && !row.rectangularSpiral)}
                                 onChange={(e) => handlePocketZigZagOptionChange(idx, 'horizontalSpiral', e.target.checked)}
                                 disabled={isOperating || row.cycle > 1}
                                 className="sr-only"
                               />
                               ↔ Horizontal
                             </label>
-                            {row.cycle > 1 && (
+                            {tableName === 'A' && !isModelF && (
+                              <label className={`inline-flex items-center justify-center gap-1 min-w-[150px] px-3 py-1 rounded-md border text-xs font-semibold transition-colors ${
+                                isOperating ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
+                              } ${
+                                row.rectangularSpiral
+                                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                                  : 'bg-white border-gray-200 text-gray-700 hover:border-emerald-400'
+                              }`}>
+                                <input
+                                  type="checkbox"
+                                  checked={!!row.rectangularSpiral}
+                                  onChange={(e) => handlePocketZigZagOptionChange(idx, 'rectangularSpiral', e.target.checked)}
+                                  disabled={isOperating}
+                                  className="sr-only"
+                                />
+                                Rectangular Spiral
+                              </label>
+                            )}
+                            {row.cycle > 1 && !row.rectangularSpiral && (
                               <span className="text-xs font-medium text-indigo-700">
                                 (&gt;1 cycle runs both patterns)
+                              </span>
+                            )}
+                            {row.cycle > 1 && row.rectangularSpiral && (
+                              <span className="text-xs font-medium text-emerald-700">
+                                (&gt;1 cycle spirals inward/outward continuously)
                               </span>
                             )}
                           </div>
@@ -2604,7 +2659,7 @@ export function CompactTableConfig({
                         setRows((prev: RowConfig[]) =>
                           prev.map((r) =>
                             shown.has(r.label)
-                              ? { ...r, force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, edgeCoverage: false }
+                              ? { ...r, force: 0, cycle: 0, verticalSpiral: false, horizontalSpiral: false, rectangularSpiral: false, edgeCoverage: false }
                               : r,
                           ),
                         );

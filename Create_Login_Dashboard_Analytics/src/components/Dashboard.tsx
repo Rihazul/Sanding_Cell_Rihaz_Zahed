@@ -24,6 +24,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
   const [robotSpeed, setRobotSpeed] = useState([100]);
   const [inverseOverlapping, setInverseOverlapping] = useState([0]);
   const [sandingSpeed, setSandingSpeed] = useState([75]);
+  const [tableAPocketEdgeOffset, setTableAPocketEdgeOffset] = useState([4]);
   const [spiralSpeed, setSpiralSpeed] = useState([150]); // mm/s
   const [spiralRadius, setSpiralRadius] = useState([12]); // mm
   const [spiralLinearSpeed] = useState([150]); // mm/s
@@ -440,6 +441,7 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
                 robotSpeed={robotSpeed}
                 sandingSpeed={sandingSpeed}
                 inverseOverlapping={inverseOverlapping}
+                tableAPocketEdgeOffset={tableAPocketEdgeOffset}
                 spiralSettings={{
                   enabled: isSpiralSettingsEnabled(),
                   speedPercent: spiralSpeed[0],
@@ -487,6 +489,8 @@ export function Dashboard({ onNavigateToAnalytics, activities, addActivity }: Da
               setInverseOverlapping={setInverseOverlapping}
               sandingSpeed={sandingSpeed}
               setSandingSpeed={setSandingSpeed}
+              tableAPocketEdgeOffset={tableAPocketEdgeOffset}
+              setTableAPocketEdgeOffset={setTableAPocketEdgeOffset}
             />
 
             <RobotStatusCard

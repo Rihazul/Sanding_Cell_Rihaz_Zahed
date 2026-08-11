@@ -173,6 +173,7 @@ export interface DxfToolpathPreviewPayload {
       vertical_paths: DxfToolpathPath[];
       horizontal_paths: DxfToolpathPath[];
       spiral_paths?: DxfToolpathPath[];
+      spiral_out_paths?: DxfToolpathPath[];
     };
   };
   // Region corner points (geometry the operator assigned).
@@ -529,8 +530,10 @@ const DXF_FRAME_SCOPE_ID = '__computed_frame__';
 const DXF_FRAME_LEVEL_DOOR_ID = '__frame_level_door__';
 // A locked Lines-mode auto-confirm waits this long after the last line selection
 // before committing the detected surface, so the operator can keep adding lines
-// (e.g. a 2-line triangle vs. a 3+ line rectangle) before it commits.
-const DXF_AUTO_CONFIRM_DELAY_MS = 1000;
+// (e.g. a 2-line triangle vs. a 3+ line rectangle) before it commits. Kept generous
+// so a 2-line V isn't locked as a triangle before the operator can add the 3rd/4th
+// line to form a rectangle/square.
+const DXF_AUTO_CONFIRM_DELAY_MS = 2000;
 // DXF_REGION_META comes from the untyped .jsx viewer, so widen it to a string
 // index before lookup to keep the region-assignment rows type-clean.
 const DXF_REGION_META_MAP = DXF_REGION_META as Record<string, { label: string; color: string }>;
@@ -1517,9 +1520,15 @@ export function TableBCadAssistedWorkspace({
     byHi: number,
     step: number,
     seqBase = 0,
+    insetStart = 0,
   ) => {
     const s = Math.max(step, 1e-6);
+    // insetStart lets the OUTWARD cycle spiral on rings offset by half a step so it threads
+    // between the inward cycle's rings (a different path, not a reversed retrace). Shrink the
+    // starting box by insetStart on all sides; bail if that collapses the box.
+    bxLo += insetStart; bxHi -= insetStart; byLo += insetStart; byHi -= insetStart;
     const points: number[][] = [];
+    if (bxHi - bxLo <= 1e-6 || byHi - byLo <= 1e-6) return [] as { start: number[]; end: number[]; id: string; tool: string; seq: number }[];
     const pushPt = (p: number[]) => {
       const last = points[points.length - 1];
       if (!last || Math.hypot(last[0] - p[0], last[1] - p[1]) > 1e-6) points.push(p);
@@ -1595,6 +1604,7 @@ export function TableBCadAssistedWorkspace({
     scope: Set<string> | null,
     orientation: 'vertical' | 'horizontal' | 'rectspiral' = dxfPocketZigzagOrientation,
     forceWindowSections = false,
+    spiralOut = false,
   ) => {
     const off = TOOL4_OFFSET_MM / dxfMmPerUnit;
     const overlap = Math.max(0, Math.min(100, dxfPocketOverlap));
@@ -1660,17 +1670,24 @@ export function TableBCadAssistedWorkspace({
         const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
         const sectionCount = Math.max(1, Math.ceil(xSpan / maxWindow));
         const sectionWidth = xSpan / sectionCount;
+        // spiralOut builds the OUTWARD variant: rings inset by half a step so multi-cycle runs
+        // thread between the inward rings (a different path, not a reversed retrace). The id
+        // marker `_tool4_rectout` still contains `_tool4_rect` so the backend spiral logic sees
+        // it, but distinguishes in-vs-out grouping.
+        const marker = spiralOut ? 'tool4_rectout' : 'tool4_rect';
+        const insetStart = spiralOut ? step / 2 : 0;
         console.log('[Pocket Toolpath] Tool 4 rectangular spiral', {
           pocket: pk.id,
           overlap_mm: overlap,
           step_mm: stepMmEffective,
           sections: sectionCount,
+          spiralOut,
         });
         for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
           const sxLo = bxLo + sectionIndex * sectionWidth;
           const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
           segments.push(
-            ...buildRectSpiralTool4Segments(`${pk.id}_tool4_rect_sec${sectionIndex + 1}`, sxLo, sxHi, byLo, byHi, step, sectionIndex * 10000),
+            ...buildRectSpiralTool4Segments(`${pk.id}_${marker}_sec${sectionIndex + 1}`, sxLo, sxHi, byLo, byHi, step, sectionIndex * 10000, insetStart),
           );
         }
         continue;
@@ -2264,18 +2281,20 @@ export function TableBCadAssistedWorkspace({
       }
     };
 
-    const alternatePocketZigzagOrientation = dxfPocketZigzagOrientation === 'vertical' ? 'horizontal' : 'vertical';
+    const alternatePocketZigzagOrientation: 'vertical' | 'horizontal' = dxfPocketZigzagOrientation === 'vertical' ? 'horizontal' : 'vertical';
     const rawPocketTp = computeDxfPocketToolpaths(scope);
     const rawPocketZz = computeDxfPocketZigzag(scope, dxfPocketZigzagOrientation);
     const rawPocketZzCycleVertical = computeDxfPocketZigzag(scope, 'vertical', true);
     const rawPocketZzCycleHorizontal = computeDxfPocketZigzag(scope, 'horizontal', true);
     const rawPocketZzCycleSpiral = computeDxfPocketZigzag(scope, 'rectspiral', true);
+    const rawPocketZzCycleSpiralOut = computeDxfPocketZigzag(scope, 'rectspiral', true, true);
     const rawContourTp = computeDxf3dContourToolpaths(scope);
     const plannedPocketTp = await planSegmentsForTool(rawPocketTp, 'Pocket contour (Tool 3)', true, 'tool_3');
     const plannedPocketZz = await planSegmentsForTool(rawPocketZz, 'Pocket zigzag (Tool 4)', false, 'tool_4');
     const plannedPocketZzCycleVertical = await planSegmentsForTool(rawPocketZzCycleVertical, 'Pocket zigzag vertical cycle pattern (Tool 4)', false, 'tool_4');
     const plannedPocketZzCycleHorizontal = await planSegmentsForTool(rawPocketZzCycleHorizontal, 'Pocket zigzag horizontal cycle pattern (Tool 4)', false, 'tool_4');
     const plannedPocketZzCycleSpiral = await planSegmentsForTool(rawPocketZzCycleSpiral, 'Pocket rectangular spiral cycle pattern (Tool 4)', false, 'tool_4');
+    const plannedPocketZzCycleSpiralOut = await planSegmentsForTool(rawPocketZzCycleSpiralOut, 'Pocket rectangular spiral OUT cycle pattern (Tool 4)', false, 'tool_4');
     const plannedContourTp = await planSegmentsForTool(rawContourTp, '3D contour ring', true, 'tool_1');
     const pocketTp = plannedPocketTp.segments;
     const pocketZz = plannedPocketZz.segments;
@@ -2288,6 +2307,7 @@ export function TableBCadAssistedWorkspace({
       vertical_paths: plannedPocketZzCycleVertical.paths,
       horizontal_paths: plannedPocketZzCycleHorizontal.paths,
       spiral_paths: plannedPocketZzCycleSpiral.paths,
+      spiral_out_paths: plannedPocketZzCycleSpiralOut.paths,
     };
     const contourTpPaths = plannedContourTp.paths;
     setDxfPocketToolpaths(pocketTp);
