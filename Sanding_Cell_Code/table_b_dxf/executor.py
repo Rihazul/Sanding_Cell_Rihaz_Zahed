@@ -20,6 +20,8 @@ from .tool_reach import TOOL_REACH, attach_station_plan, reach_span_at_y, statio
 
 logger = logging.getLogger(__name__)
 
+TOOL4_POCKET_PASS_WIDTH_MM = 144.0
+
 # Real execution is enabled. The symbol stays available so Flask can report the
 # current mode to the UI, but the dry-run bypass is no longer used.
 DRY_RUN = False
@@ -505,6 +507,79 @@ def _append_continuous_points(target: list[list[float]], points: list[list[float
         target.extend(points)
 
 
+def _float_bounds(bounds: Any) -> dict[str, float] | None:
+    if not isinstance(bounds, dict):
+        return None
+    try:
+        x_min = float(bounds["x_min"])
+        x_max = float(bounds["x_max"])
+        y_min = float(bounds["y_min"])
+        y_max = float(bounds["y_max"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if x_max <= x_min or y_max <= y_min:
+        return None
+    return {"x_min": x_min, "x_max": x_max, "y_min": y_min, "y_max": y_max}
+
+
+def _window_bounds_for_paths(paths: list[dict[str, Any]]) -> dict[str, float] | None:
+    for path in paths:
+        bounds = _float_bounds(path.get("cycle_window_bounds"))
+        if bounds is not None:
+            return bounds
+    return None
+
+
+def _zigzag_adjusted_step(span: float, requested_step: float) -> float:
+    step = requested_step if requested_step > 1e-9 else span
+    steps = max(1, round(span / step))
+    return span / steps
+
+
+def _build_window_serpentine_from_bounds(
+    bounds: dict[str, float],
+    orientation: str,
+    start_corner: list[float] | None,
+    step_mm: float,
+) -> list[list[float]]:
+    x_lo = bounds["x_min"]
+    x_hi = bounds["x_max"]
+    y_lo = bounds["y_min"]
+    y_hi = bounds["y_max"]
+    have_start = start_corner is not None and len(start_corner) >= 2
+    sx = float(start_corner[0]) if have_start else x_hi
+    sy = float(start_corner[1]) if have_start else y_lo
+
+    if orientation == "vertical":
+        adjusted = _zigzag_adjusted_step(x_hi - x_lo, step_mm)
+        lane_count = max(1, round((x_hi - x_lo) / adjusted))
+        lanes = [x_lo + index * adjusted for index in range(lane_count + 1)]
+        if abs(sx - x_hi) <= abs(sx - x_lo):
+            lanes = list(reversed(lanes))
+        sweep_from_hi = abs(sy - y_hi) < abs(sy - y_lo)
+        out: list[list[float]] = []
+        for lane in lanes:
+            p0 = [lane, y_hi if sweep_from_hi else y_lo]
+            p1 = [lane, y_lo if sweep_from_hi else y_hi]
+            _append_continuous_points(out, [p0, p1])
+            sweep_from_hi = not sweep_from_hi
+        return out
+
+    adjusted = _zigzag_adjusted_step(y_hi - y_lo, step_mm)
+    lane_count = max(1, round((y_hi - y_lo) / adjusted))
+    lanes = [y_lo + index * adjusted for index in range(lane_count + 1)]
+    if abs(sy - y_hi) <= abs(sy - y_lo):
+        lanes = list(reversed(lanes))
+    sweep_from_hi = abs(sx - x_hi) < abs(sx - x_lo)
+    out = []
+    for lane in lanes:
+        p0 = [x_hi if sweep_from_hi else x_lo, lane]
+        p1 = [x_lo if sweep_from_hi else x_hi, lane]
+        _append_continuous_points(out, [p0, p1])
+        sweep_from_hi = not sweep_from_hi
+    return out
+
+
 def _combined_window_cycle_path(
     *,
     window_key: str,
@@ -514,6 +589,7 @@ def _combined_window_cycle_path(
     cycles: int,
     force: int,
     start_cursor: list[float] | None,
+    step_mm: float,
 ) -> tuple[dict[str, Any] | None, list[float] | None]:
     """Build one force-contact path for all cycles inside one shared reach window.
 
@@ -532,18 +608,26 @@ def _combined_window_cycle_path(
         if not window_paths:
             return None, start_cursor
 
-        ordered_paths = _ordered_pattern_paths(window_paths, cursor)
-        for path in ordered_paths:
-            pts = _xy_points(path.get("points") or [])
+        if first_path is None:
+            first_path = dict(window_paths[0])
+        bounds = _window_bounds_for_paths(window_paths)
+        if bounds is not None:
+            pts = _build_window_serpentine_from_bounds(bounds, orientation, cursor, step_mm)
             if len(pts) < 2:
-                continue
-            rebuilt = _rebuild_serpentine_from_corner(pts, orientation, cursor)
-            if rebuilt and len(rebuilt) >= 2:
-                pts = rebuilt
-            if first_path is None:
-                first_path = dict(path)
+                return None, start_cursor
             _append_continuous_points(combined, pts)
             cursor = combined[-1]
+        else:
+            ordered_paths = _ordered_pattern_paths(window_paths, cursor)
+            for path in ordered_paths:
+                pts = _xy_points(path.get("points") or [])
+                if len(pts) < 2:
+                    continue
+                rebuilt = _rebuild_serpentine_from_corner(pts, orientation, cursor)
+                if rebuilt and len(rebuilt) >= 2:
+                    pts = rebuilt
+                _append_continuous_points(combined, pts)
+                cursor = combined[-1]
         orientations.append(orientation)
 
     if first_path is None or len(combined) < 2:
@@ -625,6 +709,11 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
     rect_spiral_selected = raw_selected == "rectspiral"
     selected = "horizontal" if raw_selected == "horizontal" else "vertical"
     alternate = "vertical" if selected == "horizontal" else "horizontal"
+    try:
+        overlap_mm = max(0.0, min(100.0, float(settings.get("pocket_overlap_mm") or 0.0)))
+    except (TypeError, ValueError):
+        overlap_mm = 0.0
+    step_mm = max(TOOL4_POCKET_PASS_WIDTH_MM - overlap_mm, 1.0)
     vertical_paths = [dict(path) for path in (patterns.get("vertical_paths") or [])]
     horizontal_paths = [dict(path) for path in (patterns.get("horizontal_paths") or [])]
     spiral_paths = [dict(path) for path in (patterns.get("spiral_paths") or [])]
@@ -683,6 +772,7 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 cycles=cycles,
                 force=zigzag_recipe["force"],
                 start_cursor=cursor,
+                step_mm=step_mm,
             )
             if combined_path is not None:
                 expanded.append(combined_path)
