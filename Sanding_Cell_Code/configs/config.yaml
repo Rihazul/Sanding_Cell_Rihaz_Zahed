@@ -135,7 +135,7 @@ door:
   tableBDxfJointTransitionLimitMarginDeg: 10.0
   # Short synchronization only when Table B DXF switches operation family with the
   # same mounted tool, e.g. Tool 4 frame -> Tool 4 pocket zigzag.
-  operationBoundaryBlendTimeoutSec: 0.8
+  operationBoundaryBlendTimeoutSec: 1.5
   # When leaving a low-Y/bottom pose for Tool 1/3/4, move above the low-Y reach
   # threshold by this margin before shifting J7 so local X cannot go negative.
   lowYEscapeMarginMm: 25.0
