@@ -13,6 +13,7 @@ from Server_Better_V2 import (
     stop_requested,
     turn_vibration_off,
     turn_vibration_on,
+    waitForBlending,
 )
 
 from .common import (
@@ -100,6 +101,19 @@ def _motion_queue_flush_every(config: dict[str, Any]) -> int:
     except (TypeError, ValueError):
         flush_every = 8
     return max(0, flush_every)
+
+
+def _motion_queue_flush_settle_sec(config: dict[str, Any]) -> float:
+    value = None
+    if isinstance(config, dict):
+        value = (config.get("door") or {}).get("tableBDxfMotionFlushSettleSec")
+        if value is None:
+            value = (config.get("settings") or {}).get("tableBDxfMotionFlushSettleSec")
+    try:
+        settle_s = float(value) if value is not None else 0.15
+    except (TypeError, ValueError):
+        settle_s = 0.15
+    return max(0.0, settle_s)
 
 
 def _simultaneous_j7_robot_enabled(config: dict[str, Any]) -> bool:
@@ -736,6 +750,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     cycles = int(step.get("recipe", {}).get("cycle") or 1)
     axis7_position = step.get("axis7_position_mm")
     flush_every = _motion_queue_flush_every(config)
+    flush_settle_s = _motion_queue_flush_settle_sec(config)
     simultaneous_j7_robot = _simultaneous_j7_robot_enabled(config)
     current_pose = _read_current_coord_pose(cps, tcp, ucs)
     low_y_j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, current_pose)
@@ -766,13 +781,14 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
         cycles,
         "loop" if is_closed else "pingpong",
         flush_every,
+        flush_settle_s,
         simultaneous_j7_robot,
         j7_idle_before_prepoint,
         low_y_j7_idle_before_prepoint,
@@ -963,7 +979,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 wait_for_point = _should_wait_for_motion_point(
                     point_index, len(cycle_points), flush_every
                 )
-                communicate(
+                move_result = communicate(
                     cps=cps,
                     config=config,
                     point=_pose_from_xy(xy, force_control_z, rxyz),
@@ -975,6 +991,13 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                     speed_mode="linear",
                     wait=wait_for_point,
                 )
+                if move_result is False:
+                    raise TableBDxfRobotExecutionError(
+                        f"Sanding MoveL was rejected or stopped for path {step.get('path_id')} "
+                        f"at point {point_index}/{len(cycle_points)}."
+                    )
+                if wait_for_point and point_index < len(cycle_points) and flush_settle_s > 0.0:
+                    waitForBlending(cps=cps, config=config, timeout_s=flush_settle_s)
                 current_xy = xy
     except TableBDxfRobotStopRequested:
         stopped = True
