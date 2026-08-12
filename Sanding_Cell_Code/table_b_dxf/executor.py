@@ -601,16 +601,29 @@ def _combined_window_cycle_path(
     cursor = start_cursor
     first_path: dict[str, Any] | None = None
     orientations: list[str] = []
+    all_window_paths: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for orientation_name in ("vertical", "horizontal", selected, alternate):
+        for candidate in grouped.get(orientation_name, {}).get(window_key) or []:
+            candidate_id = str(candidate.get("path_id") or id(candidate))
+            if candidate_id in seen_ids:
+                continue
+            seen_ids.add(candidate_id)
+            all_window_paths.append(candidate)
+
+    shared_bounds = _window_bounds_for_paths(all_window_paths)
+    if all_window_paths and first_path is None:
+        first_path = dict(all_window_paths[0])
 
     for cycle_index in range(1, cycles + 1):
         orientation = selected if cycle_index % 2 == 1 else alternate
         window_paths = grouped.get(orientation, {}).get(window_key) or []
-        if not window_paths:
+        if not window_paths and shared_bounds is None:
             return None, start_cursor
 
-        if first_path is None:
+        if first_path is None and window_paths:
             first_path = dict(window_paths[0])
-        bounds = _window_bounds_for_paths(window_paths)
+        bounds = _window_bounds_for_paths(window_paths) or shared_bounds
         if bounds is not None:
             pts = _build_window_serpentine_from_bounds(bounds, orientation, cursor, step_mm)
             if len(pts) < 2:
@@ -744,7 +757,14 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 window_order.append(key)
     else:
         if not by_orientation[selected] or not by_orientation[alternate]:
-            return None
+            logger.info(
+                "[TableB DXF Run] pocket zigzag cycle alternation has incomplete hidden paths "
+                "selected=%s count=%s alternate=%s count=%s; using available window bounds",
+                selected,
+                len(by_orientation[selected]),
+                alternate,
+                len(by_orientation[alternate]),
+            )
         for path in by_orientation[selected]:
             key = _pocket_zigzag_window_key(path)
             if key not in window_order:
@@ -753,6 +773,19 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
             key = _pocket_zigzag_window_key(path)
             if key not in window_order:
                 window_order.append(key)
+        if not window_order:
+            for orientation_paths in (vertical_paths, horizontal_paths):
+                for path in orientation_paths:
+                    key = _pocket_zigzag_window_key(path)
+                    if key not in window_order:
+                        window_order.append(key)
+        logger.info(
+            "[TableB DXF Run] pocket zigzag continuous cycles selected=%s alternate=%s cycles=%s windows=%s",
+            selected,
+            alternate,
+            cycles,
+            len(window_order),
+        )
 
     expanded: list[dict[str, Any]] = []
     cursor: list[float] | None = None

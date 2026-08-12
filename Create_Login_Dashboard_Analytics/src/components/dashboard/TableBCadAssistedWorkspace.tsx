@@ -2269,6 +2269,8 @@ export function TableBCadAssistedWorkspace({
             operation_type: operation,
             closed: path.closed,
             points: path.points,
+            cycle_window_id: path.cycle_window_id,
+            cycle_window_bounds: path.cycle_window_bounds,
           })),
         );
         const responsePaths = result.toolpaths ?? [];
@@ -2290,8 +2292,8 @@ export function TableBCadAssistedWorkspace({
             reach_split_index: path.reach_split_index,
             reach_split_count: path.reach_split_count,
             chained_path_ids: path.chained_path_ids,
-            cycle_window_id: source?.cycle_window_id,
-            cycle_window_bounds: source?.cycle_window_bounds,
+            cycle_window_id: path.cycle_window_id ?? source?.cycle_window_id,
+            cycle_window_bounds: path.cycle_window_bounds ?? source?.cycle_window_bounds,
           };
         }) as DxfToolpathPath[];
         const stationOrder = (result.reach_plan?.stations ?? []).flatMap((station) => station.path_indices ?? []);
