@@ -8,6 +8,7 @@ from Server_Better_V2 import (
     communicate,
     getTool11,
     keepTool11,
+    waitForBlending,
 )
 
 from .common import (
@@ -27,6 +28,64 @@ TOOL_1_3_JOINT_CORRECTIONS: dict[tuple[int, int], dict[str, float]] = {
     (1, 3): {"J1": 30.0, "J6": -90.0},
     (3, 1): {"J1": -30.0, "J6": 90.0},
 }
+
+
+def _table_b_execution_value(config: dict[str, Any], key: str, default: float) -> float:
+    value = None
+    if isinstance(config, dict):
+        motion_cfg = config.get("tableBDxfMotion")
+        if isinstance(motion_cfg, dict):
+            value = motion_cfg.get(key)
+        if value is None:
+            value = (config.get("door") or {}).get(key)
+        if value is None:
+            value = (config.get("settings") or {}).get(key)
+    try:
+        return float(value) if value is not None else float(default)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _xy_operation_family(step: dict[str, Any]) -> str:
+    text = " ".join(
+        str(step.get(key) or "")
+        for key in ("tool", "operation", "path_id", "split_from_path_id")
+    ).lower()
+    if "frame" in text:
+        return "frame"
+    if "zigzag" in text or "pocketzigzag" in text or str(step.get("tool") or "") == "tool_4":
+        return "pocket_zigzag"
+    if "3d" in text:
+        return "3d"
+    if "edge" in text or str(step.get("tool") or "") == "tool_3":
+        return "pocket_edge"
+    return text or "unknown"
+
+
+def _settle_between_xy_operation_families(
+    cps: Any,
+    config: dict[str, Any],
+    previous_step: dict[str, Any],
+    next_step: dict[str, Any],
+) -> None:
+    previous_family = _xy_operation_family(previous_step)
+    next_family = _xy_operation_family(next_step)
+    if previous_family == next_family:
+        return
+    timeout_s = max(
+        0.0,
+        _table_b_execution_value(config, "operationBoundaryBlendTimeoutSec", 0.8),
+    )
+    if timeout_s <= 0.0:
+        return
+    _log(
+        config,
+        "[TableB DXF Robot] operation boundary settle: %s -> %s before path %s",
+        previous_family,
+        next_family,
+        next_step.get("path_id"),
+    )
+    waitForBlending(cps=cps, config=config, timeout_s=timeout_s)
 
 
 def _normalize_tool_in_hand(raw_tool: Any) -> int | None:
@@ -248,9 +307,15 @@ def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> di
             if physical_tool == 2:
                 executed_steps += run_tool2_side_batch(cps, config, steps)
             else:
+                previous_xy_step: dict[str, Any] | None = None
                 for step in steps:
                     _raise_if_stop_requested(cps, config, "before next path")
+                    if previous_xy_step is not None:
+                        _settle_between_xy_operation_families(
+                            cps, config, previous_xy_step, step
+                        )
                     run_force_xy_path(cps, config, step)
+                    previous_xy_step = step
                     executed_steps += 1
         except JointSafetyLimitError:
             if physical_tool == 2:
