@@ -4,6 +4,7 @@ from typing import Any
 
 
 TABLE_B_SAFE_TRAVEL_Z_MM = -50.0
+TABLE_B_BOTTOM_SAFE_TRAVEL_Y_MM = 100.0
 TABLE_B_PREHEIGHT_Z_MM = -17.0
 # How far (mm) to descend FAST (regular robot speed, no force control) from the
 # pre-height TOWARD the surface before starting the slow force search. On Table B
@@ -65,6 +66,10 @@ def preheight_z_mm(config: dict[str, Any]) -> float:
 
 def safe_travel_z_mm(config: dict[str, Any]) -> float:
     return _float_override(config, "safeTravelZMm", TABLE_B_SAFE_TRAVEL_Z_MM)
+
+
+def bottom_safe_travel_y_mm(config: dict[str, Any]) -> float:
+    return _float_override(config, "bottomSafeTravelYMm", TABLE_B_BOTTOM_SAFE_TRAVEL_Y_MM)
 
 
 def force_fast_approach_mm(config: dict[str, Any]) -> float:

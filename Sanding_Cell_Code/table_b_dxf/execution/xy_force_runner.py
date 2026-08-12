@@ -25,6 +25,7 @@ from .common import (
 )
 from .joint_safety import JOINT_LIMITS_DEG, read_current_joints
 from .motion_config import (
+    bottom_safe_travel_y_mm,
     force_fast_approach_mm,
     force_sanding_overshoot_mm,
     orientation,
@@ -42,6 +43,25 @@ def _pose_from_xy(xy: list[float], z_mm: float, rxyz: list[float]) -> list[float
     if len(xy) < 2:
         raise TableBDxfRobotExecutionError(f"Invalid XY point: {xy}")
     return [float(xy[0]), float(xy[1]), float(z_mm), rxyz[0], rxyz[1], rxyz[2]]
+
+
+def _bottom_corridor_xy(xy: list[float], bottom_safe_y: float) -> list[float]:
+    if len(xy) < 2:
+        raise TableBDxfRobotExecutionError(f"Invalid XY point: {xy}")
+    x = float(xy[0])
+    y = float(xy[1])
+    if y < bottom_safe_y:
+        return [x, bottom_safe_y]
+    return [x, y]
+
+
+def _safe_travel_pose_from_xy(
+    xy: list[float],
+    safe_z: float,
+    rxyz: list[float],
+    bottom_safe_y: float,
+) -> list[float]:
+    return _pose_from_xy(_bottom_corridor_xy(xy, bottom_safe_y), safe_z, rxyz)
 
 
 def _path_points(step: dict[str, Any]) -> list[list[float]]:
@@ -738,6 +758,7 @@ def _lift_to_preheight_no_force(
     config: dict[str, Any],
     current_xy: list[float],
     safe_z: float,
+    bottom_safe_y: float,
     rxyz: list[float],
     tcp: str,
     ucs: str,
@@ -758,39 +779,42 @@ def _lift_to_preheight_no_force(
         return
     logger = config.get("logger") if isinstance(config, dict) else None
     try:
-        # Read the tool's ACTUAL XY/Z. A mid-move stop halts the tool between commanded
+        # Read the tool's ACTUAL XY/Z in the active Table B TCP/UCS. A mid-move stop halts
+        # the tool between commanded
         # points, so the last commanded current_xy is not exactly where the tool is; lifting
         # from the actual XY makes the retract a true straight-up move with no lateral scrub
-        # across the surface. We also use actual Z to ensure we only move AWAY from the
+        # across the surface. We also use actual Z/Y to ensure we only move AWAY from the
         # surface: on Table B +Z is toward the surface, so lifting means going to a
-        # LESS-positive Z (safe_z). If the tool is already at/above safe_z, skip so we never
-        # command a move back down into the surface.
+        # LESS-positive Z (safe_z). If the tool stopped below bottom_safe_y, the retract
+        # target is shifted to that corridor Y at safe_z before homing/task continuation.
         actual_xy = None
         actual_z = None
         result = []
         try:
-            if cps.HRIF_ReadActPos(0, 0, result) == 0 and len(result) >= 9:
+            if cps.HRIF_ReadActCoord(0, 0, tcp, ucs, result) == 0 and len(result) >= 12:
                 actual_xy = [float(result[6]), float(result[7])]
                 actual_z = float(result[8])
         except Exception:
             actual_xy = None
             actual_z = None
-        if actual_z is not None and actual_z <= safe_z + 0.5:
+        lift_xy = actual_xy if actual_xy is not None else current_xy
+        target_xy = _bottom_corridor_xy(lift_xy, bottom_safe_y)
+        already_safe_z = actual_z is not None and actual_z <= safe_z + 0.5
+        already_safe_y = float(lift_xy[1]) >= bottom_safe_y - 0.5
+        if already_safe_z and already_safe_y:
             # Already at or above the retract height; nothing to lift.
             if logger:
                 logger.info(
-                    "[TableB DXF Robot] stop-lift skipped: already at/above safe height "
-                    "(actual Z=%.2f, safe_z=%.2f).",
-                    actual_z, safe_z,
+                    "[TableB DXF Robot] stop-lift skipped: already in safe corridor "
+                    "(actual Y=%.2f, Z=%.2f, corridorY=%.2f, safe_z=%.2f).",
+                    lift_xy[1], actual_z, bottom_safe_y, safe_z,
                 )
             return
-        # Prefer the actual XY (straight-up lift); fall back to the last commanded XY if the
-        # position read failed.
-        lift_xy = actual_xy if actual_xy is not None else current_xy
-        lift_pose = _pose_from_xy(lift_xy, safe_z, rxyz)
+        lift_pose = _pose_from_xy(target_xy, safe_z, rxyz)
         if logger:
             logger.info(
-                "[TableB DXF Robot] stop-lift: retracting tool to safe height %.2f mm with no force.",
+                "[TableB DXF Robot] stop-lift: retracting tool to safe corridor Y %.2f / Z %.2f with no force.",
+                target_xy[1],
                 safe_z,
             )
         # communicate() and its wait loop both bail on a latched stop flag, so a MoveL issued
@@ -840,6 +864,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     ucs = table_b_ucs(config)
     rxyz = orientation(config)
     safe_z = safe_travel_z_mm(config)
+    bottom_safe_y = bottom_safe_travel_y_mm(config)
     pre_z = preheight_z_mm(config)
     # Travel/retract happens at the safer Z height. The force sequence still
     # starts from pre_z after the arm has arrived at the toolpath start point.
@@ -896,7 +921,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs readyTimeout=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s safeZ=%.1f preZ=%.1f force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs readyTimeout=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s safeZ=%.1f bottomSafeY=%.1f preZ=%.1f force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -915,12 +940,13 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         "None" if current_y is None else f"{float(current_y):.1f}",
         "None" if current_j3 is None else f"{float(current_j3):.1f}",
         safe_z,
+        bottom_safe_y,
         pre_z,
         force,
         axis7_position,
     )
 
-    start_safe_pose = _pose_from_xy(points[0], safe_z, rxyz)
+    start_safe_pose = _safe_travel_pose_from_xy(points[0], safe_z, rxyz, bottom_safe_y)
     start_pre_pose = _pose_from_xy(points[0], pre_z, rxyz)
     if axis7_position is not None and simultaneous_j7_robot and not j7_idle_before_prepoint:
         j7_result = communicate(
@@ -1176,12 +1202,12 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
             # the retract MoveL is a pure position move (no pressure into the surface).
             _stop_active_motion(cps, config, "after stop cleanup")
             _lift_to_preheight_no_force(
-                cps, config, current_xy, safe_z, rxyz, tcp, ucs, physical_tool
+                cps, config, current_xy, safe_z, bottom_safe_y, rxyz, tcp, ucs, physical_tool
             )
             if not stopped:
                 raise TableBDxfRobotStopRequested("Table B DXF operation stopped by user.")
         else:
-            lift_pose = _pose_from_xy(current_xy, safe_z, rxyz)
+            lift_pose = _safe_travel_pose_from_xy(current_xy, safe_z, rxyz, bottom_safe_y)
             communicate(
                 cps=cps,
                 config=config,

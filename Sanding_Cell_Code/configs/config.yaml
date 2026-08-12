@@ -142,6 +142,9 @@ door:
   # Safe free-space Z for Table B DXF Tool 1/3/4 travel, retract, and stop lift.
   # Table B +Z points down, so -50 is above the sanding surface.
   safeTravelZMm: -50.0
+  # Bottom travel corridor for Table B DXF Tool 1/3/4. If a path starts/stops
+  # below this Y, free-space travel/retract moves through this Y at safeTravelZMm.
+  bottomSafeTravelYMm: 100.0
   # If any robot joint is within this many degrees of its physical limit before a
   # Table B DXF Tool 1/3/4 transition, finish J7 first instead of moving J7+arm together.
   tableBDxfJointTransitionLimitMarginDeg: 10.0
