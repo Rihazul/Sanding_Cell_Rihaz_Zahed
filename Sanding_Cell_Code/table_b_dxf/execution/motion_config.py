@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
+TABLE_B_SAFE_TRAVEL_Z_MM = -50.0
 TABLE_B_PREHEIGHT_Z_MM = -17.0
 # How far (mm) to descend FAST (regular robot speed, no force control) from the
 # pre-height TOWARD the surface before starting the slow force search. On Table B
@@ -39,8 +40,16 @@ class TableBDxfMotionConfigError(RuntimeError):
 
 
 def _motion_overrides(config: dict[str, Any]) -> dict[str, Any]:
-    value = config.get("tableBDxfMotion", {}) if isinstance(config, dict) else {}
-    return value if isinstance(value, dict) else {}
+    if not isinstance(config, dict):
+        return {}
+    value = config.get("tableBDxfMotion")
+    if isinstance(value, dict):
+        return value
+    # Most Table B DXF motion settings currently live under the existing
+    # "door" section in config.yaml. Keep supporting that layout so motion
+    # constants are not silently ignored.
+    door_value = config.get("door")
+    return door_value if isinstance(door_value, dict) else {}
 
 
 def _float_override(config: dict[str, Any], key: str, default: float) -> float:
@@ -52,6 +61,10 @@ def _float_override(config: dict[str, Any], key: str, default: float) -> float:
 
 def preheight_z_mm(config: dict[str, Any]) -> float:
     return _float_override(config, "preheightZMm", TABLE_B_PREHEIGHT_Z_MM)
+
+
+def safe_travel_z_mm(config: dict[str, Any]) -> float:
+    return _float_override(config, "safeTravelZMm", TABLE_B_SAFE_TRAVEL_Z_MM)
 
 
 def force_fast_approach_mm(config: dict[str, Any]) -> float:

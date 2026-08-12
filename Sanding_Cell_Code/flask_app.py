@@ -1019,6 +1019,10 @@ def _run_homing_child(config_data_UI):
 
         if recover_tool2_before_homing_if_needed(cps, config_data_UI):
             config_data_UI["logger"].info("[homing child] Tool 2 recovery completed before homing")
+        from table_b_dxf.execution.xy_homing_recovery import recover_xy_tool_before_homing_if_needed
+
+        if recover_xy_tool_before_homing_if_needed(cps, config_data_UI):
+            config_data_UI["logger"].info("[homing child] Table B XY Tool 1/3/4 recovery completed before homing")
         # Table A (small table) Tool 2 side/edge stop recovery: lift off the door and (for non-top
         # sides) turn the wrist to homing J6 before the normal homing runs.
         from smallTable.tool2_stop_backoff import recover_tool2_after_stop_if_needed
@@ -1069,6 +1073,10 @@ def _run_homing_inline(config_data_UI):
 
             if recover_tool2_before_homing_if_needed(CPS, config_data_UI):
                 config_data_UI["logger"].info("[homing inline] Tool 2 recovery completed before homing")
+            from table_b_dxf.execution.xy_homing_recovery import recover_xy_tool_before_homing_if_needed
+
+            if recover_xy_tool_before_homing_if_needed(CPS, config_data_UI):
+                config_data_UI["logger"].info("[homing inline] Table B XY Tool 1/3/4 recovery completed before homing")
             # Table A (small table) Tool 2 side/edge stop recovery: lift off the door and (for
             # non-top sides) turn the wrist to homing J6 before the normal homing runs.
             from smallTable.tool2_stop_backoff import recover_tool2_after_stop_if_needed

@@ -30,6 +30,7 @@ from .motion_config import (
     orientation,
     preheight_z_mm,
     robot_speed,
+    safe_travel_z_mm,
     sanding_speed,
     table_b_ucs,
     tcp_for_physical_tool,
@@ -279,13 +280,20 @@ def _requires_j7_idle_before_prepoint(
     physical_tool: int,
     current_pose: list[float] | None,
 ) -> bool:
-    """If the arm is currently low/bottom, do not move it while J7 is travelling."""
+    """Fallback only when the current pose cannot be evaluated.
+
+    Being in the low-Y/bottom rectangle is not unsafe by itself. It is unsafe only
+    when the transition cuts through the low-Y / negative-local-X notch. That
+    check belongs to _transition_crosses_low_y_negative_x_zone(), which compares
+    the current pose with the actual target. Keeping this function conservative
+    avoids unnecessary safe-Y detours for normal same-window transitions.
+    """
     low_y_limit = _low_y_limit_for_tool(physical_tool)
     if low_y_limit is None:
         return False
     if current_pose is None or len(current_pose) < 2:
         return True
-    return float(current_pose[1]) < low_y_limit
+    return False
 
 
 def _requires_high_negative_x_escape_before_low_y(
@@ -570,7 +578,7 @@ def _escape_low_y_during_j7(
     physical_tool: int,
     current_pose: list[float] | None,
     axis7_position: float | None,
-    pre_z: float,
+    safe_z: float,
     rxyz: list[float],
     tcp: str,
     ucs: str,
@@ -602,15 +610,15 @@ def _escape_low_y_during_j7(
         current_z,
         escape_x,
         escape_y,
-        pre_z,
+        safe_z,
         float(axis7_position),
     )
 
-    if current_z > pre_z + 0.5:
+    if current_z > safe_z + 0.5:
         communicate(
             cps=cps,
             config=config,
-            point=[current_x, current_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+            point=[current_x, current_y, safe_z, rxyz[0], rxyz[1], rxyz[2]],
             tcp=tcp,
             ucs=ucs,
             seventh=-1,
@@ -636,7 +644,7 @@ def _escape_low_y_during_j7(
     communicate(
         cps=cps,
         config=config,
-        point=[escape_x, escape_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+        point=[escape_x, escape_y, safe_z, rxyz[0], rxyz[1], rxyz[2]],
         tcp=tcp,
         ucs=ucs,
         seventh=-1,
@@ -655,7 +663,7 @@ def _escape_high_negative_x_during_j7(
     physical_tool: int,
     current_pose: list[float] | None,
     axis7_position: float | None,
-    pre_z: float,
+    safe_z: float,
     rxyz: list[float],
     tcp: str,
     ucs: str,
@@ -679,15 +687,15 @@ def _escape_high_negative_x_during_j7(
         current_y,
         current_z,
         escape_y,
-        pre_z,
+        safe_z,
         float(axis7_position),
     )
 
-    if current_z > pre_z + 0.5:
+    if current_z > safe_z + 0.5:
         communicate(
             cps=cps,
             config=config,
-            point=[current_x, current_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+            point=[current_x, current_y, safe_z, rxyz[0], rxyz[1], rxyz[2]],
             tcp=tcp,
             ucs=ucs,
             seventh=-1,
@@ -713,7 +721,7 @@ def _escape_high_negative_x_during_j7(
     communicate(
         cps=cps,
         config=config,
-        point=[0.0, escape_y, pre_z, rxyz[0], rxyz[1], rxyz[2]],
+        point=[0.0, escape_y, safe_z, rxyz[0], rxyz[1], rxyz[2]],
         tcp=tcp,
         ucs=ucs,
         seventh=-1,
@@ -729,13 +737,13 @@ def _lift_to_preheight_no_force(
     cps: Any,
     config: dict[str, Any],
     current_xy: list[float],
-    pre_z: float,
+    safe_z: float,
     rxyz: list[float],
     tcp: str,
     ucs: str,
     physical_tool: int,
 ) -> None:
-    """On STOP, lift the tool straight up to the pre-height (-17) with NO force.
+    """On STOP, lift the tool straight up to the safe travel height with NO force.
 
     Force control must already be OFF (stop_active_motion disables it) so this is a pure
     position move that releases the surface immediately — no pressure, no dragging, no
@@ -755,7 +763,7 @@ def _lift_to_preheight_no_force(
         # from the actual XY makes the retract a true straight-up move with no lateral scrub
         # across the surface. We also use actual Z to ensure we only move AWAY from the
         # surface: on Table B +Z is toward the surface, so lifting means going to a
-        # LESS-positive Z (pre_z). If the tool is already at/above pre_z, skip so we never
+        # LESS-positive Z (safe_z). If the tool is already at/above safe_z, skip so we never
         # command a move back down into the surface.
         actual_xy = None
         actual_z = None
@@ -767,23 +775,23 @@ def _lift_to_preheight_no_force(
         except Exception:
             actual_xy = None
             actual_z = None
-        if actual_z is not None and actual_z <= pre_z + 0.5:
+        if actual_z is not None and actual_z <= safe_z + 0.5:
             # Already at or above the retract height; nothing to lift.
             if logger:
                 logger.info(
-                    "[TableB DXF Robot] stop-lift skipped: already at/above pre-height "
-                    "(actual Z=%.2f, pre_z=%.2f).",
-                    actual_z, pre_z,
+                    "[TableB DXF Robot] stop-lift skipped: already at/above safe height "
+                    "(actual Z=%.2f, safe_z=%.2f).",
+                    actual_z, safe_z,
                 )
             return
         # Prefer the actual XY (straight-up lift); fall back to the last commanded XY if the
         # position read failed.
         lift_xy = actual_xy if actual_xy is not None else current_xy
-        lift_pose = _pose_from_xy(lift_xy, pre_z, rxyz)
+        lift_pose = _pose_from_xy(lift_xy, safe_z, rxyz)
         if logger:
             logger.info(
-                "[TableB DXF Robot] stop-lift: retracting tool to pre-height %.2f mm with no force.",
-                pre_z,
+                "[TableB DXF Robot] stop-lift: retracting tool to safe height %.2f mm with no force.",
+                safe_z,
             )
         # communicate() and its wait loop both bail on a latched stop flag, so a MoveL issued
         # while stop is active would be a no-op. The lift IS the intended stop action, so we
@@ -831,7 +839,10 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     tcp = tcp_for_physical_tool(config, physical_tool)
     ucs = table_b_ucs(config)
     rxyz = orientation(config)
+    safe_z = safe_travel_z_mm(config)
     pre_z = preheight_z_mm(config)
+    # Travel/retract happens at the safer Z height. The force sequence still
+    # starts from pre_z after the arm has arrived at the toolpath start point.
     # Sanding-point Z is commanded BELOW the surface (pre_z + overshoot; +Z is toward the
     # surface on Table B) so the trajectory pushes the tool INTO the surface and force
     # control merely caps the pressure. Commanding the old Z=pre_z (above the surface) let
@@ -885,7 +896,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs readyTimeout=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs readyTimeout=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s safeZ=%.1f preZ=%.1f force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -903,10 +914,13 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         joint_guard_reason,
         "None" if current_y is None else f"{float(current_y):.1f}",
         "None" if current_j3 is None else f"{float(current_j3):.1f}",
+        safe_z,
+        pre_z,
         force,
         axis7_position,
     )
 
+    start_safe_pose = _pose_from_xy(points[0], safe_z, rxyz)
     start_pre_pose = _pose_from_xy(points[0], pre_z, rxyz)
     if axis7_position is not None and simultaneous_j7_robot and not j7_idle_before_prepoint:
         j7_result = communicate(
@@ -928,13 +942,13 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         communicate(
             cps=cps,
             config=config,
-            point=start_pre_pose,
+            point=start_safe_pose,
             tcp=tcp,
             ucs=ucs,
             seventh=-1,
             speed=robot_speed(config),
             velocity_profile="robotspeed",
-            wait=True,
+            wait=False,
             require_seventh_ok=True,
         )
     else:
@@ -943,23 +957,21 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         # same-station switch), the bundled move's "done" state could settle on J7 (already
         # idle) rather than the arm, so at high speed force control started while the arm was
         # still moving and it hovered searching from the wrong point. Mirror the working J7
-        # branch: position J7 first only if it must move, THEN a DEDICATED arm-only MoveL to
-        # the pre-pose (seventh=-1, wait=True) so the arm fully settles before force control.
+        # branch: position J7 first only if it must move, THEN send a DEDICATED arm-only
+        # MoveL to the safe travel pose. That move is async for speed; the force-preheight
+        # move below is the synchronized barrier before force control.
         #
-        # If the current TCP pose is already in the low-Y/bottom constrained zone, or a
-        # joint is near its physical limit, async J7 travel can fold the arm into a limit.
-        # Park the rail first only in those guarded cases; normal high-Y transitions can
-        # remain simultaneous.
+        # Only route through an escape waypoint when the actual segment would cross the
+        # low-Y / negative-local-X notch, or when moving from high negative-X down into
+        # the bottom constrained zone. Low-Y by itself is not enough to block normal
+        # simultaneous J7 + arm travel.
         j7_positioned_by_escape = False
         if axis7_position is not None and (
-            low_y_j7_idle_before_prepoint
-            or (
-                low_y_segment_crossing_guard
-                and current_pose is not None
-                and len(current_pose) >= 2
-                and _low_y_limit_for_tool(physical_tool) is not None
-                and float(current_pose[1]) < float(_low_y_limit_for_tool(physical_tool))
-            )
+            low_y_segment_crossing_guard
+            and current_pose is not None
+            and len(current_pose) >= 2
+            and _low_y_limit_for_tool(physical_tool) is not None
+            and float(current_pose[1]) < float(_low_y_limit_for_tool(physical_tool))
         ):
             j7_positioned_by_escape = _escape_low_y_during_j7(
                 cps,
@@ -967,7 +979,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 physical_tool=physical_tool,
                 current_pose=current_pose,
                 axis7_position=axis7_position,
-                pre_z=pre_z,
+                safe_z=safe_z,
                 rxyz=rxyz,
                 tcp=tcp,
                 ucs=ucs,
@@ -981,7 +993,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 physical_tool=physical_tool,
                 current_pose=current_pose,
                 axis7_position=axis7_position,
-                pre_z=pre_z,
+                safe_z=safe_z,
                 rxyz=rxyz,
                 tcp=tcp,
                 ucs=ucs,
@@ -1002,13 +1014,13 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         communicate(
             cps=cps,
             config=config,
-            point=start_pre_pose,
+            point=start_safe_pose,
             tcp=tcp,
             ucs=ucs,
             seventh=-1,
             speed=robot_speed(config),
             velocity_profile="robotspeed",
-            wait=True,
+            wait=False,
             require_seventh_ok=axis7_position is not None,
         )
 
@@ -1018,6 +1030,29 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     stopped = False
     try:
         _raise_if_stop_requested(cps, config, "before force search")
+        waitForBlending(cps=cps, config=config, timeout_s=ready_timeout_s)
+        _wait_robot_ready_for_next_sanding_command(
+            cps,
+            config,
+            timeout_s=ready_timeout_s,
+            context=f"path={step.get('path_id')} before force preheight",
+        )
+        force_pre_result = communicate(
+            cps=cps,
+            config=config,
+            point=start_pre_pose,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=robot_speed(config),
+            velocity_profile="robotspeed",
+            wait=True,
+            require_seventh_ok=False,
+        )
+        if force_pre_result is None:
+            raise TableBDxfRobotExecutionError(
+                f"Force preheight move failed for path {step.get('path_id')}."
+            )
         # Confirm the arm has truly stopped at the pre-pose before force control, so a fast
         # robotspeed approach that still reports motion-done can't make the tool hover.
         _wait_until_arm_settled(cps, config)
@@ -1135,18 +1170,18 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
             releaseForce(cps, config, wait_for_blending=False)
         if stopped or stop_requested():
             # CNC-style stop: halt motion, turn OFF force control, then lift the tool straight
-            # up to the pre-height (-17) with NO force, so it releases the surface immediately
-            # and never drags or leaves marks. From -17 the operator can re-send the task or
-            # home. Force control is disabled inside _stop_active_motion BEFORE this lift, so
+            # up to the safe travel height with NO force, so it releases the surface
+            # immediately and never drags or leaves marks. Force control is disabled
+            # inside _stop_active_motion BEFORE this lift, so
             # the retract MoveL is a pure position move (no pressure into the surface).
             _stop_active_motion(cps, config, "after stop cleanup")
             _lift_to_preheight_no_force(
-                cps, config, current_xy, pre_z, rxyz, tcp, ucs, physical_tool
+                cps, config, current_xy, safe_z, rxyz, tcp, ucs, physical_tool
             )
             if not stopped:
                 raise TableBDxfRobotStopRequested("Table B DXF operation stopped by user.")
         else:
-            lift_pose = _pose_from_xy(current_xy, pre_z, rxyz)
+            lift_pose = _pose_from_xy(current_xy, safe_z, rxyz)
             communicate(
                 cps=cps,
                 config=config,
