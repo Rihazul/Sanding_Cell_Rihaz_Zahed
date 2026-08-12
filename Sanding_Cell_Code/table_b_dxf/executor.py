@@ -454,7 +454,17 @@ def _rebuild_serpentine_from_corner(
 def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
     explicit = path.get("cycle_window_id")
     if explicit:
-        return str(explicit)
+        base_key = str(explicit)
+        try:
+            split_count = int(path.get("reach_split_count") or 1)
+        except (TypeError, ValueError):
+            split_count = 1
+        axis = _float_or_none(path.get("axis7_position_mm"))
+        if split_count > 1 and axis is not None:
+            return f"{base_key}@j7:{axis:.1f}"
+        if split_count > 1:
+            return f"{base_key}@split:{path.get('reach_split_index')}"
+        return base_key
     base = str(path.get("split_from_path_id") or path.get("path_id") or "")
     # Triangular pockets use Tool 4 spiral fill, not vertical/horizontal rows.
     match = re.search(r"(.+?_tool4_tri)(?:_|$)", base)
