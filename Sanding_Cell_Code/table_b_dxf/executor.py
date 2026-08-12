@@ -450,6 +450,9 @@ def _rebuild_serpentine_from_corner(
 
 
 def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
+    explicit = path.get("cycle_window_id")
+    if explicit:
+        return str(explicit)
     base = str(path.get("split_from_path_id") or path.get("path_id") or "")
     # Triangular pockets use Tool 4 spiral fill, not vertical/horizontal rows.
     match = re.search(r"(.+?_tool4_tri)(?:_|$)", base)
@@ -488,6 +491,74 @@ def _group_pocket_zigzag_windows(paths: list[dict[str, Any]]) -> dict[str, list[
         key = _pocket_zigzag_window_key(path)
         groups.setdefault(key, []).append(dict(path))
     return groups
+
+
+def _append_continuous_points(target: list[list[float]], points: list[list[float]]) -> None:
+    if not points:
+        return
+    if not target:
+        target.extend(points)
+        return
+    if _point_distance(target[-1], points[0]) <= 0.5:
+        target.extend(points[1:])
+    else:
+        target.extend(points)
+
+
+def _combined_window_cycle_path(
+    *,
+    window_key: str,
+    grouped: dict[str, dict[str, list[dict[str, Any]]]],
+    selected: str,
+    alternate: str,
+    cycles: int,
+    force: int,
+    start_cursor: list[float] | None,
+) -> tuple[dict[str, Any] | None, list[float] | None]:
+    """Build one force-contact path for all cycles inside one shared reach window.
+
+    The visible preview can show one orientation. Multi-cycle execution needs a
+    deterministic shared window, otherwise independently planned vertical and
+    horizontal paths cause lift/reposition between cycles.
+    """
+    combined: list[list[float]] = []
+    cursor = start_cursor
+    first_path: dict[str, Any] | None = None
+    orientations: list[str] = []
+
+    for cycle_index in range(1, cycles + 1):
+        orientation = selected if cycle_index % 2 == 1 else alternate
+        window_paths = grouped.get(orientation, {}).get(window_key) or []
+        if not window_paths:
+            return None, start_cursor
+
+        ordered_paths = _ordered_pattern_paths(window_paths, cursor)
+        for path in ordered_paths:
+            pts = _xy_points(path.get("points") or [])
+            if len(pts) < 2:
+                continue
+            rebuilt = _rebuild_serpentine_from_corner(pts, orientation, cursor)
+            if rebuilt and len(rebuilt) >= 2:
+                pts = rebuilt
+            if first_path is None:
+                first_path = dict(path)
+            _append_continuous_points(combined, pts)
+            cursor = combined[-1]
+        orientations.append(orientation)
+
+    if first_path is None or len(combined) < 2:
+        return None, start_cursor
+
+    out = dict(first_path)
+    out["points"] = combined
+    out["path_id"] = f"{first_path.get('path_id') or 'pocketzigzag'}__{window_key}__cycles1-{cycles}_{selected}_{alternate}"
+    out["operation"] = f"Pocket zigzag continuous cycles {cycles} ({'/'.join(orientations)})"
+    out["recipe_override"] = {"force": force, "cycle": 1}
+    out["cycle_index"] = None
+    out["cycle_orientation"] = "+".join(orientations)
+    out["cycle_window_id"] = window_key
+    out["continuous_cycle_chain"] = True
+    return out, combined[-1]
 
 def _same_cycle_window(a: dict[str, Any], b: dict[str, Any]) -> bool:
     return a.get("cycle_window_id") == b.get("cycle_window_id")
@@ -603,6 +674,21 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
         # reuse the same spiral each cycle and let _ordered_pattern_paths reverse it from the
         # cursor for the return pass. They must NOT go through the serpentine rebuild.
         spiral_window = triangle_window or rect_spiral_window
+        if not spiral_window:
+            combined_path, cursor_after = _combined_window_cycle_path(
+                window_key=window_key,
+                grouped=grouped,
+                selected=selected,
+                alternate=alternate,
+                cycles=cycles,
+                force=zigzag_recipe["force"],
+                start_cursor=cursor,
+            )
+            if combined_path is not None:
+                expanded.append(combined_path)
+                cursor = cursor_after
+                continue
+
         for cycle_index in range(1, cycles + 1):
             orientation = selected if cycle_index % 2 == 1 else alternate
             if triangle_window:

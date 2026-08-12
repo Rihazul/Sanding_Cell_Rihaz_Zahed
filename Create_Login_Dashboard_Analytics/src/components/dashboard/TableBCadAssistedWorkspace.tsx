@@ -122,6 +122,8 @@ export interface DxfToolpathPath {
   reach_split_index?: number;
   reach_split_count?: number;
   chained_path_ids?: string[];
+  cycle_window_id?: string;
+  cycle_window_bounds?: { x_min: number; x_max: number; y_min: number; y_max: number };
 }
 
 type DxfPreviewSegment = {
@@ -136,6 +138,8 @@ type DxfPreviewSegment = {
   split_from_path_id?: string;
   reach_split_index?: number;
   reach_split_count?: number;
+  cycle_window_id?: string;
+  cycle_window_bounds?: { x_min: number; x_max: number; y_min: number; y_max: number };
 };
 
 // Corner-point geometry for one assigned region (what the Info panel shows).
@@ -1686,9 +1690,15 @@ export function TableBCadAssistedWorkspace({
         for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
           const sxLo = bxLo + sectionIndex * sectionWidth;
           const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+          const cycleWindowId = `${pk.id}_tool4_rect_sec${sectionIndex + 1}`;
           segments.push(
             ...buildRectSpiralTool4Segments(`${pk.id}_${marker}_sec${sectionIndex + 1}`, sxLo, sxHi, byLo, byHi, step, sectionIndex * 10000, insetStart),
           );
+          for (let i = segments.length - 1; i >= 0; i--) {
+            if (!segments[i].id.startsWith(`${pk.id}_${marker}_sec${sectionIndex + 1}_`)) break;
+            segments[i].cycle_window_id = cycleWindowId;
+            segments[i].cycle_window_bounds = { x_min: sxLo, x_max: sxHi, y_min: byLo, y_max: byHi };
+          }
         }
         continue;
       }
@@ -1724,6 +1734,7 @@ export function TableBCadAssistedWorkspace({
         for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
           const sxLo = bxLo + sectionIndex * sectionWidth;
           const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+          const cycleWindowId = `${pk.id}_tool4_sec${sectionIndex + 1}`;
           const points: number[][] = [];
           let offset = 0;
           let toggle = 0;
@@ -1739,6 +1750,11 @@ export function TableBCadAssistedWorkspace({
             toggle = 1 - toggle;
           }
           pushPointPath(points, `${pk.id}_tool4_sec${sectionIndex + 1}`, sectionIndex * 10000);
+          for (let i = segments.length - 1; i >= 0; i--) {
+            if (!segments[i].id.startsWith(`${pk.id}_tool4_sec${sectionIndex + 1}_`)) break;
+            segments[i].cycle_window_id = cycleWindowId;
+            segments[i].cycle_window_bounds = { x_min: sxLo, x_max: sxHi, y_min: byLo, y_max: byHi };
+          }
         }
         continue;
       }
@@ -1781,6 +1797,14 @@ export function TableBCadAssistedWorkspace({
         }
         const idPrefix = forceWindowSections ? `${pk.id}_tool4_sec${sectionIndex + 1}` : `${pk.id}_tool4`;
         pushPointPath(points, idPrefix, sectionIndex * 10000);
+        if (forceWindowSections) {
+          const cycleWindowId = `${pk.id}_tool4_sec${sectionIndex + 1}`;
+          for (let i = segments.length - 1; i >= 0; i--) {
+            if (!segments[i].id.startsWith(`${idPrefix}_`)) break;
+            segments[i].cycle_window_id = cycleWindowId;
+            segments[i].cycle_window_bounds = { x_min: sxLo, x_max: sxHi, y_min: byLo, y_max: byHi };
+          }
+        }
       }
     }
     return segments;
@@ -2194,6 +2218,8 @@ export function TableBCadAssistedWorkspace({
           split_from_path_id: first.split_from_path_id,
           reach_split_index: first.reach_split_index,
           reach_split_count: first.reach_split_count,
+          cycle_window_id: first.cycle_window_id,
+          cycle_window_bounds: first.cycle_window_bounds,
         });
       }
       return out;
@@ -2216,6 +2242,8 @@ export function TableBCadAssistedWorkspace({
             split_from_path_id: path.split_from_path_id,
             reach_split_index: path.reach_split_index,
             reach_split_count: path.reach_split_count,
+            cycle_window_id: path.cycle_window_id,
+            cycle_window_bounds: path.cycle_window_bounds,
           });
         }
       });
@@ -2262,6 +2290,8 @@ export function TableBCadAssistedWorkspace({
             reach_split_index: path.reach_split_index,
             reach_split_count: path.reach_split_count,
             chained_path_ids: path.chained_path_ids,
+            cycle_window_id: source?.cycle_window_id,
+            cycle_window_bounds: source?.cycle_window_bounds,
           };
         }) as DxfToolpathPath[];
         const stationOrder = (result.reach_plan?.stations ?? []).flatMap((station) => station.path_indices ?? []);
