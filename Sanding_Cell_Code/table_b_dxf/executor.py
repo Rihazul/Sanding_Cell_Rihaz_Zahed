@@ -454,7 +454,17 @@ def _rebuild_serpentine_from_corner(
 def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
     explicit = path.get("cycle_window_id")
     if explicit:
-        return str(explicit)
+        base_key = str(explicit)
+        try:
+            split_count = int(path.get("reach_split_count") or 1)
+        except (TypeError, ValueError):
+            split_count = 1
+        axis = _float_or_none(path.get("axis7_position_mm"))
+        if split_count > 1 and axis is not None:
+            return f"{base_key}@j7:{axis:.1f}"
+        if split_count > 1:
+            return f"{base_key}@split:{path.get('reach_split_index')}"
+        return base_key
     base = str(path.get("split_from_path_id") or path.get("path_id") or "")
     # Triangular pockets use Tool 4 spiral fill, not vertical/horizontal rows.
     match = re.search(r"(.+?_tool4_tri)(?:_|$)", base)
@@ -523,11 +533,42 @@ def _float_bounds(bounds: Any) -> dict[str, float] | None:
 
 
 def _window_bounds_for_paths(paths: list[dict[str, Any]]) -> dict[str, float] | None:
+    point_bounds = _point_bounds_for_paths(paths)
     for path in paths:
         bounds = _float_bounds(path.get("cycle_window_bounds"))
         if bounds is not None:
-            return bounds
+            if point_bounds is None:
+                return bounds
+            # Reach planning may split a large frontend window into smaller executable
+            # pieces. Keep the real post-reach X/Y limits where they are informative,
+            # but fall back to the original cycle window when a split is only a single
+            # row/column. That produces a true rectangular execution window per J7 stop.
+            x_span = point_bounds["x_max"] - point_bounds["x_min"]
+            y_span = point_bounds["y_max"] - point_bounds["y_min"]
+            return {
+                "x_min": point_bounds["x_min"] if x_span > 1.0 else bounds["x_min"],
+                "x_max": point_bounds["x_max"] if x_span > 1.0 else bounds["x_max"],
+                "y_min": point_bounds["y_min"] if y_span > 1.0 else bounds["y_min"],
+                "y_max": point_bounds["y_max"] if y_span > 1.0 else bounds["y_max"],
+            }
+    if point_bounds is not None:
+        return point_bounds
     return None
+
+
+def _point_bounds_for_paths(paths: list[dict[str, Any]]) -> dict[str, float] | None:
+    points: list[list[float]] = []
+    for path in paths:
+        points.extend(_xy_points(path.get("points") or []))
+    if not points:
+        return None
+    x_min = min(p[0] for p in points)
+    x_max = max(p[0] for p in points)
+    y_min = min(p[1] for p in points)
+    y_max = max(p[1] for p in points)
+    if x_max <= x_min or y_max <= y_min:
+        return None
+    return {"x_min": x_min, "x_max": x_max, "y_min": y_min, "y_max": y_max}
 
 
 def _zigzag_adjusted_step(span: float, requested_step: float) -> float:
@@ -899,6 +940,123 @@ def _expand_pocket_zigzag_cycles(paths: list[dict[str, Any]], approved: dict[str
     return out
 
 
+def _is_flat_frame_zigzag_path(path: dict[str, Any]) -> bool:
+    if str(path.get("tool") or "") != "tool_4_frame":
+        return False
+    operation_type = str(path.get("operation_type") or "").lower()
+    operation = str(path.get("operation") or "").lower()
+    path_id = str(path.get("path_id") or "").lower()
+    # Computed-frame sections also use Tool 4, but those are already section-planned.
+    # Only whole-door Frame Level zigzag paths should get alternate-cycle expansion.
+    return (
+        operation_type == "frame_zigzag_pass"
+        or "frame zigzag" in operation
+        or path_id.startswith("frame_zigzag")
+    )
+
+
+def _frame_zigzag_station_key(path: dict[str, Any], index: int) -> str:
+    station = path.get("station_index")
+    axis = path.get("axis7_position_mm")
+    if station is not None:
+        return f"station:{station}"
+    if axis is not None:
+        try:
+            return f"axis:{round(float(axis), 1)}"
+        except (TypeError, ValueError):
+            pass
+    return f"path:{index}"
+
+
+def _frame_zigzag_cycle_paths(paths: list[dict[str, Any]], approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]] | None:
+    frame_recipe = _normalize_recipe_entry(recipe.get("frame") if isinstance(recipe, dict) else None)
+    cycles = frame_recipe["cycle"]
+    if cycles <= 1:
+        return None
+
+    frame_paths = [dict(path) for path in paths if _is_flat_frame_zigzag_path(path)]
+    if not frame_paths:
+        return None
+
+    settings = approved.get("settings") if isinstance(approved, dict) else None
+    try:
+        overlap_mm = max(0.0, min(100.0, float((settings or {}).get("frame_overlap_mm") or 0.0)))
+    except (TypeError, ValueError):
+        overlap_mm = 0.0
+    step_mm = max(TOOL4_POCKET_PASS_WIDTH_MM - overlap_mm, 1.0)
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for index, path in enumerate(frame_paths):
+        grouped.setdefault(_frame_zigzag_station_key(path, index), []).append(path)
+
+    expanded: list[dict[str, Any]] = []
+    cursor: list[float] | None = None
+    for _, station_paths in sorted(
+        grouped.items(),
+        key=lambda item: min(float(path.get("axis7_position_mm") or 0.0) for path in item[1]),
+    ):
+        bounds = _window_bounds_for_paths(station_paths)
+        if bounds is None:
+            points = []
+            for path in station_paths:
+                points.extend(_xy_points(path.get("points") or []))
+            bounds = _float_bounds({
+                "x_min": min((p[0] for p in points), default=0.0),
+                "x_max": max((p[0] for p in points), default=0.0),
+                "y_min": min((p[1] for p in points), default=0.0),
+                "y_max": max((p[1] for p in points), default=0.0),
+            })
+        if bounds is None:
+            continue
+
+        combined: list[list[float]] = []
+        orientations: list[str] = []
+        for cycle_index in range(1, cycles + 1):
+            orientation = "vertical" if cycle_index % 2 == 1 else "horizontal"
+            pts = _build_window_serpentine_from_bounds(bounds, orientation, cursor, step_mm)
+            if len(pts) < 2:
+                continue
+            _append_continuous_points(combined, pts)
+            cursor = combined[-1]
+            orientations.append(orientation)
+
+        if len(combined) < 2:
+            continue
+
+        first_path = dict(station_paths[0])
+        first_path["points"] = combined
+        first_path["path_id"] = f"{first_path.get('path_id') or 'frame_zigzag'}__cycles1-{cycles}_{'_'.join(orientations)}"
+        first_path["operation"] = f"Frame zigzag continuous cycles {cycles} ({'/'.join(orientations)})"
+        first_path["recipe_override"] = {"force": frame_recipe["force"], "cycle": 1}
+        first_path["cycle_index"] = None
+        first_path["cycle_orientation"] = "+".join(orientations)
+        first_path["continuous_cycle_chain"] = True
+        expanded.append(first_path)
+
+    if expanded:
+        attach_station_plan(expanded, tool="tool_4", chain=False)
+    return expanded or None
+
+
+def _expand_frame_zigzag_cycles(paths: list[dict[str, Any]], approved: dict[str, Any], recipe: dict[str, Any]) -> list[dict[str, Any]]:
+    expanded_frame = _frame_zigzag_cycle_paths(paths, approved, recipe)
+    if not expanded_frame:
+        return paths
+
+    out: list[dict[str, Any]] = []
+    inserted = False
+    for path in paths:
+        if _is_flat_frame_zigzag_path(path):
+            if not inserted:
+                out.extend(expanded_frame)
+                inserted = True
+            continue
+        out.append(path)
+    if not inserted:
+        out.extend(expanded_frame)
+    return out
+
+
 def _robot_base_points(viewer_points: list[list[float]], axis7_position_mm: float | None) -> list[list[float]]:
     """Convert viewer/global UCS points into the robot-base frame at one J7 stop.
 
@@ -1035,6 +1193,10 @@ def resolve_run_plan(job_id: str, recipe: dict[str, Any]) -> dict[str, Any]:
     # For Pocket ZigZag cycle > 1, alternate the approved selected pattern with the
     # hidden alternate pattern saved by the preview: V/H/V... or H/V/H... .
     paths = _expand_pocket_zigzag_cycles(paths, approved, recipe)
+    # Whole-door flat Frame Level uses the same idea for cycle > 1: split by Tool 4
+    # reach station, then alternate vertical/horizontal inside that station rectangle.
+    # Computed-frame section paths are intentionally excluded.
+    paths = _expand_frame_zigzag_cycles(paths, approved, recipe)
 
     # Tool 2 (side / edge outside) follows the part's outer boundary, which the viewer
     # does not draw, so those paths are derived from the approved outer corner points.
