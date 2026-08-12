@@ -187,6 +187,34 @@ def _requires_high_negative_x_escape_before_low_y(
     return current_y >= low_y_limit and current_x < 0.0 and target_y < low_y_limit
 
 
+def _transition_crosses_low_y_negative_x_zone(
+    physical_tool: int,
+    current_pose: list[float] | None,
+    target_xy: list[float],
+) -> bool:
+    """Detect the unsafe diagonal shown by the reach envelope notch.
+
+    Endpoints can be legal while the straight segment between them briefly enters the
+    low-Y area where local X must stay non-negative. That transition must be routed
+    through an intermediate safe waypoint instead of sent as one direct MoveL.
+    """
+    low_y_limit = _low_y_limit_for_tool(physical_tool)
+    if low_y_limit is None or current_pose is None or len(current_pose) < 2 or len(target_xy) < 2:
+        return False
+
+    x0 = float(current_pose[0])
+    y0 = float(current_pose[1])
+    x1 = float(target_xy[0])
+    y1 = float(target_xy[1])
+    for index in range(1, 16):
+        t = index / 16.0
+        x = x0 + (x1 - x0) * t
+        y = y0 + (y1 - y0) * t
+        if y < low_y_limit and x < 0.0:
+            return True
+    return False
+
+
 def _read_current_joints_for_transition(cps: Any, config: dict[str, Any]) -> list[float] | None:
     try:
         return read_current_joints(cps)
@@ -494,7 +522,7 @@ def _escape_low_y_during_j7(
         speed=robot_speed(config),
         velocity_profile="robotspeed",
         wait=True,
-        require_seventh_ok=True,
+        require_seventh_ok=False,
     )
     return True
 
@@ -571,7 +599,7 @@ def _escape_high_negative_x_during_j7(
         speed=robot_speed(config),
         velocity_profile="robotspeed",
         wait=True,
-        require_seventh_ok=True,
+        require_seventh_ok=False,
     )
     return True
 
@@ -709,10 +737,14 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     high_negative_x_escape_before_low_y = _requires_high_negative_x_escape_before_low_y(
         physical_tool, current_pose, points[0]
     )
+    low_y_segment_crossing_guard = _transition_crosses_low_y_negative_x_zone(
+        physical_tool, current_pose, points[0]
+    )
     joint_j7_idle_before_prepoint, current_joints, joint_guard_reason = _joint_transition_guard(cps, config)
     j7_idle_before_prepoint = (
         low_y_j7_idle_before_prepoint
         or high_negative_x_escape_before_low_y
+        or low_y_segment_crossing_guard
         or joint_j7_idle_before_prepoint
     )
     current_y = current_pose[1] if current_pose and len(current_pose) >= 2 else None
@@ -729,7 +761,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -740,6 +772,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         j7_idle_before_prepoint,
         low_y_j7_idle_before_prepoint,
         high_negative_x_escape_before_low_y,
+        low_y_segment_crossing_guard,
         joint_guard_reason,
         "None" if current_y is None else f"{float(current_y):.1f}",
         "None" if current_j3 is None else f"{float(current_j3):.1f}",
@@ -791,7 +824,16 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         # Park the rail first only in those guarded cases; normal high-Y transitions can
         # remain simultaneous.
         j7_positioned_by_escape = False
-        if axis7_position is not None and low_y_j7_idle_before_prepoint:
+        if axis7_position is not None and (
+            low_y_j7_idle_before_prepoint
+            or (
+                low_y_segment_crossing_guard
+                and current_pose is not None
+                and len(current_pose) >= 2
+                and _low_y_limit_for_tool(physical_tool) is not None
+                and float(current_pose[1]) < float(_low_y_limit_for_tool(physical_tool))
+            )
+        ):
             j7_positioned_by_escape = _escape_low_y_during_j7(
                 cps,
                 config,
@@ -803,7 +845,9 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 tcp=tcp,
                 ucs=ucs,
             )
-        elif axis7_position is not None and high_negative_x_escape_before_low_y:
+        elif axis7_position is not None and (
+            high_negative_x_escape_before_low_y or low_y_segment_crossing_guard
+        ):
             j7_positioned_by_escape = _escape_high_negative_x_during_j7(
                 cps,
                 config,
@@ -838,7 +882,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
             speed=robot_speed(config),
             velocity_profile="robotspeed",
             wait=True,
-            require_seventh_ok=False,
+            require_seventh_ok=axis7_position is not None,
         )
 
     vibration_on = False
