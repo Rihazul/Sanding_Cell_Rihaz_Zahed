@@ -1008,7 +1008,6 @@ export default function Dxf2DViewer({
             <style>{`
               @keyframes dxfHighlightBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
               .dxf-blink { animation: dxfHighlightBlink 1.3s ease-in-out infinite; }
-              @media (prefers-reduced-motion: reduce) { .dxf-blink { animation: none; } }
             `}</style>
             {/* World-space layer: DXF geometry + frame fills (scale with zoom). */}
             <g transform={`translate(${transform.tx} ${transform.ty}) scale(${-transform.s} ${-transform.s})`}>              {/* Outer-boundary background fill: the full part extent, frame blue,
