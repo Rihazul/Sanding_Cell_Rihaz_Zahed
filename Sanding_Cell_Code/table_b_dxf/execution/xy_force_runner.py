@@ -116,6 +116,19 @@ def _motion_queue_flush_settle_sec(config: dict[str, Any]) -> float:
     return max(0.0, settle_s)
 
 
+def _motion_queue_preflush_settle_sec(config: dict[str, Any]) -> float:
+    value = None
+    if isinstance(config, dict):
+        value = (config.get("door") or {}).get("tableBDxfMotionPreFlushSettleSec")
+        if value is None:
+            value = (config.get("settings") or {}).get("tableBDxfMotionPreFlushSettleSec")
+    try:
+        settle_s = float(value) if value is not None else _motion_queue_flush_settle_sec(config)
+    except (TypeError, ValueError):
+        settle_s = _motion_queue_flush_settle_sec(config)
+    return max(0.0, settle_s)
+
+
 def _simultaneous_j7_robot_enabled(config: dict[str, Any]) -> bool:
     if not isinstance(config, dict):
         return True
@@ -756,6 +769,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     axis7_position = step.get("axis7_position_mm")
     flush_every = _motion_queue_flush_every(config)
     flush_settle_s = _motion_queue_flush_settle_sec(config)
+    preflush_settle_s = _motion_queue_preflush_settle_sec(config)
     simultaneous_j7_robot = _simultaneous_j7_robot_enabled(config)
     current_pose = _read_current_coord_pose(cps, tcp, ucs)
     low_y_j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, current_pose)
@@ -786,7 +800,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -794,6 +808,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         "loop" if is_closed else "pingpong",
         flush_every,
         flush_settle_s,
+        preflush_settle_s,
         simultaneous_j7_robot,
         j7_idle_before_prepoint,
         low_y_j7_idle_before_prepoint,
@@ -984,6 +999,8 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 wait_for_point = _should_wait_for_motion_point(
                     point_index, len(cycle_points), flush_every
                 )
+                if wait_for_point and point_index > 1 and preflush_settle_s > 0.0:
+                    waitForBlending(cps=cps, config=config, timeout_s=preflush_settle_s)
                 move_result = communicate(
                     cps=cps,
                     config=config,
