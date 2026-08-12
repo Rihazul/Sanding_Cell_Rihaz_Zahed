@@ -454,17 +454,7 @@ def _rebuild_serpentine_from_corner(
 def _pocket_zigzag_window_key(path: dict[str, Any]) -> str:
     explicit = path.get("cycle_window_id")
     if explicit:
-        base_key = str(explicit)
-        try:
-            split_count = int(path.get("reach_split_count") or 1)
-        except (TypeError, ValueError):
-            split_count = 1
-        axis = _float_or_none(path.get("axis7_position_mm"))
-        if split_count > 1 and axis is not None:
-            return f"{base_key}@j7:{axis:.1f}"
-        if split_count > 1:
-            return f"{base_key}@split:{path.get('reach_split_index')}"
-        return base_key
+        return str(explicit)
     base = str(path.get("split_from_path_id") or path.get("path_id") or "")
     # Triangular pockets use Tool 4 spiral fill, not vertical/horizontal rows.
     match = re.search(r"(.+?_tool4_tri)(?:_|$)", base)
@@ -806,11 +796,12 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 alternate,
                 len(by_orientation[alternate]),
             )
-        for path in by_orientation[selected]:
-            key = _pocket_zigzag_window_key(path)
-            if key not in window_order:
-                window_order.append(key)
-        for path in by_orientation[alternate]:
+        # Window order must come from one source orientation only. The alternate
+        # orientation is consumed inside the same window by _combined_window_cycle_path.
+        # Adding alternate-only keys here creates duplicate line/U fragments after the
+        # correct continuous cycles finish.
+        source_paths = by_orientation[selected] or by_orientation[alternate]
+        for path in source_paths:
             key = _pocket_zigzag_window_key(path)
             if key not in window_order:
                 window_order.append(key)
