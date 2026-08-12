@@ -16,7 +16,7 @@ import re
 from typing import Any
 
 from .jobs import load_approved_toolpath
-from .tool_reach import TOOL_REACH, reach_span_at_y
+from .tool_reach import TOOL_REACH, attach_station_plan, reach_span_at_y
 
 logger = logging.getLogger(__name__)
 
@@ -664,6 +664,11 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 cursor = pts[-1]
 
     expanded = _stitch_compatible_pocket_zigzag_paths(expanded)
+    if expanded:
+        # Cycle expansion can reorder/rebuild Tool 4 pocket paths after the preview reach
+        # planner ran. Re-plan the final points so each execution path carries a legal J7
+        # station for the exact geometry the robot will run.
+        attach_station_plan(expanded, tool="tool_4", chain=False)
     return expanded or None
 
 
