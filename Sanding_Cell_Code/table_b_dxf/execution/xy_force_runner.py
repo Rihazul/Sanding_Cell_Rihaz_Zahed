@@ -206,11 +206,16 @@ def _transition_crosses_low_y_negative_x_zone(
     y0 = float(current_pose[1])
     x1 = float(target_xy[0])
     y1 = float(target_xy[1])
+    # Keep a small clearance band so normal moves that only skim the boundary do not
+    # force an unnecessary intermediate stop. The crash case is a real cut through the
+    # low-Y/negative-X notch, not a near-zero numerical touch.
+    y_limit = low_y_limit - 5.0
+    x_limit = -5.0
     for index in range(1, 16):
         t = index / 16.0
         x = x0 + (x1 - x0) * t
         y = y0 + (y1 - y0) * t
-        if y < low_y_limit and x < 0.0:
+        if y < y_limit and x < x_limit:
             return True
     return False
 
@@ -521,7 +526,7 @@ def _escape_low_y_during_j7(
         seventh=-1,
         speed=robot_speed(config),
         velocity_profile="robotspeed",
-        wait=True,
+        wait=False,
         require_seventh_ok=False,
     )
     return True
@@ -598,7 +603,7 @@ def _escape_high_negative_x_during_j7(
         seventh=-1,
         speed=robot_speed(config),
         velocity_profile="robotspeed",
-        wait=True,
+        wait=False,
         require_seventh_ok=False,
     )
     return True
