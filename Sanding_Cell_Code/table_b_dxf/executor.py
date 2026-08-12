@@ -16,7 +16,7 @@ import re
 from typing import Any
 
 from .jobs import load_approved_toolpath
-from .tool_reach import TOOL_REACH, attach_station_plan, reach_span_at_y
+from .tool_reach import TOOL_REACH, attach_station_plan, reach_span_at_y, station_window_for_path
 
 logger = logging.getLogger(__name__)
 
@@ -489,16 +489,12 @@ def _group_pocket_zigzag_windows(paths: list[dict[str, Any]]) -> dict[str, list[
         groups.setdefault(key, []).append(dict(path))
     return groups
 
-def _same_cycle_station(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    if a.get("cycle_window_id") != b.get("cycle_window_id"):
-        return False
-    a_axis = _float_or_none(a.get("axis7_position_mm"))
-    b_axis = _float_or_none(b.get("axis7_position_mm"))
-    if a_axis is not None and b_axis is not None:
-        # Vertical and horizontal patterns are planned independently, so their
-        # station_index can differ even when the real 7th-axis stop is identical.
-        return abs(a_axis - b_axis) <= 0.5
-    return a.get("station_index") == b.get("station_index")
+def _same_cycle_window(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    return a.get("cycle_window_id") == b.get("cycle_window_id")
+
+
+def _pocket_zigzag_chain_reachable(points: list[list[float]]) -> bool:
+    return station_window_for_path("tool_4", points) is not None
 
 
 def _stitch_compatible_pocket_zigzag_paths(paths: list[dict[str, Any]], tolerance_mm: float = 5.0) -> list[dict[str, Any]]:
@@ -523,13 +519,16 @@ def _stitch_compatible_pocket_zigzag_paths(paths: list[dict[str, Any]], toleranc
 
         previous = stitched[-1]
         previous_pts = _xy_points(previous.get("points") or [])
-        if previous_pts and _same_cycle_station(previous, path):
+        if previous_pts and _same_cycle_window(previous, path):
             gap = _point_distance(previous_pts[-1], pts[0])
             merged_pts = list(previous_pts)
             if gap <= 0.5:
                 merged_pts.extend(pts[1:])
             else:
                 merged_pts.extend(pts)
+            if not _pocket_zigzag_chain_reachable(merged_pts):
+                stitched.append(path)
+                continue
             previous["points"] = merged_pts
             previous["path_id"] = f"{previous.get('path_id', 'pocketzigzag')}+{path.get('path_id', 'cycle')}"
             previous["operation"] = f"{previous.get('operation', 'Pocket zigzag')} + {path.get('operation', 'Pocket zigzag')}"

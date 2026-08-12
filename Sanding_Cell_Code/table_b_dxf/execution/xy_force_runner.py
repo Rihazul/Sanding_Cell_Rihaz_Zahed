@@ -129,6 +129,90 @@ def _motion_queue_preflush_settle_sec(config: dict[str, Any]) -> float:
     return max(0.0, settle_s)
 
 
+def _motion_queue_ready_timeout_sec(config: dict[str, Any]) -> float:
+    value = None
+    if isinstance(config, dict):
+        value = (config.get("door") or {}).get("tableBDxfMotionReadyTimeoutSec")
+        if value is None:
+            value = (config.get("settings") or {}).get("tableBDxfMotionReadyTimeoutSec")
+    try:
+        timeout_s = float(value) if value is not None else 2.0
+    except (TypeError, ValueError):
+        timeout_s = 2.0
+    return max(0.2, timeout_s)
+
+
+def _motion_queue_ready_stable_samples(config: dict[str, Any]) -> int:
+    value = None
+    if isinstance(config, dict):
+        value = (config.get("door") or {}).get("tableBDxfMotionReadyStableSamples")
+        if value is None:
+            value = (config.get("settings") or {}).get("tableBDxfMotionReadyStableSamples")
+    try:
+        samples = int(value) if value is not None else 2
+    except (TypeError, ValueError):
+        samples = 2
+    return max(1, samples)
+
+
+def _wait_robot_ready_for_next_sanding_command(
+    cps: Any,
+    config: dict[str, Any],
+    *,
+    timeout_s: float,
+    context: str,
+) -> bool:
+    """Wait for the controller to be ready before feeding the next MoveL batch.
+
+    Error 49622 is reported by the command sent while the controller is passing
+    through Robot Stopping state; it does not identify the earlier command that
+    caused the transition. At flush boundaries, use robot-state readiness instead
+    of a blind sleep so long zigzag/cycle paths only continue when the controller
+    has actually settled.
+    """
+    poll_s = 0.02
+    stable_needed = _motion_queue_ready_stable_samples(config)
+    stable = 0
+    start = time.time()
+    last_state: list[Any] = []
+
+    while True:
+        if stop_requested():
+            return False
+
+        state: list[Any] = []
+        try:
+            nret = cps.HRIF_ReadRobotState(0, 0, state)
+        except Exception:
+            nret = -1
+        last_state = state
+
+        robot_idle = (
+            nret == 0
+            and isinstance(state, (list, tuple))
+            and len(state) > 11
+            and str(state[11]).strip() == "1"
+        )
+        if robot_idle:
+            stable += 1
+            if stable >= stable_needed:
+                return True
+        else:
+            stable = 0
+
+        if time.time() - start >= timeout_s:
+            _log(
+                config,
+                "[TableB DXF Robot] controller-ready wait timed out context=%s timeout=%.2fs last_state=%s; continuing cautiously.",
+                context,
+                timeout_s,
+                last_state,
+            )
+            return False
+
+        time.sleep(poll_s)
+
+
 def _simultaneous_j7_robot_enabled(config: dict[str, Any]) -> bool:
     if not isinstance(config, dict):
         return True
@@ -770,6 +854,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
     flush_every = _motion_queue_flush_every(config)
     flush_settle_s = _motion_queue_flush_settle_sec(config)
     preflush_settle_s = _motion_queue_preflush_settle_sec(config)
+    ready_timeout_s = _motion_queue_ready_timeout_sec(config)
     simultaneous_j7_robot = _simultaneous_j7_robot_enabled(config)
     current_pose = _read_current_coord_pose(cps, tcp, ucs)
     low_y_j7_idle_before_prepoint = _requires_j7_idle_before_prepoint(physical_tool, current_pose)
@@ -800,7 +885,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
 
     _log(
         config,
-        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
+        "[TableB DXF Robot] path=%s tool=%s points=%s cycles=%s mode=%s flushEvery=%s flushSettle=%.2fs preFlushSettle=%.2fs readyTimeout=%.2fs simultaneousJ7=%s j7IdleBeforePrepoint=%s lowYGuard=%s highNegXGuard=%s lowYSegmentGuard=%s jointGuard=%s currentY=%s currentJ3=%s force=%.1f j7=%s",
         step.get("path_id"),
         physical_tool,
         len(points),
@@ -809,6 +894,7 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
         flush_every,
         flush_settle_s,
         preflush_settle_s,
+        ready_timeout_s,
         simultaneous_j7_robot,
         j7_idle_before_prepoint,
         low_y_j7_idle_before_prepoint,
@@ -1001,6 +1087,15 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 )
                 if wait_for_point and point_index > 1 and preflush_settle_s > 0.0:
                     waitForBlending(cps=cps, config=config, timeout_s=preflush_settle_s)
+                    _wait_robot_ready_for_next_sanding_command(
+                        cps,
+                        config,
+                        timeout_s=ready_timeout_s,
+                        context=(
+                            f"path={step.get('path_id')} cycle={cycle_index}/{cycles} "
+                            f"before point {point_index}/{len(cycle_points)}"
+                        ),
+                    )
                 move_result = communicate(
                     cps=cps,
                     config=config,
@@ -1020,6 +1115,15 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                     )
                 if wait_for_point and point_index < len(cycle_points) and flush_settle_s > 0.0:
                     waitForBlending(cps=cps, config=config, timeout_s=flush_settle_s)
+                    _wait_robot_ready_for_next_sanding_command(
+                        cps,
+                        config,
+                        timeout_s=ready_timeout_s,
+                        context=(
+                            f"path={step.get('path_id')} cycle={cycle_index}/{cycles} "
+                            f"after point {point_index}/{len(cycle_points)}"
+                        ),
+                    )
                 current_xy = xy
     except TableBDxfRobotStopRequested:
         stopped = True

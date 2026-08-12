@@ -131,6 +131,11 @@ door:
   # long multi-cycle zigzag paths from immediately feeding the next command while the
   # controller is still clearing its blended queue.
   tableBDxfMotionFlushSettleSec: 0.25
+  # State-based controller-ready barrier at Table B DXF sanding batch boundaries.
+  # This is not a fixed delay: it polls robot state and continues as soon as the
+  # controller reports stable idle before the next MoveL batch is sent.
+  tableBDxfMotionReadyTimeoutSec: 2.0
+  tableBDxfMotionReadyStableSamples: 2
   # Move J7 and the robot arm to the next Table B DXF prepoint at the same time.
   # Force starts only after the arm is at preheight and J7 is confirmed idle.
   tableBDxfSimultaneousJ7Robot: true
