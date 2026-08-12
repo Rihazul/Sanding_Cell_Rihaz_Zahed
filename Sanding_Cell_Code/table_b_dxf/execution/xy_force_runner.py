@@ -146,6 +146,11 @@ def _joint_transition_margin_deg(config: dict[str, Any]) -> float:
 
 
 def _should_wait_for_motion_point(point_index: int, total_points: int, flush_every: int) -> bool:
+    # The final command must not be sent while the previous blended command is still
+    # draining. Wait on the second-last point too, so the final point is issued only
+    # after the controller has accepted/settled the preceding motion.
+    if point_index >= max(1, total_points - 1):
+        return True
     if point_index >= total_points:
         return True
     return flush_every > 0 and point_index % flush_every == 0
