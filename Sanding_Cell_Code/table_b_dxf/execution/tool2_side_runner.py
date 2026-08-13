@@ -242,6 +242,94 @@ def _move_axis7_and_lifted_prepoint(
     )
 
 
+def _move_axis7_and_tool2_guarded_prepoint(
+    cps: Any,
+    config: dict[str, Any],
+    *,
+    axis7: float,
+    prepoint: list[float],
+    previous_position: _Tool2Position | None,
+    next_side: str,
+    y_total: float | None,
+) -> None:
+    """Move J7 and Tool 2 arm to a prepoint without cutting through the reach notch.
+
+    Tool 2 has the same practical problem as the XY-plane tools: a direct MoveL
+    between a low-Y bottom pose and a high-Y negative-X top pose can briefly enter
+    the low-Y/negative-X area and fold the arm. Route those two crossings through
+    local X=0 at a safe Y/Z, then continue to the real prepoint.
+    """
+    if previous_position is None or previous_position.side is None or len(prepoint) < 6:
+        _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
+        return
+
+    target_x = float(prepoint[0])
+    target_y = float(prepoint[1])
+    target_z = float(prepoint[2])
+    target_rz = float(prepoint[5])
+    safe_y = _transition_mid_y(y_total)
+    if safe_y is None:
+        safe_y = max(TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM, previous_position.y, target_y)
+    safe_z = min(float(previous_position.z), target_z, tool2_lift_z_for_side("top"))
+
+    bottom_to_top_negative_x = (
+        previous_position.side == "bottom"
+        and next_side == "top"
+        and target_x < 0.0
+    )
+    top_negative_x_to_bottom = (
+        previous_position.side == "top"
+        and previous_position.x < 0.0
+        and next_side == "bottom"
+    )
+    if not bottom_to_top_negative_x and not top_negative_x_to_bottom:
+        _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
+        return
+
+    if bottom_to_top_negative_x:
+        intermediate = _pose(max(0.0, previous_position.x), safe_y, safe_z, target_rz)
+        reason = "bottom -> top negative-X"
+    else:
+        intermediate = _pose(0.0, safe_y, safe_z, target_rz)
+        reason = "top negative-X -> bottom"
+
+    _log(
+        config,
+        "[TableB DXF Tool2] guarded reach transition %s: j7=%.3f via %s before prepoint %s",
+        reason,
+        axis7,
+        intermediate,
+        prepoint,
+    )
+    _move(
+        cps,
+        config,
+        None,
+        seventh=axis7,
+        velocity_profile="robotspeed",
+        wait=False,
+        require_seventh_ok=True,
+    )
+    # Do not require J7 idle yet: this waypoint exists specifically so the arm
+    # can travel safely while the rail is moving.
+    _move(
+        cps,
+        config,
+        intermediate,
+        velocity_profile="robotspeed",
+        wait=True,
+        require_seventh_ok=False,
+    )
+    _move(
+        cps,
+        config,
+        prepoint,
+        velocity_profile="robotspeed",
+        wait=True,
+        require_seventh_ok=True,
+    )
+
+
 def _transition_mid_y(y_total: float | None) -> float | None:
     if y_total is None:
         return None
@@ -419,6 +507,8 @@ def _run_horizontal_segment(
     reverse_path: bool = False,
     cycles: int = 1,
     sequential_j7_entry: bool = False,
+    previous_position: _Tool2Position | None = None,
+    y_total: float | None = None,
 ) -> _Tool2Position:
     side = segment.side
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
@@ -488,11 +578,14 @@ def _run_horizontal_segment(
             )
             _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
         else:
-            _move_axis7_and_lifted_prepoint(
+            _move_axis7_and_tool2_guarded_prepoint(
                 cps,
                 config,
                 axis7=segment.axis7,
                 prepoint=prepoint,
+                previous_position=previous_position,
+                next_side=side,
+                y_total=y_total,
             )
     _force_ready_at_contact(cps, config, side, operation_mode, path_start_x, y, rz)
     _apply_force_and_vibration(cps, config, side, force)
@@ -616,6 +709,8 @@ def _run_horizontal_segment_operations(
             reverse_path=reverse_for_operation,
             cycles=cycles_by_mode.get(operation_mode, 1),
             sequential_j7_entry=bottom_station_change_entry and index == 0,
+            previous_position=previous_position,
+            y_total=y_total,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 horizontal segment has no selected operations.")

@@ -1861,11 +1861,11 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     dTi = 0.001
     dTd = 0.02
 
-    # nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    # time.sleep(0.1)
-    # if nRet != 0:
-    # config['logger'].error(f"Failed to set PID control params: {nRet}")
-    # return
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set PID control params: {nRet}")
+        return
 
     # Set the Mass parameter
     Mass = [80, 80, 80, 10, 10, 10]
@@ -1876,7 +1876,7 @@ def putForceYplus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     # return
 
     # Stiffness
-    Stiff = [1500, 1500, 1500, 100, 100, 100]
+    Stiff = [1000, 1000, 1000, 100, 100, 100]
     nRet = cps.HRIF_SetStiffParams(0, 0, Stiff)
     time.sleep(0.0001)
     if nRet != 0:
@@ -1997,11 +1997,11 @@ def putForceXplus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     dTi = 0.001
     dTd = 0.02
 
-    # nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    # time.sleep(0.1)
-    # if nRet != 0:
-    # config['logger'].error(f"Failed to set PID control params: {nRet}")
-    # return
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set PID control params: {nRet}")
+        return
 
     # Set the Mass parameter
     Mass = [80, 80, 80, 10, 10, 10]
@@ -2142,11 +2142,11 @@ def putForceXminus(cps, force, tcp, ucs, config, goal=[1, 0, 0]):
     dTi = 0.001
     dTd = 0.02
 
-    # nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    # time.sleep(0.1)
-    # if nRet != 0:
-    # config['logger'].error(f"Failed to set PID control params: {nRet}")
-    # return
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set PID control params: {nRet}")
+        return
 
     # Set the Mass parameter
     Mass = [80, 80, 80, 10, 10, 10]
@@ -2279,11 +2279,11 @@ def putForceYminus1(cps, force, tcp, ucs, config, goal=[0, 1, 0]):
     dTi = 0.001
     dTd = 0.02
 
-    # nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
-    # time.sleep(0.1)
-    # if nRet != 0:
-    # config['logger'].error(f"Failed to set PID control params: {nRet}")
-    # return
+    nRet = cps.HRIF_SetPIDControlParams(0, 0, dFp, dFi, dFd, dTp, dTi, dTd)
+    time.sleep(0.0001)
+    if nRet != 0:
+        config["logger"].error(f"Failed to set PID control params: {nRet}")
+        return
 
     # Set the Mass parameter
     Mass = [80, 80, 80, 10, 10, 10]
