@@ -1659,6 +1659,18 @@ export function CompactTableConfig({
             updatedRow.verticalSpiral = true;
             updatedRow.horizontalSpiral = true;
             updatedRow.edgeCoverage = false;
+          } else if (
+            rowLabel === 'Pocket ZigZag' &&
+            field === 'cycle' &&
+            Number(value) <= 1 &&
+            !updatedRow.rectangularSpiral &&
+            updatedRow.verticalSpiral &&
+            updatedRow.horizontalSpiral
+          ) {
+            // Returning from multi-cycle mode must leave the pattern editable again.
+            // Keep one clear default instead of preserving the forced "both" state.
+            updatedRow.verticalSpiral = true;
+            updatedRow.horizontalSpiral = false;
           }
           newRows[idx] = updatedRow;
           return { ...dc, rows: newRows };
