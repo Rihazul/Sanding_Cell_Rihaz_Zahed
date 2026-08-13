@@ -37,60 +37,75 @@ export function SettingsPanel({
     Math.min(TABLE_A_POCKET_EDGE_OFFSET_MAX_MM, tableAPocketEdgeOffset[0] ?? 4)
   );
 
+  const renderSetting = (
+    label: string,
+    valueLabel: string,
+    value: number[],
+    onChange: (value: number[]) => void,
+    sliderClass: string,
+    options?: { min?: number; max?: number; step?: number; help?: string }
+  ) => (
+    <div className="border-b border-slate-200/70 px-1 pb-1.5 last:border-b-0 last:pb-0">
+      <div className="mb-0.5 flex items-center justify-between gap-3">
+        <label className="text-[11px] font-semibold text-slate-800">{label}</label>
+        <span className="text-[11px] font-semibold text-slate-700 text-right whitespace-nowrap">{valueLabel}</span>
+      </div>
+      <Slider
+        value={value}
+        onValueChange={onChange}
+        min={options?.min ?? 0}
+        max={options?.max ?? 100}
+        step={options?.step ?? 1}
+        className={sliderClass}
+      />
+      {options?.help && (
+        <div className="mt-0.5 text-[9px] leading-tight text-slate-500">{options.help}</div>
+      )}
+    </div>
+  );
+
   return (
-    <Card className="shadow-lg border-0">
-      <CardHeader className="bg-gradient-to-r from-purple-50 to-blue-50">
+    <Card className="border border-slate-200 shadow-sm overflow-hidden">
+      <CardHeader className="px-4 py-2 bg-gradient-to-r from-slate-50 to-blue-50 border-b border-slate-100">
         <CardTitle className="flex items-center gap-2">
           <span className="text-lg">⚙️</span>
-          Settings
+          <span className="text-lg font-extrabold text-slate-900">Settings</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-6 space-y-6">
-        {/* Robot Speed */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-sm">Robot Speed</label>
-            <span className="text-sm text-gray-600">{robotSpeed[0]}% ({robotSpeedMmS} mm/s, {ROBOT_MAX_ACCEL} mm/s²)</span>
-          </div>
-          <Slider value={robotSpeed} onValueChange={setRobotSpeed} min={0} max={100} step={1} className="[&_[role=slider]]:bg-blue-500" />
-        </div>
-
-        {/* Inverse Overlapping */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-sm">Table A Pocket Overlap</label>
-            <span className="text-sm text-gray-600">{overlapMm} mm {overlapMm === 0 ? '(no overlap)' : overlapMm >= 100 ? '(~3/4 tool overlap)' : ''}</span>
-          </div>
-          <Slider value={inverseOverlapping} onValueChange={setInverseOverlapping} min={0} max={100} step={1} className="[&_[role=slider]]:bg-purple-500" />
-          <div className="mt-1 text-xs text-gray-500">0 mm = no overlap, 100 mm = ~3/4 tool overlap</div>
-        </div>
-
-        {/* Table A Pocket Edge Offset */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-sm">Table A Pocket Edge Offset</label>
-            <span className="text-sm text-gray-600">{tableAPocketEdgeOffsetMm} mm</span>
-          </div>
-          <Slider
-            value={tableAPocketEdgeOffset}
-            onValueChange={setTableAPocketEdgeOffset}
-            min={0}
-            max={TABLE_A_POCKET_EDGE_OFFSET_MAX_MM}
-            step={1}
-            className="[&_[role=slider]]:bg-emerald-500"
-          />
-          <div className="mt-1 text-xs text-gray-500">Added to Tool 3 fixed pocket-edge offset. Larger = farther from the pocket edge.</div>
-        </div>
-
-        {/* Sanding Speed */}
-        <div>
-          <div className="flex justify-between mb-2">
-            <label className="text-sm">Sanding Speed</label>
-            <span className="text-sm text-gray-600">{sandingSpeed[0]}% ({sandingSpeedMmS} mm/s, {SANDING_MAX_ACCEL} mm/s²)</span>
-          </div>
-          <Slider value={sandingSpeed} onValueChange={setSandingSpeed} min={0} max={100} step={1} className="[&_[role=slider]]:bg-pink-500" />
-        </div>
-
+      <CardContent className="px-3 py-2 space-y-1.5 bg-white">
+        {renderSetting(
+          'Robot Speed',
+          `${robotSpeed[0]}% (${robotSpeedMmS} mm/s, ${ROBOT_MAX_ACCEL} mm/s²)`,
+          robotSpeed,
+          setRobotSpeed,
+          '[&_[role=slider]]:bg-blue-500'
+        )}
+        {renderSetting(
+          'Table A Pocket Overlap',
+          `${overlapMm} mm${overlapMm === 0 ? ' (no overlap)' : overlapMm >= 100 ? ' (~3/4 overlap)' : ''}`,
+          inverseOverlapping,
+          setInverseOverlapping,
+          '[&_[role=slider]]:bg-purple-500',
+          { help: '0 mm = no overlap, 100 mm = ~3/4 tool overlap' }
+        )}
+        {renderSetting(
+          'Table A Pocket Edge Offset',
+          `${tableAPocketEdgeOffsetMm} mm`,
+          tableAPocketEdgeOffset,
+          setTableAPocketEdgeOffset,
+          '[&_[role=slider]]:bg-emerald-500',
+          {
+            max: TABLE_A_POCKET_EDGE_OFFSET_MAX_MM,
+            help: 'Added to Tool 3 pocket-edge offset. Larger = farther from edge.',
+          }
+        )}
+        {renderSetting(
+          'Sanding Speed',
+          `${sandingSpeed[0]}% (${sandingSpeedMmS} mm/s, ${SANDING_MAX_ACCEL} mm/s²)`,
+          sandingSpeed,
+          setSandingSpeed,
+          '[&_[role=slider]]:bg-pink-500'
+        )}
       </CardContent>
     </Card>
   );

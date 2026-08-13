@@ -122,14 +122,14 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
   };
 
   return (
-    <Card className="shadow-lg border-0">
-      <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50">
+    <Card className="shadow-lg border-0 overflow-hidden">
+      <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 px-4 py-3">
         <CardTitle className="flex items-center gap-2">
-          <span className="text-lg">🤖</span>
-          Robot Status
+          <span className="text-base">🤖</span>
+          <span className="text-lg font-extrabold text-slate-900">Robot Status</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="pt-6 space-y-4">
+      <CardContent className="px-4 pt-3 pb-4 space-y-3">
         {/* Control Buttons */}
         <div className="grid grid-cols-2 gap-3">
           <motion.button
@@ -138,7 +138,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
             onClick={homingBlocked ? undefined : (e) => { e.preventDefault(); setStopTriggered(false); handleHoming(robotEnabled); }}
             disabled={homingBlocked}
             title={homingBlocked ? 'Homing is disabled while a task is running. Press Stop first.' : undefined}
-            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${homingBlocked ? 'brightness-95 cursor-not-allowed' : ''}`}
+            className={`${isHoming ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-600 hover:bg-gray-700'} text-white px-5 py-2.5 rounded-lg transition-all shadow-md hover:shadow-lg ${homingBlocked ? 'brightness-95 cursor-not-allowed' : ''}`}
           >
             {isHoming ? 'Homing...' : 'Homing'}
           </motion.button>
@@ -147,7 +147,7 @@ export function RobotStatusCard({ isHoming, setIsHoming, activities, addActivity
             whileTap={robotEnabled ? { scale: 0.95 } : {}}
             onClick={robotEnabled ? (e) => { e.preventDefault(); handleStop(); } : undefined}
             disabled={!robotEnabled}
-            className={`bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${!robotEnabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+            className={`bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg transition-all shadow-md hover:shadow-lg ${!robotEnabled ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
             Stop
           </motion.button>
