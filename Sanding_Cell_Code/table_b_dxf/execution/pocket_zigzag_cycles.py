@@ -449,6 +449,26 @@ def _split_rect_bounds_by_tool4_reach(bounds: dict[str, float]) -> list[dict[str
     return windows
 
 
+def _trim_internal_rect_window_boundaries(
+    windows: list[dict[str, float]],
+    step_mm: float,
+) -> list[dict[str, float]]:
+    """Keep adjacent rectangular execution windows from reusing the same X edge."""
+    if len(windows) <= 1:
+        return windows
+
+    trimmed: list[dict[str, float]] = []
+    for index, bounds in enumerate(windows):
+        out = dict(bounds)
+        if index > 0:
+            width = out["x_max"] - out["x_min"]
+            inset = min(max(float(step_mm) * 0.5, 1.0), width * 0.33)
+            if out["x_min"] + inset < out["x_max"] - 1.0:
+                out["x_min"] += inset
+        trimmed.append(out)
+    return trimmed
+
+
 def _collect_rectangular_pocket_bounds(
     window_order: list[str],
     grouped: dict[str, dict[str, list[dict[str, Any]]]],
@@ -493,11 +513,12 @@ def _collect_rectangular_pocket_bounds(
 def _build_rectangular_cycle_windows(
     window_order: list[str],
     grouped: dict[str, dict[str, list[dict[str, Any]]]],
+    step_mm: float,
 ) -> list[tuple[str, dict[str, float], dict[str, Any]]]:
     """Build clean backend execution windows for rectangular pocket multi-cycles."""
     out: list[tuple[str, dict[str, float], dict[str, Any]]] = []
     for family_key, rectangle, template in _collect_rectangular_pocket_bounds(window_order, grouped):
-        splits = _split_rect_bounds_by_tool4_reach(rectangle)
+        splits = _trim_internal_rect_window_boundaries(_split_rect_bounds_by_tool4_reach(rectangle), step_mm)
         for index, bounds in enumerate(splits, start=1):
             out.append((f"{family_key}_exec{index}", bounds, template))
     return out
@@ -658,6 +679,32 @@ def _build_window_serpentine_from_bounds(
     return out
 
 
+def _remove_initial_duplicate_vertical_lane(
+    points: list[list[float]],
+    previous_end: list[float] | None,
+    step_mm: float,
+) -> list[list[float]]:
+    """Avoid sanding the previous window's shared X-boundary lane again.
+
+    Adjacent rectangular reach windows share a physical boundary. The previous
+    window owns that boundary lane; the next window should start at its first
+    interior lane so the robot does not repeat the same pass after the J7 move.
+    """
+    if previous_end is None or len(previous_end) < 2 or len(points) < 4:
+        return points
+    try:
+        previous_x = float(previous_end[0])
+        first_x = float(points[0][0])
+        second_x = float(points[1][0])
+    except (TypeError, ValueError, IndexError):
+        return points
+    same_first_lane = abs(first_x - second_x) <= 0.5
+    near_previous_boundary = abs(first_x - previous_x) <= max(2.0, float(step_mm) * 0.1)
+    if same_first_lane and near_previous_boundary:
+        return points[2:]
+    return points
+
+
 def _combined_window_cycle_path(
     *,
     window_key: str,
@@ -757,6 +804,8 @@ def _combined_rect_window_cycle_path(
     for cycle_index in range(1, cycles + 1):
         orientation = selected if cycle_index % 2 == 1 else alternate
         pts = _build_window_serpentine_from_bounds(bounds, orientation, cursor, step_mm)
+        if cycle_index == 1 and orientation == "vertical":
+            pts = _remove_initial_duplicate_vertical_lane(pts, cursor, step_mm)
         if len(pts) < 2:
             return None, start_cursor
         _append_continuous_points(combined, pts)
@@ -824,7 +873,7 @@ def build_tool4_rectangular_alternating_cycle_paths(
     template = dict(source_paths[0])
     expanded: list[dict[str, Any]] = []
     cursor: list[float] | None = None
-    windows = _split_rect_bounds_by_tool4_reach(full_bounds)
+    windows = _trim_internal_rect_window_boundaries(_split_rect_bounds_by_tool4_reach(full_bounds), step_mm)
     for index, bounds in enumerate(windows, start=1):
         window_key = f"{path_prefix}_exec{index}"
         combined_path, cursor_after = _combined_rect_window_cycle_path(
@@ -985,7 +1034,7 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
     expanded: list[dict[str, Any]] = []
     cursor: list[float] | None = None
     cycle_bounds_overrides = _partition_cycle_window_bounds(window_order, grouped)
-    clean_rect_windows = [] if rect_spiral_selected else _build_rectangular_cycle_windows(window_order, grouped)
+    clean_rect_windows = [] if rect_spiral_selected else _build_rectangular_cycle_windows(window_order, grouped, step_mm)
     clean_rect_by_key = {window_key: (bounds, template) for window_key, bounds, template in clean_rect_windows}
     if clean_rect_windows:
         for window_key, bounds, _template in clean_rect_windows:
