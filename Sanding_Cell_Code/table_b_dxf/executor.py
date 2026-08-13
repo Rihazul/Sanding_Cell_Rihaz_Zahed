@@ -571,6 +571,81 @@ def _point_bounds_for_paths(paths: list[dict[str, Any]]) -> dict[str, float] | N
     return {"x_min": x_min, "x_max": x_max, "y_min": y_min, "y_max": y_max}
 
 
+def _cycle_window_base_key(window_key: str) -> str:
+    return str(window_key).split("@", 1)[0]
+
+
+def _paths_for_cycle_window_key(
+    grouped: dict[str, dict[str, list[dict[str, Any]]]],
+    window_key: str,
+) -> list[dict[str, Any]]:
+    paths: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for orientation_groups in grouped.values():
+        for path in orientation_groups.get(window_key) or []:
+            path_id = str(path.get("path_id") or id(path))
+            if path_id in seen:
+                continue
+            seen.add(path_id)
+            paths.append(path)
+    return paths
+
+
+def _original_cycle_window_bounds(paths: list[dict[str, Any]]) -> dict[str, float] | None:
+    for path in paths:
+        bounds = _float_bounds(path.get("cycle_window_bounds"))
+        if bounds is not None:
+            return bounds
+    return None
+
+
+def _partition_cycle_window_bounds(
+    window_order: list[str],
+    grouped: dict[str, dict[str, list[dict[str, Any]]]],
+) -> dict[str, dict[str, float]]:
+    """Return non-overlapping execution bounds for pocket-zigzag cycle windows.
+
+    Reach planning can split a frontend cycle rectangle into uneven fragments. If those
+    fragment extents are reused as sanding rectangles, the robot can sand a big area,
+    then a tiny leftover, then repass part of that area after the next J7 move. The
+    frontend cycle_window_bounds is the intended physical rectangle, so split that
+    rectangle into clean X slices whenever several planner keys belong to the same
+    frontend window.
+    """
+    by_base: dict[str, list[tuple[str, list[dict[str, Any]], dict[str, float]]]] = {}
+    for window_key in window_order:
+        paths = _paths_for_cycle_window_key(grouped, window_key)
+        original_bounds = _original_cycle_window_bounds(paths) or _window_bounds_for_paths(paths)
+        if original_bounds is None:
+            continue
+        by_base.setdefault(_cycle_window_base_key(window_key), []).append((window_key, paths, original_bounds))
+
+    overrides: dict[str, dict[str, float]] = {}
+    for entries in by_base.values():
+        base_bounds = entries[0][2]
+        if len(entries) == 1:
+            overrides[entries[0][0]] = dict(base_bounds)
+            continue
+
+        def entry_center(entry: tuple[str, list[dict[str, Any]], dict[str, float]]) -> float:
+            point_bounds = _point_bounds_for_paths(entry[1])
+            bounds = point_bounds or entry[2]
+            return (bounds["x_min"] + bounds["x_max"]) * 0.5
+
+        ordered = sorted(entries, key=entry_center)
+        width = (base_bounds["x_max"] - base_bounds["x_min"]) / len(ordered)
+        for index, (window_key, _paths, _bounds) in enumerate(ordered):
+            x_min = base_bounds["x_min"] + index * width
+            x_max = base_bounds["x_max"] if index == len(ordered) - 1 else x_min + width
+            overrides[window_key] = {
+                "x_min": x_min,
+                "x_max": x_max,
+                "y_min": base_bounds["y_min"],
+                "y_max": base_bounds["y_max"],
+            }
+    return overrides
+
+
 def _zigzag_adjusted_step(span: float, requested_step: float) -> float:
     step = requested_step if requested_step > 1e-9 else span
     steps = max(1, round(span / step))
@@ -631,6 +706,7 @@ def _combined_window_cycle_path(
     force: int,
     start_cursor: list[float] | None,
     step_mm: float,
+    bounds_override: dict[str, float] | None = None,
 ) -> tuple[dict[str, Any] | None, list[float] | None]:
     """Build one force-contact path for all cycles inside one shared reach window.
 
@@ -652,7 +728,7 @@ def _combined_window_cycle_path(
             seen_ids.add(candidate_id)
             all_window_paths.append(candidate)
 
-    shared_bounds = _window_bounds_for_paths(all_window_paths)
+    shared_bounds = bounds_override or _window_bounds_for_paths(all_window_paths)
     if all_window_paths and first_path is None:
         first_path = dict(all_window_paths[0])
 
@@ -664,7 +740,7 @@ def _combined_window_cycle_path(
 
         if first_path is None and window_paths:
             first_path = dict(window_paths[0])
-        bounds = _window_bounds_for_paths(window_paths) or shared_bounds
+        bounds = bounds_override or _window_bounds_for_paths(window_paths) or shared_bounds
         if bounds is not None:
             pts = _build_window_serpentine_from_bounds(bounds, orientation, cursor, step_mm)
             if len(pts) < 2:
@@ -831,6 +907,7 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
 
     expanded: list[dict[str, Any]] = []
     cursor: list[float] | None = None
+    cycle_bounds_overrides = _partition_cycle_window_bounds(window_order, grouped)
     for window_key in window_order:
         triangle_window = _is_triangle_pocket_zigzag_window(window_key)
         rect_spiral_window = _is_rect_spiral_pocket_zigzag_window(window_key)
@@ -848,6 +925,7 @@ def _pocket_zigzag_cycle_paths(approved: dict[str, Any], recipe: dict[str, Any])
                 force=zigzag_recipe["force"],
                 start_cursor=cursor,
                 step_mm=step_mm,
+                bounds_override=cycle_bounds_overrides.get(window_key),
             )
             if combined_path is not None:
                 expanded.append(combined_path)
