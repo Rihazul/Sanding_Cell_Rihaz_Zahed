@@ -78,6 +78,7 @@ const POCKET_ZIGZAG_COLOR = '#16a34a'; // green — Tool 4 zigzag fill
 const CONTOUR_TOOLPATH_COLOR = '#9333ea'; // purple — 3D-contour ring toolpath
 const START_MARKER_FILL = '#ffffff';
 const START_MARKER_STROKE = '#16a34a';
+const END_MARKER_STROKE = '#0f172a';
 
 // One colour per 7th-axis station. Passes sharing a colour are executed from the SAME
 // station, so the operator can see at a glance what runs together and how many times the
@@ -698,10 +699,52 @@ export default function Dxf2DViewer({
   const isToolpathStartSegment = (seg) => /_0$/.test(String(seg.id || '')) || seg.seq === 0;
   const toolpathGroupId = (seg) => String(seg.id || '').replace(/_\d+$/, '');
   const isSelectedOperationSegment = (seg) => selectedOperationToolpathId != null && toolpathGroupId(seg) === selectedOperationToolpathId;
+  const isToolpathEndSegment = (seg, list, index) => {
+    const next = list[index + 1];
+    return !next || toolpathGroupId(next) !== toolpathGroupId(seg);
+  };
+  const markerPointsOverlap = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by) <= 1.5;
+  const hasEndpointOverlap = (overlays, x, y, pointKind) =>
+    overlays.some((item) =>
+      pointKind === 'start'
+        ? item.isEnd && markerPointsOverlap(x, y, item.x1, item.y1)
+        : item.isStart && markerPointsOverlap(x, y, item.x0, item.y0),
+    );
+  const renderEndpointMarker = ({ key, cx, cy, radius = 4.5, selected = false, split = false, kind = 'start', pointerEvents = 'none' }) => {
+    const r = selected ? radius + 1.5 : radius;
+    const stroke = selected ? HIGHLIGHT_STROKE : kind === 'end' ? END_MARKER_STROKE : START_MARKER_STROKE;
+    const strokeWidth = selected ? 2.4 : kind === 'end' ? 2.2 : 1.8;
+    if (kind === 'end') {
+      return (
+        <circle
+          key={key}
+          cx={cx}
+          cy={cy}
+          r={split ? r + 3 : r}
+          fill="none"
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+          pointerEvents={pointerEvents}
+        />
+      );
+    }
+    return (
+      <circle
+        key={key}
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill={START_MARKER_FILL}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        pointerEvents={pointerEvents}
+      />
+    );
+  };
   // Pocket toolpath overlays (Tool 3 rectangular contour): directional line + a
   // mid-segment arrow showing travel direction, constant pixel size like above.
   const pocketToolpathOverlays = toolVisible('tool_3')
-    ? pocketToolpaths.map((seg) => {
+    ? pocketToolpaths.map((seg, index) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
         const dx = x1 - x0;
@@ -721,13 +764,13 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg), isEnd: isToolpathEndSegment(seg, pocketToolpaths, index) };
       })
     : [];
 
   // 3D-contour ring toolpath overlays (purple rectangular contour).
   const contourToolpathOverlays = toolVisible('tool_1')
-    ? contourToolpaths.map((seg) => {
+    ? contourToolpaths.map((seg, index) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
         const dx = x1 - x0;
@@ -746,14 +789,14 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg), isEnd: isToolpathEndSegment(seg, contourToolpaths, index) };
       })
     : [];
 
   // Tool 4 zigzag fill overlays: thin green passes with a mid-segment travel arrow;
   // start marker at the first point (bottom-right).
   const pocketZigzagOverlays = toolVisible('tool_4')
-    ? pocketZigzag.map((seg) => {
+    ? pocketZigzag.map((seg, index) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
         const dx = x1 - x0;
@@ -772,14 +815,14 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg), isEnd: isToolpathEndSegment(seg, pocketZigzag, index) };
       })
     : [];
 
   // Frame Tool 4 zigzag overlays: red passes (no offset, from the origin) with a
   // mid-segment travel arrow and a start marker at the origin.
   const frameZigzagOverlays = toolVisible('tool_4')
-    ? frameZigzag.map((seg) => {
+    ? frameZigzag.map((seg, index) => {
         const [x0, y0] = toScreen(seg.start[0], seg.start[1]);
         const [x1, y1] = toScreen(seg.end[0], seg.end[1]);
         const dx = x1 - x0;
@@ -798,7 +841,7 @@ export default function Dxf2DViewer({
         const py = ux;
         const halfW = arrowSize * 0.5;
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
-        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg) };
+        return { seg, x0, y0, x1, y1, arrow, isStart: isToolpathStartSegment(seg), isEnd: isToolpathEndSegment(seg, frameZigzag, index) };
       })
     : [];
 
@@ -827,7 +870,7 @@ export default function Dxf2DViewer({
         const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
         // Each Tool 2 side is its own single-pass contact stroke, so every one gets a start
         // marker at its own first point — not just the first path (Tool 2 is not a loop).
-        return { seg, x0, y0, x1, y1, arrow, isStart: true };
+        return { seg, x0, y0, x1, y1, arrow, isStart: true, isEnd: true };
       })
     : [];
 
@@ -858,7 +901,7 @@ export default function Dxf2DViewer({
           const halfW = arrowSize * 0.5;
           const arrow = `${tipX},${tipY} ${baseX + px * halfW},${baseY + py * halfW} ${baseX - px * halfW},${baseY - py * halfW}`;
           segs.push({
-            key: `${path.path_id}_${i}`, pathId: path.path_id, x0, y0, x1, y1, arrow, isStart: i === 0,
+            key: `${path.path_id}_${i}`, pathId: path.path_id, x0, y0, x1, y1, arrow, isStart: i === 0, isEnd: i === pts.length - 2,
             // Colour by 7th-axis station so passes that run together share a colour.
             color: stationColor(path.station_index, path.axis7_position_mm),
             stationIndex: path.station_index ?? null,
@@ -1282,7 +1325,7 @@ export default function Dxf2DViewer({
                 a mid-segment travel arrow and a start marker at the first corner. */}
             {pocketToolpathOverlays.length > 0 && (
               <g pointerEvents="none">
-                {pocketToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => {
+                {pocketToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart, isEnd }) => {
                   const isSelected = isSelectedOperationSegment(seg);
                   const drawColor = isSelected
                     ? HIGHLIGHT_STROKE
@@ -1295,9 +1338,22 @@ export default function Dxf2DViewer({
                           splits are visible; falls back to the tool colour otherwise. */}
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
                       <polygon points={arrow} fill={drawColor} />
-                      {isStart && (
-                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
-                      )}
+                      {isStart && renderEndpointMarker({
+                        key: `ptp-${seg.id}-start`,
+                        cx: x0,
+                        cy: y0,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(pocketToolpathOverlays, x0, y0, 'start'),
+                        kind: 'start',
+                      })}
+                      {isEnd && renderEndpointMarker({
+                        key: `ptp-${seg.id}-end`,
+                        cx: x1,
+                        cy: y1,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(pocketToolpathOverlays, x1, y1, 'end'),
+                        kind: 'end',
+                      })}
                     </g>
                   );
                 })}
@@ -1308,7 +1364,7 @@ export default function Dxf2DViewer({
                 mid-segment travel arrow and a start marker at the bottom-right. */}
             {contourToolpathOverlays.length > 0 && (
               <g pointerEvents="none">
-                {contourToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => {
+                {contourToolpathOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart, isEnd }) => {
                   const isSelected = isSelectedOperationSegment(seg);
                   const drawColor = isSelected
                     ? HIGHLIGHT_STROKE
@@ -1319,9 +1375,22 @@ export default function Dxf2DViewer({
                     <g key={`ctp-${seg.id}`} className={isSelected ? 'dxf-blink' : undefined}>
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
                       <polygon points={arrow} fill={drawColor} />
-                      {isStart && (
-                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
-                      )}
+                      {isStart && renderEndpointMarker({
+                        key: `ctp-${seg.id}-start`,
+                        cx: x0,
+                        cy: y0,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(contourToolpathOverlays, x0, y0, 'start'),
+                        kind: 'start',
+                      })}
+                      {isEnd && renderEndpointMarker({
+                        key: `ctp-${seg.id}-end`,
+                        cx: x1,
+                        cy: y1,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(contourToolpathOverlays, x1, y1, 'end'),
+                        kind: 'end',
+                      })}
                     </g>
                   );
                 })}
@@ -1332,7 +1401,7 @@ export default function Dxf2DViewer({
                 a start marker at the bottom-right start corner. */}
             {pocketZigzagOverlays.length > 0 && (
               <g pointerEvents="none">
-                {pocketZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => {
+                {pocketZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart, isEnd }) => {
                   const isSelected = isSelectedOperationSegment(seg);
                   const drawColor = isSelected
                     ? HIGHLIGHT_STROKE
@@ -1343,9 +1412,22 @@ export default function Dxf2DViewer({
                     <g key={`pzz-${seg.id}`} className={isSelected ? 'dxf-blink' : undefined}>
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 1.5} />
                       <polygon points={arrow} fill={drawColor} />
-                      {isStart && (
-                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
-                      )}
+                      {isStart && renderEndpointMarker({
+                        key: `pzz-${seg.id}-start`,
+                        cx: x0,
+                        cy: y0,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(pocketZigzagOverlays, x0, y0, 'start'),
+                        kind: 'start',
+                      })}
+                      {isEnd && renderEndpointMarker({
+                        key: `pzz-${seg.id}-end`,
+                        cx: x1,
+                        cy: y1,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(pocketZigzagOverlays, x1, y1, 'end'),
+                        kind: 'end',
+                      })}
                     </g>
                   );
                 })}
@@ -1356,16 +1438,29 @@ export default function Dxf2DViewer({
                 radius-based zigzag) with travel arrows and a start marker. */}
             {frameSectionPathOverlays.length > 0 && (
               <g pointerEvents="none">
-                {frameSectionPathOverlays.map(({ key, pathId, x0, y0, x1, y1, arrow, isStart, color }) => {
+                {frameSectionPathOverlays.map(({ key, pathId, x0, y0, x1, y1, arrow, isStart, isEnd, color }) => {
                   const isSelected = selectedFramePathId != null && pathId === selectedFramePathId;
                   const drawColor = isSelected ? HIGHLIGHT_STROKE : color || TOOLPATH_COLOR;
                   return (
                     <g key={`fsp-${key}`} className={isSelected ? 'dxf-blink' : undefined}>
                       <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={drawColor} strokeWidth={isSelected ? 4 : 2} />
                       <polygon points={arrow} fill={drawColor} />
-                      {isStart && (
-                        <circle cx={x0} cy={y0} r={isSelected ? 6 : 4.5} fill={START_MARKER_FILL} stroke={isSelected ? HIGHLIGHT_STROKE : START_MARKER_STROKE} strokeWidth={isSelected ? 2.4 : 1.8} />
-                      )}
+                      {isStart && renderEndpointMarker({
+                        key: `fsp-${key}-start`,
+                        cx: x0,
+                        cy: y0,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(frameSectionPathOverlays, x0, y0, 'start'),
+                        kind: 'start',
+                      })}
+                      {isEnd && renderEndpointMarker({
+                        key: `fsp-${key}-end`,
+                        cx: x1,
+                        cy: y1,
+                        selected: isSelected,
+                        split: hasEndpointOverlap(frameSectionPathOverlays, x1, y1, 'end'),
+                        kind: 'end',
+                      })}
                     </g>
                   );
                 })}
@@ -1376,14 +1471,25 @@ export default function Dxf2DViewer({
                 frame from the origin, with travel arrows and a start marker. */}
             {frameZigzagOverlays.length > 0 && (
               <g pointerEvents="none">
-                {frameZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
+                {frameZigzagOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart, isEnd }) => (
                   <g key={`fzz-${seg.id}`}>
                     {/* Colour by 7th-axis station like the other tools once planned. */}
                     <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} strokeWidth={1.5} />
                     <polygon points={arrow} fill={seg.station_index === undefined ? TOOLPATH_COLOR : stationColor(seg.station_index, seg.axis7_position_mm)} />
-                    {isStart && (
-                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} />
-                    )}
+                    {isStart && renderEndpointMarker({
+                      key: `fzz-${seg.id}-start`,
+                      cx: x0,
+                      cy: y0,
+                      split: hasEndpointOverlap(frameZigzagOverlays, x0, y0, 'start'),
+                      kind: 'start',
+                    })}
+                    {isEnd && renderEndpointMarker({
+                      key: `fzz-${seg.id}-end`,
+                      cx: x1,
+                      cy: y1,
+                      split: hasEndpointOverlap(frameZigzagOverlays, x1, y1, 'end'),
+                      kind: 'end',
+                    })}
                   </g>
                 ))}
               </g>
@@ -1393,16 +1499,29 @@ export default function Dxf2DViewer({
                 Coloured by 7th-axis station when planned, else the default toolpath colour. */}
             {tool2SideOverlays.length > 0 && (
               <g>
-                {tool2SideOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart }) => (
+                {tool2SideOverlays.map(({ seg, x0, y0, x1, y1, arrow, isStart, isEnd }) => (
                   <g key={`t2-${seg.id}`}>
                     <title>{`Tool 2 · Side & edge · ${seg.side_label ?? ''} (${seg.id})`}</title>
                     {/* Wide transparent hit line so hovering the thin side shows its title. */}
                     <line x1={x0} y1={y0} x2={x1} y2={y1} stroke="transparent" strokeWidth={10} pointerEvents="stroke" />
                     <line x1={x0} y1={y0} x2={x1} y2={y1} stroke={seg.station_index === undefined || seg.station_index === null ? TOOLPATH_COLOR : stationColorByIndex(seg.station_index)} strokeWidth={2} pointerEvents="none" />
                     <polygon points={arrow} fill={seg.station_index === undefined || seg.station_index === null ? TOOLPATH_COLOR : stationColorByIndex(seg.station_index)} pointerEvents="none" />
-                    {isStart && (
-                      <circle cx={x0} cy={y0} r={4.5} fill={START_MARKER_FILL} stroke={START_MARKER_STROKE} strokeWidth={1.8} pointerEvents="none" />
-                    )}
+                    {isStart && renderEndpointMarker({
+                      key: `t2-${seg.id}-start`,
+                      cx: x0,
+                      cy: y0,
+                      split: hasEndpointOverlap(tool2SideOverlays, x0, y0, 'start'),
+                      kind: 'start',
+                      pointerEvents: 'none',
+                    })}
+                    {isEnd && renderEndpointMarker({
+                      key: `t2-${seg.id}-end`,
+                      cx: x1,
+                      cy: y1,
+                      split: hasEndpointOverlap(tool2SideOverlays, x1, y1, 'end'),
+                      kind: 'end',
+                      pointerEvents: 'none',
+                    })}
                   </g>
                 ))}
               </g>
