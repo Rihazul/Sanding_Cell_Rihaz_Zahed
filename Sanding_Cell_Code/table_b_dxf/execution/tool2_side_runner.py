@@ -50,6 +50,7 @@ TOOL2_OPERATION_SIDE = "side"
 TOOL2_OPERATION_EDGE = "edgeOutside"
 TOOL2_EDGE_RY_DEG = -22.0
 TOOL2_EDGE_APPROACH_OUTWARD_MM = 5.0
+TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 5.0
 TOOL2_BOTTOM_SIDE_EXIT_Y_MM = 80.0
 TOOL2_BOTTOM_SIDE_EXIT_Z_MM = -80.0
 TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM = 100.0
@@ -161,6 +162,14 @@ def _horizontal_y_for_operation(side: str, y: float, operation_mode: str) -> flo
     if side == "top":
         return y - TOOL2_APPROACH_OUTWARD_MM + offset
     return y
+
+
+def _bottom_travel_y() -> float:
+    return -TOOL2_BOTTOM_TRAVEL_OUTWARD_MM
+
+
+def _bottom_travel_pose(x: float, z: float, rz: float) -> list[float]:
+    return _pose(x, _bottom_travel_y(), z, rz, ry=TOOL2_EDGE_RY_DEG)
 
 
 def _vertical_x_for_operation(side: str, x: float, operation_mode: str) -> float:
@@ -277,21 +286,12 @@ def _move_axis7_and_tool2_guarded_prepoint(
         and next_side == "top"
         and target_x < 0.0
     )
-    top_negative_x_to_bottom = (
-        previous_position.side == "top"
-        and previous_position.x < 0.0
-        and next_side == "bottom"
-    )
-    if not bottom_to_top_negative_x and not top_negative_x_to_bottom:
+    if not bottom_to_top_negative_x:
         _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
         return
 
-    if bottom_to_top_negative_x:
-        intermediate = _pose(max(0.0, previous_position.x), safe_y, safe_z, target_rz)
-        reason = "bottom -> top negative-X"
-    else:
-        intermediate = _pose(0.0, safe_y, safe_z, target_rz)
-        reason = "top negative-X -> bottom"
+    intermediate = _pose(max(0.0, previous_position.x), safe_y, safe_z, target_rz)
+    reason = "bottom -> top negative-X"
 
     _log(
         config,
@@ -359,12 +359,19 @@ def _prepare_bottom_side_exit_before_j6(
         x,
     )
     if previous_position.z > -5.0:
-        _move(cps, config, _pose(x, y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-        _move(cps, config, _pose(x, y, tool2_lift_z_for_side("bottom"), rz), velocity_profile="robotspeed", wait=True)
+        _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        _move(cps, config, _bottom_travel_pose(x, tool2_lift_z_for_side("bottom"), rz), velocity_profile="robotspeed", wait=True)
     _move(
         cps,
         config,
-        _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz),
+        _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG),
+        velocity_profile="robotspeed",
+        wait=True,
+    )
+    _move(
+        cps,
+        config,
+        _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz, ry=0.0),
         velocity_profile="robotspeed",
         wait=True,
     )
@@ -385,16 +392,25 @@ def _apply_side_transition_j6(
     if previous_position.side == "top" and next_side == "bottom":
         mid_y = _transition_mid_y(y_total)
         if mid_y is not None:
+            lift_z = tool2_lift_z_for_side("top")
             _log(
                 config,
-                "[TableB DXF Tool2] top exit before bottom: travel to mid Y=%.3f at Z=%.3f before J6",
+                "[TableB DXF Tool2] top exit before bottom: normalize to X=0 then travel to mid Y=%.3f at Z=%.3f before J6",
                 mid_y,
-                tool2_lift_z_for_side("top"),
+                lift_z,
             )
+            if previous_position.x < 0.0:
+                _move(
+                    cps,
+                    config,
+                    _pose(0.0, previous_position.y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
+                    velocity_profile="robotspeed",
+                    wait=True,
+                )
             _move(
                 cps,
                 config,
-                _pose(previous_position.x, mid_y, tool2_lift_z_for_side("top"), TOOL2_SIDE_RZ_DEG["top"]),
+                _pose(0.0, mid_y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
                 velocity_profile="robotspeed",
                 wait=True,
             )
@@ -515,6 +531,7 @@ def _run_horizontal_segment(
     rz = TOOL2_SIDE_RZ_DEG[side]
     y = _horizontal_y_for_operation(side, segment.y, operation_mode)
     side_safe_y = _horizontal_y_for_operation(side, segment.y, TOOL2_OPERATION_SIDE)
+    bottom_travel_y = _bottom_travel_y() if side == "bottom" else side_safe_y
     path_start_x = segment.local_end_x if reverse_path else segment.local_start_x
     path_end_x = segment.local_start_x if reverse_path else segment.local_end_x
     _log(
@@ -541,10 +558,15 @@ def _run_horizontal_segment(
             require_seventh_ok=True,
         )
         if backoff_before_entry:
+            backoff_pose = (
+                _bottom_travel_pose(path_start_x, TOOL2_CONTACT_Z_MM, rz)
+                if side == "bottom"
+                else _pose(path_start_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz)
+            )
             _move(
                 cps,
                 config,
-                _pose(path_start_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz),
+                backoff_pose,
                 velocity_profile="robotspeed",
                 wait=True,
                 require_seventh_ok=True,
@@ -559,7 +581,11 @@ def _run_horizontal_segment(
                 require_seventh_ok=True,
             )
     else:
-        prepoint = _pose(path_start_x, y, lift_z, rz)
+        prepoint = (
+            _bottom_travel_pose(path_start_x, lift_z, rz)
+            if side == "bottom"
+            else _pose(path_start_x, y, lift_z, rz)
+        )
         if sequential_j7_entry:
             _log(
                 config,
@@ -614,7 +640,19 @@ def _run_horizontal_segment(
     final_x = _last_ping_pong_target(path_start_x, path_end_x, cycles)
     _release_force_and_vibration(cps, config, side)
     exit_y = y
-    if _is_edge_operation(operation_mode):
+    if side == "bottom":
+        exit_y = bottom_travel_y
+        safe_exit_pose = _bottom_travel_pose(final_x, TOOL2_CONTACT_Z_MM, rz)
+        if _is_edge_operation(operation_mode) or not lift_after:
+            _move(
+                cps,
+                config,
+                safe_exit_pose,
+                velocity_profile="robotspeed",
+                wait=True,
+            )
+            _mark_tool2_recovery(side, safe_exit_pose)
+    elif _is_edge_operation(operation_mode):
         exit_y = side_safe_y
         safe_exit_pose = _pose(final_x, exit_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
         _move(
@@ -636,11 +674,21 @@ def _run_horizontal_segment(
         )
         _mark_tool2_recovery(side, safe_exit_pose)
     if lift_after:
-        _move(cps, config, _pose(final_x, exit_y, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        contact_exit_pose = (
+            _bottom_travel_pose(final_x, TOOL2_CONTACT_Z_MM, rz)
+            if side == "bottom"
+            else _pose(final_x, exit_y, TOOL2_CONTACT_Z_MM, rz)
+        )
+        lifted_exit_pose = (
+            _bottom_travel_pose(final_x, lift_z, rz)
+            if side == "bottom"
+            else _pose(final_x, exit_y, lift_z, rz)
+        )
+        _move(cps, config, contact_exit_pose, velocity_profile="robotspeed", wait=True)
         _move(
             cps,
             config,
-            _pose(final_x, exit_y, lift_z, rz),
+            lifted_exit_pose,
             velocity_profile="robotspeed",
             wait=True,
         )
