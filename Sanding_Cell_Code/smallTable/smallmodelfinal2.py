@@ -16,7 +16,7 @@ from smallTable.frame1tool2edgefinal import door1frametool2sideedge,door2frameto
 from smallTable.frame1tool2sideedge_combined import run_tool2_side_edge_combined
 from smallTable.frame1tool3 import smalldoor1tool3,smalldoor2tool3,smalldoor3tool3,smalldoor4tool3
 
-from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested,moveOnlyJ6r,move_to_task_safe_point
+from Server_Better_V2 import keepTool11,setup_logger,getTool11,communicate,stop_requested,moveOnlyJ6r,move_to_task_safe_point,move_to_robot_homing_point
 from modules.CPS import CPSClient
 import time
 
@@ -237,6 +237,12 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         return True
 
     print(f"Tool {tool_in_hand} detected; dropping before picking tool {tool_num}.")
+    move_to_robot_homing_point(
+        cps=cps,
+        config=config,
+        speed=float(config.get("UI", {}).get("robotSpeed", 0.7)),
+        velocity_profile="robotspeed",
+    )
     seventh_result = communicate(
         cps=cps,
         config=config,
@@ -384,9 +390,12 @@ def sandingModelBTableA(cps=None):
             raise RuntimeError("J7 did not become idle at the tool station.")
 
     def move_to_homing_with_tool():
-        move_to_safe_point()
-        move_seventh_to_tool_station()
-        move_to_safe_point()
+        move_to_robot_homing_point(
+            cps=cps,
+            config=config,
+            speed=speeed,
+            velocity_profile="robotspeed",
+        )
 
     def ensure_tool_in_hand(tool_num):
         ci0_local, ci1_local, ci2_local = read_ci_triplet(cps)
@@ -584,9 +593,10 @@ def sandingModelBTableA(cps=None):
                 ci0_end, ci1_end, ci2_end = read_ci_triplet(cps)
                 tool_in_hand = decode_tool_in_hand(ci0_end, ci1_end, ci2_end)
                 if tool_in_hand is not None:
-                    move_to_safe_point()
+                    move_to_homing_with_tool()
                     move_seventh_to_tool_station()
                     keepTool11(cps, toolNumber=tool_in_hand, config=config)
+                    move_to_homing_with_tool()
                 else:
                     print("Task completed: no mounted tool to drop.")
         elif has_any_task:

@@ -55,6 +55,7 @@ from Server_Better_V2 import (
     stop_requested,
     moveOnlyJ6r,
     move_to_task_safe_point,
+    move_to_robot_homing_point,
 )
 from modules.CPS import CPSClient
 import time
@@ -277,6 +278,12 @@ def check_tool(cps, config, tool_num, ci0, ci1, ci2):
         return True
 
     print(f"Tool {tool_in_hand} detected; dropping before picking tool {tool_num}.")
+    move_to_robot_homing_point(
+        cps=cps,
+        config=config,
+        speed=float(config.get("UI", {}).get("robotSpeed", 0.7)),
+        velocity_profile="robotspeed",
+    )
     seventh_result = communicate(
         cps=cps,
         config=config,
@@ -414,16 +421,13 @@ def sandingModelATableA(cps=None):
             raise RuntimeError("Failed to move 7th axis to tool station.")
 
     def move_to_homing_with_tool():
-        """Return to homing/safe position without dropping the mounted tool."""
-        # Arm goes safe first, then rail returns to home station.
-        move_to_safe_point()
-        move_seventh_to_tool_station()
-        if not wait_for_j7_idle(cps):
-            raise RuntimeError(
-                "J7 did not become idle after final move to tool station."
-            )
-        # Re-assert safe arm pose after rail move.
-        move_to_safe_point()
+        """Return directly to robot homing without entering the tool-station safe point."""
+        move_to_robot_homing_point(
+            cps=cps,
+            config=config,
+            speed=speeed,
+            velocity_profile="robotspeed",
+        )
 
     def ensure_tool_in_hand(tool_num):
         """Ensure requested tool is mounted; drop wrong one if needed."""
@@ -643,11 +647,11 @@ def sandingModelATableA(cps=None):
                 ci0, ci1, ci2 = read_ci_triplet(cps)
                 tool_in_hand = decode_tool_in_hand(ci0, ci1, ci2)
                 if tool_in_hand is not None:
-                    # Safety: go to safe point before final tool return at the
-                    # end of task execution.
-                    move_to_safe_point()
+                    # Safety: go to robot homing before entering the tool-station area.
+                    move_to_homing_with_tool()
                     move_seventh_to_tool_station()
                     keepTool11(cps, toolNumber=tool_in_hand, config=config)
+                    move_to_homing_with_tool()
                 else:
                     print("Task completed: no mounted tool to drop.")
         elif has_any_task:

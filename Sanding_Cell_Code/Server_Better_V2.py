@@ -7573,6 +7573,22 @@ def move_to_task_safe_point(cps, config, speed, *, velocity_profile="robotspeed"
         wait=True,
     )
 
+
+def move_to_robot_homing_point(cps, config, speed, *, velocity_profile="robotspeed"):
+    """Move directly to the normal robot homing/task-safe point."""
+    communicate(
+        cps=cps,
+        point=config["point"]["safePoint"],
+        tcp=config["coords"]["tcpDefault"],
+        ucs=config["coords"]["ucsDefault"],
+        seventh=-1,
+        config=config,
+        speed=speed,
+        velocity_profile=velocity_profile,
+        wait=True,
+    )
+
+
 def _recover_failed_pick_with_di(cps, toolNumber, config, *, start_from_safe=True):
     """Recover when the pick valve may hold a tool but CI does not confirm it.
 

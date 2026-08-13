@@ -30,7 +30,7 @@ from smallTable.frame1tool2edgefinal import (
 )
 from smallTable.frame1tool2sideedge_combined import run_tool2_side_edge_combined
 
-from Server_Better_V2 import keepTool11, setup_logger, getTool11, communicate, move_to_task_safe_point, stop_requested
+from Server_Better_V2 import keepTool11, setup_logger, getTool11, communicate, move_to_task_safe_point, move_to_robot_homing_point, stop_requested
 from modules.CPS import CPSClient
 
 from cycle_data_utils import any_cycles, doors_with_cycles, get_spiral_settings, get_tableA_task_by_door
@@ -271,6 +271,14 @@ def sandingModelFTableA(cps=None):
         4: "tcptool4plane1",
     }
 
+    def move_to_homing_position():
+        move_to_robot_homing_point(
+            cps=cps,
+            config=config,
+            speed=speeed,
+            velocity_profile="robotspeed",
+        )
+
     def drop_current_tool_at_station():
         """Drop whatever tool is currently in hand, at its tool station.
 
@@ -286,9 +294,7 @@ def sandingModelFTableA(cps=None):
         tcp_key = _TOOL_PLANE1_TCP.get(held)
         if tcp_key is None:
             return
-        move_to_task_safe_point(
-            cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
-        )
+        move_to_homing_position()
         communicate(
             cps=cps,
             config=config,
@@ -323,9 +329,7 @@ def sandingModelFTableA(cps=None):
             return
         if held and held > 0:
             drop_current_tool_at_station()
-        move_to_task_safe_point(
-            cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
-        )
+        move_to_homing_position()
         getTool11(cps, toolNumber=tool_num, config=config)
         if not wait_tool_in_hand(tool_num, timeout_s=3.0, poll_s=0.1):
             raise RuntimeError(f"Tool {tool_num} was not confirmed in hand after pick.")
@@ -400,12 +404,7 @@ def sandingModelFTableA(cps=None):
                     )
                 executed_doors += 1
 
-            move_to_task_safe_point(
-                cps=cps,
-                config=config,
-                speed=speeed,
-                velocity_profile="robotspeed",
-            )
+            move_to_homing_position()
 
             # Tool 4 disposition after zigzag:
             #  • If the Tool 2 batch follows, leave Tool 4 mounted here — ensure_tool_ready(2)
@@ -493,9 +492,7 @@ def sandingModelFTableA(cps=None):
 
                 previous_tool2_door = door_number
 
-            move_to_task_safe_point(
-                cps=cps, config=config, speed=speeed, velocity_profile="robotspeed",
-            )
+            move_to_homing_position()
             if not keep_tool_after_task:
                 # Drop Tool 2 at its station (J7 to station first), same safe sequence as the
                 # tool change, rather than dropping wherever the last pass ended.
