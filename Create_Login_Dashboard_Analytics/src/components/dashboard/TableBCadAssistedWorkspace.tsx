@@ -1413,6 +1413,107 @@ export function TableBCadAssistedWorkspace({
     return { numSteps, adjustedStep: span / numSteps };
   };
 
+  const TOOL4_REACH_RECT_BELOW_Y_MM = 305;
+  const TOOL4_REACH_ROWS_MM = [
+    [305, -1100, 630],
+    [515, -1050, 585],
+    [740, -940, 420],
+    [916, -690, 205],
+  ] as const;
+  const TOOL4_AXIS7_MIN_MM = 0;
+  const TOOL4_AXIS7_MAX_MM = 2310;
+
+  const tool4ReachSpanAtY = (yMm: number): [number, number] | null => {
+    if (yMm < TOOL4_REACH_RECT_BELOW_Y_MM) return [0, 630];
+    const rows = TOOL4_REACH_ROWS_MM;
+    if (yMm <= rows[0][0]) return [rows[0][1], rows[0][2]];
+    if (yMm >= rows[rows.length - 1][0]) {
+      return yMm <= rows[rows.length - 1][0] + 6 ? [rows[rows.length - 1][1], rows[rows.length - 1][2]] : null;
+    }
+    for (let i = 0; i < rows.length - 1; i++) {
+      const [y0, lo0, hi0] = rows[i];
+      const [y1, lo1, hi1] = rows[i + 1];
+      if (y0 <= yMm && yMm <= y1) {
+        const t = (yMm - y0) / Math.max(y1 - y0, 1e-9);
+        return [lo0 + (lo1 - lo0) * t, hi0 + (hi1 - hi0) * t];
+      }
+    }
+    return null;
+  };
+
+  const tool4StationWindowForRectBounds = (bounds: { xMin: number; xMax: number; yMin: number; yMax: number }) => {
+    const samples = [
+      [bounds.xMin, bounds.yMin],
+      [bounds.xMax, bounds.yMin],
+      [bounds.xMin, bounds.yMax],
+      [bounds.xMax, bounds.yMax],
+    ];
+    let lo = TOOL4_AXIS7_MIN_MM;
+    let hi = TOOL4_AXIS7_MAX_MM;
+    for (const [x, y] of samples) {
+      const span = tool4ReachSpanAtY(y * dxfMmPerUnit);
+      if (!span) return null;
+      const xMm = x * dxfMmPerUnit;
+      lo = Math.max(lo, xMm - span[1]);
+      hi = Math.min(hi, xMm - span[0]);
+      if (lo > hi) return null;
+    }
+    return [lo, hi] as [number, number];
+  };
+
+  const splitBoundsByTool4Reach = (bxLo: number, bxHi: number, byLo: number, byHi: number) => {
+    const full = { xMin: bxLo, xMax: bxHi, yMin: byLo, yMax: byHi };
+    if (tool4StationWindowForRectBounds(full)) return [full];
+
+    const sections: { xMin: number; xMax: number; yMin: number; yMax: number }[] = [];
+    const minWidth = 10 / dxfMmPerUnit;
+    let xMin = bxLo;
+    for (let guard = 0; guard < 100 && xMin < bxHi - 1e-6; guard++) {
+      let low = xMin;
+      let high = bxHi;
+      let best = xMin;
+      for (let i = 0; i < 48; i++) {
+        const mid = (low + high) / 2;
+        const candidate = { xMin, xMax: mid, yMin: byLo, yMax: byHi };
+        if (tool4StationWindowForRectBounds(candidate)) {
+          best = mid;
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      if (best <= xMin + minWidth) {
+        const fallbackXMax = Math.min(bxHi, xMin + minWidth);
+        sections.push({ xMin, xMax: fallbackXMax, yMin: byLo, yMax: byHi });
+        xMin = fallbackXMax;
+      } else {
+        sections.push({ xMin, xMax: best, yMin: byLo, yMax: byHi });
+        xMin = best;
+      }
+    }
+    return sections;
+  };
+
+  const trimRectSpiralSharedBoundaries = (
+    sections: { xMin: number; xMax: number; yMin: number; yMax: number }[],
+    step: number,
+  ) => {
+    if (sections.length <= 1) return sections;
+
+    const minWidth = 10 / dxfMmPerUnit;
+    return sections
+      .map((section, index) => {
+        const out = { ...section };
+        if (index > 0) {
+          const width = out.xMax - out.xMin;
+          const inset = Math.min(step, Math.max(0, width - minWidth));
+          out.xMin += inset;
+        }
+        return out;
+      })
+      .filter((section) => section.xMax - section.xMin > minWidth);
+  };
+
   // Build the Tool 4 zigzag fill for every assigned pocket. Vertical mode spans Y
   // and steps across X. Horizontal mode spans X and steps across Y. Both start from
   // the bottom-right convention used by the DXF workspace, and both use
@@ -1664,16 +1765,16 @@ export function TableBCadAssistedWorkspace({
       }
 
       // Rectangular spiral. A spiral can't be split mid-ring, so a pocket wider than the arm
-      // reach window (TOOL4_HORIZONTAL_WINDOW_MM) is divided into <=window X-sections like the
+      // reach window is divided into reach-safe X-sections like the
       // horizontal pattern, and EACH section gets its own corner->center spiral at its own J7
       // station. Each section id carries both markers: `_tool4_rect` (spiral handling) and
       // `_sec{n}` (per-window grouping / reach), so the backend treats each as an independent
       // spiral window. Narrow pockets are a single section = one clean spiral.
       if (orientation === 'rectspiral') {
-        const xSpan = bxHi - bxLo;
-        const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
-        const sectionCount = Math.max(1, Math.ceil(xSpan / maxWindow));
-        const sectionWidth = xSpan / sectionCount;
+        const spiralSections = trimRectSpiralSharedBoundaries(
+          splitBoundsByTool4Reach(bxLo, bxHi, byLo, byHi),
+          step,
+        );
         // spiralOut builds the OUTWARD variant: rings inset by half a step so multi-cycle runs
         // thread between the inward rings (a different path, not a reversed retrace). The id
         // marker `_tool4_rectout` still contains `_tool4_rect` so the backend spiral logic sees
@@ -1684,12 +1785,13 @@ export function TableBCadAssistedWorkspace({
           pocket: pk.id,
           overlap_mm: overlap,
           step_mm: stepMmEffective,
-          sections: sectionCount,
+          sections: spiralSections.length,
           spiralOut,
         });
-        for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
-          const sxLo = bxLo + sectionIndex * sectionWidth;
-          const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+        for (let sectionIndex = 0; sectionIndex < spiralSections.length; sectionIndex++) {
+          const section = spiralSections[sectionIndex];
+          const sxLo = section.xMin;
+          const sxHi = section.xMax;
           const cycleWindowId = `${pk.id}_tool4_rect_sec${sectionIndex + 1}`;
           segments.push(
             ...buildRectSpiralTool4Segments(`${pk.id}_${marker}_sec${sectionIndex + 1}`, sxLo, sxHi, byLo, byHi, step, sectionIndex * 10000, insetStart),
