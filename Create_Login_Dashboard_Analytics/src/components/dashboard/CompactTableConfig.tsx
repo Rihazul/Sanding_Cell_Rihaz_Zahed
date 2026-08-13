@@ -2001,11 +2001,9 @@ export function CompactTableConfig({
       const rowLabel = rows[idx]?.label;
       if (!rowLabel) return;
       const selectedForRow = rowDoorSelections[rowLabel] || [];
-      if (!selectedForRow.length) {
-        return;
-      }
       const targetDoor = rowActiveDoor[rowLabel] ?? selectedDoor;
-      if (!selectedForRow.includes(targetDoor)) {
+      const targetDoors = selectedForRow.length ? selectedForRow : [targetDoor];
+      if (selectedForRow.length > 0 && !selectedForRow.includes(targetDoor)) {
         // If the active door is currently deselected for this row, do not
         // implicitly retarget and mutate another door's pattern.
         return;
@@ -2013,7 +2011,7 @@ export function CompactTableConfig({
 
       setDoorConfigs(prev =>
         prev.map(dc => {
-          if (!selectedForRow.includes(dc.doorNumber)) return dc;
+          if (!targetDoors.includes(dc.doorNumber)) return dc;
 
           const newRows = [...dc.rows];
           const currentRow = newRows[idx];
