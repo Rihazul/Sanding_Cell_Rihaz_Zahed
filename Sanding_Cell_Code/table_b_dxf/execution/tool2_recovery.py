@@ -112,6 +112,11 @@ def clear_tool2_recovery_state() -> None:
         pass
 
 
+def tool2_recovery_pending() -> bool:
+    """Return True when a stopped Tool 2 pose still needs safe recovery."""
+    return _load_tool2_recovery_state() is not None
+
+
 def tool2_backoff_from_contact_on_stop(cps: Any, config: dict[str, Any]) -> bool:
     """On STOP, back Tool 2 straight off the door side/corner by TOOL2_STOP_BACKOFF_MM.
 

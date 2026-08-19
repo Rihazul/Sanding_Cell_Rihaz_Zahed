@@ -19,7 +19,12 @@ from .common import (
 )
 from .joint_safety import JointSafetyLimitError, guarded_move_j6_to_absolute, guarded_move_only_j6r
 from .motion_config import robot_speed, table_b_ucs, tcp_for_physical_tool
-from .tool2_recovery import TOOL2_HOMING_J6_DEG, recover_tool2_before_homing_if_needed
+from .tool2_recovery import (
+    TOOL2_HOMING_J6_DEG,
+    clear_tool2_recovery_state,
+    recover_tool2_before_homing_if_needed,
+    tool2_recovery_pending,
+)
 from .tool2_side_runner import run_tool2_side_batch
 from .xy_force_runner import run_force_xy_path
 
@@ -284,13 +289,55 @@ def _return_to_home_with_tool(cps: Any, config: dict[str, Any], physical_tool: i
     _move_arm_to_task_home(cps, config, "after J7 return")
 
 
+def _recover_tool2_before_new_task_if_needed(cps: Any, config: dict[str, Any]) -> int | None:
+    """Normalize a stopped Tool 2 pose before a new Table B task starts.
+
+    Homing already uses this recovery. Start Task needs the same protection
+    because an operator can press Stop, skip Homing, and immediately retry the
+    task while Tool 2 is still near the door side/edge.
+    """
+    if not tool2_recovery_pending():
+        return None
+
+    _raise_if_stop_requested(cps, config, "before Tool 2 start-task recovery")
+    try:
+        mounted_tool = _read_tool_in_hand(cps)
+    except TableBDxfRobotExecutionError as error:
+        fallback_tool = _read_tool_in_hand_for_drop(cps)
+        if fallback_tool != 2:
+            raise TableBDxfRobotExecutionError(
+                "Tool 2 recovery is pending from a stopped task, but the mounted tool "
+                "cannot be confirmed as Tool 2. Run homing or check the tool sensor before starting."
+            ) from error
+        mounted_tool = 2
+
+    if mounted_tool != 2:
+        _log(
+            config,
+            "[TableB DXF Robot] clearing stale Tool 2 recovery state before start; mounted tool is %s",
+            mounted_tool,
+        )
+        clear_tool2_recovery_state()
+        return mounted_tool
+
+    _log(config, "[TableB DXF Robot] Tool 2 recovery pending before Start Task; recovering before plan execution.")
+    recovered = recover_tool2_before_homing_if_needed(cps, config)
+    if not recovered:
+        raise TableBDxfRobotExecutionError(
+            "Tool 2 recovery is pending, but the safe recovery move could not be completed. "
+            "Run homing before starting the task."
+        )
+    _return_to_home_with_tool(cps, config, 2)
+    return 2
+
+
 def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     """Execute the resolved Table B DXF run plan, including tool changes."""
     if cps is None:
         raise TableBDxfRobotExecutionError("A connected CPS instance is required for real execution.")
 
     executed_steps = 0
-    mounted_tool: int | None = None
+    mounted_tool: int | None = _recover_tool2_before_new_task_if_needed(cps, config)
     for batch in plan.get("batches") or []:
         _raise_if_stop_requested(cps, config, "before tool batch")
         physical_tool = int(batch.get("physical_tool") or 0)
