@@ -284,6 +284,16 @@ def _move_arm_to_task_home(cps: Any, config: dict[str, Any], reason: str) -> Non
 
 def _return_to_home_with_tool(cps: Any, config: dict[str, Any], physical_tool: int) -> None:
     """Return the rail and arm to home/safe while keeping the mounted tool."""
+    if physical_tool == 2 and tool2_recovery_pending():
+        _log(config, "[TableB DXF Robot] Tool 2 side-aware return: recover arm before J7/home.")
+        recovered = recover_tool2_before_homing_if_needed(cps, config, clear_state=False)
+        if not recovered:
+            raise TableBDxfRobotExecutionError("Failed to recover Tool 2 before J7 return.")
+        _move_arm_to_task_home(cps, config, "after Tool 2 side-aware recovery before J7 return")
+        _return_j7_to_zero(cps, config, physical_tool)
+        _move_arm_to_task_home(cps, config, "after Tool 2 side-aware J7 return")
+        clear_tool2_recovery_state()
+        return
     _move_arm_to_task_home(cps, config, "before J7 return")
     _return_j7_to_zero(cps, config, physical_tool)
     _move_arm_to_task_home(cps, config, "after J7 return")

@@ -293,7 +293,12 @@ def _homing_clearance_pose(side: str, side_safe_pose: list[float]) -> list[float
     return clearance_pose
 
 
-def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> bool:
+def recover_tool2_before_homing_if_needed(
+    cps: Any,
+    config: dict[str, Any],
+    *,
+    clear_state: bool = True,
+) -> bool:
     """Retract Tool 2 safely after a stop before running the normal homing path.
 
     Tool 2 uses side-specific lifted clearance in Table B plane 2. If the
@@ -345,7 +350,8 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
                 velocity_profile="robotspeed",
                 wait=True,
             )
-        clear_tool2_recovery_state()
+        if clear_state:
+            clear_tool2_recovery_state()
         return True
 
     side_safe_pose = _side_safe_contact_pose(side, current_pose)
@@ -429,5 +435,6 @@ def recover_tool2_before_homing_if_needed(cps: Any, config: dict[str, Any]) -> b
         wait=True,
     )
 
-    clear_tool2_recovery_state()
+    if clear_state:
+        clear_tool2_recovery_state()
     return True

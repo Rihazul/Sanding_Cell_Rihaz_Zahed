@@ -28,7 +28,6 @@ from .common import (
 from .joint_safety import guarded_move_only_j6r
 from .motion_config import robot_speed, sanding_speed
 from .tool2_recovery import (
-    clear_tool2_recovery_state,
     record_tool2_recovery_state,
     tool2_backoff_from_contact_on_stop,
 )
@@ -1356,7 +1355,6 @@ def run_tool2_side_batch(cps: Any, config: dict[str, Any], steps: list[dict[str,
         else:
             for operation_mode, grouped_steps in groups:
                 executed += _run_tool2_sequence(cps, config, grouped_steps, operation_mode)
-        clear_tool2_recovery_state()
     except TableBDxfRobotStopRequested:
         # Operator pressed Stop: motion is already halted and force is OFF (stop_active_motion
         # ran inside raise_if_stop_requested). Back the tool 5 mm straight off the door
