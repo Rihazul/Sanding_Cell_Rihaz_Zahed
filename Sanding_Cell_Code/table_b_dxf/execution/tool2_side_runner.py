@@ -737,8 +737,15 @@ def _run_horizontal_segment_operations(
         and previous_position.axis7 is not None
         and abs(float(previous_position.axis7) - float(segment.axis7)) > 1.0
     )
-    enter_from_contact = same_station_entry
-    keep_contact_after = same_station_next
+    # Bottom -> bottom station changes do not require a side-angle change, so they
+    # should stay on the bottom outward travel line while J7 repositions. Lifting
+    # here creates the visible up/down motion and can trip the batch into failure.
+    enter_from_contact = same_station_entry or bottom_station_change_entry
+    keep_contact_after = same_station_next or bool(
+        segment.side == "bottom"
+        and next_side == "bottom"
+        and next_axis7 is not None
+    )
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
         has_next_same_pass_operation = index + 1 < len(operation_modes)
@@ -759,7 +766,7 @@ def _run_horizontal_segment_operations(
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
             reverse_path=reverse_for_operation,
             cycles=cycles_by_mode.get(operation_mode, 1),
-            sequential_j7_entry=bottom_station_change_entry and index == 0,
+            sequential_j7_entry=False,
             previous_position=previous_position,
             y_total=y_total,
         )
