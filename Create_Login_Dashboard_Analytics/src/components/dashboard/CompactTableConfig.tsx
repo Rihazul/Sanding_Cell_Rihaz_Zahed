@@ -1599,6 +1599,50 @@ export function CompactTableConfig({
   const tableBDisplayRows = buildDisplayRows(rows).filter(({ row }) =>
     tableBAvailableOps === null ? true : tableBAvailableOps.has(row.label),
   );
+  const toolGroupForOperation = (operationLabel: string) => {
+    if (operationLabel === '3D') {
+      return { id: 'tool1', title: 'TOOL 1', description: '3D' };
+    }
+    if (operationLabel === 'Side' || operationLabel === 'Edge Outside') {
+      return { id: 'tool2', title: 'TOOL 2', description: 'Side and Edge' };
+    }
+    if (operationLabel === 'Pocket Edge') {
+      return { id: 'tool3', title: 'TOOL 3', description: 'Pocket Edge' };
+    }
+    if (operationLabel === 'Frame' || operationLabel === 'Pocket ZigZag') {
+      return { id: 'tool4', title: 'TOOL 4', description: 'Frame and Pocket ZigZag' };
+    }
+    return { id: 'tool-other', title: 'TOOL', description: operationLabel };
+  };
+  const operationInfoText = (operationLabel: string) => {
+    if (operationLabel === 'Frame') {
+      return 'Tool 4 sands the flat frame surface.';
+    }
+    if (operationLabel === 'Pocket ZigZag') {
+      return 'Tool 4 sands the pocket surface using the selected pattern.';
+    }
+    if (operationLabel === 'Pocket Edge') {
+      return 'Tool 3 sands the inside pocket edge/contour.';
+    }
+    if (operationLabel === '3D') {
+      return 'Tool 1 sands the 3D contour or moulding groove.';
+    }
+    if (operationLabel === 'Edge Outside') {
+      return 'Tool 2 sands the outside edge profile of the door.';
+    }
+    if (operationLabel === 'Side') {
+      return 'Tool 2 sands the straight side thickness of the door.';
+    }
+    return `${operationLabel} operation.`;
+  };
+  const renderToolGroupHeader = (operationLabel: string) => {
+    const group = toolGroupForOperation(operationLabel);
+    return (
+      <div className="mt-2 mb-1 text-sm font-black uppercase tracking-wide text-slate-900">
+        {group.title}
+      </div>
+    );
+  };
   const shouldShowTableAOperations = tableName !== 'A' || !!(model || '').trim();
   const scanConfigMismatch =
     tableName === 'A' &&
@@ -2381,8 +2425,14 @@ export function CompactTableConfig({
                     </div>
                   )}
                   <div className="space-y-1">
-                    {currentDisplayRows.map(({ row, idx }) => (
-                    <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                    {currentDisplayRows.map(({ row, idx }, rowIndex) => {
+                      const group = toolGroupForOperation(row.label);
+                      const previousRow = currentDisplayRows[rowIndex - 1]?.row;
+                      const showToolHeader = !previousRow || toolGroupForOperation(previousRow.label).id !== group.id;
+                      return (
+                    <React.Fragment key={row.label}>
+                    {showToolHeader && renderToolGroupHeader(row.label)}
+                    <div className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                       {/* Main row: Label + Door buttons + Force + Cycle */}
                       <div className="flex flex-wrap items-center gap-3 justify-between">
                         <div className="text-sm font-medium text-gray-700 flex items-center gap-1 whitespace-nowrap">
@@ -2390,7 +2440,7 @@ export function CompactTableConfig({
                             <span className="text-indigo-500 mr-1">⬡</span>
                           )}
                           {rowDisplayLabel(row.label)}
-                          <span className="text-gray-400 text-xs">ⓘ</span>
+                          <span className="text-gray-400 text-xs cursor-help" title={operationInfoText(row.label)}>ⓘ</span>
                         </div>
 
                         <div className="flex items-center gap-3 flex-wrap">
@@ -2582,7 +2632,9 @@ export function CompactTableConfig({
                         </div>
                       )}
                     </div>
-                    ))}
+                    </React.Fragment>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -2686,8 +2738,14 @@ export function CompactTableConfig({
                     will show only the operations available on what you approved.
                   </div>
                 )}
-                {tableBDisplayRows.map(({ row, idx }) => (
-                  <div key={row.label} className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
+                {tableBDisplayRows.map(({ row, idx }, rowIndex) => {
+                  const group = toolGroupForOperation(row.label);
+                  const previousRow = tableBDisplayRows[rowIndex - 1]?.row;
+                  const showToolHeader = !previousRow || toolGroupForOperation(previousRow.label).id !== group.id;
+                  return (
+                  <React.Fragment key={row.label}>
+                  {showToolHeader && renderToolGroupHeader(row.label)}
+                  <div className={`bg-white rounded-md p-2 border ${row.label === 'Pocket ZigZag' ? 'border-indigo-300 shadow-sm' : 'border-gray-200'}`}>
                     {/* Main row: Label + Force + Cycle */}
                     <div className="flex items-center justify-between gap-4">
                       <div className="text-sm font-medium text-gray-700 flex items-center gap-1">
@@ -2695,7 +2753,7 @@ export function CompactTableConfig({
                           <span className="text-indigo-500 mr-1">⬡</span>
                         )}
                         {rowDisplayLabel(row.label)}
-                        <span className="text-gray-400 text-xs">ⓘ</span>
+                        <span className="text-gray-400 text-xs cursor-help" title={operationInfoText(row.label)}>ⓘ</span>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -2751,7 +2809,9 @@ export function CompactTableConfig({
                     {/* Pocket ZigZag pattern (Vertical/Horizontal) is now chosen in the CAD
                         viewer, so the front configuration no longer duplicates it here. */}
                   </div>
-                ))}
+                  </React.Fragment>
+                  );
+                })}
               </div>
             </div>
           )}
