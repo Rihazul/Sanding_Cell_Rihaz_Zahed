@@ -9,7 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import yaml
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,putForceXminus,stop_requested
-from smallTable.stop_lift import stop_lift_to_preheight_tableA
+from smallTable.stop_lift import move_tablea_xy_safe_then_prepoint, stop_lift_to_preheight_tableA
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -110,16 +110,13 @@ def _run_tool1_force_locked_path(cps, config, points1, force, sanding_speed, *, 
         f"contact_points={len(contact_points)} force_control_z={force_control_z} "
         f"robot_speed={robot_speed} sanding_speed={sanding_speed}"
     )
-    communicate(
+    move_tablea_xy_safe_then_prepoint(
         cps=cps,
         config=config,
         point=approach_point,
         tcp=config['coords']['tcptool1plane1'],
         ucs=config['coords']['ucsTable1'],
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
+        robot_speed=robot_speed,
     )
 
     force_start_point = list(contact_points[0])

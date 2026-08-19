@@ -29,7 +29,7 @@ from Server_Better_V2 import (
 )
 
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
-from smallTable.stop_lift import stop_lift_to_preheight_tableA
+from smallTable.stop_lift import move_tablea_xy_safe_then_prepoint, stop_lift_to_preheight_tableA
 from cycle_data_utils import get_inverse_overlap_step
 from smallTable.scancord import (
     read_scan_results,
@@ -1013,16 +1013,13 @@ def _run_small_door_zigzag(
         if valid_cycle_paths:
             first_point = valid_cycle_paths[0][2][0]
             print("[Spiral] Moving to first zigzag point:", first_point)
-            communicate(
+            move_tablea_xy_safe_then_prepoint(
                 cps=cps,
                 config=config,
                 point=first_point,
                 tcp=config["coords"]["tcptool4plane1"],
                 ucs=config["coords"]["ucsTable1"],
-                seventh=-1,
-                speed=sanding_speed,
-                velocity_profile="sandingspeed",
-                wait=True,
+                robot_speed=robot_speed,
             )
             force_ok = putForceZminus(
                 cps=cps,

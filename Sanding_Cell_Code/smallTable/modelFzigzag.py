@@ -27,7 +27,11 @@ from smallTable.scancord import (
     get_y_values,
 )
 from cycle_data_utils import get_inverse_overlap_step
-from smallTable.stop_lift import stop_lift_to_preheight_tableA
+from smallTable.stop_lift import (
+    TABLE_A_XY_SAFE_Z_MM,
+    move_tablea_xy_safe_then_prepoint,
+    stop_lift_to_preheight_tableA,
+)
 
 TRANSFER_LIFT_Z_MM = 70.0
 FORCE_APPROACH_LIFT_MM = 15.0
@@ -395,16 +399,14 @@ def _perform_process_top(
     except Exception:
         pass
 
-    communicate(
+    start_lift[2] = max(float(start_lift[2]), TABLE_A_XY_SAFE_Z_MM)
+    move_tablea_xy_safe_then_prepoint(
         cps=cps,
         config=config,
         point=start_lift,
         tcp=config["coords"]["tcptool4plane1"],
         ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
+        robot_speed=robot_speed,
     )
     if seventh_target is not None:
         communicate(

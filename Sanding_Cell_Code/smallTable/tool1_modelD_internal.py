@@ -17,7 +17,7 @@ from Server_Better_V2 import (
     releaseForce,
 )
 from smallTable.scancord import get_door_position, get_inner_corner_point, get_y_values
-from smallTable.stop_lift import stop_lift_to_preheight_tableA
+from smallTable.stop_lift import move_tablea_xy_safe_then_prepoint, stop_lift_to_preheight_tableA
 
 
 INTERNAL_OFFSET_MM = 17.0
@@ -233,16 +233,13 @@ def _run_model_d_internal_for_door(door_number, z, cps, force=None, cycles=1):
             f"[ModelD] communicate pre_start start door={door_number} "
             f"pass={pass_number} point={pre_start}"
         )
-        communicate(
+        move_tablea_xy_safe_then_prepoint(
             cps=cps,
             config=config,
             point=pre_start,
             tcp=tcp,
             ucs=ucs,
-            seventh=-1,
-            speed=robot_speed,
-            velocity_profile="robotspeed",
-            wait=True,
+            robot_speed=robot_speed,
         )
         print(
             f"[ModelD] communicate pre_start done door={door_number} "

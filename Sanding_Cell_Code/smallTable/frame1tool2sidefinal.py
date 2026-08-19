@@ -198,7 +198,7 @@ def _run_tool2_side_process(
                 cps.HRIF_SetForceControlState(0, 0, 0)
             except Exception:
                 pass
-            # Operator Stop: back the tool 5 mm off the door along the force axis with RY=0
+            # Operator Stop: back the tool 10 mm off the door along the force axis with RY=0
             # (side poses carry RY=0) and no force, so it releases the edge and leaves no mark.
             tool2_backoff_on_stop(
                 cps,

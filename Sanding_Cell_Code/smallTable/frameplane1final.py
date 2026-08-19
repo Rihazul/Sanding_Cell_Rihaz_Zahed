@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Components.RobotState import RobotState
 import yaml
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,putForceZplus,putForceZminus,stop_requested
-from smallTable.stop_lift import stop_lift_to_preheight_tableA
+from smallTable.stop_lift import move_tablea_xy_safe_then_prepoint, stop_lift_to_preheight_tableA
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 from smallTable.scancord import (
     read_scan_results,
@@ -555,16 +555,13 @@ def _run_linear_sanding_process(cps, config, points, force, sanding_speed, *, tc
     )
 
     print(f"[FrameDebug] communicate force approach START point={force_approach_point}")
-    communicate(
+    move_tablea_xy_safe_then_prepoint(
         cps=cps,
         config=config,
         point=force_approach_point,
         tcp=tcp,
         ucs=ucs,
-        seventh=-1,
-        speed=robot_speed,
-        velocity_profile="robotspeed",
-        wait=True,
+        robot_speed=robot_speed,
     )
     print(f"[FrameDebug] communicate force approach DONE point={force_approach_point}")
 

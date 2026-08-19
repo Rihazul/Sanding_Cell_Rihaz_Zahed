@@ -214,8 +214,8 @@ def _run_tool2_edge_process(
                 cps.HRIF_SetForceControlState(0, 0, 0)
             except Exception:
                 pass
-            # Operator Stop: back the tool 5 mm off the door along the force axis with RY=22
-            # (edge poses carry RY=22) and no force, so it releases the edge and leaves no mark.
+            # Operator Stop: back the tool 10 mm off the door along the force axis and reset
+            # edge RY to 0 in the same retract, so it releases the edge and leaves no mark.
             tool2_backoff_on_stop(
                 cps,
                 config,

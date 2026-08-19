@@ -2,13 +2,13 @@
 
 Tool 2 sands the door thickness by pressing the tool into the door edge with an X/Y force
 (putForceXplus / putForceXminus / putForceYplus1 / putForceYminus1). When the operator
-presses Stop, this helper backs the tool 5 mm straight OFF the door along that force axis
+presses Stop, this helper backs the tool 10 mm straight OFF the door along that force axis
 (opposite the force direction) with NO force, so the pressed contact releases immediately
 and leaves no mark.
 
-The pose's RY is preserved, which gives exactly what each operation needs:
-  - Side poses carry RY=0  -> back off 5 mm with RY=0
-  - Edge poses carry RY=22 -> back off 5 mm with RY=22
+The pose's non-force axis and Z are preserved:
+  - Side poses carry RY=0  -> back off 10 mm with RY=0
+  - Edge poses carry RY=22 -> back off 10 mm and reset RY=0 in the same retract
 
 Best-effort: never raises, so stop cleanup always completes. Force control is turned OFF
 before the move so it is a pure position move.
@@ -33,26 +33,28 @@ from Server_Better_V2 import (
     waitForBlending,
 )
 
-TOOL2_STOP_BACKOFF_MM = 5.0
+TOOL2_STOP_BACKOFF_MM = 10.0
+TOOL2_EDGE_RY_RESET_THRESHOLD_DEG = 5.0
+TOOL2_SAFE_RY_DEG = 0.0
 
 # Recovery (homing / restart) after a Tool 2 stop back-off.
-# From the backed-off +-5 mm position, lift Z to a safe standoff, then (for non-top sides)
-# read the current J6 and turn to an absolute homing J6 so the wrist reaches homing smoothly.
-TOOL2_RECOVERY_LIFT_Z_MM = 50.0
-TOOL2_RECOVERY_HOMING_J6_DEG = 90.0
+# Right/top/left can lift high and let the normal homing path run. Bottom needs a lower
+# lift first, then a +180 J6 turn before normal homing/restart continues.
+TOOL2_RECOVERY_SIDE_LIFT_Z_MM = 55.0
+TOOL2_RECOVERY_BOTTOM_LIFT_Z_MM = 50.0
+TOOL2_RECOVERY_BOTTOM_J6_DELTA_DEG = 180.0
 _STATE_PATH = Path(__file__).resolve().parent / "tool2_stop_state.json"
 
-# Which side each force function corresponds to, and whether it needs the J6->90 turn on
-# recovery. The TOP side already sits at an orientation that reaches homing without a wrist
-# turn, so it only needs the Z lift. The other three sides need the lift AND the J6 turn.
-#   putForceYminus1 -> top    (RZ -90) : lift only, no rotation
-#   putForceXplus   -> right  (RZ  0)  : lift + J6->90
-#   putForceXminus  -> left   (RZ -180): lift + J6->90
-#   putForceYplus1  -> bottom (RZ  90) : lift + J6->90
+# Which side each force function corresponds to, and whether it needs the bottom-only
+# J6 +180 turn before the normal homing path.
+#   putForceYminus1 -> top    (RZ -90) : lift Z=55, no J6 turn
+#   putForceXplus   -> right  (RZ  0)  : lift Z=55, no J6 turn
+#   putForceXminus  -> left   (RZ -180): lift Z=55, no J6 turn
+#   putForceYplus1  -> bottom (RZ  90) : lift Z=50, J6 +180
 _SIDE_BY_FORCE_FUNC_NAME = {
     "putForceYminus1": ("top", False),
-    "putForceXplus": ("right", True),
-    "putForceXminus": ("left", True),
+    "putForceXplus": ("right", False),
+    "putForceXminus": ("left", False),
     "putForceYplus1": ("bottom", True),
 }
 
@@ -87,11 +89,12 @@ def tool2_backoff_on_stop(
     robot_speed: float,
     last_pose: list[float] | None = None,
 ) -> bool:
-    """On STOP, back Tool 2 5 mm off the door along the force axis, preserving RY.
+    """On STOP, back Tool 2 10 mm off the door along the force axis.
 
     `force_func` is the putForce* used for this pass; it selects the back-off axis and the
-    away-from-door direction. `last_pose` is the last commanded 6D pose (carries the correct
-    RY) and is used if the live pose read fails. Returns True if a back-off move was issued.
+    away-from-door direction. `last_pose` is used if the live pose read fails. Edge poses are
+    normalized back to RY=0 during the same retract move. Returns True if a back-off move was
+    issued.
     """
     logger = config.get("logger") if isinstance(config, dict) else None
 
@@ -121,12 +124,17 @@ def tool2_backoff_on_stop(
 
         backoff_pose = list(pose)
         backoff_pose[axis_index] += direction * TOOL2_STOP_BACKOFF_MM
+        ry_before = float(backoff_pose[4])
+        edge_ry_reset = abs(ry_before) > TOOL2_EDGE_RY_RESET_THRESHOLD_DEG
+        if edge_ry_reset:
+            backoff_pose[4] = TOOL2_SAFE_RY_DEG
         if logger:
             logger.info(
-                "[tool2 stop back-off] %s %.1fmm away (axis=%s, RY=%.1f preserved): %s -> %s",
+                "[tool2 stop back-off] %s %.1fmm away (axis=%s, RY %.1f->%.1f): %s -> %s",
                 getattr(force_func, "__name__", "force"),
                 TOOL2_STOP_BACKOFF_MM,
                 "X" if axis_index == 0 else "Y",
+                ry_before,
                 backoff_pose[4],
                 pose[:3],
                 backoff_pose[:3],
@@ -197,22 +205,12 @@ def _load_tool2_stop_state() -> dict[str, Any] | None:
     return payload
 
 
-def _read_actual_j6(cps: Any) -> float | None:
-    result: list[Any] = []
-    try:
-        if cps.HRIF_ReadActJointPos(0, 0, result) == 0 and len(result) >= 6:
-            return float(result[5])
-    except Exception:
-        return None
-    return None
-
-
 def recover_tool2_after_stop_if_needed(cps: Any, config: dict[str, Any]) -> bool:
     """Run the Tool 2 lift recovery from a backed-off stop position, before Homing or restart.
 
-    From the +-5 mm backed-off pose: lift Z to a safe standoff (so the tool clears the surface
-    when lifting), then for non-top sides read the current J6 and turn to the absolute homing
-    J6 (90 deg) so the wrist reaches the homing position smoothly. Top side needs the lift only.
+    From the backed-off pose:
+      - right/top/left: lift to Z=55, then normal homing/restart can continue.
+      - bottom: lift to Z=50, then rotate J6 +180 before normal homing/restart continues.
 
     Best-effort: never raises. Returns True if a recovery ran. Clears the state when done so it
     runs exactly once per stop.
@@ -223,7 +221,7 @@ def recover_tool2_after_stop_if_needed(cps: Any, config: dict[str, Any]) -> bool
         return False
 
     side = str(state["side"])
-    needs_rotation = bool(state.get("needs_rotation"))
+    needs_bottom_rotation = bool(state.get("needs_rotation"))
     tcp = str(state.get("tcp") or "")
     ucs = str(state.get("ucs") or "")
     if not tcp or not ucs:
@@ -247,14 +245,19 @@ def recover_tool2_after_stop_if_needed(cps: Any, config: dict[str, Any]) -> bool
             clear_tool2_stop_state()
             return False
 
-        # 1. Lift straight up to the safe standoff, preserving XY and orientation (RY/RZ), so
-        #    the tool clears the surface before any wrist rotation.
+        # 1. Lift straight up first, preserving XY and orientation (RY/RZ), so the tool clears
+        #    the side/bottom before normal homing or restart motion.
+        lift_z = (
+            TOOL2_RECOVERY_BOTTOM_LIFT_Z_MM
+            if side == "bottom"
+            else TOOL2_RECOVERY_SIDE_LIFT_Z_MM
+        )
         lift_pose = list(pose)
-        lift_pose[2] = TOOL2_RECOVERY_LIFT_Z_MM
+        lift_pose[2] = lift_z
         if logger:
             logger.info(
-                "[tool2 recovery] side=%s lift to Z=%.1f (needs_rotation=%s) from %s",
-                side, TOOL2_RECOVERY_LIFT_Z_MM, needs_rotation, pose[:3],
+                "[tool2 recovery] side=%s lift to Z=%.1f (bottom_j6_plus_180=%s) from %s",
+                side, lift_z, needs_bottom_rotation, pose[:3],
             )
         communicate(
             cps=cps,
@@ -268,22 +271,15 @@ def recover_tool2_after_stop_if_needed(cps: Any, config: dict[str, Any]) -> bool
             wait=True,
         )
 
-        # 2. Non-top sides: read the current J6, then turn to absolute homing J6 (90 deg) so the
-        #    wrist reaches homing smoothly. Top needs no rotation.
-        if needs_rotation:
-            current_j6 = _read_actual_j6(cps)
-            if current_j6 is not None:
-                delta = TOOL2_RECOVERY_HOMING_J6_DEG - current_j6
-                if abs(delta) > 1e-3:
-                    if logger:
-                        logger.info(
-                            "[tool2 recovery] side=%s J6 %.3f -> %.1f (delta=%.3f)",
-                            side, current_j6, TOOL2_RECOVERY_HOMING_J6_DEG, delta,
-                        )
-                    waitForBlending(cps=cps, config=config)
-                    moveOnlyJ6r(cps, delta, config, wait=True)
-            elif logger:
-                logger.warning("[tool2 recovery] side=%s J6 read failed; skipping wrist turn.", side)
+        # 2. Bottom only: relative +180 J6 turn before the normal homing path.
+        if needs_bottom_rotation:
+            if logger:
+                logger.info(
+                    "[tool2 recovery] side=bottom rotating J6 +%.1f before homing/restart.",
+                    TOOL2_RECOVERY_BOTTOM_J6_DELTA_DEG,
+                )
+            waitForBlending(cps=cps, config=config)
+            moveOnlyJ6r(cps, TOOL2_RECOVERY_BOTTOM_J6_DELTA_DEG, config, wait=True)
 
         clear_tool2_stop_state()
         return True

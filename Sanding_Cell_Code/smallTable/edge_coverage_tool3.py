@@ -8,7 +8,7 @@ from Server_Better_V2 import (
     turn_vibration_on,
     waitForBlending,
 )
-from smallTable.stop_lift import stop_lift_to_preheight_tableA
+from smallTable.stop_lift import move_tablea_xy_safe_then_prepoint, stop_lift_to_preheight_tableA
 from smallTable.scancord import get_door_position, get_inner_corner_point
 import json
 import math
@@ -410,16 +410,14 @@ def _run_single_door_edge_pass(cps, force, z, door_num, orientation, cycles=1):
         wait=False,
         require_seventh_ok=True,
     )
-    communicate(
+    move_tablea_xy_safe_then_prepoint(
         cps=cps,
         config=config,
         point=prepoint,
         tcp=config["coords"]["tcptool3plane1"],
         ucs=config["coords"]["ucsTable1"],
-        seventh=-1,
-        speed=robot_speed,
+        robot_speed=robot_speed,
         velocity_profile="robot",
-        wait=True,
     )
     edge_speed = _resolve_edge_speed(config)
     print("[Edge Coverage] Moving to first edge point before force:", edge_points[0])
