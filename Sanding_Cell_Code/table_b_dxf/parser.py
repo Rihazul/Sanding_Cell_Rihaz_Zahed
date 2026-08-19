@@ -23,9 +23,11 @@ _FLATTEN_DISTANCE_MM = 0.5
 
 # Machine-frame normalization. The sanding cell expects the part in a fixed frame:
 # origin at the bottom-right of the model bbox, +X pointing left, +Y pointing up.
-# The long dimension must run along X: if the uploaded part is taller than wide
-# (Y > X), rotate it 90 degrees first. The Y (short) dimension of the table maxes
-# out at ~37 inches (918 mm) — parts beyond that are flagged.
+# For physical Table B placement, any side longer than this must become model X.
+# Smaller parts keep the uploaded orientation because either side can fit the cups.
+_LONG_SIDE_AS_X_THRESHOLD_MM = 920.0
+# The Y (short) dimension of the table maxes out at ~37 inches (918 mm) - parts
+# beyond that are flagged.
 _MAX_Y_MM = 918.0
 
 # $INSUNITS code -> inches per drawing unit (used only to decide the 36" rotation).
@@ -263,9 +265,9 @@ def _normalize_geometry(
     """Transform parsed geometry into the machine frame, in place.
 
     Steps (exactly as specified for Table B):
-      1. If the uploaded part is taller than wide (Y size > X size), rotate every
-         point 90 degrees first so the long side runs along X, then recompute the
-         bounding box. A part already wider than tall is kept as-is.
+      1. If a side is longer than the physical placement threshold, ensure that
+         side is the model X direction. Parts below the threshold keep the uploaded
+         orientation.
       2. Re-origin to the bottom-right of the bbox with axes flipped:
              normalized_x = max_x - raw_x   (origin on the right, +X points left)
              normalized_y = raw_y - min_y   (+Y points up)
@@ -286,9 +288,18 @@ def _normalize_geometry(
     raw_max_x = max(p[0] for p in pts)
     raw_min_y = min(p[1] for p in pts)
     raw_max_y = max(p[1] for p in pts)
-    # Rotate only when the part is portrait (taller than wide) so the long
-    # dimension ends up along X.
-    rotated = (raw_max_y - raw_min_y) > (raw_max_x - raw_min_x)
+
+    # Millimeters per drawing unit - inch drawings scale by 25.4, mm drawings by 1.
+    mm_per_unit = inches_per_unit * 25.4
+
+    raw_x_size = raw_max_x - raw_min_x
+    raw_y_size = raw_max_y - raw_min_y
+    raw_x_size_mm = raw_x_size * mm_per_unit
+    raw_y_size_mm = raw_y_size * mm_per_unit
+    long_side_requires_x = max(raw_x_size_mm, raw_y_size_mm) > _LONG_SIDE_AS_X_THRESHOLD_MM
+    # Rotate only when the side that exceeds the placement threshold is currently
+    # in Y. If both sides exceed it, make the longer side X to minimize final Y.
+    rotated = long_side_requires_x and raw_y_size > raw_x_size
 
     def rotate(p: list[float]) -> list[float]:
         # 90 degrees CCW: (x, y) -> (-y, x). Turns a tall part into a wide one.
@@ -299,9 +310,6 @@ def _normalize_geometry(
     max_x = max(p[0] for p in rotated_pts)
     min_y = min(p[1] for p in rotated_pts)
     max_y = max(p[1] for p in rotated_pts)
-
-    # Millimeters per drawing unit — inch drawings scale by 25.4, mm drawings by 1.
-    mm_per_unit = inches_per_unit * 25.4
 
     def transform(p: list[float]) -> list[float]:
         rx, ry = rotate(p)
@@ -348,6 +356,12 @@ def _normalize_geometry(
     return {
         "applied": True,
         "rotated": rotated,
+        "rotation_rule": {
+            "threshold_mm": _LONG_SIDE_AS_X_THRESHOLD_MM,
+            "raw_x_size_mm": raw_x_size_mm,
+            "raw_y_size_mm": raw_y_size_mm,
+            "long_side_requires_x": long_side_requires_x,
+        },
         # Stored geometry is millimeters (inch drawings were converted).
         "units": "mm",
         "mm_per_unit": 1.0,
