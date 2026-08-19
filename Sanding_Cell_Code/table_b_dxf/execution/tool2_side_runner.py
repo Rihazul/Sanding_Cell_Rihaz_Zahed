@@ -362,9 +362,9 @@ def _prepare_bottom_side_exit_before_j6(
     if previous_position.z > -5.0:
         _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
         _move(cps, config, _bottom_travel_pose(x, tool2_lift_z_for_side("bottom"), rz), velocity_profile="robotspeed", wait=True)
-    # The wrist rotation still waits before the next contact move. These lifted
-    # travel points should blend toward the rotation position instead of adding
-    # a visible stop at the midpoint.
+    # The wrist rotation safety guard reads live joints before moving J6. The
+    # final clearance pose must be reached first, otherwise the guard can still
+    # see the previous bottom-side J3 value and abort before the robot is safe.
     _move(
         cps,
         config,
@@ -377,7 +377,7 @@ def _prepare_bottom_side_exit_before_j6(
         config,
         _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz, ry=0.0),
         velocity_profile="robotspeed",
-        wait=False,
+        wait=True,
     )
 
 
