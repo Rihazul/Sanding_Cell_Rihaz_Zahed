@@ -77,6 +77,10 @@ def tool2_left_axis7_position(x_total_mm: float) -> float:
     return float(x_total_mm) + TOOL2_LEFT_AXIS7_OFFSET_FROM_TOTAL_X_MM
 
 
+def _clamp(value: float, low: float, high: float) -> float:
+    return min(max(float(value), float(low)), float(high))
+
+
 def tool2_outward_approach_point(
     side: str,
     contact_point: Sequence[float],
@@ -234,6 +238,25 @@ def build_tool2_top_segments_increasing(x_total_mm: float, y_total_mm: float) ->
     local_min, local_max = span
     if local_max <= local_min:
         return []
+
+    # If the full top edge fits at one J7 station, keep it as one station. The
+    # previous greedy splitter started at J7=0 and could leave a tiny remaining
+    # top segment at a far rail position, which made small doors jump to an
+    # unnecessary station after the bottom pass.
+    full_fit_axis_min = max(0.0, x_total - local_max)
+    full_fit_axis_max = max(0.0, -local_min)
+    if full_fit_axis_min <= full_fit_axis_max + 1e-6:
+        preferred_axis = tool2_left_axis7_position(x_total)
+        axis7 = _clamp(preferred_axis, full_fit_axis_min, full_fit_axis_max)
+        return [
+            Tool2HorizontalSegment(
+                "top",
+                axis7,
+                0.0 - axis7,
+                x_total - axis7,
+                y,
+            )
+        ]
 
     segments: list[Tool2HorizontalSegment] = []
     start = 0.0

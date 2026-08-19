@@ -15,6 +15,7 @@ from Server_Better_V2 import (
     turn_vibration_off,
     turn_vibration_on,
     waitForBlending,
+    waitForSeventhAxisIdle,
 )
 
 from .common import (
@@ -537,6 +538,14 @@ def _run_horizontal_segment(
     bottom_travel_y = _bottom_travel_y() if side == "bottom" else side_safe_y
     path_start_x = segment.local_end_x if reverse_path else segment.local_start_x
     path_end_x = segment.local_start_x if reverse_path else segment.local_end_x
+    bottom_station_change_entry = bool(
+        enter_from_contact
+        and previous_position
+        and previous_position.side == "bottom"
+        and side == "bottom"
+        and previous_position.axis7 is not None
+        and abs(float(previous_position.axis7) - float(segment.axis7)) > 1.0
+    )
     _log(
         config,
         "[TableB DXF Tool2] %s %s segment j7=%.3f x %.3f -> %.3f y=%.3f cycles=%s enter_from_contact=%s lift_after=%s",
@@ -560,6 +569,21 @@ def _run_horizontal_segment(
             wait=False,
             require_seventh_ok=True,
         )
+        if bottom_station_change_entry:
+            _log(
+                config,
+                "[TableB DXF Tool2] bottom -> bottom station change waits J7 idle before contact move: %.3f -> %.3f",
+                float(previous_position.axis7),
+                float(segment.axis7),
+            )
+            if not waitForSeventhAxisIdle(
+                cps,
+                config,
+                context="tool2_bottom_station_change_before_contact",
+            ):
+                raise TableBDxfRobotExecutionError(
+                    f"Tool 2 bottom station change did not reach J7={segment.axis7:.3f} before contact move."
+                )
         if backoff_before_entry:
             backoff_pose = (
                 _bottom_travel_pose(path_start_x, TOOL2_CONTACT_Z_MM, rz)
