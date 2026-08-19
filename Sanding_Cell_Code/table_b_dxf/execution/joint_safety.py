@@ -7,6 +7,7 @@ from Server_Better_V2 import moveOnlyJ6r
 from .common import TableBDxfRobotExecutionError, log as _log
 
 JOINT_LIMIT_MARGIN_DEG = 10.0
+SAFE_J3_LIMIT_DEG = (-151.0, 151.0)
 
 # Physical limits supplied for the robot. The safety window keeps 10 degrees
 # away from each end so repeated relative wrist moves do not accumulate into
@@ -21,8 +22,8 @@ JOINT_LIMITS_DEG: tuple[tuple[float, float], ...] = (
 )
 
 SAFE_JOINT_LIMITS_DEG: tuple[tuple[float, float], ...] = tuple(
-    (low + JOINT_LIMIT_MARGIN_DEG, high - JOINT_LIMIT_MARGIN_DEG)
-    for low, high in JOINT_LIMITS_DEG
+    SAFE_J3_LIMIT_DEG if index == 2 else (low + JOINT_LIMIT_MARGIN_DEG, high - JOINT_LIMIT_MARGIN_DEG)
+    for index, (low, high) in enumerate(JOINT_LIMITS_DEG)
 )
 
 
