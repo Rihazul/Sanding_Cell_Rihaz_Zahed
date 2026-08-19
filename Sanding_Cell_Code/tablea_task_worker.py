@@ -3,7 +3,7 @@ import time
 import yaml
 
 from modules.CPS import CPSClient
-from Server_Better_V2 import set_table_state, setup_logger, stopper_statusmod
+from Server_Better_V2 import move_to_robot_homing_point, set_table_state, setup_logger, stopper_statusmod
 
 
 MODEL_METHOD_MAP_TABLE_A = {
@@ -83,14 +83,21 @@ def run_tablea_task_child(model_key, recent_matching_scan=False):
         if ret != 0:
             raise RuntimeError(f"Table A child CPS connect failed (ret={ret})")
 
-        # If a previous run was stopped mid Tool 2 side/edge (tool backed 5 mm off the door),
-        # lift it off the surface and (for non-top sides) turn the wrist to homing J6 BEFORE any
-        # table/stopper motion or sanding, so restarting the task recovers safely first.
+        # If a previous run was stopped mid Tool 2 side/edge, recover Tool 2 first, then move
+        # the robot arm to homing before any table/stopper motion or sanding restart.
         try:
             from smallTable.tool2_stop_backoff import recover_tool2_after_stop_if_needed
 
             if recover_tool2_after_stop_if_needed(cps, config):
                 logger.info("[TableA Child] Tool 2 stop recovery completed before task start")
+                robot_speed = float(config.get("UI", {}).get("robotSpeed", 0.7))
+                move_to_robot_homing_point(
+                    cps,
+                    config,
+                    robot_speed,
+                    velocity_profile="robotspeed",
+                )
+                logger.info("[TableA Child] Robot homing completed after Tool 2 recovery")
         except Exception as recovery_exc:
             logger.warning("[TableA Child] Tool 2 stop recovery skipped: %s", recovery_exc)
 
