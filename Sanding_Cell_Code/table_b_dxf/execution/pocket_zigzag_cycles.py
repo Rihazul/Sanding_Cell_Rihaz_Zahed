@@ -828,6 +828,120 @@ def _combined_rect_window_cycle_path(
     return out, combined[-1]
 
 
+def _build_rectangular_spiral_points(
+    bounds: dict[str, float],
+    step_mm: float,
+    *,
+    inset_start: float = 0.0,
+) -> list[list[float]]:
+    """Build a straight-line rectangular spiral for one reachable rectangle.
+
+    The path starts at the bottom-right corner and winds inward. `inset_start`
+    builds an offset spiral for even cycles so repeated cycles do not simply
+    retrace the same rings in reverse.
+    """
+    step = max(float(step_mm), 1e-6)
+    left = float(bounds["x_min"]) + max(0.0, float(inset_start))
+    right = float(bounds["x_max"]) - max(0.0, float(inset_start))
+    bottom = float(bounds["y_min"]) + max(0.0, float(inset_start))
+    top = float(bounds["y_max"]) - max(0.0, float(inset_start))
+    if right <= left or top <= bottom:
+        return []
+
+    points: list[list[float]] = []
+    current = [right, bottom]
+
+    def push(point: list[float]) -> None:
+        nonlocal current
+        if not points or _point_distance(points[-1], point) > 1e-6:
+            points.append(point)
+        current = point
+
+    def is_corridor() -> bool:
+        return right - left <= step + 1e-9 or top - bottom <= step + 1e-9
+
+    def finish_corridor() -> None:
+        width = right - left
+        height = top - bottom
+        if width <= 1e-9 or height <= 1e-9:
+            return
+        if height >= width:
+            center_x = (left + right) * 0.5
+            if abs(current[0] - center_x) > 1e-6:
+                push([center_x, current[1]])
+            far_y = top if abs(current[1] - bottom) < abs(current[1] - top) else bottom
+            push([center_x, far_y])
+        else:
+            center_y = (bottom + top) * 0.5
+            if abs(current[1] - center_y) > 1e-6:
+                push([current[0], center_y])
+            far_x = right if abs(current[0] - left) < abs(current[0] - right) else left
+            push([far_x, center_y])
+
+    push(current)
+    while not is_corridor():
+        push([right, top])
+        right -= step
+        if is_corridor():
+            break
+        push([left, top])
+        top -= step
+        if is_corridor():
+            break
+        push([left, bottom])
+        left += step
+        if is_corridor():
+            break
+        push([right, bottom])
+        bottom += step
+    finish_corridor()
+    return points
+
+
+def _combined_rect_spiral_cycle_path(
+    *,
+    window_key: str,
+    template_path: dict[str, Any],
+    bounds: dict[str, float],
+    cycles: int,
+    force: int,
+    start_cursor: list[float] | None,
+    step_mm: float,
+) -> tuple[dict[str, Any] | None, list[float] | None]:
+    """Generate continuous rectangular-spiral cycles inside one reach window."""
+    combined: list[list[float]] = []
+    cursor = start_cursor
+    orientations: list[str] = []
+
+    for cycle_index in range(1, cycles + 1):
+        inset = 0.0 if cycle_index % 2 == 1 else max(float(step_mm), 1.0) * 0.5
+        pts = _build_rectangular_spiral_points(bounds, step_mm, inset_start=inset)
+        if len(pts) < 2 and inset > 0.0:
+            pts = _build_rectangular_spiral_points(bounds, step_mm, inset_start=0.0)
+        if len(pts) < 2:
+            return None, start_cursor
+        if cursor is not None and _point_distance(cursor, pts[-1]) < _point_distance(cursor, pts[0]):
+            pts = list(reversed(pts))
+        _append_continuous_points(combined, pts)
+        cursor = combined[-1]
+        orientations.append("rectangular_spiral_in" if cycle_index % 2 == 1 else "rectangular_spiral_out")
+
+    if len(combined) < 2:
+        return None, start_cursor
+
+    out = dict(template_path)
+    out["points"] = combined
+    out["path_id"] = f"{template_path.get('path_id') or 'rectspiral'}__{window_key}__cycles1-{cycles}_rectspiral"
+    out["operation"] = f"Rectangular spiral continuous cycles {cycles}"
+    out["recipe_override"] = {"force": force, "cycle": 1}
+    out["cycle_index"] = None
+    out["cycle_orientation"] = "+".join(orientations)
+    out["cycle_window_id"] = window_key
+    out["cycle_window_bounds"] = dict(bounds)
+    out["continuous_cycle_chain"] = True
+    return out, combined[-1]
+
+
 def build_tool4_rectangular_alternating_cycle_paths(
     *,
     source_paths: list[dict[str, Any]],
@@ -849,8 +963,9 @@ def build_tool4_rectangular_alternating_cycle_paths(
     """
     if cycles <= 1 or not source_paths:
         return None
-    selected = "horizontal" if selected == "horizontal" else "vertical"
-    alternate = alternate or ("vertical" if selected == "horizontal" else "horizontal")
+    selected = str(selected or "vertical").lower()
+    selected = "rectspiral" if selected == "rectspiral" else "horizontal" if selected == "horizontal" else "vertical"
+    alternate = str(alternate or ("vertical" if selected == "horizontal" else "horizontal")).lower()
     alternate = "horizontal" if alternate == "horizontal" else "vertical"
 
     bounds_list: list[dict[str, float]] = []
@@ -876,20 +991,32 @@ def build_tool4_rectangular_alternating_cycle_paths(
     windows = _trim_internal_rect_window_boundaries(_split_rect_bounds_by_tool4_reach(full_bounds), step_mm)
     for index, bounds in enumerate(windows, start=1):
         window_key = f"{path_prefix}_exec{index}"
-        combined_path, cursor_after = _combined_rect_window_cycle_path(
-            window_key=window_key,
-            template_path=template,
-            bounds=bounds,
-            selected=selected,
-            alternate=alternate,
-            cycles=cycles,
-            force=force,
-            start_cursor=cursor,
-            step_mm=step_mm,
-        )
+        if selected == "rectspiral":
+            combined_path, cursor_after = _combined_rect_spiral_cycle_path(
+                window_key=window_key,
+                template_path=template,
+                bounds=bounds,
+                cycles=cycles,
+                force=force,
+                start_cursor=cursor,
+                step_mm=step_mm,
+            )
+        else:
+            combined_path, cursor_after = _combined_rect_window_cycle_path(
+                window_key=window_key,
+                template_path=template,
+                bounds=bounds,
+                selected=selected,
+                alternate=alternate,
+                cycles=cycles,
+                force=force,
+                start_cursor=cursor,
+                step_mm=step_mm,
+            )
         if combined_path is None:
             continue
-        combined_path["path_id"] = f"{path_prefix}_{index:03d}__cycles1-{cycles}_{selected}_{alternate}"
+        suffix = "rectspiral" if selected == "rectspiral" else f"{selected}_{alternate}"
+        combined_path["path_id"] = f"{path_prefix}_{index:03d}__cycles1-{cycles}_{suffix}"
         combined_path["operation"] = f"{operation_label} cycles {cycles}"
         combined_path["cycle_window_id"] = window_key
         expanded.append(combined_path)

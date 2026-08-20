@@ -111,6 +111,25 @@ def _cycle_points(points: list[list[float]], is_closed: bool, cycle_index: int) 
     return _open_cycle_points(points, cycle_index)
 
 
+def _combined_cycle_points(points: list[list[float]], is_closed: bool, cycles: int) -> list[list[float]]:
+    """Flatten all cycles into one continuous controller feed.
+
+    The tool is already positioned at points[0] before force control. Keeping
+    cycles in one list prevents short closed contours from stopping at each
+    loop boundary; the normal queue flush still protects every 8 points.
+    """
+    combined: list[list[float]] = []
+    for cycle_index in range(1, max(1, int(cycles or 1)) + 1):
+        cycle = _cycle_points(points, is_closed, cycle_index)
+        if not cycle:
+            continue
+        if combined and _points_close(combined[-1], cycle[0]):
+            combined.extend(cycle[1:])
+        else:
+            combined.extend(cycle)
+    return combined
+
+
 def _motion_queue_flush_every(config: dict[str, Any]) -> int:
     value = None
     if isinstance(config, dict):
@@ -1132,60 +1151,59 @@ def run_force_xy_path(cps: Any, config: dict[str, Any], step: dict[str, Any]) ->
                 f"Vibration did not turn on for path {step.get('path_id')}."
             )
 
-        for cycle_index in range(1, cycles + 1):
-            _log(
-                config,
-                "[TableB DXF Robot] path=%s cycle=%s/%s",
-                step.get("path_id"),
-                cycle_index,
-                cycles,
+        sanding_points = _combined_cycle_points(points, is_closed, cycles)
+        _log(
+            config,
+            "[TableB DXF Robot] path=%s executing %s cycle(s) as %s continuous sanding points",
+            step.get("path_id"),
+            cycles,
+            len(sanding_points),
+        )
+        for point_index, xy in enumerate(sanding_points, start=1):
+            _raise_if_stop_requested(cps, config, "during sanding path")
+            wait_for_point = _should_wait_for_motion_point(
+                point_index, len(sanding_points), flush_every
             )
-            cycle_points = _cycle_points(points, is_closed, cycle_index)
-            for point_index, xy in enumerate(cycle_points, start=1):
-                _raise_if_stop_requested(cps, config, "during sanding path")
-                wait_for_point = _should_wait_for_motion_point(
-                    point_index, len(cycle_points), flush_every
+            if wait_for_point and point_index > 1 and preflush_settle_s > 0.0:
+                waitForBlending(cps=cps, config=config, timeout_s=preflush_settle_s)
+                _wait_robot_ready_for_next_sanding_command(
+                    cps,
+                    config,
+                    timeout_s=ready_timeout_s,
+                    context=(
+                        f"path={step.get('path_id')} before point "
+                        f"{point_index}/{len(sanding_points)}"
+                    ),
                 )
-                if wait_for_point and point_index > 1 and preflush_settle_s > 0.0:
-                    waitForBlending(cps=cps, config=config, timeout_s=preflush_settle_s)
-                    _wait_robot_ready_for_next_sanding_command(
-                        cps,
-                        config,
-                        timeout_s=ready_timeout_s,
-                        context=(
-                            f"path={step.get('path_id')} cycle={cycle_index}/{cycles} "
-                            f"before point {point_index}/{len(cycle_points)}"
-                        ),
-                    )
-                move_result = communicate(
-                    cps=cps,
-                    config=config,
-                    point=_pose_from_xy(xy, force_control_z, rxyz),
-                    tcp=tcp,
-                    ucs=ucs,
-                    seventh=-1,
-                    speed=sanding_speed(config),
-                    velocity_profile="sandingspeed",
-                    speed_mode="linear",
-                    wait=wait_for_point,
+            move_result = communicate(
+                cps=cps,
+                config=config,
+                point=_pose_from_xy(xy, force_control_z, rxyz),
+                tcp=tcp,
+                ucs=ucs,
+                seventh=-1,
+                speed=sanding_speed(config),
+                velocity_profile="sandingspeed",
+                speed_mode="linear",
+                wait=wait_for_point,
+            )
+            if move_result is False:
+                raise TableBDxfRobotExecutionError(
+                    f"Sanding MoveL was rejected or stopped for path {step.get('path_id')} "
+                    f"at point {point_index}/{len(sanding_points)}."
                 )
-                if move_result is False:
-                    raise TableBDxfRobotExecutionError(
-                        f"Sanding MoveL was rejected or stopped for path {step.get('path_id')} "
-                        f"at point {point_index}/{len(cycle_points)}."
-                    )
-                if wait_for_point and point_index < len(cycle_points) and flush_settle_s > 0.0:
-                    waitForBlending(cps=cps, config=config, timeout_s=flush_settle_s)
-                    _wait_robot_ready_for_next_sanding_command(
-                        cps,
-                        config,
-                        timeout_s=ready_timeout_s,
-                        context=(
-                            f"path={step.get('path_id')} cycle={cycle_index}/{cycles} "
-                            f"after point {point_index}/{len(cycle_points)}"
-                        ),
-                    )
-                current_xy = xy
+            if wait_for_point and point_index < len(sanding_points) and flush_settle_s > 0.0:
+                waitForBlending(cps=cps, config=config, timeout_s=flush_settle_s)
+                _wait_robot_ready_for_next_sanding_command(
+                    cps,
+                    config,
+                    timeout_s=ready_timeout_s,
+                    context=(
+                        f"path={step.get('path_id')} after point "
+                        f"{point_index}/{len(sanding_points)}"
+                    ),
+                )
+            current_xy = xy
     except TableBDxfRobotStopRequested:
         stopped = True
         raise

@@ -350,9 +350,9 @@ def _frame_zigzag_cycle_paths(paths: list[dict[str, Any]], approved: dict[str, A
     except (TypeError, ValueError):
         overlap_mm = 0.0
     step_mm = max(TOOL4_POCKET_PASS_WIDTH_MM - overlap_mm, 1.0)
-    raw_selected = (settings or {}).get("frame_zigzag_orientation") or "vertical"
-    selected = "horizontal" if raw_selected == "horizontal" else "vertical"
-    alternate = "vertical" if selected == "horizontal" else "horizontal"
+    raw_selected = str((settings or {}).get("frame_zigzag_orientation") or "vertical").lower()
+    selected = "rectspiral" if raw_selected == "rectspiral" else "horizontal" if raw_selected == "horizontal" else "vertical"
+    alternate = None if selected == "rectspiral" else ("vertical" if selected == "horizontal" else "horizontal")
 
     return build_tool4_rectangular_alternating_cycle_paths(
         source_paths=frame_paths,

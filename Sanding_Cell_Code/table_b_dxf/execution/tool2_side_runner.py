@@ -380,18 +380,49 @@ def _prepare_bottom_side_exit_before_j6(
     )
 
 
+def _safe_to_start_j7_during_tool2_side_transition(previous_position: _Tool2Position | None) -> bool:
+    if previous_position is None or previous_position.side is None:
+        return False
+    # Table B Tool 2 uses negative Z as lifted/safe. Do not overlap J7 with any
+    # wrist rotation unless the tool is already clear of the door surface.
+    safe_z = tool2_lift_z_for_side(previous_position.side)
+    return float(previous_position.z) <= float(safe_z) + 0.5
+
+
 def _apply_side_transition_j6(
     cps: Any,
     config: dict[str, Any],
     previous_position: _Tool2Position | None,
     next_side: str,
     y_total: float | None = None,
-) -> None:
+    next_axis7: float | None = None,
+) -> bool:
     if previous_position is None or previous_position.side is None or previous_position.side == next_side:
-        return
+        return False
     j6_delta = TOOL2_SIDE_TRANSITION_J6_DEG.get((previous_position.side, next_side))
     if j6_delta is None or abs(j6_delta) <= 1e-6:
-        return
+        return False
+    started_axis7 = False
+    if previous_position.side == "right" and next_side == "bottom" and previous_position.z > -5.0:
+        _log(
+            config,
+            "[TableB DXF Tool2] right -> bottom contact corner handoff: x=%.3f y=0 -> y=-15 before J6/RZ rotation",
+            previous_position.x,
+        )
+        _move(
+            cps,
+            config,
+            _pose(previous_position.x, 0.0, TOOL2_CONTACT_Z_MM, TOOL2_SIDE_RZ_DEG["right"]),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+        _move(
+            cps,
+            config,
+            _pose(previous_position.x, -TOOL2_APPROACH_OUTWARD_MM, TOOL2_CONTACT_Z_MM, TOOL2_SIDE_RZ_DEG["right"]),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
     if previous_position.side == "top" and next_side == "bottom":
         mid_y = _transition_mid_y(y_total)
         if mid_y is not None:
@@ -417,7 +448,35 @@ def _apply_side_transition_j6(
                 velocity_profile="robotspeed",
                 wait=False,
             )
+    bottom_exit_prepared = previous_position.side == "bottom" and next_side in {"top", "left"}
     _prepare_bottom_side_exit_before_j6(cps, config, previous_position, next_side, y_total)
+    if (
+        next_axis7 is not None
+        and previous_position.axis7 is not None
+        and abs(float(previous_position.axis7) - float(next_axis7)) > 1.0
+        and (
+            _safe_to_start_j7_during_tool2_side_transition(previous_position)
+            or bottom_exit_prepared
+        )
+    ):
+        _log(
+            config,
+            "[TableB DXF Tool2] side transition %s -> %s starts J7 %.3f -> %.3f during safe-height J6/RZ rotation",
+            previous_position.side,
+            next_side,
+            float(previous_position.axis7),
+            float(next_axis7),
+        )
+        _move(
+            cps,
+            config,
+            None,
+            seventh=float(next_axis7),
+            velocity_profile="robotspeed",
+            wait=False,
+            require_seventh_ok=True,
+        )
+        started_axis7 = True
     record_tool2_recovery_state(
         previous_position.side,
         _pose(previous_position.x, previous_position.y, previous_position.z, previous_position.rz),
@@ -431,6 +490,7 @@ def _apply_side_transition_j6(
         j6_delta,
     )
     guarded_move_only_j6r(cps, j6_delta, config, wait=True, context=f"Tool 2 side transition {previous_position.side} -> {next_side}")
+    return started_axis7
 
 
 def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, force: float) -> None:
@@ -526,6 +586,7 @@ def _run_horizontal_segment(
     reverse_path: bool = False,
     cycles: int = 1,
     sequential_j7_entry: bool = False,
+    j7_started_for_entry: bool = False,
     previous_position: _Tool2Position | None = None,
     y_total: float | None = None,
 ) -> _Tool2Position:
@@ -627,6 +688,14 @@ def _run_horizontal_segment(
                 velocity_profile="robotspeed",
                 wait=True,
                 require_seventh_ok=True,
+            )
+            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        elif j7_started_for_entry:
+            _log(
+                config,
+                "[TableB DXF Tool2] %s prepoint waits for already-started J7=%.3f",
+                side,
+                segment.axis7,
             )
             _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
         else:
@@ -738,7 +807,14 @@ def _run_horizontal_segment_operations(
     if previous_position is None and segment.side == "top":
         _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using coordinate RZ -90 and relative J6 +180")
         guarded_move_only_j6r(cps, 180.0, config, wait=True, context="Tool 2 initial homing bottom-orientation -> top")
-    _apply_side_transition_j6(cps, config, previous_position, segment.side, y_total)
+    j7_started_for_entry = _apply_side_transition_j6(
+        cps,
+        config,
+        previous_position,
+        segment.side,
+        y_total,
+        next_axis7=segment.axis7,
+    )
     lift_z = _lift_z_for_transition(previous_position, segment.side)
     same_station_entry = bool(
         previous_position
@@ -760,10 +836,18 @@ def _run_horizontal_segment_operations(
         and previous_position.axis7 is not None
         and abs(float(previous_position.axis7) - float(segment.axis7)) > 1.0
     )
+    right_to_bottom_contact_entry = bool(
+        previous_position
+        and previous_position.side == "right"
+        and segment.side == "bottom"
+        and previous_position.axis7 is not None
+        and abs(float(previous_position.axis7) - float(segment.axis7)) <= 1.0
+        and previous_position.z > -5.0
+    )
     # Bottom -> bottom station changes do not require a side-angle change, so they
     # should stay on the bottom outward travel line while J7 repositions. Lifting
     # here creates the visible up/down motion and can trip the batch into failure.
-    enter_from_contact = same_station_entry or bottom_station_change_entry
+    enter_from_contact = same_station_entry or bottom_station_change_entry or right_to_bottom_contact_entry
     keep_contact_after = same_station_next or bool(
         segment.side == "bottom"
         and next_side == "bottom"
@@ -790,6 +874,7 @@ def _run_horizontal_segment_operations(
             reverse_path=reverse_for_operation,
             cycles=cycles_by_mode.get(operation_mode, 1),
             sequential_j7_entry=False,
+            j7_started_for_entry=j7_started_for_entry and index == 0,
             previous_position=previous_position,
             y_total=y_total,
         )
@@ -815,6 +900,7 @@ def _run_vertical_side(
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
     cycles: int = 1,
+    j7_started_for_entry: bool = False,
 ) -> _Tool2Position:
     rz = TOOL2_SIDE_RZ_DEG[side]
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
@@ -864,12 +950,22 @@ def _run_vertical_side(
                 require_seventh_ok=True,
             )
     else:
-        _move_axis7_and_lifted_prepoint(
-            cps,
-            config,
-            axis7=axis7,
-            prepoint=_pose(x, path_start_y, lift_z, rz),
-        )
+        prepoint = _pose(x, path_start_y, lift_z, rz)
+        if j7_started_for_entry:
+            _log(
+                config,
+                "[TableB DXF Tool2] %s prepoint waits for already-started J7=%.3f",
+                side,
+                axis7,
+            )
+            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        else:
+            _move_axis7_and_lifted_prepoint(
+                cps,
+                config,
+                axis7=axis7,
+                prepoint=prepoint,
+            )
     _force_ready_at_contact(cps, config, side, operation_mode, x, path_start_y, rz)
     _apply_force_and_vibration(cps, config, side, force)
     cycle_targets = _ping_pong_axis_targets(path_start_y, path_end_y, cycles)
@@ -931,6 +1027,7 @@ def _run_right_side(
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
     cycles: int = 1,
+    j7_started_for_entry: bool = False,
 ) -> _Tool2Position:
     return _run_vertical_side(
         cps,
@@ -948,6 +1045,7 @@ def _run_right_side(
         backoff_before_entry=backoff_before_entry,
         reverse_path=reverse_path,
         cycles=cycles,
+        j7_started_for_entry=j7_started_for_entry,
     )
 
 
@@ -966,6 +1064,7 @@ def _run_left_side(
     backoff_before_entry: bool = False,
     reverse_path: bool = False,
     cycles: int = 1,
+    j7_started_for_entry: bool = False,
 ) -> _Tool2Position:
     start_y = y_total if start_from_top else 0.0
     end_y = 0.0 if start_from_top else y_total
@@ -985,6 +1084,7 @@ def _run_left_side(
         backoff_before_entry=backoff_before_entry,
         reverse_path=reverse_path,
         cycles=cycles,
+        j7_started_for_entry=j7_started_for_entry,
     )
 
 
@@ -996,12 +1096,27 @@ def _run_right_side_operations(
     cycles_by_mode: dict[str, int],
     y_total: float,
     previous_position: _Tool2Position | None = None,
+    *,
+    next_side: str | None = None,
+    next_axis7: float | None = None,
 ) -> _Tool2Position:
-    _apply_side_transition_j6(cps, config, previous_position, "right")
+    j7_started_for_entry = _apply_side_transition_j6(
+        cps,
+        config,
+        previous_position,
+        "right",
+        next_axis7=0.0,
+    )
     lift_z = _lift_z_for_transition(previous_position, "right")
+    keep_contact_after = bool(
+        next_side == "bottom"
+        and next_axis7 is not None
+        and abs(float(next_axis7)) <= 1.0
+    )
     last_position: _Tool2Position | None = None
     for index, operation_mode in enumerate(operation_modes):
         has_next_same_pass_operation = index + 1 < len(operation_modes)
+        lift_after_operation = False if has_next_same_pass_operation or keep_contact_after else True
         last_position = _run_right_side(
             cps,
             config,
@@ -1010,10 +1125,11 @@ def _run_right_side_operations(
             operation_mode,
             lift_z=lift_z,
             enter_from_contact=index > 0,
-            lift_after=not has_next_same_pass_operation,
+            lift_after=lift_after_operation,
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
             reverse_path=(index > 0 and _is_edge_operation(operation_mode) and last_position is not None and abs(last_position.y - 0.0) < abs(last_position.y - y_total)),
             cycles=cycles_by_mode.get(operation_mode, 1),
+            j7_started_for_entry=j7_started_for_entry and index == 0,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
@@ -1030,7 +1146,14 @@ def _run_left_side_operations(
     y_total: float,
     previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
-    _apply_side_transition_j6(cps, config, previous_position, "left")
+    left_axis7 = tool2_left_axis7_position(x_total)
+    j7_started_for_entry = _apply_side_transition_j6(
+        cps,
+        config,
+        previous_position,
+        "left",
+        next_axis7=left_axis7,
+    )
     lift_z = _lift_z_for_transition(previous_position, "left")
     start_from_top = bool(previous_position and previous_position.side == "top")
     entry_start_y = y_total if start_from_top else 0.0
@@ -1055,6 +1178,7 @@ def _run_left_side_operations(
             backoff_before_entry=index > 0 and _is_edge_operation(operation_mode),
             reverse_path=reverse_for_operation,
             cycles=cycles_by_mode.get(operation_mode, 1),
+            j7_started_for_entry=j7_started_for_entry and index == 0,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
@@ -1196,9 +1320,20 @@ def _run_tool2_station_traversal(
                     next_axis7=_next_axis7_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
                     y_total=y_total,
                 )
-            last_position = _run_right_side_operations(cps, config, force_by_mode, operation_modes, cycles_by_mode, y_total, last_position)
-            right_done = True
             bottom_sequence = [s for s in ordered_segments if s.side == "bottom"]
+            first_bottom_segment = bottom_sequence[0] if bottom_sequence else None
+            last_position = _run_right_side_operations(
+                cps,
+                config,
+                force_by_mode,
+                operation_modes,
+                cycles_by_mode,
+                y_total,
+                last_position,
+                next_side=first_bottom_segment.side if first_bottom_segment is not None else None,
+                next_axis7=float(first_bottom_segment.axis7) if first_bottom_segment is not None else None,
+            )
+            right_done = True
             for index, segment in enumerate(bottom_sequence):
                 last_position = _run_horizontal_segment_operations(
                     cps,

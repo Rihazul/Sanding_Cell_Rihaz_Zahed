@@ -483,6 +483,7 @@ def compute_table_b_dxf_frame_zigzag(job_id: str):
             payload.get("surface3d_polygons") or [],
             pass_width_mm=float(payload.get("pass_width_mm") or 75.0),
             overlap_mm=float(payload.get("overlap_mm") or 0.0),
+            orientation=str(payload.get("orientation") or "vertical"),
         )
         try:
             toolpaths = result.get("toolpaths") or []

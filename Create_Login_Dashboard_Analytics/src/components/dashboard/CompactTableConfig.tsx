@@ -7,6 +7,7 @@ import {
   startTableAProcess,
   startTableBProcess,
   performAction,
+  liftTable,
   getProcessStatus,
   getScanStatus,
   // --- Table B DXF (2D CAD Assisted) additions ---
@@ -162,6 +163,7 @@ export function CompactTableConfig({
   const [lastScannedAt, setLastScannedAt] = React.useState<string | null>(null);
   const [detectedDoorNumbers, setDetectedDoorNumbers] = React.useState<number[] | null>(null);
   const [isScanning, setIsScanning] = React.useState<boolean>(false);
+  const [isLiftingTable, setIsLiftingTable] = React.useState<boolean>(false);
   const [completionPopup, setCompletionPopup] = React.useState<{ title: string; subtitle?: string } | null>(null);
   // Operator-saved Force/Cycle presets (Start / Middle / Finish / Normal default). Loaded once
   // from the backend; Table A is per-model, Table B is model-agnostic.
@@ -733,7 +735,7 @@ export function CompactTableConfig({
       ? `frameX=${values.x};frameY=${values.y}`
       : 'frameX=invalid;frameY=invalid';
   };
-  // Model F (UI "Model E - Flat") runs the Tool 4 flat zigzag PLUS Tool 2 side/edge-outside on
+  // Model F (UI "Model E - Flat") runs the Tool 4 frame zigzag PLUS Tool 2 side/edge-outside on
   // the door sides. It still has no pocket-edge / 3D / frame geometry, so only these are offered.
   const isModelFAllowedRow = (label: string) =>
     label === 'Pocket ZigZag' || label === 'Side' || label === 'Edge Outside';
@@ -747,7 +749,7 @@ export function CompactTableConfig({
     return true;
   };
   const rowDisplayLabel = (label: string) =>
-    isModelF && label === 'Pocket ZigZag' ? 'Flat ZigZag' : label;
+    isModelF && label === 'Pocket ZigZag' ? 'Frame ZigZag' : label;
 
   const [rowDoorSelections, setRowDoorSelections] = React.useState<Record<string, number[]>>({
     Frame: [],
@@ -1031,6 +1033,7 @@ export function CompactTableConfig({
       : window.confirm(text);
     if (confirmed) {
       setTableAFrameSizeConfirmed(true);
+      setFrameConfigDiagramOpen(false);
       addActivity(`Table ${tableName}: Frame sizes confirmed X=${frameSizes.x} mm, Y=${frameSizes.y} mm`, 'success');
     }
     return confirmed;
@@ -1190,6 +1193,69 @@ export function CompactTableConfig({
     } finally {
       setIsScanning(false);
       setIsOperating(false);
+    }
+  };
+
+  const handleLiftTable = async () => {
+    if (isOperating || isScanning || isLiftingTable) return;
+
+    setIsLiftingTable(true);
+    addActivity(`Table ${tableName}: Moving J7 to -65 mm before lifting table...`, 'info');
+    try {
+      const result = await liftTable(tableName);
+      if (!result?.success) {
+        const message = result?.message || result?.error || 'unknown error';
+        addActivity(`Table ${tableName}: Lift Table failed - ${message}`, 'error');
+        if (/already horizontal/i.test(String(message))) {
+          const swal = getSwal();
+          if (swal?.fire) {
+            await swal.fire({
+              title: 'Table Already Horizontal',
+              text: String(message),
+              icon: 'info',
+              confirmButtonText: 'OK',
+            });
+          }
+        } else if (/home/i.test(String(message))) {
+          const swal = getSwal();
+          if (swal?.fire) {
+            await swal.fire({
+              title: 'Home Required',
+              text: String(message),
+              icon: 'warning',
+              confirmButtonText: 'OK',
+            });
+          }
+        }
+        return;
+      }
+      addActivity(`Table ${tableName}: Table set to horizontal after J7 reached -65 mm`, 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      addActivity(`Table ${tableName}: Lift Table failed - ${message}`, 'error');
+      if (/already horizontal/i.test(message)) {
+        const swal = getSwal();
+        if (swal?.fire) {
+          await swal.fire({
+            title: 'Table Already Horizontal',
+            text: message,
+            icon: 'info',
+            confirmButtonText: 'OK',
+          });
+        }
+      } else if (/home/i.test(message)) {
+        const swal = getSwal();
+        if (swal?.fire) {
+          await swal.fire({
+            title: 'Home Required',
+            text: message,
+            icon: 'warning',
+            confirmButtonText: 'OK',
+          });
+        }
+      }
+    } finally {
+      setIsLiftingTable(false);
     }
   };
 
@@ -2817,49 +2883,134 @@ export function CompactTableConfig({
           )}
 
           <div className="mt-5 border-2 border-slate-200 pt-4 bg-white rounded-xl px-4 pb-4 shadow-sm">
-            <div className={`grid gap-3 ${tableName === 'A' ? 'grid-cols-2' : 'grid-cols-2'}`}>
+            <div className={`flex flex-wrap items-center justify-center gap-3 ${tableName === 'A' ? 'w-full' : ''}`}>
               {tableName === 'A' ? (
                 <>
-                  <Button
+                  <button
+                    type="button"
+                    onClick={handleLiftTable}
+                    disabled={isOperating || isScanning || isLiftingTable}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: '#f97316',
+                      border: '0',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      cursor: isOperating || isScanning || isLiftingTable ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      flex: '1 1 0',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      height: '44px',
+                      justifyContent: 'center',
+                      lineHeight: '1',
+                      minWidth: '0',
+                      opacity: isOperating || isScanning || isLiftingTable ? 0.85 : 1,
+                      padding: '0 18px',
+                    }}
+                  >
+                    {isLiftingTable ? 'Lifting...' : 'Lift Table'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleStartScan}
                     disabled={isOperating || isScanning || (tableName === 'A' && homingRequired)}
-                    className={`scan-button ${isScanning ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-purple-600'} text-white disabled:bg-green-600 disabled:text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed`}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: isScanning ? '#16a34a' : '#22c55e',
+                      border: '0',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      cursor: isOperating || isScanning || (tableName === 'A' && homingRequired) ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      flex: '1 1 0',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      height: '44px',
+                      justifyContent: 'center',
+                      lineHeight: '1',
+                      minWidth: '0',
+                      opacity: 1,
+                      padding: '0 18px',
+                    }}
                   >
                     {isScanning ? 'Scanning...' : (tableName === 'A' && homingRequired ? 'Home First' : 'Scan')}
-                  </Button>
-                  <Button
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleStartTask}
                     disabled={isOperating}
-                    className="bg-blue-500 hover:bg-purple-600 text-white disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: '#3b82f6',
+                      border: '0',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      cursor: isOperating ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      flex: '1 1 0',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      height: '44px',
+                      justifyContent: 'center',
+                      lineHeight: '1',
+                      minWidth: '0',
+                      opacity: isOperating ? 0.85 : 1,
+                      padding: '0 18px',
+                    }}
                   >
                     {isOperating ? 'Operating...' : 'Start Task'}
-                  </Button>
+                  </button>
                 </>
               ) : (
                 <>
-                  {/* Table B is always DXF Assisted. DXF preview/approval happens inside the 2D viewer; this shows its state. */}
-                  <Button
-                    disabled
-                    className={`w-full text-white disabled:opacity-100 disabled:cursor-default ${
-                      tableBPreviewStatus === 'approved' && !tableBPreviewIsStale
-                        ? 'bg-emerald-500'
-                        : tableBPreviewIsStale && dxfHasToolpath
-                        ? 'bg-amber-500'
-                        : 'bg-slate-400'
-                    }`}
+                  <button
+                    type="button"
+                    onClick={handleLiftTable}
+                    disabled={isOperating || isScanning || isLiftingTable}
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: '#f97316',
+                      border: '0',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      cursor: isOperating || isScanning || isLiftingTable ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      flex: '1 1 0',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      height: '44px',
+                      justifyContent: 'center',
+                      lineHeight: '1',
+                      minWidth: '0',
+                      opacity: isOperating || isScanning || isLiftingTable ? 0.85 : 1,
+                      padding: '0 18px',
+                    }}
                   >
-                    {!dxfHasToolpath
-                      ? 'Preview in 2D Viewer'
-                      : tableBPreviewIsStale
-                      ? 'Preview Changed — Re-approve'
-                      : tableBPreviewStatus === 'approved'
-                      ? 'Preview Approved ✓'
-                      : 'Preview Ready — Approve in Viewer'}
-                  </Button>
-                  <Button
+                    {isLiftingTable ? 'Lifting...' : 'Lift Table'}
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleStartTask}
                     disabled={isOperating || !tableBCanStartTask || !robotPowerEnabled}
-                    className="bg-blue-500 hover:bg-purple-600 text-white w-full disabled:opacity-100 disabled:brightness-95 disabled:cursor-not-allowed"
+                    style={{
+                      alignItems: 'center',
+                      backgroundColor: '#3b82f6',
+                      border: '0',
+                      borderRadius: '8px',
+                      color: '#ffffff',
+                      cursor: isOperating || !tableBCanStartTask || !robotPowerEnabled ? 'not-allowed' : 'pointer',
+                      display: 'inline-flex',
+                      flex: '1 1 0',
+                      fontSize: '16px',
+                      fontWeight: 700,
+                      height: '44px',
+                      justifyContent: 'center',
+                      lineHeight: '1',
+                      minWidth: '0',
+                      opacity: isOperating || !tableBCanStartTask || !robotPowerEnabled ? 0.85 : 1,
+                      padding: '0 18px',
+                    }}
                   >
                     {isOperating
                       ? 'Operating...'
@@ -2868,7 +3019,7 @@ export function CompactTableConfig({
                       : !robotPowerEnabled
                       ? 'Enable Robot First'
                       : 'Start Task'}
-                  </Button>
+                  </button>
                 </>
               )}
             </div>

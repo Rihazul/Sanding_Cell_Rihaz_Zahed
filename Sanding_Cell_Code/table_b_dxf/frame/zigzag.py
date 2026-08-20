@@ -14,14 +14,14 @@ def compute_frame_zigzag_fill(
     surface3d_polygons: list[list[list[float]]] | None,
     pass_width_mm: float = 75.0,
     overlap_mm: float = 0.0,
+    orientation: str = "vertical",
 ) -> dict[str, Any]:
     """Zigzag (serpentine) fill of the frame surface, clipped to the real polygon.
 
     For "Frame Level on the whole door": fill frame_area = outer − pockets − 3D with
-    vertical passes stepping in X at (pass_width − overlap), each pass CLIPPED to the
+    vertical or horizontal passes at (pass_width − overlap), each pass CLIPPED to the
     frame polygon so it stops at the door's curved edge instead of overrunning the
-    bounding rectangle. Passes alternate direction (serpentine), matching the frontend
-    zigzag pattern but curve-aware.
+    bounding rectangle. Rectangular spiral is intended for flat whole-door frame level.
 
     Returns:
       { ok, rings, toolpaths: [{points, tool, operation_type, direction}], frame_area }
@@ -51,43 +51,111 @@ def compute_frame_zigzag_fill(
     minx, miny, maxx, maxy = [float(v) for v in frame_geom.bounds]
     step = max(float(pass_width_mm) - max(0.0, float(overlap_mm)), 1.0)
 
-    toolpaths: list[dict[str, Any]] = []
-    # In the normalized frame the machine origin (0,0) is the bottom-right corner, which
-    # is min-x / min-y. So the fill must START AT THE ORIGIN CORNER (minx, miny): step X
-    # from minx up to maxx (physical right -> left) and run each pass BOTTOM -> TOP first
-    # (y0 -> y1), then alternate (serpentine). The first toolpath point is the origin
-    # corner; the last pass lands on the far (leftmost) side.
-    toggle = 0
-    seq = 0
-    # Always include both frame boundaries. A plain x += step loop can stop short when
-    # the width is not an exact multiple of the spacing, leaving the origin-side corner
-    # visually/operationally unconnected.
-    for x in _frame_zigzag_stations(minx, maxx, step, float(pass_width_mm)):
-        scan = LineString([(x, miny - 1.0), (x, maxy + 1.0)])
-        clipped = scan.intersection(frame_geom)
-        # The scanline may cross the frame in several disjoint spans (e.g. between two
-        # pockets); emit each span as its own pass so no move crosses a hole.
-        spans = []
-        if clipped.geom_type == "LineString" and not clipped.is_empty:
-            spans = [clipped]
-        elif clipped.geom_type == "MultiLineString":
-            spans = [g for g in clipped.geoms if g.length > 1e-6]
-        for span in spans:
-            ys = [c[1] for c in span.coords]
-            y0, y1 = min(ys), max(ys)
-            # toggle 0 => bottom->top, toggle 1 => top->bottom (serpentine)
-            pass_pts = [[x, y0], [x, y1]] if not toggle else [[x, y1], [x, y0]]
-            toolpaths.append({
-                "path_id": f"frame_zigzag_{seq:03d}",
-                "points": pass_pts,
-                "tool": "tool_4_frame",
-                "operation_type": "frame_zigzag_pass",
-                "direction": "Y",
-            })
-            seq += 1
-        toggle = 1 - toggle
+    selected = str(orientation or "vertical").strip().lower()
+    if selected not in {"vertical", "horizontal", "rectspiral"}:
+        selected = "vertical"
 
-    toolpaths = _chain_frame_zigzag_passes(toolpaths, frame_geom)
+    toolpaths: list[dict[str, Any]] = []
+    seq = 0
+
+    def _line_spans(scan: Any) -> list[Any]:
+        clipped = scan.intersection(frame_geom)
+        if clipped.is_empty:
+            return []
+        if clipped.geom_type == "LineString":
+            return [clipped] if clipped.length > 1e-6 else []
+        if clipped.geom_type == "MultiLineString":
+            return [g for g in clipped.geoms if g.length > 1e-6]
+        if clipped.geom_type == "GeometryCollection":
+            return [g for g in clipped.geoms if g.geom_type == "LineString" and g.length > 1e-6]
+        return []
+
+    if selected == "rectspiral":
+        left = minx
+        right = maxx
+        bottom = miny
+        top = maxy
+        points: list[list[float]] = [[right, bottom]]
+
+        def _append(point: list[float]) -> None:
+            if abs(points[-1][0] - point[0]) > 1e-6 or abs(points[-1][1] - point[1]) > 1e-6:
+                points.append([float(point[0]), float(point[1])])
+
+        while right - left > step and top - bottom > step:
+            _append([right, top])
+            _append([left, top])
+            _append([left, bottom])
+            right -= step
+            bottom += step
+            if right <= left or top <= bottom:
+                break
+            _append([right, bottom])
+            top -= step
+            left += step
+            if right <= left or top <= bottom:
+                break
+
+        if right > left and top > bottom:
+            cx = (left + right) / 2.0
+            cy = (bottom + top) / 2.0
+            if top - bottom >= right - left:
+                _append([cx, points[-1][1]])
+                _append([cx, cy])
+            else:
+                _append([points[-1][0], cy])
+                _append([cx, cy])
+
+        toolpaths.append({
+            "path_id": "frame_zigzag_000",
+            "points": points,
+            "tool": "tool_4_frame",
+            "operation_type": "frame_zigzag_pass",
+            "direction": "SPIRAL",
+            "frame_zigzag_orientation": "rectspiral",
+        })
+    elif selected == "horizontal":
+        toggle = 0
+        for y in _frame_zigzag_stations(miny, maxy, step, float(pass_width_mm)):
+            scan = LineString([(minx - 1.0, y), (maxx + 1.0, y)])
+            spans = _line_spans(scan)
+            for span in spans:
+                xs = [c[0] for c in span.coords]
+                x0, x1 = min(xs), max(xs)
+                pass_pts = [[x0, y], [x1, y]] if not toggle else [[x1, y], [x0, y]]
+                toolpaths.append({
+                    "path_id": f"frame_zigzag_{seq:03d}",
+                    "points": pass_pts,
+                    "tool": "tool_4_frame",
+                    "operation_type": "frame_zigzag_pass",
+                    "direction": "X",
+                    "frame_zigzag_orientation": "horizontal",
+                })
+                seq += 1
+            toggle = 1 - toggle
+    else:
+        # In the normalized frame the machine origin (0,0) is the bottom-right corner,
+        # which is min-x / min-y in this viewer coordinate system. Start there and step X.
+        toggle = 0
+        for x in _frame_zigzag_stations(minx, maxx, step, float(pass_width_mm)):
+            scan = LineString([(x, miny - 1.0), (x, maxy + 1.0)])
+            spans = _line_spans(scan)
+            for span in spans:
+                ys = [c[1] for c in span.coords]
+                y0, y1 = min(ys), max(ys)
+                pass_pts = [[x, y0], [x, y1]] if not toggle else [[x, y1], [x, y0]]
+                toolpaths.append({
+                    "path_id": f"frame_zigzag_{seq:03d}",
+                    "points": pass_pts,
+                    "tool": "tool_4_frame",
+                    "operation_type": "frame_zigzag_pass",
+                    "direction": "Y",
+                    "frame_zigzag_orientation": "vertical",
+                })
+                seq += 1
+            toggle = 1 - toggle
+
+    if selected != "rectspiral":
+        toolpaths = _chain_frame_zigzag_passes(toolpaths, frame_geom)
 
     rings = _rings_of(frame_geom)
     return {

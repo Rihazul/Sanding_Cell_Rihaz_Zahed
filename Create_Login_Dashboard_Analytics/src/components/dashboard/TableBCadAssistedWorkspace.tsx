@@ -9,7 +9,6 @@ import {
   checkTableBDxfLinesClosed,
   detectTableBDxfLoops,
   computeTableBDxfFrameToolpaths,
-  computeTableBDxfFrameZigzag,
   computeTableBDxfTool2Toolpaths,
   planTableBDxfReach,
   type TableBDxfFrameRing,
@@ -168,6 +167,7 @@ export interface DxfToolpathPreviewPayload {
   };
   settings?: {
     pocket_zigzag_orientation?: 'vertical' | 'horizontal' | 'rectspiral';
+    frame_zigzag_orientation?: 'vertical' | 'horizontal' | 'rectspiral';
     pocket_overlap_mm?: number;
     frame_overlap_mm?: number;
     pocket_edge_margin_mm?: number;
@@ -537,7 +537,7 @@ const DXF_FRAME_LEVEL_DOOR_ID = '__frame_level_door__';
 // (e.g. a 2-line triangle vs. a 3+ line rectangle) before it commits. Kept generous
 // so a 2-line V isn't locked as a triangle before the operator can add the 3rd/4th
 // line to form a rectangle/square.
-const DXF_AUTO_CONFIRM_DELAY_MS = 2000;
+const DXF_AUTO_CONFIRM_DELAY_MS = 300;
 // DXF_REGION_META comes from the untyped .jsx viewer, so widen it to a string
 // index before lookup to keep the region-assignment rows type-clean.
 const DXF_REGION_META_MAP = DXF_REGION_META as Record<string, { label: string; color: string }>;
@@ -1127,6 +1127,7 @@ export function TableBCadAssistedWorkspace({
   const TOOL3_DEFAULT_EDGE_MARGIN_MM = 4.5;
   const [dxfPocketEdgeMargin, setDxfPocketEdgeMargin] = React.useState(TOOL3_DEFAULT_EDGE_MARGIN_MM);
   const [dxfPocketZigzagOrientation, setDxfPocketZigzagOrientation] = React.useState<'vertical' | 'horizontal' | 'rectspiral'>('vertical');
+  const [dxfFlatZigzagOrientation, setDxfFlatZigzagOrientation] = React.useState<'vertical' | 'horizontal' | 'rectspiral'>('vertical');
   // Operator-set FRAME overlap (mm, 0..100) — same idea but for the big frame
   // rectangle (chunk) zigzag passes. Independent of the pocket overlap.
   const [dxfFrameOverlap, setDxfFrameOverlap] = React.useState(0);
@@ -1912,6 +1913,176 @@ export function TableBCadAssistedWorkspace({
     return segments;
   };
 
+  const computeDxfFlatFrameZigzag = (
+    scope: Set<string> | null,
+    orientation: 'vertical' | 'horizontal' | 'rectspiral' = dxfFlatZigzagOrientation,
+    forceWindowSections = false,
+    spiralOut = false,
+  ) => {
+    // Frame Level / flat door is the whole assigned surface. Unlike pocket zigzag,
+    // there is no pocket edge to stay inside of, so do not apply the Tool 4 pocket inset.
+    const off = 0;
+    const overlap = Math.max(0, Math.min(100, dxfFrameOverlap));
+    const stepMmEffective = Math.max(TOOL4_PASS_WIDTH_MM - overlap, 1);
+    const step = stepMmEffective / dxfMmPerUnit;
+
+    const regions: { id: string; pts: number[][] }[] = [
+      ...dxfManualSurfaces
+        .filter(
+          (s) =>
+            (s.assigned_operation === 'frame_level' || s.assigned_operation === 'outer_boundary') &&
+            s.outer_points &&
+            (!scope || scope.has(s.id)),
+        )
+        .map((s) => ({ id: s.id, pts: s.outer_points as number[][] })),
+      ...dxfLoops
+        .filter(
+          (l) =>
+            (dxfAssignments[l.entity_id] === 'frame' || dxfAssignments[l.entity_id] === 'outer') &&
+            (!scope || scope.has(l.entity_id)),
+        )
+        .map((l) => ({ id: l.entity_id, pts: l.points })),
+    ];
+
+    if ((!scope || scope.has(DXF_FRAME_LEVEL_DOOR_ID)) && regions.length === 0 && outlineForFrame) {
+      regions.push({ id: DXF_FRAME_LEVEL_DOOR_ID, pts: outlineForFrame });
+    }
+
+    const segments: DxfPreviewSegment[] = [];
+    for (const frame of regions) {
+      const xs = frame.pts.map((p) => p[0]);
+      const ys = frame.pts.map((p) => p[1]);
+      const bxLo = Math.min(...xs) + off;
+      const bxHi = Math.max(...xs) - off;
+      const byLo = Math.min(...ys) + off;
+      const byHi = Math.max(...ys) - off;
+      if (bxHi <= bxLo || byHi <= byLo) {
+        console.warn('[Flat Frame Toolpath] frame level surface is invalid, skipped', frame.id);
+        continue;
+      }
+
+      const pushPointPath = (pathPoints: number[][], idPrefix: string, seqBase: number) => {
+        for (let i = 0; i < pathPoints.length - 1; i++) {
+          segments.push({
+            start: pathPoints[i],
+            end: pathPoints[i + 1],
+            id: `${idPrefix}_${i}`,
+            tool: 'tool_4_frame',
+            seq: seqBase + i,
+          });
+        }
+      };
+
+      if (orientation === 'rectspiral') {
+        const spiralSections = trimRectSpiralSharedBoundaries(
+          splitBoundsByTool4Reach(bxLo, bxHi, byLo, byHi),
+          step,
+        );
+        const marker = spiralOut ? 'frame_zigzag_rectout' : 'frame_zigzag_rect';
+        const insetStart = spiralOut ? step / 2 : 0;
+        for (let sectionIndex = 0; sectionIndex < spiralSections.length; sectionIndex++) {
+          const section = spiralSections[sectionIndex];
+          const sxLo = section.xMin;
+          const sxHi = section.xMax;
+          const idPrefix = `${marker}_${frame.id}_sec${sectionIndex + 1}`;
+          const cycleWindowId = `${frame.id}_frame_rect_sec${sectionIndex + 1}`;
+          segments.push(
+            ...buildRectSpiralTool4Segments(idPrefix, sxLo, sxHi, byLo, byHi, step, sectionIndex * 10000, insetStart).map((segment) => ({
+              ...segment,
+              tool: 'tool_4_frame',
+            })),
+          );
+          for (let i = segments.length - 1; i >= 0; i--) {
+            if (!segments[i].id.startsWith(`${idPrefix}_`)) break;
+            segments[i].cycle_window_id = cycleWindowId;
+            segments[i].cycle_window_bounds = { x_min: sxLo, x_max: sxHi, y_min: byLo, y_max: byHi };
+          }
+        }
+        continue;
+      }
+
+      if (orientation === 'horizontal') {
+        const xSpan = bxHi - bxLo;
+        const ySpan = byHi - byLo;
+        const { numSteps, adjustedStep } = calcZigzagPassSpacing(ySpan, step);
+        const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
+        const sectionCount = Math.max(1, Math.ceil(xSpan / maxWindow));
+        const sectionWidth = xSpan / sectionCount;
+        console.log('[Flat Frame Toolpath] Tool 4 zigzag', {
+          frame: frame.id,
+          orientation,
+          overlap_mm: overlap,
+          step_mm: stepMmEffective,
+          passes: numSteps + 1,
+          sections: sectionCount,
+        });
+
+        for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+          const sxLo = bxLo + sectionIndex * sectionWidth;
+          const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+          const idPrefix = `frame_zigzag_${frame.id}_sec${sectionIndex + 1}`;
+          const cycleWindowId = `${frame.id}_frame_sec${sectionIndex + 1}`;
+          const points: number[][] = [];
+          let offset = 0;
+          let toggle = 0;
+          while (offset <= ySpan + 1e-9) {
+            const y = byLo + offset;
+            const row = [
+              [sxLo, y],
+              [sxHi, y],
+            ];
+            if (toggle) row.reverse();
+            points.push(...row);
+            offset += adjustedStep;
+            toggle = 1 - toggle;
+          }
+          pushPointPath(points, idPrefix, sectionIndex * 10000);
+          for (let i = segments.length - 1; i >= 0; i--) {
+            if (!segments[i].id.startsWith(`${idPrefix}_`)) break;
+            segments[i].cycle_window_id = cycleWindowId;
+            segments[i].cycle_window_bounds = { x_min: sxLo, x_max: sxHi, y_min: byLo, y_max: byHi };
+          }
+        }
+        continue;
+      }
+
+      const xSpan = bxHi - bxLo;
+      const maxWindow = Math.max(1, TOOL4_HORIZONTAL_WINDOW_MM / dxfMmPerUnit);
+      const sectionCount = forceWindowSections ? Math.max(1, Math.ceil(xSpan / maxWindow)) : 1;
+      const sectionWidth = xSpan / sectionCount;
+      for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
+        const sxLo = bxLo + sectionIndex * sectionWidth;
+        const sxHi = sectionIndex === sectionCount - 1 ? bxHi : sxLo + sectionWidth;
+        const sectionXSpan = sxHi - sxLo;
+        const { adjustedStep } = calcZigzagPassSpacing(sectionXSpan, step);
+        const points: number[][] = [];
+        let offset = 0;
+        let toggle = 0;
+        while (offset <= sectionXSpan + 1e-9) {
+          const row = [
+            [sxLo + offset, byLo],
+            [sxLo + offset, byHi],
+          ];
+          if (toggle) row.reverse();
+          points.push(...row);
+          offset += adjustedStep;
+          toggle = 1 - toggle;
+        }
+        const idPrefix = forceWindowSections ? `frame_zigzag_${frame.id}_sec${sectionIndex + 1}` : `frame_zigzag_${frame.id}`;
+        pushPointPath(points, idPrefix, sectionIndex * 10000);
+        if (forceWindowSections) {
+          const cycleWindowId = `${frame.id}_frame_sec${sectionIndex + 1}`;
+          for (let i = segments.length - 1; i >= 0; i--) {
+            if (!segments[i].id.startsWith(`${idPrefix}_`)) break;
+            segments[i].cycle_window_id = cycleWindowId;
+            segments[i].cycle_window_bounds = { x_min: sxLo, x_max: sxHi, y_min: byLo, y_max: byHi };
+          }
+        }
+      }
+    }
+    return segments;
+  };
+
   // 3D-contour Type 1: rectangular contour offset this far in from the ring's
   // outer edge (mm).
   const TOOL_3D_OFFSET_MM = 27;
@@ -2555,61 +2726,21 @@ export function TableBCadAssistedWorkspace({
       }
     };
 
-    // Whole-door frame (no pocket): curve-aware zigzag FILL from the backend. Each
-    // returned pass is a [start,end] point path; convert to the segment shape the
-    // frame-zigzag renderer uses. Returns the segments (or [] on failure).
-    const useBackendFrameZigzag = async (): Promise<DxfPreviewSegment[]> => {
+    // Whole-door Frame Level uses the same Tool 4 pattern family as Pocket ZigZag,
+    // but scoped to frame/outer regions and controlled by Frame ZigZag + Frame Overlap.
+    const useFlatFrameZigzag = async (): Promise<DxfPreviewSegment[]> => {
       try {
-        // Frame-level surface = the whole door is FLAT with no pocket assigned. It is a
-        // pure linear zigzag over the full outline (curve-aware), so pass NO obstacles —
-        // nothing is subtracted. (Pockets/3D are separate operations, not part of this.)
-        // Step spacing = tool diameter − overlap (same rule as the pocket zigzag). The
-        // tool is 144 mm wide, so overlap=0 → 144 mm step, overlap=100 → 44 mm step.
-        // (Do NOT use the legacy 75 mm FRAME_PASS_WIDTH_MM — that made step collapse to
-        // 1 mm at high overlap and condensed the passes.)
-        const result = await computeTableBDxfFrameZigzag(
-          dxfJobId,
-          outlineForFrame,
-          [],
-          [],
-          { passWidthMm: TOOL4_PASS_WIDTH_MM, overlapMm: dxfFrameOverlap },
-        );
-        setDxfFrameArea(result.rings ?? []);
-        // The backend returns one or more frame-zigzag polylines. It connects passes
-        // only when the connector hardline stays inside the computed frame surface.
-        // The frontend must not invent step-over lines here, because those can cross
-        // pockets or leave the valid frame.
-        const passes = result.toolpaths ?? [];
-        const segs: DxfPreviewSegment[] = [];
-        let seq = 0;
-        passes.forEach((tp, passIndex) => {
-          const pts = tp.points ?? [];
-          const tool = tp.tool ?? 'tool_4_frame';
-          const baseId = tp.path_id ?? `frame_zigzag_${passIndex}`;
-          for (let i = 0; i < pts.length - 1; i += 1) {
-            segs.push({
-              start: pts[i],
-              end: pts[i + 1],
-              id: `${baseId}_${i}`,
-              tool,
-              seq: seq++,
-              station_index: tp.station_index ?? null,
-              axis7_position_mm: tp.axis7_position_mm ?? null,
-              reach_unreachable: tp.reach_unreachable,
-              split_from_path_id: tp.split_from_path_id,
-              reach_split_index: tp.reach_split_index,
-              reach_split_count: tp.reach_split_count,
-            });
-          }
+        setDxfFrameArea([]);
+        const rawFrameZig = computeDxfFlatFrameZigzag(scope, dxfFlatZigzagOrientation);
+        const plannedFrameZig = await planSegmentsForTool(rawFrameZig, 'Frame zigzag (Tool 4)', false, 'tool_4');
+        console.log('[DXF FrameZigzag] flat-frame generated', {
+          orientation: dxfFlatZigzagOrientation,
+          raw_segments: rawFrameZig.length,
+          planned_segments: plannedFrameZig.segments.length,
         });
-        console.log('[DXF FrameZigzag] backend generated', {
-          ok: result.ok,
-          passes: result.pass_count ?? segs.length,
-          frame_area: result.frame_area,
-        });
-        return segs;
+        return plannedFrameZig.segments;
       } catch (error) {
-        console.error('[DXF FrameZigzag] backend failed', error);
+        console.error('[DXF FrameZigzag] flat-frame generation failed', error);
         setDxfFrameArea([]);
         return [];
       }
@@ -2638,7 +2769,7 @@ export function TableBCadAssistedWorkspace({
         await useBackendFrameToolpaths();
       } else if (scopeHasFrameLevel) {
         // Frame Level: zigzag fill only, NO sections. Origin start, bottom→top, right→left.
-        frameZig = await useBackendFrameZigzag();
+        frameZig = await useFlatFrameZigzag();
         setDxfFrameZigzag(frameZig);
         setDxfFrameSections([]);
         setDxfFrameChunks([]);
@@ -2678,7 +2809,7 @@ export function TableBCadAssistedWorkspace({
         await useBackendFrameToolpaths();
       } else if (hasFrameOrOuter) {
         // Frame Level: zigzag fill only. Origin start, bottom→top, right→left.
-        frameZig = await useBackendFrameZigzag();
+        frameZig = await useFlatFrameZigzag();
         setDxfFrameZigzag(frameZig);
         setDxfFrameSections([]);
         setDxfFrameChunks([]);
@@ -2755,6 +2886,7 @@ export function TableBCadAssistedWorkspace({
       },
       settings: {
         pocket_zigzag_orientation: dxfPocketZigzagOrientation,
+        frame_zigzag_orientation: dxfFlatZigzagOrientation,
         pocket_overlap_mm: dxfPocketOverlap,
         frame_overlap_mm: dxfFrameOverlap,
         pocket_edge_margin_mm: dxfPocketEdgeMargin,
@@ -3346,8 +3478,10 @@ export function TableBCadAssistedWorkspace({
                     padding: '7px 12px',
                     borderBottom: '1px solid #dbe3ef',
                     background: '#f8fafc',
-                    overflowX: 'auto',
-                    whiteSpace: 'nowrap',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    overflowX: 'visible',
+                    whiteSpace: 'normal',
                   }}
                 >
                   <span style={{ fontSize: '10px', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -3458,75 +3592,6 @@ export function TableBCadAssistedWorkspace({
                   >
                     Delete Region
                   </button>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}>
-                    Pocket Overlap
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={dxfPocketOverlap}
-                      onChange={(event) => {
-                        const v = Number(event.target.value);
-                        setDxfPocketOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
-                      }}
-                      style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
-                    />
-                    mm
-                  </label>
-                  <label
-                    title="Tool 3 pocket-edge safety margin, added to the fixed tool size (38.1 X / 50.8 Y). Larger = pass sits farther from the pocket edge. Applied on the next Preview Toolpath."
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}
-                  >
-                    Pocket Edge Offset
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={dxfPocketEdgeMargin}
-                      onChange={(event) => {
-                        const v = Number(event.target.value);
-                        setDxfPocketEdgeMargin(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : TOOL3_DEFAULT_EDGE_MARGIN_MM);
-                      }}
-                      style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
-                    />
-                    mm
-                  </label>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}>
-                    Pocket ZigZag
-                    <select
-                      value={dxfPocketZigzagOrientation}
-                      onChange={(event) => {
-                        const v = event.target.value;
-                        setDxfPocketZigzagOrientation(
-                          v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
-                        );
-                      }}
-                      title="Tool 4 pocket fill pattern"
-                      style={{ padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
-                    >
-                      <option value="vertical">Vertical</option>
-                      <option value="horizontal">Horizontal</option>
-                      <option value="rectspiral">Rectangular Spiral</option>
-                    </select>
-                  </label>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#334155', flex: '0 0 auto' }}>
-                    Frame Overlap
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={dxfFrameOverlap}
-                      onChange={(event) => {
-                        const v = Number(event.target.value);
-                        setDxfFrameOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
-                      }}
-                      style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
-                    />
-                    mm
-                  </label>
                   {(() => {
                     const scopeCount = dxfSelectedSurfaceIds.length + dxfSelectedIds.length;
                     return (
@@ -3566,9 +3631,99 @@ export function TableBCadAssistedWorkspace({
                   >
                     {previewStatus === 'approved' && !previewStale ? 'Approved ✓' : previewStale ? 'Re-approve' : 'Approve'}
                   </button>
-                  <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#64748b', flex: '0 0 auto' }}>
+                  <span style={{ fontSize: '11px', color: '#64748b', flex: '0 0 auto' }}>
                     {dxfFrameStatus !== 'idle' ? `Preview: ${dxfFrameStatus}` : ''}
                   </span>
+                  <span style={{ flexBasis: '100%', height: 0 }} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', flex: '1 0 100%', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                      Pocket Overlap
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={dxfPocketOverlap}
+                        onChange={(event) => {
+                          const v = Number(event.target.value);
+                          setDxfPocketOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                        }}
+                        style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                      />
+                      mm
+                    </label>
+                    <label
+                      title="Tool 3 pocket-edge safety margin, added to the fixed tool size (38.1 X / 50.8 Y). Larger = pass sits farther from the pocket edge. Applied on the next Preview Toolpath."
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}
+                    >
+                      Pocket Edge Offset
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={dxfPocketEdgeMargin}
+                        onChange={(event) => {
+                          const v = Number(event.target.value);
+                          setDxfPocketEdgeMargin(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : TOOL3_DEFAULT_EDGE_MARGIN_MM);
+                        }}
+                        style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                      />
+                      mm
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                      Pocket ZigZag
+                      <select
+                        value={dxfPocketZigzagOrientation}
+                        onChange={(event) => {
+                          const v = event.target.value;
+                          setDxfPocketZigzagOrientation(
+                            v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
+                          );
+                        }}
+                        title="Tool 4 pocket fill pattern"
+                        style={{ width: '128px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
+                      >
+                        <option value="vertical">Vertical</option>
+                        <option value="horizontal">Horizontal</option>
+                        <option value="rectspiral">Rectangular Spiral</option>
+                      </select>
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                      Frame ZigZag
+                      <select
+                        value={dxfFlatZigzagOrientation}
+                        onChange={(event) => {
+                          const v = event.target.value;
+                          setDxfFlatZigzagOrientation(
+                            v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
+                          );
+                        }}
+                        title="Tool 4 frame-level fill pattern"
+                        style={{ width: '128px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
+                      >
+                        <option value="vertical">Vertical</option>
+                        <option value="horizontal">Horizontal</option>
+                        <option value="rectspiral">Rectangular Spiral</option>
+                      </select>
+                    </label>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                      Frame Overlap
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={dxfFrameOverlap}
+                        onChange={(event) => {
+                          const v = Number(event.target.value);
+                          setDxfFrameOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                        }}
+                        style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                      />
+                      mm
+                    </label>
+                  </div>
                 </div>
                 <div style={{ borderBottom: '1px solid #e2e8f0', background: '#ffffff', maxHeight: '104px', overflow: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', color: '#334155' }}>

@@ -2786,6 +2786,94 @@ def toggle_state(table_id):
     socketio.emit('flash_message', {"message": result["message"]})
     return jsonify(result)
 
+@app.route('/lift_table/<table_name>', methods=['POST'])
+def lift_table_after_task(table_name):
+    normalized_table = str(table_name or "").strip().upper()
+    if normalized_table not in ("A", "B"):
+        return jsonify({"success": False, "message": "Invalid table. Use A or B."}), 400
+
+    required, reason = _compute_homing_requirement()
+    if required:
+        msg = "Please home the robot (7th axis) before lifting the table."
+        socketio.emit('flash_message', {"message": msg, "type": "warning"})
+        return jsonify({"success": False, "message": msg, "homingReason": reason}), 409
+
+    config = load_config()
+    config['logger'] = setup_logger(config['settings']['debug'])
+    home_default = float(config.get("seventhAxis", {}).get("homePosition", -65))
+    j7_target = float(config.get("UI", {}).get("seventhAxisHome", home_default))
+    table_id = "tableAOpenClose" if normalized_table == "A" else "tableBOpenClose"
+    table_label = f"Table {normalized_table}"
+
+    with locked_cps(timeout=2.0) as ok:
+        if not ok:
+            msg = "Robot is busy. Wait for the current motion to finish before lifting the table."
+            socketio.emit('flash_message', {"message": msg, "type": "warning"})
+            return jsonify({"success": False, "message": msg}), 409
+
+        current_state, state_error = _read_current_table_state_for_toggle(CPS, table_id)
+        if current_state == "Open":
+            msg = f"{table_label} is already horizontal."
+            socketio.emit('flash_message', {"message": msg, "type": "warning"})
+            return jsonify(
+                {
+                    "success": False,
+                    "message": msg,
+                    "alreadyHorizontal": True,
+                    "tableId": table_id,
+                    "currentState": current_state,
+                }
+            ), 409
+        if state_error:
+            msg = f"{table_label}: cannot confirm table position before lifting. {state_error}"
+            socketio.emit('flash_message', {"message": msg, "type": "warning"})
+            return jsonify(
+                {
+                    "success": False,
+                    "message": msg,
+                    "tableId": table_id,
+                    "currentState": "Unknown",
+                }
+            ), 500
+
+        config['logger'].info(
+            "[lift_table] %s moving J7 to %.3fmm before table horizontal",
+            table_label,
+            j7_target,
+        )
+        j7_result = communicate(
+            cps=CPS,
+            config=config,
+            tcp=config["coords"]["tcpDefault"],
+            ucs=config["coords"]["ucsDefault"],
+            seventh=j7_target,
+            speed=config["door"]["homingSpeed"],
+            wait=True,
+            require_seventh_ok=True,
+        )
+        if j7_result is None:
+            msg = f"{table_label}: failed to move J7 to {j7_target:g} mm."
+            socketio.emit('flash_message', {"message": msg, "type": "warning"})
+            return jsonify({"success": False, "message": msg}), 500
+
+        table_result = set_table_state(CPS, table_id, "Open")
+
+    if not table_result.get("success", False):
+        msg = table_result.get("message", f"{table_label}: failed to set table horizontal.")
+        socketio.emit('flash_message', {"message": msg, "type": "warning"})
+        return jsonify({"success": False, "message": msg, "tableResult": table_result}), 500
+
+    msg = f"{table_label}: J7 at {j7_target:g} mm and table set to horizontal."
+    socketio.emit('flash_message', {"message": msg})
+    return jsonify(
+        {
+            "success": True,
+            "message": msg,
+            "j7TargetMm": j7_target,
+            "tableResult": table_result,
+        }
+    )
+
 ############################################################################################
 # Send the Table A/B actual state to the frontend.
 

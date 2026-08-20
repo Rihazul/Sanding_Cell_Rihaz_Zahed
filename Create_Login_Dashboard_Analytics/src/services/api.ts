@@ -413,6 +413,10 @@ export async function getTableState(tableId: 'tableAOpenClose' | 'tableBOpenClos
   return apiCall(`/table_state/${tableId}`, 'GET');
 }
 
+export async function liftTable(tableName: 'A' | 'B') {
+  return apiCall(`/lift_table/${tableName}`, 'POST');
+}
+
 // Get current stopper state
 export async function getStopperState(stopperId: 'A' | 'B') {
   return apiCall(`/stopper_state/${stopperId}`, 'GET');
@@ -801,6 +805,8 @@ export interface TableBDxfPlannedToolpath {
   reach_split_index?: number;
   reach_split_count?: number;
   chained_path_ids?: string[];
+  cycle_window_id?: string;
+  cycle_window_bounds?: { x_min: number; x_max: number; y_min: number; y_max: number };
 }
 
 export interface TableBDxfReachPlanResponse {
@@ -822,7 +828,16 @@ export interface TableBDxfReachPlanResponse {
 export async function planTableBDxfReach(
   jobId: string,
   tool: string,
-  toolpaths: { path_id: string; tool?: string; operation?: string; operation_type?: string; closed?: boolean; points: number[][] }[],
+  toolpaths: {
+    path_id: string;
+    tool?: string;
+    operation?: string;
+    operation_type?: string;
+    closed?: boolean;
+    points: number[][];
+    cycle_window_id?: string;
+    cycle_window_bounds?: { x_min: number; x_max: number; y_min: number; y_max: number };
+  }[],
 ): Promise<TableBDxfReachPlanResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/table-b-dxf/plan-reach/${encodeURIComponent(jobId)}`, {
@@ -847,7 +862,7 @@ export async function computeTableBDxfFrameZigzag(
   outlinePolygon: number[][] | null,
   pocketPolygons: number[][][],
   surface3dPolygons: number[][][],
-  options?: { passWidthMm?: number; overlapMm?: number },
+  options?: { passWidthMm?: number; overlapMm?: number; orientation?: 'vertical' | 'horizontal' | 'rectspiral' },
 ): Promise<TableBDxfFrameZigzagResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/table-b-dxf/frame-zigzag/${encodeURIComponent(jobId)}`, {
@@ -859,6 +874,7 @@ export async function computeTableBDxfFrameZigzag(
         surface3d_polygons: surface3dPolygons,
         pass_width_mm: options?.passWidthMm ?? 75,
         overlap_mm: options?.overlapMm ?? 0,
+        orientation: options?.orientation ?? 'vertical',
       }),
     });
     const data = await response.json().catch(() => ({}));
@@ -1151,6 +1167,7 @@ export const api = {
   performAction,
   toggleTableState,
   getTableState,
+  liftTable,
   getStopperState,
   getRobotStatus,
   getProcessStatus,
