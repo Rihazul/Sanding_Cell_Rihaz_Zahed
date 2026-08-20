@@ -1201,63 +1201,61 @@ export function CompactTableConfig({
 
     setIsLiftingTable(true);
     addActivity(`Table ${targetTable}: Moving J7 to -65 mm before lifting table...`, 'info');
+    let popup:
+      | {
+          title: string;
+          text: string;
+          icon: 'info' | 'warning';
+        }
+      | null = null;
+
     try {
       const result = await liftTable(targetTable);
       if (!result?.success) {
         const message = result?.message || result?.error || 'unknown error';
-        setIsLiftingTable(false);
         addActivity(`Table ${targetTable}: Lift Table blocked - ${message}`, 'warning');
         if (/already horizontal/i.test(String(message))) {
-          const swal = getSwal();
-          if (swal?.fire) {
-            await swal.fire({
-              title: 'Table Already Horizontal',
-              text: String(message),
-              icon: 'info',
-              confirmButtonText: 'OK',
-            });
-          }
+          popup = {
+            title: 'Table Already Horizontal',
+            text: String(message),
+            icon: 'info',
+          };
         } else if (/home/i.test(String(message))) {
-          const swal = getSwal();
-          if (swal?.fire) {
-            await swal.fire({
-              title: 'Home Required',
-              text: String(message),
-              icon: 'warning',
-              confirmButtonText: 'OK',
-            });
-          }
+          popup = {
+            title: 'Home Required',
+            text: String(message),
+            icon: 'warning',
+          };
         }
-        return;
+      } else {
+        addActivity(`Table ${targetTable}: Table set to horizontal after J7 reached -65 mm`, 'success');
       }
-      addActivity(`Table ${targetTable}: Table set to horizontal after J7 reached -65 mm`, 'success');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setIsLiftingTable(false);
       addActivity(`Table ${targetTable}: Lift Table failed - ${message}`, 'error');
       if (/already horizontal/i.test(message)) {
-        const swal = getSwal();
-        if (swal?.fire) {
-          await swal.fire({
-            title: 'Table Already Horizontal',
-            text: message,
-            icon: 'info',
-            confirmButtonText: 'OK',
-          });
-        }
+        popup = {
+          title: 'Table Already Horizontal',
+          text: message,
+          icon: 'info',
+        };
       } else if (/home/i.test(message)) {
-        const swal = getSwal();
-        if (swal?.fire) {
-          await swal.fire({
-            title: 'Home Required',
-            text: message,
-            icon: 'warning',
-            confirmButtonText: 'OK',
-          });
-        }
+        popup = {
+          title: 'Home Required',
+          text: message,
+          icon: 'warning',
+        };
       }
     } finally {
       setIsLiftingTable(false);
+    }
+
+    const swal = getSwal();
+    if (popup && swal?.fire) {
+      void swal.fire({
+        ...popup,
+        confirmButtonText: 'OK',
+      });
     }
   };
 
