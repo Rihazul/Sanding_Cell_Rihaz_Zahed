@@ -414,7 +414,24 @@ export async function getTableState(tableId: 'tableAOpenClose' | 'tableBOpenClos
 }
 
 export async function liftTable(tableName: 'A' | 'B') {
-  return apiCall(`/lift_table/${tableName}`, 'POST');
+  try {
+    const response = await fetch(`${API_BASE_URL}/lift_table/${tableName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    const data = await response.json().catch(() => ({}));
+    return {
+      ...data,
+      success: response.ok && data?.success !== false,
+      status: response.status,
+      statusText: response.statusText,
+    };
+  } catch (error) {
+    console.error(`Error calling /lift_table/${tableName}:`, error);
+    throw error;
+  }
 }
 
 // Get current stopper state
