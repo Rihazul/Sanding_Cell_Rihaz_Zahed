@@ -50,7 +50,14 @@ TOOL2_OPERATION_SIDE = "side"
 TOOL2_OPERATION_EDGE = "edgeOutside"
 TOOL2_EDGE_RY_DEG = -22.0
 TOOL2_EDGE_APPROACH_OUTWARD_MM = 5.0
-TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 5.0
+# Bottom travel line: the tool rides 10 mm off Y=0 at RY=-22 between bottom
+# passes. 5 mm was too close and clipped the door while the 7th axis moved.
+TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 10.0
+# Bottom -> top must clear the door before the wrist turns. Lifting only to the
+# normal bottom height left the tilted tool close enough to strike the door as
+# it rotated, so this crossing lifts further, at Y=0, before the 180 turn.
+TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM = -80.0
+TOOL2_BOTTOM_TO_TOP_EXIT_Y_MM = 0.0
 # Right side end used to pick the right -> bottom entry route.
 TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM = 200.0
 TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM = 100.0
@@ -402,12 +409,30 @@ def _prepare_bottom_side_exit_before_j6(
         lift_z,
         x,
     )
-    # Bottom is the special side: it retracts only 5 mm off Y=0 and keeps RY=-22
-    # all the way through the transition, unlike top/left/right which back off
-    # 15 mm at RY=0. The wrist rotation safety guard reads live joints before
-    # moving J6, so the final lifted pose must be reached (wait=True) first.
+    # Bottom is the special side: it retracts off Y=0 and keeps RY=-22 all the way
+    # through the transition, unlike top/left/right which back off 15 mm at RY=0.
+    # The wrist rotation safety guard reads live joints before moving J6, so the
+    # final lifted pose must be reached (wait=True) first.
     if previous_position.z > -5.0:
         _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+    if next_side == "top":
+        # Going to top means a 180 wrist turn. At the normal bottom lift height the
+        # tilted tool is still close enough to strike the door as it swings, so
+        # climb to a deeper clearance at Y=0 (still RY=-22) and turn from there.
+        _move(
+            cps,
+            config,
+            _pose(
+                x,
+                TOOL2_BOTTOM_TO_TOP_EXIT_Y_MM,
+                TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM,
+                rz,
+                ry=TOOL2_EDGE_RY_DEG,
+            ),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+        return
     _move(cps, config, _bottom_travel_pose(x, lift_z, rz), velocity_profile="robotspeed", wait=True)
 
 
