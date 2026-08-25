@@ -1122,6 +1122,7 @@ def _run_vertical_side(
     reverse_path: bool = False,
     cycles: int = 1,
     j7_started_for_entry: bool = False,
+    previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
     rz = TOOL2_SIDE_RZ_DEG[side]
     lift_z = tool2_lift_z_for_side(side) if lift_z is None else float(lift_z)
@@ -1171,7 +1172,23 @@ def _run_vertical_side(
                 require_seventh_ok=True,
             )
     else:
-        prepoint = _pose(x, path_start_y, lift_z, rz)
+        # If the previous side already left the tool at contact height, approach at
+        # contact height too. Dropping to the lift height and climbing straight back
+        # is a visible up/down with no purpose (top -> right is the common case: the
+        # top exit already parks at the right side's X/Y).
+        approach_at_contact = (
+            previous_position is not None
+            and float(previous_position.z) > -5.0
+        )
+        prepoint_z = TOOL2_CONTACT_Z_MM if approach_at_contact else lift_z
+        prepoint = _pose(x, path_start_y, prepoint_z, rz)
+        if approach_at_contact:
+            _log(
+                config,
+                "[TableB DXF Tool2] %s enters at contact height (previous side left Z=%.1f); no lift/drop",
+                side,
+                float(previous_position.z),
+            )
         if j7_started_for_entry:
             _log(
                 config,
@@ -1249,6 +1266,7 @@ def _run_right_side(
     reverse_path: bool = False,
     cycles: int = 1,
     j7_started_for_entry: bool = False,
+    previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
     return _run_vertical_side(
         cps,
@@ -1267,6 +1285,7 @@ def _run_right_side(
         reverse_path=reverse_path,
         cycles=cycles,
         j7_started_for_entry=j7_started_for_entry,
+        previous_position=previous_position,
     )
 
 
@@ -1286,6 +1305,7 @@ def _run_left_side(
     reverse_path: bool = False,
     cycles: int = 1,
     j7_started_for_entry: bool = False,
+    previous_position: _Tool2Position | None = None,
 ) -> _Tool2Position:
     start_y = y_total if start_from_top else 0.0
     end_y = 0.0 if start_from_top else y_total
@@ -1306,6 +1326,7 @@ def _run_left_side(
         reverse_path=reverse_path,
         cycles=cycles,
         j7_started_for_entry=j7_started_for_entry,
+        previous_position=previous_position,
     )
 
 
@@ -1352,6 +1373,7 @@ def _run_right_side_operations(
             reverse_path=(index > 0 and _is_edge_operation(operation_mode) and last_position is not None and abs(last_position.y - 0.0) < abs(last_position.y - y_total)),
             cycles=cycles_by_mode.get(operation_mode, 1),
             j7_started_for_entry=j7_started_for_entry and index == 0,
+            previous_position=previous_position if index == 0 else last_position,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 right side has no selected operations.")
@@ -1401,6 +1423,7 @@ def _run_left_side_operations(
             reverse_path=reverse_for_operation,
             cycles=cycles_by_mode.get(operation_mode, 1),
             j7_started_for_entry=j7_started_for_entry and index == 0,
+            previous_position=previous_position if index == 0 else last_position,
         )
     if last_position is None:
         raise TableBDxfRobotExecutionError("Tool 2 left side has no selected operations.")
