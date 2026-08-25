@@ -67,8 +67,8 @@ TOOL2_SIDE_RZ_DEG: dict[str, float] = {
 TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
     ("bottom", "top"): 180.0,
     ("top", "bottom"): -180.0,
-    ("top", "right"): -90.0,
-    ("right", "top"): 90.0,
+    ("top", "right"): 90.0,
+    ("right", "top"): -90.0,
     ("bottom", "right"): -90.0,
     ("right", "bottom"): 90.0,
     ("bottom", "left"): 90.0,
@@ -297,6 +297,7 @@ def _move_axis7_and_tool2_guarded_prepoint(
     previous_position: _Tool2Position | None,
     next_side: str,
     y_total: float | None,
+    axis7_already_started: bool = False,
 ) -> None:
     """Move J7 and Tool 2 arm to a prepoint without cutting through the reach notch.
 
@@ -306,7 +307,10 @@ def _move_axis7_and_tool2_guarded_prepoint(
     local X=0 at a safe Y/Z, then continue to the real prepoint.
     """
     if previous_position is None or previous_position.side is None or len(prepoint) < 6:
-        _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
+        if axis7_already_started:
+            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        else:
+            _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
         return
 
     target_x = float(prepoint[0])
@@ -324,7 +328,10 @@ def _move_axis7_and_tool2_guarded_prepoint(
         and target_x < 0.0
     )
     if not bottom_to_top_negative_x:
-        _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
+        if axis7_already_started:
+            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        else:
+            _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
         return
 
     intermediate = _pose(max(0.0, previous_position.x), safe_y, safe_z, target_rz)
@@ -338,15 +345,16 @@ def _move_axis7_and_tool2_guarded_prepoint(
         intermediate,
         prepoint,
     )
-    _move(
-        cps,
-        config,
-        None,
-        seventh=axis7,
-        velocity_profile="robotspeed",
-        wait=False,
-        require_seventh_ok=True,
-    )
+    if not axis7_already_started:
+        _move(
+            cps,
+            config,
+            None,
+            seventh=axis7,
+            velocity_profile="robotspeed",
+            wait=False,
+            require_seventh_ok=True,
+        )
     # Do not require J7 idle yet: this waypoint exists specifically so the arm
     # can travel safely while the rail is moving.
     _move(
@@ -824,7 +832,18 @@ def _run_horizontal_segment(
                 side,
                 segment.axis7,
             )
-            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+            # Still route through the reach guard: a bottom -> top crossing to a
+            # negative-X prepoint must not be a single diagonal MoveL over the door.
+            _move_axis7_and_tool2_guarded_prepoint(
+                cps,
+                config,
+                axis7=segment.axis7,
+                prepoint=prepoint,
+                previous_position=previous_position,
+                next_side=side,
+                y_total=y_total,
+                axis7_already_started=True,
+            )
         else:
             _move_axis7_and_tool2_guarded_prepoint(
                 cps,
