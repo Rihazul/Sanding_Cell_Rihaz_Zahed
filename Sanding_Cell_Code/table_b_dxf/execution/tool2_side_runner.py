@@ -203,6 +203,31 @@ def _left_side_bottom_lift_y(side: str, end_y: float) -> float | None:
     return None
 
 
+def _same_pose(a: list[float] | None, b: list[float] | None, tol: float = 1e-6) -> bool:
+    """True when two 6-DOF poses are identical within tolerance."""
+    if a is None or b is None or len(a) < 6 or len(b) < 6:
+        return False
+    return all(abs(float(a[i]) - float(b[i])) <= tol for i in range(6))
+
+
+def _move_unless_already_there(
+    cps: Any,
+    config: dict[str, Any],
+    point: list[float],
+    current: list[float] | None,
+    **kwargs: Any,
+) -> None:
+    """Issue a repositioning move only when it would actually change the pose.
+
+    Exit paths re-command the pose the sanding pass just finished at, which the
+    controller executes as a zero-length move. Skipping those removes the visible
+    stutter without touching any move that genuinely repositions the tool.
+    """
+    if _same_pose(point, current):
+        return
+    _move(cps, config, point, **kwargs)
+
+
 def _move(
     cps: Any,
     config: dict[str, Any],
@@ -614,24 +639,26 @@ def _force_ready_at_contact(
     x: float,
     y: float,
     rz: float,
+    *,
+    already_at_target: bool = False,
 ) -> list[float]:
+    """Reach the pose force starts from, without repeating a move already made.
+
+    The entry prepoint often already lands exactly here (bottom side entry, for
+    example, arrives at the 15 mm offset via the travel line). Re-commanding the
+    approach in that case produces a visible back-out-and-return.
+    """
     if _is_edge_operation(operation_mode):
         # Edge must move to the 5 mm offset and RY=-22 in one command before force starts.
         edge_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG)
-        _move(cps, config, edge_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        if not already_at_target:
+            _move(cps, config, edge_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
         _mark_tool2_recovery(side, edge_contact)
         return edge_contact
 
-    if side == "bottom":
-        # Bottom approaches side sanding through its own travel line: reach the
-        # 5 mm / RY=-22 pose first, then rotate flat and close to the 15 mm side
-        # offset. Edge sanding stops at the first pose and never takes this path.
-        travel_contact = _pose(x, _bottom_travel_y(), TOOL2_CONTACT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG)
-        _move(cps, config, travel_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
-        _mark_tool2_recovery(side, travel_contact)
-
     base_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
-    _move(cps, config, base_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+    if not already_at_target:
+        _move(cps, config, base_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
     _mark_tool2_recovery(side, base_contact)
     return base_contact
 
@@ -716,6 +743,7 @@ def _run_horizontal_segment(
         enter_from_contact,
         lift_after,
     )
+    entry_already_reached = False
     if enter_from_contact:
         _move(
             cps,
@@ -764,6 +792,8 @@ def _run_horizontal_segment(
                 wait=True,
                 require_seventh_ok=True,
             )
+            # This IS the pose force starts from; do not command it again below.
+            entry_already_reached = True
     else:
         prepoint = (
             _bottom_travel_pose(path_start_x, lift_z, rz)
@@ -805,7 +835,22 @@ def _run_horizontal_segment(
                 next_side=side,
                 y_total=y_total,
             )
-    _force_ready_at_contact(cps, config, side, operation_mode, path_start_x, y, rz)
+    if not enter_from_contact and side == "bottom":
+        # Bottom descends its own travel line: [x,-5,0,RY=-22] is where edge starts
+        # force, and side continues from there to [x,-15,0,RY=0]. Emitting both here
+        # means _force_ready_at_contact must not re-command the same pose.
+        travel_contact = _pose(path_start_x, _bottom_travel_y(), TOOL2_CONTACT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG)
+        _move(cps, config, travel_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        _mark_tool2_recovery(side, travel_contact)
+        if not _is_edge_operation(operation_mode):
+            side_contact = _pose(path_start_x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
+            _move(cps, config, side_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+            _mark_tool2_recovery(side, side_contact)
+        entry_already_reached = True
+    _force_ready_at_contact(
+        cps, config, side, operation_mode, path_start_x, y, rz,
+        already_at_target=entry_already_reached,
+    )
     _apply_force_and_vibration(cps, config, side, force)
     cycle_targets = _ping_pong_axis_targets(path_start_x, path_end_x, cycles)
     for cycle_index, target_x in enumerate(cycle_targets, start=1):
@@ -830,40 +875,48 @@ def _run_horizontal_segment(
             wait=True,
         )
     final_x = _last_ping_pong_target(path_start_x, path_end_x, cycles)
+    # Pose the sanding pass ended at; exit moves that match it are no-ops.
+    last_pose = _sanding_pose(operation_mode, final_x, y, TOOL2_CONTACT_Z_MM, rz)
     _release_force_and_vibration(cps, config, side)
     exit_y = y
     if side == "bottom":
         exit_y = bottom_travel_y
         safe_exit_pose = _bottom_travel_pose(final_x, TOOL2_CONTACT_Z_MM, rz)
         if _is_edge_operation(operation_mode) or not lift_after:
-            _move(
+            _move_unless_already_there(
                 cps,
                 config,
                 safe_exit_pose,
+                last_pose,
                 velocity_profile="robotspeed",
                 wait=True,
             )
+            last_pose = safe_exit_pose
             _mark_tool2_recovery(side, safe_exit_pose)
     elif _is_edge_operation(operation_mode):
         exit_y = side_safe_y
         safe_exit_pose = _pose(final_x, exit_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
-        _move(
+        _move_unless_already_there(
             cps,
             config,
             safe_exit_pose,
+            last_pose,
             velocity_profile="robotspeed",
             wait=True,
         )
+        last_pose = safe_exit_pose
         _mark_tool2_recovery(side, safe_exit_pose)
     elif not lift_after:
         safe_exit_pose = _pose(final_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
-        _move(
+        _move_unless_already_there(
             cps,
             config,
             safe_exit_pose,
+            last_pose,
             velocity_profile="robotspeed",
             wait=True,
         )
+        last_pose = safe_exit_pose
         _mark_tool2_recovery(side, safe_exit_pose)
     if lift_after:
         contact_exit_pose = (
@@ -876,7 +929,10 @@ def _run_horizontal_segment(
             if side == "bottom"
             else _pose(final_x, exit_y, lift_z, rz)
         )
-        _move(cps, config, contact_exit_pose, velocity_profile="robotspeed", wait=True)
+        _move_unless_already_there(
+            cps, config, contact_exit_pose, last_pose,
+            velocity_profile="robotspeed", wait=True,
+        )
         _move(
             cps,
             config,
