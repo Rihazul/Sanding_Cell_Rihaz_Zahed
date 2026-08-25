@@ -22,20 +22,13 @@ _STATE_PATH = Path(__file__).resolve().parents[1] / "tool2_recovery_state.json"
 # 5 mm for Edge. After stop, reset RY, lift from that line, then move into a
 # side-specific clearance corridor before the normal homing sequence.
 TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM = 80.0
-TOOL2_UPPER_HOMING_CLEARANCE_Y_MM = 100.0
-TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM = -80.0
+# Left/right home through Y=200 at the safe height: below that the arm is too
+# folded to reposition to RZ=90 comfortably, so it needs the extra room whether
+# the operator is homing or restarting the task.
+TOOL2_UPPER_HOMING_CLEARANCE_Y_MM = 200.0
+TOOL2_HOMING_CLEARANCE_Z_MM = -80.0
 TOOL2_HOMING_RZ_DEG = 90.0
 TOOL2_HOMING_J6_DEG = 90.012
-
-# Bottom-side stop -> homing retract (side OR edge). Two combined moves that pull the tool off
-# the bottom edge and up to a safe standoff before the normal homing runs, replacing the older
-# straighten/lift/standoff sequence to avoid redundant motion. RY=-22 and RZ=90 are held across
-# both moves; only Y and Z change. X is left at wherever the pass stopped.
-TOOL2_BOTTOM_RECOVERY_RY_DEG = -22.0
-TOOL2_BOTTOM_RECOVERY_STEP1_Y_MM = -5.0
-TOOL2_BOTTOM_RECOVERY_STEP1_Z_MM = 0.0
-TOOL2_BOTTOM_RECOVERY_STEP2_Y_MM = 20.0
-TOOL2_BOTTOM_RECOVERY_STEP2_Z_MM = -50.0
 
 # On STOP during Tool 2 side/edge sanding, back the tool straight off the door corner/side by
 # this much along the side's force axis (opposite the force direction), with NO force, so it
@@ -43,13 +36,19 @@ TOOL2_BOTTOM_RECOVERY_STEP2_Z_MM = -50.0
 # recovery. Per side: (axis_index_in_pose, signed_direction_away_from_door).
 #   right presses +X -> back off -X;  left presses -X -> back off +X
 #   bottom presses +Y -> back off -Y; top  presses -Y -> back off +Y
-TOOL2_STOP_BACKOFF_MM = 5.0
+TOOL2_STOP_BACKOFF_MM = TOOL2_APPROACH_OUTWARD_MM
 _TOOL2_STOP_BACKOFF_AXIS = {
     "right": (0, -1.0),
     "left": (0, +1.0),
     "bottom": (1, -1.0),
     "top": (1, +1.0),
 }
+
+# Bottom is the special side on stop: instead of backing off 15 mm at RY=0 like
+# the others, it retracts to Y=-5 holding RY=-22 (side AND edge). That pose is
+# already the one homing and task-restart run from, so no Z lift is needed.
+TOOL2_BOTTOM_STOP_Y_MM = -5.0
+TOOL2_BOTTOM_STOP_RY_DEG = -22.0
 
 _TOOL2_SIDE_RZ_DEG = {
     "right": 0.0,
@@ -87,7 +86,13 @@ def _tool2_ucs(config: dict[str, Any]) -> str:
         raise RuntimeError("Missing Tool 2 UCS config: coords.ucsTable2") from error
 
 
-def record_tool2_recovery_state(side: str, pose: list[float] | None = None, *, active: bool = True) -> None:
+def record_tool2_recovery_state(
+    side: str,
+    pose: list[float] | None = None,
+    *,
+    active: bool = True,
+    y_total: float | None = None,
+) -> None:
     if side not in _TOOL2_SIDE_RZ_DEG:
         return
     payload: dict[str, Any] = {
@@ -97,6 +102,10 @@ def record_tool2_recovery_state(side: str, pose: list[float] | None = None, *, a
         "safe_z_mm": tool2_lift_z_for_side(side),
         "timestamp": time.time(),
     }
+    if y_total is not None:
+        # Kept so top-side stop recovery can land on y_total + 15 without the
+        # stop path having to thread door size through every caller.
+        payload["y_total_mm"] = float(y_total)
     if pose is not None:
         payload["last_commanded_pose"] = [float(v) for v in pose[:6]]
     try:
@@ -148,15 +157,35 @@ def tool2_backoff_from_contact_on_stop(cps: Any, config: dict[str, Any]) -> bool
                 logger.info("[TableB DXF Tool2 Recovery] stop back-off skipped: no current pose for side=%s", side)
             return False
         backoff_pose = [float(v) for v in current_pose[:6]]
-        backoff_pose[axis_index] += direction * TOOL2_STOP_BACKOFF_MM
+        if side == "bottom":
+            # Bottom retracts to its own travel line and keeps RY=-22 (side and
+            # edge alike) so homing / restart can continue straight from here.
+            backoff_pose[1] = TOOL2_BOTTOM_STOP_Y_MM
+            backoff_pose[4] = TOOL2_BOTTOM_STOP_RY_DEG
+        else:
+            # Top/left/right sit 15 mm clear of the face, flat at RY=0. Use the
+            # side's absolute offset line rather than adding to the current pose,
+            # otherwise a stop during side sanding (already on that line) would
+            # push out to 30 mm and be pulled back by the pre-homing retract.
+            state_y_total = state.get("y_total_mm")
+            try:
+                state_y_total = float(state_y_total) if state_y_total is not None else None
+            except (TypeError, ValueError):
+                state_y_total = None
+            safe_pose = _side_safe_contact_pose(side, backoff_pose, state_y_total)
+            backoff_pose[axis_index] = safe_pose[axis_index]
+            backoff_pose[4] = 0.0
+        backoff_pose[5] = _TOOL2_SIDE_RZ_DEG[side]
         if logger:
             logger.info(
-                "[TableB DXF Tool2 Recovery] stop back-off side=%s axis=%s %.1fmm away: %s -> %s",
+                "[TableB DXF Tool2 Recovery] stop back-off side=%s %s: %s -> %s (RY=%.1f RZ=%.1f)",
                 side,
-                "X" if axis_index == 0 else "Y",
-                TOOL2_STOP_BACKOFF_MM,
+                "Y=-5 RY=-22 hold" if side == "bottom"
+                else f"axis={'X' if axis_index == 0 else 'Y'} {TOOL2_STOP_BACKOFF_MM:.1f}mm away",
                 current_pose[:3],
                 backoff_pose[:3],
+                backoff_pose[4],
+                backoff_pose[5],
             )
         clear_stop()
         try:
@@ -238,7 +267,7 @@ def _is_upper_homing_clearance_zone(pose: list[float]) -> bool:
     try:
         return (
             float(pose[1]) >= TOOL2_UPPER_HOMING_CLEARANCE_Y_MM - 1e-6
-            and float(pose[2]) <= TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM + 1e-6
+            and float(pose[2]) <= TOOL2_HOMING_CLEARANCE_Z_MM + 1e-6
         )
     except (TypeError, ValueError, IndexError):
         return False
@@ -261,7 +290,13 @@ def _j6_delta_to_homing(cps: Any, config: dict[str, Any], side: str, clearance_p
     return float(_TOOL2_TO_HOMING_J6_DEG.get(side, 0.0))
 
 
-def _side_safe_contact_pose(side: str, pose: list[float]) -> list[float]:
+def _side_safe_contact_pose(side: str, pose: list[float], y_total: float | None = None) -> list[float]:
+    """Pose 15 mm clear of the sanded face, flat at RY=0, at the side's own RZ.
+
+    Top/left/right all retract along their own outward normal and hold contact
+    height (Z=0) — they do not lift. Bottom does not use this helper; it has its
+    own Y=-5 / RY=-22 retract.
+    """
     x, y, z, rx, ry, _rz = [float(v) for v in pose[:6]]
     rz = _TOOL2_SIDE_RZ_DEG[side]
     recovery_z = TOOL2_CONTACT_Z_MM if z > -5.0 else z
@@ -272,9 +307,14 @@ def _side_safe_contact_pose(side: str, pose: list[float]) -> list[float]:
         y = -TOOL2_APPROACH_OUTWARD_MM
     elif side == "left":
         x = TOOL2_LEFT_PREFORCE_LOCAL_X_MM
-    elif side == "top" and abs(ry) > 1e-6:
-        # Edge uses a 5 mm line; side-safe top placement is 10 mm farther out.
-        y += 10.0
+    elif side == "top":
+        # Land on the 15 mm top offset line regardless of whether the pass was
+        # side (already 15 mm out) or edge (5 mm out at RY=-22).
+        if y_total is not None:
+            y = float(y_total) + TOOL2_APPROACH_OUTWARD_MM
+        elif abs(ry) > 1e-6:
+            # Edge uses a 5 mm line; side-safe top placement is 10 mm farther out.
+            y += 10.0
 
     return [x, y, recovery_z, rx, 0.0, rz]
 
@@ -287,8 +327,8 @@ def _homing_clearance_pose(side: str, side_safe_pose: list[float]) -> list[float
     elif y <= TOOL2_UPPER_HOMING_CLEARANCE_Y_MM:
         clearance_pose[1] = TOOL2_BOTTOM_HOMING_CLEARANCE_Y_MM
     current_z = float(clearance_pose[2])
-    if current_z > TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM:
-        clearance_pose[2] = TOOL2_BOTTOM_HOMING_CLEARANCE_Z_MM
+    if current_z > TOOL2_HOMING_CLEARANCE_Z_MM:
+        clearance_pose[2] = TOOL2_HOMING_CLEARANCE_Z_MM
     clearance_pose[4] = 0.0
     return clearance_pose
 
@@ -327,34 +367,38 @@ def recover_tool2_before_homing_if_needed(
     #   Move 1: RY=-22, Y=-5, Z=0  (at the current X, RZ=90 held)
     #   Move 2: Y=20,  Z=-50       (X, RY=-22, RZ=90 all held)
     if side == "bottom":
-        cur_x, _cur_y, _cur_z, rx, _ry, _rz = [float(v) for v in current_pose[:6]]
+        cur_x, _cur_y, cur_z, rx, _ry, _rz = [float(v) for v in current_pose[:6]]
         rz = _TOOL2_SIDE_RZ_DEG["bottom"]
-        move1 = [cur_x, TOOL2_BOTTOM_RECOVERY_STEP1_Y_MM, TOOL2_BOTTOM_RECOVERY_STEP1_Z_MM,
-                 rx, TOOL2_BOTTOM_RECOVERY_RY_DEG, rz]
-        move2 = [cur_x, TOOL2_BOTTOM_RECOVERY_STEP2_Y_MM, TOOL2_BOTTOM_RECOVERY_STEP2_Z_MM,
-                 rx, TOOL2_BOTTOM_RECOVERY_RY_DEG, rz]
+        # Bottom needs no Z lift and no clearance climb: retracting to Y=-5 while
+        # holding RY=-22 already leaves it in the pose homing and restart run
+        # from. Z is held wherever the pass stopped (contact height in practice).
+        retract = [cur_x, TOOL2_BOTTOM_STOP_Y_MM, cur_z, rx, TOOL2_BOTTOM_STOP_RY_DEG, rz]
         _log(
             config,
-            "[TableB DXF Tool2 Recovery] bottom recovery current=%s move1=%s move2=%s",
-            current_pose, move1, move2,
+            "[TableB DXF Tool2 Recovery] bottom recovery current=%s retract=%s (no Z lift; homing continues from here)",
+            current_pose, retract,
         )
-        for point in (move1, move2):
-            communicate(
-                cps=cps,
-                config=config,
-                point=point,
-                tcp=tcp,
-                ucs=ucs,
-                seventh=-1,
-                speed=speed,
-                velocity_profile="robotspeed",
-                wait=True,
-            )
+        communicate(
+            cps=cps,
+            config=config,
+            point=retract,
+            tcp=tcp,
+            ucs=ucs,
+            seventh=-1,
+            speed=speed,
+            velocity_profile="robotspeed",
+            wait=True,
+        )
         if clear_state:
             clear_tool2_recovery_state()
         return True
 
-    side_safe_pose = _side_safe_contact_pose(side, current_pose)
+    state_y_total = state.get("y_total_mm")
+    try:
+        state_y_total = float(state_y_total) if state_y_total is not None else None
+    except (TypeError, ValueError):
+        state_y_total = None
+    side_safe_pose = _side_safe_contact_pose(side, current_pose, state_y_total)
     clearance_pose = _homing_clearance_pose(side, side_safe_pose)
 
     _log(
@@ -376,20 +420,6 @@ def recover_tool2_before_homing_if_needed(
         velocity_profile="robotspeed",
         wait=True,
     )
-    if abs(float(clearance_pose[1]) - float(side_safe_pose[1])) > 1e-6:
-        clearance_xy_pose = list(side_safe_pose)
-        clearance_xy_pose[1] = clearance_pose[1]
-        communicate(
-            cps=cps,
-            config=config,
-            point=clearance_xy_pose,
-            tcp=tcp,
-            ucs=ucs,
-            seventh=-1,
-            speed=speed,
-            velocity_profile="robotspeed",
-            wait=True,
-        )
     communicate(
         cps=cps,
         config=config,

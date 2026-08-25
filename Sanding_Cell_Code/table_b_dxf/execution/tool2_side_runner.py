@@ -51,8 +51,8 @@ TOOL2_OPERATION_EDGE = "edgeOutside"
 TOOL2_EDGE_RY_DEG = -22.0
 TOOL2_EDGE_APPROACH_OUTWARD_MM = 5.0
 TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 5.0
-TOOL2_BOTTOM_SIDE_EXIT_Y_MM = 80.0
-TOOL2_BOTTOM_SIDE_EXIT_Z_MM = -80.0
+# Right side end used to pick the right -> bottom entry route.
+TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM = 200.0
 TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM = 100.0
 
 TOOL2_SIDE_RZ_DEG: dict[str, float] = {
@@ -67,8 +67,8 @@ TOOL2_SIDE_RZ_DEG: dict[str, float] = {
 TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
     ("bottom", "top"): 180.0,
     ("top", "bottom"): -180.0,
-    ("top", "right"): -270.0,
-    ("right", "top"): 270.0,
+    ("top", "right"): -90.0,
+    ("right", "top"): 90.0,
     ("bottom", "right"): -90.0,
     ("right", "bottom"): 90.0,
     ("bottom", "left"): 90.0,
@@ -135,10 +135,13 @@ def _pose(x: float, y: float, z: float, rz: float, *, ry: float = 0.0) -> list[f
 
 
 def _lift_z_for_transition(previous_position: _Tool2Position | None, next_side: str) -> float:
-    if next_side == "bottom":
-        return tool2_lift_z_for_side("bottom")
-    if previous_position is not None and previous_position.side == "bottom" and next_side == "left":
-        return tool2_lift_z_for_side("bottom")
+    """Safe travel height for a side transition.
+
+    All sides share one safe height, so the destination side's value is always
+    correct. Bottom -> left used to force bottom's (then shallower) height, which
+    left the tool travelling the long 7th-axis move closer to the door than every
+    other transition.
+    """
     return tool2_lift_z_for_side(next_side)
 
 
@@ -181,8 +184,17 @@ def _vertical_x_for_operation(side: str, x: float, operation_mode: str) -> float
     return x
 
 
+_ACTIVE_Y_TOTAL_MM: float | None = None
+
+
+def _set_active_y_total(y_total: float | None) -> None:
+    """Remember door height for the cycle so stop recovery can place the top side."""
+    global _ACTIVE_Y_TOTAL_MM
+    _ACTIVE_Y_TOTAL_MM = float(y_total) if y_total is not None else None
+
+
 def _mark_tool2_recovery(side: str, pose: list[float]) -> None:
-    record_tool2_recovery_state(side, pose, active=True)
+    record_tool2_recovery_state(side, pose, active=True, y_total=_ACTIVE_Y_TOTAL_MM)
 
 
 def _left_side_bottom_lift_y(side: str, end_y: float) -> float | None:
@@ -347,34 +359,126 @@ def _prepare_bottom_side_exit_before_j6(
         return
     rz = TOOL2_SIDE_RZ_DEG["bottom"]
     x = previous_position.x
-    y = previous_position.y
-    clearance_y = _transition_mid_y(y_total) if next_side == "top" else None
-    if clearance_y is None:
-        clearance_y = TOOL2_BOTTOM_SIDE_EXIT_Y_MM
+    lift_z = tool2_lift_z_for_side("bottom")
     _log(
         config,
-        "[TableB DXF Tool2] bottom exit before %s: prepoint Z=0, lift Z=-50, clearance Y=%.3f Z=-80 at x=%.3f",
+        "[TableB DXF Tool2] bottom exit before %s: hold Y=%.1f RY=%.1f, contact Z=0 -> lift Z=%.1f at x=%.3f",
         next_side,
-        clearance_y,
+        _bottom_travel_y(),
+        TOOL2_EDGE_RY_DEG,
+        lift_z,
         x,
     )
+    # Bottom is the special side: it retracts only 5 mm off Y=0 and keeps RY=-22
+    # all the way through the transition, unlike top/left/right which back off
+    # 15 mm at RY=0. The wrist rotation safety guard reads live joints before
+    # moving J6, so the final lifted pose must be reached (wait=True) first.
     if previous_position.z > -5.0:
         _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-        _move(cps, config, _bottom_travel_pose(x, tool2_lift_z_for_side("bottom"), rz), velocity_profile="robotspeed", wait=True)
-    # The wrist rotation safety guard reads live joints before moving J6. The
-    # final clearance pose must be reached first, otherwise the guard can still
-    # see the previous bottom-side J3 value and abort before the robot is safe.
-    _move(
-        cps,
+    _move(cps, config, _bottom_travel_pose(x, lift_z, rz), velocity_profile="robotspeed", wait=True)
+
+
+def _prepare_top_side_exit_before_right(
+    cps: Any,
+    config: dict[str, Any],
+    previous_position: _Tool2Position,
+    y_total: float | None,
+) -> None:
+    """Push off the top face and reach the top-right corner before the J6 sweep.
+
+    When the top pass ends away from X=0 the tool is already beside the right
+    edge and can push straight out. When it ends at X=0 it sits at the far end of
+    the top edge, so it must travel along the top offset line to the corner
+    first, otherwise the wrist sweep drags the tool across the door face.
+    """
+    if y_total is None:
+        return
+    top_rz = TOOL2_SIDE_RZ_DEG["top"]
+    top_y = float(y_total) + TOOL2_APPROACH_OUTWARD_MM
+    corner_x = -TOOL2_APPROACH_OUTWARD_MM
+    ends_at_origin = abs(float(previous_position.x)) <= 1e-6
+
+    _log(
         config,
-        _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG),
-        velocity_profile="robotspeed",
-        wait=False,
+        "[TableB DXF Tool2] top -> right exit from x=%.3f (%s): push off top face at Y=%.3f",
+        previous_position.x,
+        "X=0 far end" if ends_at_origin else "near right edge",
+        top_y,
     )
+    # Push away from the top surface at contact height.
+    if previous_position.z > -5.0:
+        _move(
+            cps,
+            config,
+            _pose(previous_position.x, top_y, TOOL2_CONTACT_Z_MM, top_rz),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+    if ends_at_origin:
+        # Travel along the top offset line out to the right corner before rotating.
+        _move(
+            cps,
+            config,
+            _pose(corner_x, top_y, TOOL2_CONTACT_Z_MM, top_rz),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+
+
+def _right_finished_at_top(previous_position: _Tool2Position, y_total: float | None) -> bool:
+    """True when the right pass ended at the top-right corner rather than right-bottom."""
+    if y_total is None:
+        return False
+    return abs(float(previous_position.y) - float(y_total)) < abs(float(previous_position.y))
+
+
+def _prepare_right_side_exit_before_bottom(
+    cps: Any,
+    config: dict[str, Any],
+    previous_position: _Tool2Position,
+    y_total: float | None,
+) -> None:
+    """Push off the right face and route to the bottom travel line before the J6 sweep.
+
+    The route depends on which end of the right edge the pass finished on. From
+    the top-right corner the tool can drop straight to the bottom travel line.
+    From the right-bottom corner it must first climb clear of the corner, so it
+    detours through a raised Y before crossing.
+    """
+    right_rz = TOOL2_SIDE_RZ_DEG["right"]
+    lift_z = tool2_lift_z_for_side("right")
+    x = -TOOL2_APPROACH_OUTWARD_MM
+    finished_at_top = _right_finished_at_top(previous_position, y_total)
+    corner_y = float(y_total) if finished_at_top and y_total is not None else 0.0
+
+    _log(
+        config,
+        "[TableB DXF Tool2] right -> bottom exit from %s corner (y=%.3f): push off X=%.1f then route to bottom travel line",
+        "top-right" if finished_at_top else "right-bottom",
+        previous_position.y,
+        x,
+    )
+    # Push the tool off the right face at contact height, then lift.
+    if previous_position.z > -5.0:
+        _move(cps, config, _pose(x, corner_y, TOOL2_CONTACT_Z_MM, right_rz), velocity_profile="robotspeed", wait=True)
+    if finished_at_top:
+        _move(cps, config, _pose(x, corner_y, lift_z, right_rz), velocity_profile="robotspeed", wait=True)
+    else:
+        # Right-bottom corner: climb to a raised Y before crossing so the wrist
+        # does not sweep through the corner itself.
+        _move(
+            cps,
+            config,
+            _pose(x, TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM, lift_z, right_rz),
+            velocity_profile="robotspeed",
+            wait=True,
+        )
+    # Arrive on the bottom travel line (Y=-5, RY=-22) still at the right RZ; the
+    # J6 sweep that follows rotates RZ 0 -> 90 there.
     _move(
         cps,
         config,
-        _pose(x, clearance_y, TOOL2_BOTTOM_SIDE_EXIT_Z_MM, rz, ry=0.0),
+        _pose(0.0, _bottom_travel_y(), lift_z, right_rz, ry=TOOL2_EDGE_RY_DEG),
         velocity_profile="robotspeed",
         wait=True,
     )
@@ -403,26 +507,10 @@ def _apply_side_transition_j6(
     if j6_delta is None or abs(j6_delta) <= 1e-6:
         return False
     started_axis7 = False
-    if previous_position.side == "right" and next_side == "bottom" and previous_position.z > -5.0:
-        _log(
-            config,
-            "[TableB DXF Tool2] right -> bottom contact corner handoff: x=%.3f y=0 -> y=-15 before J6/RZ rotation",
-            previous_position.x,
-        )
-        _move(
-            cps,
-            config,
-            _pose(previous_position.x, 0.0, TOOL2_CONTACT_Z_MM, TOOL2_SIDE_RZ_DEG["right"]),
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        _move(
-            cps,
-            config,
-            _pose(previous_position.x, -TOOL2_APPROACH_OUTWARD_MM, TOOL2_CONTACT_Z_MM, TOOL2_SIDE_RZ_DEG["right"]),
-            velocity_profile="robotspeed",
-            wait=True,
-        )
+    if previous_position.side == "top" and next_side == "right":
+        _prepare_top_side_exit_before_right(cps, config, previous_position, y_total)
+    if previous_position.side == "right" and next_side == "bottom":
+        _prepare_right_side_exit_before_bottom(cps, config, previous_position, y_total)
     if previous_position.side == "top" and next_side == "bottom":
         mid_y = _transition_mid_y(y_total)
         if mid_y is not None:
@@ -480,6 +568,7 @@ def _apply_side_transition_j6(
     record_tool2_recovery_state(
         previous_position.side,
         _pose(previous_position.x, previous_position.y, previous_position.z, previous_position.rz),
+        y_total=_ACTIVE_Y_TOTAL_MM,
     )
     _log(
         config,
@@ -532,6 +621,14 @@ def _force_ready_at_contact(
         _move(cps, config, edge_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
         _mark_tool2_recovery(side, edge_contact)
         return edge_contact
+
+    if side == "bottom":
+        # Bottom approaches side sanding through its own travel line: reach the
+        # 5 mm / RY=-22 pose first, then rotate flat and close to the 15 mm side
+        # offset. Edge sanding stops at the first pose and never takes this path.
+        travel_contact = _pose(x, _bottom_travel_y(), TOOL2_CONTACT_Z_MM, rz, ry=TOOL2_EDGE_RY_DEG)
+        _move(cps, config, travel_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
+        _mark_tool2_recovery(side, travel_contact)
 
     base_contact = _pose(x, y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
     _move(cps, config, base_contact, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
@@ -805,8 +902,12 @@ def _run_horizontal_segment_operations(
     y_total: float | None = None,
 ) -> _Tool2Position:
     if previous_position is None and segment.side == "top":
-        _log(config, "[TableB DXF Tool2] initial homing bottom-orientation -> top using coordinate RZ -90 and relative J6 +180")
-        guarded_move_only_j6r(cps, 180.0, config, wait=True, context="Tool 2 initial homing bottom-orientation -> top")
+        # Tool 2 starts directly from the tool-safe point at the bottom-equivalent
+        # RZ=+90. Rotate -180 (not +180) so the wrist lands on RZ=-90 one
+        # revolution lower, which lets the following top -> right be a -90 sweep
+        # instead of -270.
+        _log(config, "[TableB DXF Tool2] initial tool-safe bottom-orientation -> top using coordinate RZ -90 and relative J6 -180")
+        guarded_move_only_j6r(cps, -180.0, config, wait=True, context="Tool 2 initial tool-safe bottom-orientation -> top")
     j7_started_for_entry = _apply_side_transition_j6(
         cps,
         config,
@@ -1105,6 +1206,7 @@ def _run_right_side_operations(
         config,
         previous_position,
         "right",
+        y_total,
         next_axis7=0.0,
     )
     lift_z = _lift_z_for_transition(previous_position, "right")
@@ -1279,6 +1381,7 @@ def _run_tool2_station_traversal(
     y_total: float,
     operation_modes: list[str],
 ) -> None:
+    _set_active_y_total(y_total)
     bottom_segments = _split_tool2_bottom_segments_for_traversal(x_total)
     top_segments = _split_tool2_top_segments_increasing(x_total, y_total)
     if not bottom_segments and not top_segments:

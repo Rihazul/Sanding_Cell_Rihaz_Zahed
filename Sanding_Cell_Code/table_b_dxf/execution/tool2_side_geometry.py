@@ -15,7 +15,9 @@ class Tool2HorizontalSegment(NamedTuple):
 
 TOOL2_APPROACH_OUTWARD_MM = 15.0
 TOOL2_LIFT_Z_MM = -68.0
-TOOL2_BOTTOM_LIFT_Z_MM = -50.0
+# Bottom uses the same safe height as the other sides; it is special only in
+# staying 5 mm off Y=0 at RY=-22 rather than backing off 15 mm at RY=0.
+TOOL2_BOTTOM_LIFT_Z_MM = -55.0
 TOOL2_CONTACT_Z_MM = 0.0
 
 # Bottom side: with one J7 station, Tool 2 can safely sand 700 mm in local X.
