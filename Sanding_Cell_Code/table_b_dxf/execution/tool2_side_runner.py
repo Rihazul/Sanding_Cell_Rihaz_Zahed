@@ -531,12 +531,29 @@ def _prepare_right_side_exit_before_bottom(
             velocity_profile="robotspeed",
             wait=True,
         )
-    # Arrive on the bottom travel line (Y=-5, RY=-22) still at the right RZ; the
-    # J6 sweep that follows rotates RZ 0 -> 90 there.
+    # Arrive on the bottom travel line FLAT (RY=0), still at the right RZ. The
+    # tilt must not be applied here: RZ is still 0, so a -22 RY would be taken in
+    # the right side's frame and then swung through by the J6 sweep that follows.
+    # The caller applies RY=-22 after that sweep has set RZ=90.
     _move(
         cps,
         config,
-        _pose(0.0, _bottom_travel_y(), lift_z, right_rz, ry=TOOL2_EDGE_RY_DEG),
+        _pose(0.0, _bottom_travel_y(), lift_z, right_rz, ry=0.0),
+        velocity_profile="robotspeed",
+        wait=True,
+    )
+
+
+def _apply_bottom_tilt_after_rotation(
+    cps: Any,
+    config: dict[str, Any],
+    x: float,
+) -> None:
+    """Tilt to RY=-22 once RZ is already 90, on the bottom travel line."""
+    _move(
+        cps,
+        config,
+        _pose(x, _bottom_travel_y(), tool2_lift_z_for_side("bottom"), TOOL2_SIDE_RZ_DEG["bottom"], ry=TOOL2_EDGE_RY_DEG),
         velocity_profile="robotspeed",
         wait=True,
     )
@@ -637,6 +654,9 @@ def _apply_side_transition_j6(
         j6_delta,
     )
     guarded_move_only_j6r(cps, j6_delta, config, wait=True, context=f"Tool 2 side transition {previous_position.side} -> {next_side}")
+    if previous_position.side == "right" and next_side == "bottom":
+        # RZ is 90 only now, so the bottom tilt is finally in the correct frame.
+        _apply_bottom_tilt_after_rotation(cps, config, 0.0)
     return started_axis7
 
 
