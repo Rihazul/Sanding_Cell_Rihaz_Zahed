@@ -57,7 +57,6 @@ TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 10.0
 # normal bottom height left the tilted tool close enough to strike the door as
 # it rotated, so this crossing lifts further, at Y=0, before the 180 turn.
 TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM = -80.0
-TOOL2_BOTTOM_TO_TOP_EXIT_Y_MM = 0.0
 # Right side end used to pick the right -> bottom entry route.
 TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM = 200.0
 TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM = 100.0
@@ -422,13 +421,10 @@ def _prepare_bottom_side_exit_before_j6(
         _move(
             cps,
             config,
-            _pose(
-                x,
-                TOOL2_BOTTOM_TO_TOP_EXIT_Y_MM,
-                TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM,
-                rz,
-                ry=TOOL2_EDGE_RY_DEG,
-            ),
+            # Stay on the bottom travel line in Y (clear of the door); only Z
+            # goes deeper. Y=0 would put the tool back at the door edge, which is
+            # exactly where the 180 turn then strikes it.
+            _bottom_travel_pose(x, TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM, rz),
             velocity_profile="robotspeed",
             wait=True,
         )
@@ -808,11 +804,24 @@ def _run_horizontal_segment(
             require_seventh_ok=True,
         )
         if bottom_station_change_entry:
+            # The rail is already moving (wait=False above). Ride the bottom travel
+            # line while it travels so arm and 7th axis overlap, instead of standing
+            # still until the rail lands. The tool is off the door at RY=-22 here, so
+            # simultaneous motion is safe; only the final descent to contact needs
+            # the rail settled.
             _log(
                 config,
-                "[TableB DXF Tool2] bottom -> bottom station change waits J7 idle before contact move: %.3f -> %.3f",
+                "[TableB DXF Tool2] bottom -> bottom station change rides travel line during J7 %.3f -> %.3f",
                 float(previous_position.axis7),
                 float(segment.axis7),
+            )
+            _move(
+                cps,
+                config,
+                _bottom_travel_pose(path_start_x, TOOL2_CONTACT_Z_MM, rz),
+                velocity_profile="robotspeed",
+                wait=True,
+                require_seventh_ok=False,
             )
             if not waitForSeventhAxisIdle(
                 cps,
