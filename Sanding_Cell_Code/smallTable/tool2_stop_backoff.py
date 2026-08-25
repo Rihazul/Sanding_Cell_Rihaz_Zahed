@@ -168,6 +168,18 @@ def tool2_backoff_on_stop(
         return False
 
 
+def record_tool2_contact_state(force_func_name: str, tcp: str, ucs: str) -> None:
+    """Record the side under force as soon as contact starts.
+
+    Writing only from the stop handler leaves nothing on disk when the server is
+    killed mid-sanding, when the back-off itself raises, or when no pose can be
+    read. Homing after a restart then finds no pending recovery and drives the
+    tool straight through the door. Recording at contact time makes the state
+    survive any of those.
+    """
+    _record_tool2_stop_state(force_func_name, tcp, ucs)
+
+
 def _record_tool2_stop_state(force_func_name: str, tcp: str, ucs: str) -> None:
     if force_func_name not in _SIDE_BY_FORCE_FUNC_NAME:
         return

@@ -8,7 +8,7 @@ import yaml
 import math
 import json
 from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
-from smallTable.tool2_stop_backoff import tool2_backoff_on_stop
+from smallTable.tool2_stop_backoff import clear_tool2_stop_state, record_tool2_contact_state, tool2_backoff_on_stop
 from smallTable.scancord import (
     read_scan_results,
     get_door_position,
@@ -98,6 +98,13 @@ def _run_tool2_side_process(
         if force_point is not None and not same_position(point, force_point):
             return
         
+        # Record the contact side BEFORE force starts. If the server dies mid-sanding
+        # the stop handler never runs, and without this the restart would home
+        # straight through the door.
+        try:
+            record_tool2_contact_state(getattr(force_func, "__name__", ""), tcp, ucs)
+        except Exception:
+            pass
         force_func(
             cps=cps,
             force=force,
@@ -211,6 +218,13 @@ def _run_tool2_side_process(
             )
         else:
             releaseForce(cps=cps, config=config)
+            # Normal completion: contact is released, so no recovery is pending.
+            # Must clear, otherwise the state written at contact time would make
+            # the next homing run a needless recovery.
+            try:
+                clear_tool2_stop_state()
+            except Exception:
+                pass
 
 
 def _run_tool2_side_by_ylen(door_num, force, cps, cycles, small_runner, big_runner):

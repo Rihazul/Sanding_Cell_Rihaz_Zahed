@@ -997,7 +997,21 @@ def _track_process(proc: Process) -> None:
             if succeeded:
                 socketio.emit('flash_message', {"message": "Process finished"})
             else:
-                socketio.emit('flash_message', {"message": f"Process failed (exit={exit_code})"})
+                # A failed homing leaves any pending Tool 2 recovery unrun, which means
+                # the tool is still parked against the door. Say so explicitly instead
+                # of only reporting an exit code.
+                pending_note = ""
+                if was_homing:
+                    try:
+                        from table_b_dxf.execution.tool2_recovery import tool2_recovery_pending
+                        if tool2_recovery_pending():
+                            pending_note = (
+                                " - Tool 2 is still at the door and its safety retract did NOT run. "
+                                "Do not jog manually; press Homing again once the controller reconnects."
+                            )
+                    except Exception:
+                        pass
+                socketio.emit('flash_message', {"message": f"Process failed (exit={exit_code}){pending_note}"})
 
         # Parent keeps a global CPS wrapper; reset it after child exits to avoid stale handles.
         with robot_lock:
