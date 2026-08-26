@@ -3634,95 +3634,133 @@ export function TableBCadAssistedWorkspace({
                   <span style={{ fontSize: '11px', color: '#64748b', flex: '0 0 auto' }}>
                     {dxfFrameStatus !== 'idle' ? `Preview: ${dxfFrameStatus}` : ''}
                   </span>
+                  {/* Sanding config, grouped so the operator instantly sees which settings drive
+                      POCKET vs FRAME. Each group is a labeled bordered cluster with its own tint.
+                      Both groups sit on ONE line, centered on their own row below the actions. */}
                   <span style={{ flexBasis: '100%', height: 0 }} />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', flex: '1 0 100%', flexWrap: 'wrap' }}>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
-                      Pocket Overlap
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={dxfPocketOverlap}
-                        onChange={(event) => {
-                          const v = Number(event.target.value);
-                          setDxfPocketOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
-                        }}
-                        style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
-                      />
-                      mm
-                    </label>
-                    <label
-                      title="Tool 3 pocket-edge safety margin, added to the fixed tool size (38.1 X / 50.8 Y). Larger = pass sits farther from the pocket edge. Applied on the next Preview Toolpath."
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}
+                  <div style={{ display: 'flex', alignItems: 'stretch', justifyContent: 'center', gap: '14px', flex: '1 0 100%', flexWrap: 'nowrap' }}>
+                    {/* --- POCKET group (blue tint) --- */}
+                    <fieldset
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap',
+                        margin: 0, padding: '8px 12px 6px', border: '1px solid #bfdbfe',
+                        borderRadius: '10px', background: '#eff6ff',
+                      }}
                     >
-                      Pocket Edge Offset
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        value={dxfPocketEdgeMargin}
-                        onChange={(event) => {
-                          const v = Number(event.target.value);
-                          setDxfPocketEdgeMargin(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : TOOL3_DEFAULT_EDGE_MARGIN_MM);
+                      <legend
+                        style={{
+                          padding: '0 6px', fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
+                          textTransform: 'uppercase', color: '#1d4ed8',
                         }}
-                        style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
-                      />
-                      mm
-                    </label>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
-                      Pocket ZigZag
-                      <select
-                        value={dxfPocketZigzagOrientation}
-                        onChange={(event) => {
-                          const v = event.target.value;
-                          setDxfPocketZigzagOrientation(
-                            v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
-                          );
-                        }}
-                        title="Tool 4 pocket fill pattern"
-                        style={{ width: '128px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
                       >
-                        <option value="vertical">Vertical</option>
-                        <option value="horizontal">Horizontal</option>
-                        <option value="rectspiral">Rectangular Spiral</option>
-                      </select>
-                    </label>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
-                      Frame ZigZag
-                      <select
-                        value={dxfFlatZigzagOrientation}
-                        onChange={(event) => {
-                          const v = event.target.value;
-                          setDxfFlatZigzagOrientation(
-                            v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
-                          );
-                        }}
-                        title="Tool 4 frame-level fill pattern"
-                        style={{ width: '128px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
+                        Pocket
+                      </legend>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                        Overlap
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={dxfPocketOverlap}
+                          onChange={(event) => {
+                            const v = Number(event.target.value);
+                            setDxfPocketOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                          }}
+                          style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                        />
+                        mm
+                      </label>
+                      <label
+                        title="Tool 3 pocket-edge safety margin, added to the fixed tool size (38.1 X / 50.8 Y). Larger = pass sits farther from the pocket edge. Applied on the next Preview Toolpath."
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}
                       >
-                        <option value="vertical">Vertical</option>
-                        <option value="horizontal">Horizontal</option>
-                        <option value="rectspiral">Rectangular Spiral</option>
-                      </select>
-                    </label>
-                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
-                      Frame Overlap
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={dxfFrameOverlap}
-                        onChange={(event) => {
-                          const v = Number(event.target.value);
-                          setDxfFrameOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                        Edge Offset
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          value={dxfPocketEdgeMargin}
+                          onChange={(event) => {
+                            const v = Number(event.target.value);
+                            setDxfPocketEdgeMargin(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : TOOL3_DEFAULT_EDGE_MARGIN_MM);
+                          }}
+                          style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                        />
+                        mm
+                      </label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                        Pattern
+                        <select
+                          value={dxfPocketZigzagOrientation}
+                          onChange={(event) => {
+                            const v = event.target.value;
+                            setDxfPocketZigzagOrientation(
+                              v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
+                            );
+                          }}
+                          title="Tool 4 pocket fill pattern"
+                          style={{ width: '128px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
+                        >
+                          <option value="vertical">Vertical</option>
+                          <option value="horizontal">Horizontal</option>
+                          <option value="rectspiral">Rectangular Spiral</option>
+                        </select>
+                      </label>
+                    </fieldset>
+
+                    {/* --- FRAME group (amber tint) --- */}
+                    <fieldset
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap',
+                        margin: 0, padding: '8px 12px 6px', border: '1px solid #fde68a',
+                        borderRadius: '10px', background: '#fffbeb',
+                      }}
+                    >
+                      <legend
+                        style={{
+                          padding: '0 6px', fontSize: '10px', fontWeight: 800, letterSpacing: '0.06em',
+                          textTransform: 'uppercase', color: '#b45309',
                         }}
-                        style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
-                      />
-                      mm
-                    </label>
+                      >
+                        Frame
+                      </legend>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                        Overlap
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={dxfFrameOverlap}
+                          onChange={(event) => {
+                            const v = Number(event.target.value);
+                            setDxfFrameOverlap(Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0);
+                          }}
+                          style={{ width: '52px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px' }}
+                        />
+                        mm
+                      </label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#334155', flex: '0 0 auto' }}>
+                        Pattern
+                        <select
+                          value={dxfFlatZigzagOrientation}
+                          onChange={(event) => {
+                            const v = event.target.value;
+                            setDxfFlatZigzagOrientation(
+                              v === 'horizontal' ? 'horizontal' : v === 'rectspiral' ? 'rectspiral' : 'vertical',
+                            );
+                          }}
+                          title="Tool 4 frame-level fill pattern"
+                          style={{ width: '128px', padding: '3px 6px', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '11px', background: '#ffffff' }}
+                        >
+                          <option value="vertical">Vertical</option>
+                          <option value="horizontal">Horizontal</option>
+                          <option value="rectspiral">Rectangular Spiral</option>
+                        </select>
+                      </label>
+                    </fieldset>
                   </div>
                 </div>
                 <div style={{ borderBottom: '1px solid #e2e8f0', background: '#ffffff', maxHeight: '104px', overflow: 'auto' }}>
