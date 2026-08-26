@@ -1,17 +1,16 @@
+"""Tool 2 (Table B) pass execution and station ordering.
+
+Primitives live in tool2_side_common; side-to-side travel lives in
+tool2_transitions. This module runs the passes themselves and decides the order
+sides are visited across 7th-axis stations.
+"""
+
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any, NamedTuple
+from typing import Any
 
 from Server_Better_V2 import (
-    clear_stop,
-    communicate,
-    putForceXminus,
-    putForceXplus,
-    putForceYminus1,
-    putForceYplus1,
     releaseForce,
-    request_stop,
     turn_vibration_off,
     turn_vibration_on,
     waitForBlending,
@@ -20,640 +19,121 @@ from Server_Better_V2 import (
 
 from .common import (
     TableBDxfRobotExecutionError,
-    TableBDxfRobotStopRequested,
     log as _log,
     raise_if_stop_requested as _raise_if_stop_requested,
-    stop_active_motion as _stop_active_motion,
 )
 from .joint_safety import guarded_move_only_j6r
 from .motion_config import robot_speed, sanding_speed
-from .tool2_recovery import (
-    record_tool2_recovery_state,
-    tool2_backoff_from_contact_on_stop,
-)
-from .tool2_side_geometry import (
+from .tool2_recovery import record_tool2_recovery_state
+from .tool2_side_common import (
     TOOL2_APPROACH_OUTWARD_MM,
     TOOL2_CONTACT_Z_MM,
+    TOOL2_EDGE_RY_DEG,
     TOOL2_LEFT_PREFORCE_LOCAL_X_MM,
+    TOOL2_OPERATION_EDGE,
+    TOOL2_OPERATION_SIDE,
+    TOOL2_SIDE_FORCE_FUNCTIONS,
+    TOOL2_SIDE_FORCE_NAMES,
+    TOOL2_SIDE_RZ_DEG,
+    _Tool2Position,
+    _bottom_travel_pose,
+    _bottom_travel_y,
+    _horizontal_y_for_operation,
+    _is_edge_operation,
+    _left_side_bottom_lift_y,
+    _lift_z_for_transition,
+    _mark_tool2_recovery,
+    _move,
+    _move_unless_already_there,
+    _pose,
+    _same_pose,
+    _sanding_pose,
+    _set_active_y_total,
+    _tool2_tcp,
+    _tool2_ucs,
+    _vertical_x_for_operation,
+    tool2_side_force_function,
+    tool2_side_rz,
+)
+from .tool2_side_geometry import (
     Tool2HorizontalSegment as _Tool2HorizontalSegment,
     build_tool2_bottom_segments as _split_tool2_bottom_segments_for_traversal,
     build_tool2_top_segments_increasing as _split_tool2_top_segments_increasing,
     group_tool2_segments_by_station as _segments_by_station,
-    tool2_lift_z_for_side,
     split_tool2_bottom_segments,
     tool2_left_axis7_position,
+    tool2_lift_z_for_side,
     tool2_top_local_x_span_at_y,
+)
+from .tool2_recovery import record_tool2_recovery_state
+from .tool2_transitions import (
+    _apply_bottom_tilt_after_rotation,
+    _apply_side_transition_j6,
+    _move_axis7_and_lifted_prepoint,
+    _move_axis7_and_tool2_guarded_prepoint,
+    _transition_mid_y,
 )
 
 
-TOOL2_OPERATION_SIDE = "side"
-TOOL2_OPERATION_EDGE = "edgeOutside"
-TOOL2_EDGE_RY_DEG = -22.0
-TOOL2_EDGE_APPROACH_OUTWARD_MM = 5.0
-# Bottom travel line: the tool rides 10 mm off Y=0 at RY=-22 between bottom
-# passes. 5 mm was too close and clipped the door while the 7th axis moved.
-TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 10.0
-# Bottom -> top must clear the door before the wrist turns. Lifting only to the
-# normal bottom height left the tilted tool close enough to strike the door as
-# it rotated, so this crossing lifts further, at Y=0, before the 180 turn.
-TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM = -80.0
-# Right side end used to pick the right -> bottom entry route.
-TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM = 200.0
-TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM = 100.0
-
-TOOL2_SIDE_RZ_DEG: dict[str, float] = {
-    "right": 0.0,
-    "bottom": 90.0,
-    "left": 180.0,
-    "top": -90.0,
-}
-
-# Coordinate RZ is the source of truth for Tool 2 side orientation.
-# Relative J6 is used only to force the wrist to rotate through the safe direction.
-TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
-    ("bottom", "top"): 180.0,
-    ("top", "bottom"): -180.0,
-    ("top", "right"): 90.0,
-    ("right", "top"): -90.0,
-    ("bottom", "right"): -90.0,
-    ("right", "bottom"): 90.0,
-    ("bottom", "left"): 90.0,
-    ("left", "bottom"): -90.0,
-    ("left", "top"): 90.0,
-    ("top", "left"): -90.0,
-}
-
-# Tool 2 sands the door thickness. The force direction is tied to the physical
-# side being sanded, not to the XY surface force runner used by tools 1/3/4.
-TOOL2_SIDE_FORCE_FUNCTIONS: dict[str, Callable[..., Any]] = {
-    "right": putForceXplus,
-    "bottom": putForceYplus1,
-    "left": putForceXminus,
-    "top": putForceYminus1,
-}
-
-TOOL2_SIDE_FORCE_NAMES: dict[str, str] = {
-    side: force_func.__name__
-    for side, force_func in TOOL2_SIDE_FORCE_FUNCTIONS.items()
-}
-
-
-class _Tool2Position(NamedTuple):
-    side: str | None
-    x: float
-    y: float
-    z: float
-    rz: float
-    axis7: float | None = None
 
 
-def tool2_side_rz(side: str) -> float:
-    try:
-        return TOOL2_SIDE_RZ_DEG[side]
-    except KeyError as error:
-        raise TableBDxfRobotExecutionError(f"Unknown Tool 2 side for RZ: {side!r}") from error
 
 
-def tool2_side_force_function(side: str) -> Callable[..., Any]:
-    try:
-        return TOOL2_SIDE_FORCE_FUNCTIONS[side]
-    except KeyError as error:
-        raise TableBDxfRobotExecutionError(f"Unknown Tool 2 side for force control: {side!r}") from error
 
 
-def _tool2_tcp(config: dict[str, Any]) -> str:
-    coords = config.get("coords") or {}
-    tcp = coords.get("tcpSideTool") or coords.get("tcptool2plane2")
-    if not tcp:
-        raise TableBDxfRobotExecutionError("Missing Tool 2 TCP config: coords.tcpSideTool or coords.tcptool2plane2")
-    return str(tcp)
 
 
-def _tool2_ucs(config: dict[str, Any]) -> str:
-    try:
-        return str(config["coords"]["ucsTable2"])
-    except KeyError as error:
-        raise TableBDxfRobotExecutionError("Missing Tool 2 UCS config: coords.ucsTable2") from error
 
 
-def _pose(x: float, y: float, z: float, rz: float, *, ry: float = 0.0) -> list[float]:
-    return [float(x), float(y), float(z), 0.0, float(ry), float(rz)]
 
-
-def _lift_z_for_transition(previous_position: _Tool2Position | None, next_side: str) -> float:
-    """Safe travel height for a side transition.
-
-    All sides share one safe height, so the destination side's value is always
-    correct. Bottom -> left used to force bottom's (then shallower) height, which
-    left the tool travelling the long 7th-axis move closer to the door than every
-    other transition.
-    """
-    return tool2_lift_z_for_side(next_side)
 
 
-def _is_edge_operation(operation_mode: str) -> bool:
-    return operation_mode == TOOL2_OPERATION_EDGE
 
 
-def _sanding_pose(operation_mode: str, x: float, y: float, z: float, rz: float) -> list[float]:
-    ry = TOOL2_EDGE_RY_DEG if _is_edge_operation(operation_mode) else 0.0
-    return _pose(x, y, z, rz, ry=ry)
 
 
-def _tool2_outward_offset_for_operation(operation_mode: str) -> float:
-    return TOOL2_EDGE_APPROACH_OUTWARD_MM if _is_edge_operation(operation_mode) else TOOL2_APPROACH_OUTWARD_MM
 
 
-def _horizontal_y_for_operation(side: str, y: float, operation_mode: str) -> float:
-    offset = _tool2_outward_offset_for_operation(operation_mode)
-    if side == "bottom":
-        return -offset
-    if side == "top":
-        return y - TOOL2_APPROACH_OUTWARD_MM + offset
-    return y
-
 
-def _bottom_travel_y() -> float:
-    return -TOOL2_BOTTOM_TRAVEL_OUTWARD_MM
-
-
-def _bottom_travel_pose(x: float, z: float, rz: float) -> list[float]:
-    return _pose(x, _bottom_travel_y(), z, rz, ry=TOOL2_EDGE_RY_DEG)
-
-
-def _vertical_x_for_operation(side: str, x: float, operation_mode: str) -> float:
-    offset_delta = TOOL2_APPROACH_OUTWARD_MM - _tool2_outward_offset_for_operation(operation_mode)
-    if side == "right":
-        return -_tool2_outward_offset_for_operation(operation_mode)
-    if side == "left":
-        return x - offset_delta
-    return x
-
-
-_ACTIVE_Y_TOTAL_MM: float | None = None
-
-
-def _set_active_y_total(y_total: float | None) -> None:
-    """Remember door height for the cycle so stop recovery can place the top side."""
-    global _ACTIVE_Y_TOTAL_MM
-    _ACTIVE_Y_TOTAL_MM = float(y_total) if y_total is not None else None
-
-
-def _mark_tool2_recovery(side: str, pose: list[float]) -> None:
-    record_tool2_recovery_state(side, pose, active=True, y_total=_ACTIVE_Y_TOTAL_MM)
-
-
-def _left_side_bottom_lift_y(side: str, end_y: float) -> float | None:
-    if side == "left" and abs(float(end_y)) <= 1e-6:
-        return TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM
-    return None
-
-
-def _same_pose(a: list[float] | None, b: list[float] | None, tol: float = 1e-6) -> bool:
-    """True when two 6-DOF poses are identical within tolerance."""
-    if a is None or b is None or len(a) < 6 or len(b) < 6:
-        return False
-    return all(abs(float(a[i]) - float(b[i])) <= tol for i in range(6))
-
-
-def _move_unless_already_there(
-    cps: Any,
-    config: dict[str, Any],
-    point: list[float],
-    current: list[float] | None,
-    **kwargs: Any,
-) -> None:
-    """Issue a repositioning move only when it would actually change the pose.
-
-    Exit paths re-command the pose the sanding pass just finished at, which the
-    controller executes as a zero-length move. Skipping those removes the visible
-    stutter without touching any move that genuinely repositions the tool.
-    """
-    if _same_pose(point, current):
-        return
-    _move(cps, config, point, **kwargs)
-
-
-def _move(
-    cps: Any,
-    config: dict[str, Any],
-    point: list[float] | None,
-    *,
-    seventh: float = -1,
-    speed: float | None = None,
-    velocity_profile: str = "robotspeed",
-    wait: bool = True,
-    speed_mode: str | None = None,
-    require_seventh_ok: bool = False,
-) -> None:
-    result = communicate(
-        cps=cps,
-        config=config,
-        point=point,
-        tcp=_tool2_tcp(config),
-        ucs=_tool2_ucs(config),
-        seventh=seventh,
-        speed=robot_speed(config) if speed is None else speed,
-        velocity_profile=velocity_profile,
-        wait=wait,
-        speed_mode=speed_mode,
-        require_seventh_ok=require_seventh_ok,
-    )
-    if result is None:
-        raise TableBDxfRobotExecutionError(f"Tool 2 communicate failed for point={point} seventh={seventh}.")
-
-
-def _move_axis7_and_lifted_prepoint(
-    cps: Any,
-    config: dict[str, Any],
-    *,
-    axis7: float,
-    prepoint: list[float],
-) -> None:
-    """Move J7 and arm together, then block at the lifted prepoint before contact.
-
-    The J7 command is asynchronous. The following wait=True prepoint MoveL acts as
-    the force/contact barrier because communicate() waits for pending J7 idle.
-    """
-    _move(
-        cps,
-        config,
-        None,
-        seventh=axis7,
-        velocity_profile="robotspeed",
-        wait=False,
-        require_seventh_ok=True,
-    )
-    _move(
-        cps,
-        config,
-        prepoint,
-        velocity_profile="robotspeed",
-        wait=True,
-        require_seventh_ok=True,
-    )
-
-
-def _move_axis7_and_tool2_guarded_prepoint(
-    cps: Any,
-    config: dict[str, Any],
-    *,
-    axis7: float,
-    prepoint: list[float],
-    previous_position: _Tool2Position | None,
-    next_side: str,
-    y_total: float | None,
-    axis7_already_started: bool = False,
-) -> None:
-    """Move J7 and Tool 2 arm to a prepoint without cutting through the reach notch.
-
-    Tool 2 has the same practical problem as the XY-plane tools: a direct MoveL
-    between a low-Y bottom pose and a high-Y negative-X top pose can briefly enter
-    the low-Y/negative-X area and fold the arm. Route those two crossings through
-    local X=0 at a safe Y/Z, then continue to the real prepoint.
-    """
-    if previous_position is None or previous_position.side is None or len(prepoint) < 6:
-        if axis7_already_started:
-            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
-        else:
-            _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
-        return
-
-    target_x = float(prepoint[0])
-    target_y = float(prepoint[1])
-    target_z = float(prepoint[2])
-    target_rz = float(prepoint[5])
-    safe_y = _transition_mid_y(y_total)
-    if safe_y is None:
-        safe_y = max(TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM, previous_position.y, target_y)
-    safe_z = min(float(previous_position.z), target_z, tool2_lift_z_for_side("top"))
-
-    bottom_to_top_negative_x = (
-        previous_position.side == "bottom"
-        and next_side == "top"
-        and target_x < 0.0
-    )
-    if not bottom_to_top_negative_x:
-        if axis7_already_started:
-            _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
-        else:
-            _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
-        return
-
-    intermediate = _pose(max(0.0, previous_position.x), safe_y, safe_z, target_rz)
-    reason = "bottom -> top negative-X"
-
-    _log(
-        config,
-        "[TableB DXF Tool2] guarded reach transition %s: j7=%.3f via %s before prepoint %s",
-        reason,
-        axis7,
-        intermediate,
-        prepoint,
-    )
-    if not axis7_already_started:
-        _move(
-            cps,
-            config,
-            None,
-            seventh=axis7,
-            velocity_profile="robotspeed",
-            wait=False,
-            require_seventh_ok=True,
-        )
-    # Do not require J7 idle yet: this waypoint exists specifically so the arm
-    # can travel safely while the rail is moving.
-    _move(
-        cps,
-        config,
-        intermediate,
-        velocity_profile="robotspeed",
-        wait=True,
-        require_seventh_ok=False,
-    )
-    _move(
-        cps,
-        config,
-        prepoint,
-        velocity_profile="robotspeed",
-        wait=True,
-        require_seventh_ok=True,
-    )
-
-
-def _transition_mid_y(y_total: float | None) -> float | None:
-    if y_total is None:
-        return None
-    return max(0.0, float(y_total) / 2.0)
-
-
-def _prepare_bottom_side_exit_before_j6(
-    cps: Any,
-    config: dict[str, Any],
-    previous_position: _Tool2Position,
-    next_side: str,
-    y_total: float | None = None,
-) -> None:
-    if previous_position.side != "bottom" or next_side not in {"top", "left"}:
-        return
-    rz = TOOL2_SIDE_RZ_DEG["bottom"]
-    x = previous_position.x
-    lift_z = tool2_lift_z_for_side("bottom")
-    _log(
-        config,
-        "[TableB DXF Tool2] bottom exit before %s: hold Y=%.1f RY=%.1f, contact Z=0 -> lift Z=%.1f at x=%.3f",
-        next_side,
-        _bottom_travel_y(),
-        TOOL2_EDGE_RY_DEG,
-        lift_z,
-        x,
-    )
-    # Bottom is the special side: it retracts off Y=0 and keeps RY=-22 all the way
-    # through the transition, unlike top/left/right which back off 15 mm at RY=0.
-    # The wrist rotation safety guard reads live joints before moving J6, so the
-    # final lifted pose must be reached (wait=True) first.
-    if previous_position.z > -5.0:
-        _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
-    if next_side == "top":
-        # Going to top means a 180 wrist turn. At the normal bottom lift height the
-        # tilted tool is still close enough to strike the door as it swings, so
-        # climb to a deeper clearance at Y=0 (still RY=-22) and turn from there.
-        _move(
-            cps,
-            config,
-            # Stay on the bottom travel line in Y (clear of the door); only Z
-            # goes deeper. Y=0 would put the tool back at the door edge, which is
-            # exactly where the 180 turn then strikes it.
-            _bottom_travel_pose(x, TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM, rz),
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-        return
-    _move(cps, config, _bottom_travel_pose(x, lift_z, rz), velocity_profile="robotspeed", wait=True)
-
-
-def _prepare_top_side_exit_before_right(
-    cps: Any,
-    config: dict[str, Any],
-    previous_position: _Tool2Position,
-    y_total: float | None,
-) -> None:
-    """Push off the top face and reach the top-right corner before the J6 sweep.
-
-    When the top pass ends away from X=0 the tool is already beside the right
-    edge and can push straight out. When it ends at X=0 it sits at the far end of
-    the top edge, so it must travel along the top offset line to the corner
-    first, otherwise the wrist sweep drags the tool across the door face.
-    """
-    if y_total is None:
-        return
-    top_rz = TOOL2_SIDE_RZ_DEG["top"]
-    top_y = float(y_total) + TOOL2_APPROACH_OUTWARD_MM
-    corner_x = -TOOL2_APPROACH_OUTWARD_MM
-    ends_at_origin = abs(float(previous_position.x)) <= 1e-6
-
-    _log(
-        config,
-        "[TableB DXF Tool2] top -> right exit from x=%.3f (%s): push off top face at Y=%.3f",
-        previous_position.x,
-        "X=0 far end" if ends_at_origin else "near right edge",
-        top_y,
-    )
-    # Push away from the top surface at contact height.
-    if previous_position.z > -5.0:
-        _move(
-            cps,
-            config,
-            _pose(previous_position.x, top_y, TOOL2_CONTACT_Z_MM, top_rz),
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-    if ends_at_origin:
-        # Travel along the top offset line out to the right corner before rotating.
-        _move(
-            cps,
-            config,
-            _pose(corner_x, top_y, TOOL2_CONTACT_Z_MM, top_rz),
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-
-
-def _right_finished_at_top(previous_position: _Tool2Position, y_total: float | None) -> bool:
-    """True when the right pass ended at the top-right corner rather than right-bottom."""
-    if y_total is None:
-        return False
-    return abs(float(previous_position.y) - float(y_total)) < abs(float(previous_position.y))
-
-
-def _prepare_right_side_exit_before_bottom(
-    cps: Any,
-    config: dict[str, Any],
-    previous_position: _Tool2Position,
-    y_total: float | None,
-) -> None:
-    """Push off the right face and route to the bottom travel line before the J6 sweep.
-
-    The route depends on which end of the right edge the pass finished on. From
-    the top-right corner the tool can drop straight to the bottom travel line.
-    From the right-bottom corner it must first climb clear of the corner, so it
-    detours through a raised Y before crossing.
-    """
-    right_rz = TOOL2_SIDE_RZ_DEG["right"]
-    lift_z = tool2_lift_z_for_side("right")
-    x = -TOOL2_APPROACH_OUTWARD_MM
-    finished_at_top = _right_finished_at_top(previous_position, y_total)
-    corner_y = float(y_total) if finished_at_top and y_total is not None else 0.0
-
-    _log(
-        config,
-        "[TableB DXF Tool2] right -> bottom exit from %s corner (y=%.3f): push off X=%.1f then route to bottom travel line",
-        "top-right" if finished_at_top else "right-bottom",
-        previous_position.y,
-        x,
-    )
-    # Push the tool off the right face at contact height, then lift.
-    if previous_position.z > -5.0:
-        _move(cps, config, _pose(x, corner_y, TOOL2_CONTACT_Z_MM, right_rz), velocity_profile="robotspeed", wait=True)
-    if finished_at_top:
-        _move(cps, config, _pose(x, corner_y, lift_z, right_rz), velocity_profile="robotspeed", wait=True)
-    else:
-        # Right-bottom corner: climb to a raised Y before crossing so the wrist
-        # does not sweep through the corner itself.
-        _move(
-            cps,
-            config,
-            _pose(x, TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM, lift_z, right_rz),
-            velocity_profile="robotspeed",
-            wait=True,
-        )
-    # Arrive on the bottom travel line FLAT (RY=0), still at the right RZ. The
-    # tilt must not be applied here: RZ is still 0, so a -22 RY would be taken in
-    # the right side's frame and then swung through by the J6 sweep that follows.
-    # The caller applies RY=-22 after that sweep has set RZ=90.
-    _move(
-        cps,
-        config,
-        _pose(0.0, _bottom_travel_y(), lift_z, right_rz, ry=0.0),
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-
-
-def _apply_bottom_tilt_after_rotation(
-    cps: Any,
-    config: dict[str, Any],
-    x: float,
-) -> None:
-    """Tilt to RY=-22 once RZ is already 90, on the bottom travel line."""
-    _move(
-        cps,
-        config,
-        _pose(x, _bottom_travel_y(), tool2_lift_z_for_side("bottom"), TOOL2_SIDE_RZ_DEG["bottom"], ry=TOOL2_EDGE_RY_DEG),
-        velocity_profile="robotspeed",
-        wait=True,
-    )
-
-
-def _safe_to_start_j7_during_tool2_side_transition(previous_position: _Tool2Position | None) -> bool:
-    if previous_position is None or previous_position.side is None:
-        return False
-    # Table B Tool 2 uses negative Z as lifted/safe. Do not overlap J7 with any
-    # wrist rotation unless the tool is already clear of the door surface.
-    safe_z = tool2_lift_z_for_side(previous_position.side)
-    return float(previous_position.z) <= float(safe_z) + 0.5
-
-
-def _apply_side_transition_j6(
-    cps: Any,
-    config: dict[str, Any],
-    previous_position: _Tool2Position | None,
-    next_side: str,
-    y_total: float | None = None,
-    next_axis7: float | None = None,
-) -> bool:
-    if previous_position is None or previous_position.side is None or previous_position.side == next_side:
-        return False
-    j6_delta = TOOL2_SIDE_TRANSITION_J6_DEG.get((previous_position.side, next_side))
-    if j6_delta is None or abs(j6_delta) <= 1e-6:
-        return False
-    started_axis7 = False
-    if previous_position.side == "top" and next_side == "right":
-        _prepare_top_side_exit_before_right(cps, config, previous_position, y_total)
-    if previous_position.side == "right" and next_side == "bottom":
-        _prepare_right_side_exit_before_bottom(cps, config, previous_position, y_total)
-    if previous_position.side == "top" and next_side == "bottom":
-        mid_y = _transition_mid_y(y_total)
-        if mid_y is not None:
-            lift_z = tool2_lift_z_for_side("top")
-            _log(
-                config,
-                "[TableB DXF Tool2] top exit before bottom: normalize to X=0 then travel to mid Y=%.3f at Z=%.3f before J6",
-                mid_y,
-                lift_z,
-            )
-            if previous_position.x < 0.0:
-                _move(
-                    cps,
-                    config,
-                    _pose(0.0, previous_position.y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
-                    velocity_profile="robotspeed",
-                    wait=False,
-                )
-            _move(
-                cps,
-                config,
-                _pose(0.0, mid_y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
-                velocity_profile="robotspeed",
-                wait=False,
-            )
-    bottom_exit_prepared = previous_position.side == "bottom" and next_side in {"top", "left"}
-    _prepare_bottom_side_exit_before_j6(cps, config, previous_position, next_side, y_total)
-    if (
-        next_axis7 is not None
-        and previous_position.axis7 is not None
-        and abs(float(previous_position.axis7) - float(next_axis7)) > 1.0
-        and (
-            _safe_to_start_j7_during_tool2_side_transition(previous_position)
-            or bottom_exit_prepared
-        )
-    ):
-        _log(
-            config,
-            "[TableB DXF Tool2] side transition %s -> %s starts J7 %.3f -> %.3f during safe-height J6/RZ rotation",
-            previous_position.side,
-            next_side,
-            float(previous_position.axis7),
-            float(next_axis7),
-        )
-        _move(
-            cps,
-            config,
-            None,
-            seventh=float(next_axis7),
-            velocity_profile="robotspeed",
-            wait=False,
-            require_seventh_ok=True,
-        )
-        started_axis7 = True
-    record_tool2_recovery_state(
-        previous_position.side,
-        _pose(previous_position.x, previous_position.y, previous_position.z, previous_position.rz),
-        y_total=_ACTIVE_Y_TOTAL_MM,
-    )
-    _log(
-        config,
-        "[TableB DXF Tool2] side transition %s -> %s using coordinate RZ %.1f and relative J6 delta %.1f",
-        previous_position.side,
-        next_side,
-        TOOL2_SIDE_RZ_DEG[next_side],
-        j6_delta,
-    )
-    guarded_move_only_j6r(cps, j6_delta, config, wait=True, context=f"Tool 2 side transition {previous_position.side} -> {next_side}")
-    if previous_position.side == "right" and next_side == "bottom":
-        # RZ is 90 only now, so the bottom tilt is finally in the correct frame.
-        _apply_bottom_tilt_after_rotation(cps, config, 0.0)
-    return started_axis7
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def _apply_force_and_vibration(cps: Any, config: dict[str, Any], side: str, force: float) -> None:
@@ -1152,6 +632,7 @@ def _run_vertical_side(
         enter_from_contact,
         lift_after,
     )
+    approach_at_contact = False
     if enter_from_contact:
         _move(
             cps,
@@ -1213,7 +694,16 @@ def _run_vertical_side(
                 axis7=axis7,
                 prepoint=prepoint,
             )
-    _force_ready_at_contact(cps, config, side, operation_mode, x, path_start_y, rz)
+    # A contact-height prepoint IS the pose force starts from for a plain side
+    # pass; re-commanding it is a zero-length move.
+    _force_ready_at_contact(
+        cps, config, side, operation_mode, x, path_start_y, rz,
+        already_at_target=(
+            not enter_from_contact
+            and approach_at_contact
+            and not _is_edge_operation(operation_mode)
+        ),
+    )
     _apply_force_and_vibration(cps, config, side, force)
     cycle_targets = _ping_pong_axis_targets(path_start_y, path_end_y, cycles)
     for cycle_index, target_y in enumerate(cycle_targets, start=1):

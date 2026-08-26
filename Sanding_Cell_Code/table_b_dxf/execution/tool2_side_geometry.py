@@ -241,24 +241,15 @@ def build_tool2_top_segments_increasing(x_total_mm: float, y_total_mm: float) ->
     if local_max <= local_min:
         return []
 
-    # If the full top edge fits at one J7 station, keep it as one station. The
-    # previous greedy splitter started at J7=0 and could leave a tiny remaining
-    # top segment at a far rail position, which made small doors jump to an
-    # unnecessary station after the bottom pass.
-    full_fit_axis_min = max(0.0, x_total - local_max)
-    full_fit_axis_max = max(0.0, -local_min)
-    if full_fit_axis_min <= full_fit_axis_max + 1e-6:
-        preferred_axis = tool2_left_axis7_position(x_total)
-        axis7 = _clamp(preferred_axis, full_fit_axis_min, full_fit_axis_max)
-        return [
-            Tool2HorizontalSegment(
-                "top",
-                axis7,
-                0.0 - axis7,
-                x_total - axis7,
-                y,
-            )
-        ]
+    # The cycle must OPEN with a top pass at J7=0: the tool arrives there from the
+    # tool change, flips J6 -180 to the top orientation, and sands the section it
+    # can reach before handing off to the right side at the same station. Only the
+    # part of the top edge within reach at J7=0 belongs to that first pass; the
+    # rest is split across later stations below.
+    #
+    # An earlier "full fit" shortcut parked the whole top edge at a single far
+    # station instead, which left J7=0 with no top work at all -- the traversal
+    # then started on the right side and the J6 -180 startup never ran.
 
     segments: list[Tool2HorizontalSegment] = []
     start = 0.0
