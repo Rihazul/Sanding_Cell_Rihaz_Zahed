@@ -1616,7 +1616,10 @@ export default function Dxf2DViewer({
               position: 'absolute',
               top: `${legendPos.y}px`,
               left: `${legendPos.x}px`,
-              maxHeight: 'calc(100% - 16px)',
+              // Cap the height to the space left BELOW the panel's current top, so wherever it is
+              // dragged it stays inside the viewer and its inner list scrolls instead of running
+              // off the bottom edge (and taking the scrollbar with it).
+              maxHeight: `calc(100% - ${Math.max(0, legendPos.y)}px - 8px)`,
               fontSize: '11px',
               color: '#0f172a',
               background: 'rgba(255, 255, 255, 0.96)',
