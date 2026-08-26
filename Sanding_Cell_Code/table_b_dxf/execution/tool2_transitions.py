@@ -384,10 +384,15 @@ def _prepare_right_side_exit_before_bottom(
     # 3) RZ turn in place
     _move(cps, config, _pose(x, TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM, lift_z, bottom_rz),
           velocity_profile="robotspeed", wait=True)
-    # 4) RY tilt in place
+    # 4) RY tilt in place, then travel to the bottom prepoint AT HEIGHT. Going
+    #    straight from [x, 200, -68] to [0, -5, 0] descends 68 mm while crossing
+    #    205 mm in Y, so the tool reaches contact height while still over the
+    #    door and strikes the surface. Arrive above the prepoint first.
     _move(cps, config, _pose(x, TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM, lift_z, bottom_rz, ry=TOOL2_EDGE_RY_DEG),
           velocity_profile="robotspeed", wait=True)
-    # 5) travel to the bottom prepoint at contact height
+    _move(cps, config, _pose(0.0, TOOL2_BOTTOM_PREPOINT_Y_MM, lift_z, bottom_rz, ry=TOOL2_EDGE_RY_DEG),
+          velocity_profile="robotspeed", wait=True)
+    # 5) straight down onto the bottom prepoint
     _move(cps, config, _pose(0.0, TOOL2_BOTTOM_PREPOINT_Y_MM, TOOL2_CONTACT_Z_MM, bottom_rz, ry=TOOL2_EDGE_RY_DEG),
           velocity_profile="robotspeed", wait=True)
 

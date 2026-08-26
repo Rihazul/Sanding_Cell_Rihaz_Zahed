@@ -558,7 +558,15 @@ def _run_horizontal_segment_operations(
     # should stay on the bottom outward travel line while J7 repositions. Lifting
     # here creates the visible up/down motion and can trip the batch into failure.
     enter_from_contact = same_station_entry or bottom_station_change_entry or right_to_bottom_contact_entry
-    keep_contact_after = same_station_next or bool(
+    # A top pass that ends at local X=0 hands off to the right side entirely at
+    # contact height (the operator's x=0 case explicitly does NOT go to Z=-68),
+    # so it must not lift on exit only to be dropped again by the transition.
+    top_x0_to_right = bool(
+        segment.side == "top"
+        and next_side == "right"
+        and abs(float(segment.local_end_x)) <= 1e-6
+    )
+    keep_contact_after = same_station_next or top_x0_to_right or bool(
         segment.side == "bottom"
         and next_side == "bottom"
         and next_axis7 is not None
@@ -1061,8 +1069,19 @@ def _run_tool2_station_traversal(
                     cycles_by_mode,
                     _reverse_horizontal_segment(segment),
                     last_position,
-                    next_side=_next_side_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
-                    next_axis7=_next_axis7_in_sequence(top_sequence, index, stations, station_index + 1, "top"),
+                    # The LAST top piece at this station hands off to the right
+                    # side, not to another top/bottom segment. Say so, otherwise
+                    # the pass lifts on exit and the transition has to drop back.
+                    next_side=(
+                        "right"
+                        if index == len(top_sequence) - 1 and not right_done
+                        else _next_side_in_sequence(top_sequence, index, stations, station_index + 1, "top")
+                    ),
+                    next_axis7=(
+                        0.0
+                        if index == len(top_sequence) - 1 and not right_done
+                        else _next_axis7_in_sequence(top_sequence, index, stations, station_index + 1, "top")
+                    ),
                     y_total=y_total,
                 )
             bottom_sequence = [s for s in ordered_segments if s.side == "bottom"]
