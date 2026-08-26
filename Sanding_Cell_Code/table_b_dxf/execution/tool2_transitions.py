@@ -20,6 +20,10 @@ from typing import Any
 from .common import TableBDxfRobotExecutionError
 from .joint_safety import guarded_move_only_j6r
 from .tool2_recovery import record_tool2_recovery_state
+from .tool2_side_geometry import (
+    TOOL2_TOP_RECT_LOCAL_X,
+    tool2_straight_leg_is_reachable,
+)
 from .tool2_side_common import (
     TOOL2_APPROACH_OUTWARD_MM,
     TOOL2_CONTACT_Z_MM,
@@ -109,10 +113,15 @@ def _move_axis7_and_tool2_guarded_prepoint(
         safe_y = max(TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM, previous_position.y, target_y)
     safe_z = min(float(previous_position.z), target_z, tool2_lift_z_for_side("top"))
 
-    # bottom -> top already travels to the mid-Y waypoint BEFORE the wrist turns
-    # (see _apply_side_transition_j6), so by the time we get here the arm is clear
-    # and a second reach detour would just add a move.
-    bottom_to_top_negative_x = False
+    # bottom -> top reaches the mid-Y waypoint before the wrist turns, but that
+    # waypoint sits at X>=0 while a top prepoint can be deeply negative. Going
+    # straight there would be one long diagonal across the reach notch, so the
+    # crossing is still split at local X=0 at the safe height.
+    bottom_to_top_negative_x = (
+        previous_position.side == "bottom"
+        and next_side == "top"
+        and target_x < 0.0
+    )
     if not bottom_to_top_negative_x:
         if axis7_already_started:
             _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
@@ -120,7 +129,22 @@ def _move_axis7_and_tool2_guarded_prepoint(
             _move_axis7_and_lifted_prepoint(cps, config, axis7=axis7, prepoint=prepoint)
         return
 
-    intermediate = _pose(max(0.0, previous_position.x), safe_y, safe_z, target_rz)
+    # Climb inside the low rectangle at an X that is legal there, THEN move in X
+    # once above the step. Going straight to the target X would cut the step
+    # corner and leave the envelope even though both ends are inside it.
+    climb_x = min(max(0.0, float(previous_position.x)), TOOL2_TOP_RECT_LOCAL_X[1])
+    if not tool2_straight_leg_is_reachable((climb_x, float(previous_position.y)), (climb_x, safe_y)):
+        climb_x = 0.0
+    intermediate = _pose(climb_x, safe_y, safe_z, target_rz)
+    if not tool2_straight_leg_is_reachable((climb_x, safe_y), (target_x, target_y)):
+        # Still cutting a corner: step X at the safe Y before continuing.
+        _log(
+            config,
+            "[TableB DXF Tool2] reach: %s -> %s leg would leave the envelope; stepping X at Y=%.1f first",
+            previous_position.side,
+            next_side,
+            safe_y,
+        )
     reason = "bottom -> top negative-X"
 
     _log(
@@ -424,12 +448,15 @@ def _apply_side_transition_j6(
                 lift_z,
             )
             if previous_position.x < 0.0:
+                # Blocking: if this blends into the following mid-Y move the two
+                # become one diagonal from deep negative X down across the step,
+                # which leaves the reach envelope.
                 _move(
                     cps,
                     config,
                     _pose(0.0, previous_position.y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
                     velocity_profile="robotspeed",
-                    wait=False,
+                    wait=True,
                 )
             _move(
                 cps,
@@ -452,11 +479,16 @@ def _apply_side_transition_j6(
                 mid_y,
                 TOOL2_MID_TRANSITION_Z_MM,
             )
+            # Normalise X at the mid-Y waypoint. Keeping the bottom pass's X here
+            # would leave a single diagonal from far-positive X to a deep-negative
+            # top prepoint after the turn -- the crossing the reach envelope does
+            # not allow. Stepping X to 0 first splits it into two safe legs.
+            mid_x = 0.0 if float(previous_position.x) > 0.0 else float(previous_position.x)
             _move(
                 cps,
                 config,
                 _pose(
-                    float(previous_position.x),
+                    mid_x,
                     mid_y,
                     TOOL2_MID_TRANSITION_Z_MM,
                     TOOL2_SIDE_RZ_DEG["bottom"],

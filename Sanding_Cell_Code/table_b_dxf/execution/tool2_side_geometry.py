@@ -40,6 +40,40 @@ TOOL2_TOP_REACH_ROWS: tuple[tuple[float, float, float], ...] = (
 )
 
 
+def tool2_point_is_reachable(local_x_mm: float, y_mm: float) -> bool:
+    """True when a local X / UCS Y point lies inside Tool 2's reach envelope."""
+    span = tool2_top_local_x_span_at_y(float(y_mm))
+    if span is None:
+        return False
+    low, high = span
+    # Tolerance absorbs the rounding in interpolated envelope rows: a pose taken
+    # straight from the table must not read as outside its own envelope.
+    return low - 1e-3 <= float(local_x_mm) <= high + 1e-3
+
+
+def tool2_straight_leg_is_reachable(
+    start_xy: tuple[float, float],
+    end_xy: tuple[float, float],
+    samples: int = 64,
+) -> bool:
+    """True when the STRAIGHT line between two points stays inside the envelope.
+
+    Both endpoints being reachable is not enough. The envelope has a step: below
+    TOOL2_TOP_RECT_BELOW_Y_MM it is the low rectangle x=[0,625]; above it the
+    dome opens out to negative X. A MoveL is linear in Cartesian space, so a leg
+    that cuts the step corner leaves the reachable region even though its ends
+    are inside it. Sample the segment rather than trusting the endpoints.
+    """
+    x0, y0 = float(start_xy[0]), float(start_xy[1])
+    x1, y1 = float(end_xy[0]), float(end_xy[1])
+    steps = max(2, int(samples))
+    for index in range(steps + 1):
+        t = index / steps
+        if not tool2_point_is_reachable(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t):
+            return False
+    return True
+
+
 def tool2_lift_z_for_side(side: str) -> float:
     if side == "bottom":
         return TOOL2_BOTTOM_LIFT_Z_MM
@@ -233,7 +267,10 @@ def build_tool2_top_segments_increasing(x_total_mm: float, y_total_mm: float) ->
     """
     x_total = max(0.0, float(x_total_mm))
     y = float(y_total_mm) + 15.0
-    span = tool2_top_local_x_span_at_y(float(y_total_mm))
+    # Reach must be evaluated at the Y the tool actually occupies (the 15 mm
+    # offset line), not at the door edge. The dome narrows with Y, so using
+    # y_total overstated the span and pushed both end segments outside it.
+    span = tool2_top_local_x_span_at_y(y)
     if x_total <= 0.0 or span is None:
         return []
 
