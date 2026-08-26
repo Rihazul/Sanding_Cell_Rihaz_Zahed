@@ -43,7 +43,8 @@ TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM = 200.0
 # operator's hand-calculated point list: the corner is approached at X=-15 and
 # the right edge is entered at X=+15.
 TOOL2_TOP_RIGHT_CORNER_X_MM = -15.0
-TOOL2_TOP_RIGHT_ENTRY_X_MM = 15.0
+# Right side is at local X=-15; the tool must not cross the edge to +15.
+TOOL2_TOP_RIGHT_ENTRY_X_MM = -15.0
 # Bottom prepoint Y used by the right -> bottom handoff in that same list.
 TOOL2_BOTTOM_PREPOINT_Y_MM = -5.0
 # Mid-Y waypoint used when crossing between bottom and top. The arm reaches this

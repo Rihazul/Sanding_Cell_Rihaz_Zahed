@@ -356,8 +356,10 @@ def run_robot_plan(cps: Any, config: dict[str, Any], plan: dict[str, Any]) -> di
 
         _log(config, "[TableB DXF Robot] === TOOL %s BATCH START ===", physical_tool)
         mounted_tool = _ensure_tool_in_hand(cps, config, physical_tool, mounted_tool)
-        if physical_tool != 2:
-            _move_arm_to_task_home(cps, config, f"before tool {physical_tool} operation")
+        # Tool 2 opens with a -180 wrist flip. Do that from the arm's home pose,
+        # not wherever the tool change left it: flipping at the tool-safe point
+        # swings the tool through a pose that was never validated for it.
+        _move_arm_to_task_home(cps, config, f"before tool {physical_tool} operation")
 
         steps = list(batch.get("steps") or [])
         try:

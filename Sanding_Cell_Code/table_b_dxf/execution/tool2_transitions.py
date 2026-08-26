@@ -284,7 +284,9 @@ def _prepare_top_side_exit_before_right(
         # 2) rotate to the right orientation on the same point
         _move(cps, config, _pose(TOOL2_TOP_RIGHT_CORNER_X_MM, top_y, TOOL2_CONTACT_Z_MM, right_rz),
               velocity_profile="robotspeed", wait=True)
-        # 3) drop onto the right edge -- no Z excursion
+        # 3) slide onto the right standoff at contact height -- no Z excursion.
+        #    Force control closes the remaining gap; do NOT command the tool into
+        #    the door here.
         _move(cps, config, _pose(TOOL2_TOP_RIGHT_ENTRY_X_MM, float(y_total), TOOL2_CONTACT_Z_MM, right_rz),
               velocity_profile="robotspeed", wait=True)
         return
