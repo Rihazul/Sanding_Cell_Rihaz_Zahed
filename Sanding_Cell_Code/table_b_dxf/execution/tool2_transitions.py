@@ -491,6 +491,9 @@ def _apply_side_transition_j6(
             # top prepoint after the turn -- the crossing the reach envelope does
             # not allow. Stepping X to 0 first splits it into two safe legs.
             mid_x = 0.0 if float(previous_position.x) > 0.0 else float(previous_position.x)
+            # Flatten to RY=0 for the turn. Rotating while still tilted -22 swings
+            # the tool tip closer to the door than the commanded Z suggests; only
+            # the bottom side needs the tilt, and it is re-applied on arrival.
             _move(
                 cps,
                 config,
@@ -499,7 +502,7 @@ def _apply_side_transition_j6(
                     mid_y,
                     TOOL2_MID_TRANSITION_Z_MM,
                     TOOL2_SIDE_RZ_DEG["bottom"],
-                    ry=TOOL2_EDGE_RY_DEG,
+                    ry=0.0,
                 ),
                 velocity_profile="robotspeed",
                 wait=True,
