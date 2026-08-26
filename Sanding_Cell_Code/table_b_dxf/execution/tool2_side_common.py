@@ -34,13 +34,9 @@ TOOL2_OPERATION_SIDE = "side"
 TOOL2_OPERATION_EDGE = "edgeOutside"
 TOOL2_EDGE_RY_DEG = -22.0
 TOOL2_EDGE_APPROACH_OUTWARD_MM = 5.0
-# Bottom travel line: the tool rides 10 mm off Y=0 at RY=-22 between bottom
-# passes. 5 mm was too close and clipped the door while the 7th axis moved.
-TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 10.0
-# Bottom -> top must clear the door before the wrist turns. Lifting only to the
-# normal bottom height left the tilted tool close enough to strike the door as
-# it rotated, so this crossing lifts further, at Y=0, before the 180 turn.
-TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM = -80.0
+# Bottom travel line: the tool rides on the EDGE prepoint (Y=-5, RY=-22) between
+# bottom passes and holds it while the 7th axis moves.
+TOOL2_BOTTOM_TRAVEL_OUTWARD_MM = 5.0
 # Right side end used to pick the right -> bottom entry route.
 TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM = 200.0
 # Top -> right handoff, x=0 case. Both values are taken verbatim from the
@@ -50,6 +46,11 @@ TOOL2_TOP_RIGHT_CORNER_X_MM = -15.0
 TOOL2_TOP_RIGHT_ENTRY_X_MM = 15.0
 # Bottom prepoint Y used by the right -> bottom handoff in that same list.
 TOOL2_BOTTOM_PREPOINT_Y_MM = -5.0
+# Mid-Y waypoint used when crossing between bottom and top. The arm reaches this
+# point FIRST and only then turns the wrist, so the tool is never rotating while
+# it translates across the door. Slightly deeper than the normal -68 travel
+# height for extra clearance during the 180 turn.
+TOOL2_MID_TRANSITION_Z_MM = -75.0
 TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM = 100.0
 
 TOOL2_SIDE_RZ_DEG: dict[str, float] = {
@@ -73,6 +74,43 @@ TOOL2_SIDE_TRANSITION_J6_DEG: dict[tuple[str, str], float] = {
     ("left", "top"): 90.0,
     ("top", "left"): -90.0,
 }
+
+def _assert_j6_map_is_safe() -> None:
+    """Fail at import if the wrist map could walk J6 toward its limits.
+
+    J6 is bounded [-360, 360] and every side change is commanded as a RELATIVE
+    move, so an inconsistent map would accumulate instead of oscillating. Three
+    properties keep the wrist near zero:
+
+      1. every delta is +-90 or +-180 -- never the long way round (270),
+      2. a pair and its reverse cancel exactly, so out-and-back returns to the
+         same joint value rather than drifting one revolution,
+      3. the delta matches the coordinate RZ change (mod 360), so the joint move
+         and the pose command agree and the wrist is not turned twice.
+
+    Violating (3) is what produced the earlier top -> right double rotation.
+    """
+    for (source, target), delta in TOOL2_SIDE_TRANSITION_J6_DEG.items():
+        if abs(delta) not in (90.0, 180.0):
+            raise TableBDxfRobotExecutionError(
+                f"Tool 2 J6 map {source}->{target}={delta:+.0f} is not a +-90/+-180 turn."
+            )
+        reverse = TOOL2_SIDE_TRANSITION_J6_DEG.get((target, source))
+        if reverse is not None and abs(delta + reverse) > 1e-6:
+            raise TableBDxfRobotExecutionError(
+                f"Tool 2 J6 map {source}->{target}={delta:+.0f} and reverse {reverse:+.0f} do not cancel; "
+                "repeated crossings would walk J6 toward its limit."
+            )
+        rz_delta = TOOL2_SIDE_RZ_DEG[target] - TOOL2_SIDE_RZ_DEG[source]
+        if abs(((delta - rz_delta) + 180.0) % 360.0 - 180.0) > 1e-6:
+            raise TableBDxfRobotExecutionError(
+                f"Tool 2 J6 map {source}->{target}={delta:+.0f} disagrees with RZ change {rz_delta:+.0f}; "
+                "the wrist would rotate twice."
+            )
+
+
+_assert_j6_map_is_safe()
+
 
 # Tool 2 sands the door thickness. The force direction is tied to the physical
 # side being sanded, not to the XY surface force runner used by tools 1/3/4.

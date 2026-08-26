@@ -22,11 +22,11 @@ from .joint_safety import guarded_move_only_j6r
 from .tool2_recovery import record_tool2_recovery_state
 from .tool2_side_common import (
     TOOL2_APPROACH_OUTWARD_MM,
-    TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM,
     TOOL2_CONTACT_Z_MM,
     TOOL2_EDGE_RY_DEG,
     TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM,
     TOOL2_BOTTOM_PREPOINT_Y_MM,
+    TOOL2_MID_TRANSITION_Z_MM,
     TOOL2_RIGHT_BOTTOM_DETOUR_Y_MM,
     TOOL2_TOP_RIGHT_CORNER_X_MM,
     TOOL2_TOP_RIGHT_ENTRY_X_MM,
@@ -109,11 +109,10 @@ def _move_axis7_and_tool2_guarded_prepoint(
         safe_y = max(TOOL2_LEFT_BOTTOM_LIFT_CLEARANCE_Y_MM, previous_position.y, target_y)
     safe_z = min(float(previous_position.z), target_z, tool2_lift_z_for_side("top"))
 
-    bottom_to_top_negative_x = (
-        previous_position.side == "bottom"
-        and next_side == "top"
-        and target_x < 0.0
-    )
+    # bottom -> top already travels to the mid-Y waypoint BEFORE the wrist turns
+    # (see _apply_side_transition_j6), so by the time we get here the arm is clear
+    # and a second reach detour would just add a move.
+    bottom_to_top_negative_x = False
     if not bottom_to_top_negative_x:
         if axis7_already_started:
             _move(cps, config, prepoint, velocity_profile="robotspeed", wait=True, require_seventh_ok=True)
@@ -205,7 +204,7 @@ def _prepare_bottom_side_exit_before_j6(
             # Stay on the bottom travel line in Y (clear of the door); only Z
             # goes deeper. Y=0 would put the tool back at the door edge, which is
             # exactly where the 180 turn then strikes it.
-            _bottom_travel_pose(x, TOOL2_BOTTOM_TO_TOP_EXIT_Z_MM, rz),
+            _bottom_travel_pose(x, tool2_lift_z_for_side("top"), rz),
             velocity_profile="robotspeed",
             wait=True,
         )
@@ -435,12 +434,37 @@ def _apply_side_transition_j6(
             _move(
                 cps,
                 config,
-                _pose(0.0, mid_y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
+                _pose(0.0, mid_y, TOOL2_MID_TRANSITION_Z_MM, TOOL2_SIDE_RZ_DEG["top"]),
                 velocity_profile="robotspeed",
-                wait=False,
+                wait=True,
             )
     bottom_exit_prepared = previous_position.side == "bottom" and next_side in {"top", "left"}
     _prepare_bottom_side_exit_before_j6(cps, config, previous_position, next_side, y_total)
+    if previous_position.side == "bottom" and next_side == "top":
+        mid_y = _transition_mid_y(y_total)
+        if mid_y is not None:
+            # Reach the mid-Y waypoint FIRST, still at the bottom orientation and
+            # tilt, then turn the wrist there. Rotating during the traverse is
+            # what struck the door.
+            _log(
+                config,
+                "[TableB DXF Tool2] bottom -> top: travel to mid Y=%.3f at Z=%.1f before the J6 turn",
+                mid_y,
+                TOOL2_MID_TRANSITION_Z_MM,
+            )
+            _move(
+                cps,
+                config,
+                _pose(
+                    float(previous_position.x),
+                    mid_y,
+                    TOOL2_MID_TRANSITION_Z_MM,
+                    TOOL2_SIDE_RZ_DEG["bottom"],
+                    ry=TOOL2_EDGE_RY_DEG,
+                ),
+                velocity_profile="robotspeed",
+                wait=True,
+            )
     if (
         next_axis7 is not None
         and previous_position.axis7 is not None
