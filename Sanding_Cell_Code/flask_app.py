@@ -1029,8 +1029,15 @@ def _run_homing_child(config_data_UI):
         if ret != 0:
             config_data_UI["logger"].error(f"[homing child] HRIF_Connect failed (ret={ret})")
             raise RuntimeError(f"Homing connection failed (ret={ret})")
-        from table_b_dxf.execution.tool2_recovery import recover_tool2_before_homing_if_needed
+        from table_b_dxf.execution.tool2_recovery import (
+            recover_tool2_before_homing_if_needed,
+            tool2_recovery_frame_unresolved,
+        )
 
+        blocked = tool2_recovery_frame_unresolved(cps, config_data_UI)
+        if blocked:
+            config_data_UI["logger"].error("[homing child] %s", blocked)
+            raise RuntimeError(blocked)
         if recover_tool2_before_homing_if_needed(cps, config_data_UI):
             config_data_UI["logger"].info("[homing child] Tool 2 recovery completed before homing")
         from table_b_dxf.execution.xy_homing_recovery import recover_xy_tool_before_homing_if_needed
@@ -1083,8 +1090,15 @@ def _run_homing_inline(config_data_UI):
             if ret != 0:
                 config_data_UI["logger"].error(f"[homing inline] CPS not ready (ret={ret})")
                 return
-            from table_b_dxf.execution.tool2_recovery import recover_tool2_before_homing_if_needed
+            from table_b_dxf.execution.tool2_recovery import (
+                recover_tool2_before_homing_if_needed,
+                tool2_recovery_frame_unresolved,
+            )
 
+            blocked = tool2_recovery_frame_unresolved(CPS, config_data_UI)
+            if blocked:
+                config_data_UI["logger"].error("[homing inline] %s", blocked)
+                raise RuntimeError(blocked)
             if recover_tool2_before_homing_if_needed(CPS, config_data_UI):
                 config_data_UI["logger"].info("[homing inline] Tool 2 recovery completed before homing")
             from table_b_dxf.execution.xy_homing_recovery import recover_xy_tool_before_homing_if_needed

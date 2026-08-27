@@ -238,8 +238,20 @@ def _active_y_total() -> float | None:
     return _ACTIVE_Y_TOTAL_MM
 
 
+_ACTIVE_FRAME: tuple[str | None, str | None] = (None, None)
+
+
+def _set_active_frame(tcp: str | None, ucs: str | None) -> None:
+    """Remember the TCP/UCS in force so recovery state records the right frame."""
+    global _ACTIVE_FRAME
+    _ACTIVE_FRAME = (tcp, ucs)
+
+
 def _mark_tool2_recovery(side: str, pose: list[float]) -> None:
-    record_tool2_recovery_state(side, pose, active=True, y_total=_ACTIVE_Y_TOTAL_MM)
+    tcp, ucs = _ACTIVE_FRAME
+    record_tool2_recovery_state(
+        side, pose, active=True, y_total=_ACTIVE_Y_TOTAL_MM, tcp=tcp, ucs=ucs
+    )
 
 
 def _left_side_bottom_lift_y(side: str, end_y: float) -> float | None:
@@ -285,12 +297,15 @@ def _move(
     speed_mode: str | None = None,
     require_seventh_ok: bool = False,
 ) -> None:
+    tcp = _tool2_tcp(config)
+    ucs = _tool2_ucs(config)
+    _set_active_frame(tcp, ucs)
     result = communicate(
         cps=cps,
         config=config,
         point=point,
-        tcp=_tool2_tcp(config),
-        ucs=_tool2_ucs(config),
+        tcp=tcp,
+        ucs=ucs,
         seventh=seventh,
         speed=robot_speed(config) if speed is None else speed,
         velocity_profile=velocity_profile,
