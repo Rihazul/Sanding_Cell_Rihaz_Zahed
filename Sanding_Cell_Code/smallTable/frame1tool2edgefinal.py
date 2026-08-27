@@ -8,7 +8,7 @@ import yaml
 import math
 import time
 import json
-from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested
+from Server_Better_V2 import communicate,setup_logger,waitForBlending,turn_vibration_on,turn_vibration_off,putForce,releaseForce,moveOnlyJ6r,putForceYplus1,putForceXminus,putForceYminus1,putForceZplus,putForceXplus,stop_requested,waitForSeventhAxisIdle
 from smallTable.tool2_stop_backoff import clear_tool2_stop_state, record_tool2_contact_state, tool2_backoff_on_stop
 from modules.CPS import CPSClient  # Ensure CPSClient is properly defined
 import threading
@@ -610,6 +610,14 @@ def door1frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        # The move above rides to the prehome pose WHILE the rail is still
+        # travelling (require_seventh_ok is not set on it). Nothing below
+        # re-checks J7, so block here before the arm approaches the door.
+        # No-op once the rail has already landed.
+        if not waitForSeventhAxisIdle(cps, config, context="tool2_big_top_station"):
+            raise RuntimeError(
+                f"[Tool 2] 7th axis did not reach the top station ({x2:.1f} mm) before sanding."
+            )
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
@@ -1167,6 +1175,14 @@ def door2frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        # The move above rides to the prehome pose WHILE the rail is still
+        # travelling (require_seventh_ok is not set on it). Nothing below
+        # re-checks J7, so block here before the arm approaches the door.
+        # No-op once the rail has already landed.
+        if not waitForSeventhAxisIdle(cps, config, context="tool2_big_top_station"):
+            raise RuntimeError(
+                f"[Tool 2] 7th axis did not reach the top station ({x2:.1f} mm) before sanding."
+            )
         if not _wait_for_j7_idle(cps):
             raise RuntimeError(f"J7 did not become idle after async move to {x2}")
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
@@ -1726,6 +1742,14 @@ def door3frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        # The move above rides to the prehome pose WHILE the rail is still
+        # travelling (require_seventh_ok is not set on it). Nothing below
+        # re-checks J7, so block here before the arm approaches the door.
+        # No-op once the rail has already landed.
+        if not waitForSeventhAxisIdle(cps, config, context="tool2_big_top_station"):
+            raise RuntimeError(
+                f"[Tool 2] 7th axis did not reach the top station ({x2:.1f} mm) before sanding."
+            )
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)
@@ -2295,6 +2319,14 @@ def door4frametool2sideedge(force,cps,cycles=1):
         #Top cycles
         communicate(cps=cps,config=config,seventh=x2,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],speed=robot_speed,velocity_profile="robotspeed",wait=False,require_seventh_ok=True)
         communicate(cps=cps,config=config,point=prehomeuprightpoint,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
+        # The move above rides to the prehome pose WHILE the rail is still
+        # travelling (require_seventh_ok is not set on it). Nothing below
+        # re-checks J7, so block here before the arm approaches the door.
+        # No-op once the rail has already landed.
+        if not waitForSeventhAxisIdle(cps, config, context="tool2_big_top_station"):
+            raise RuntimeError(
+                f"[Tool 2] 7th axis did not reach the top station ({x2:.1f} mm) before sanding."
+            )
         perform_process_upright(cps, config, points1=uprightpoints,force=force)
         communicate(cps=cps,config=config,point=extraupright,tcp=config['coords']['tcptool2plane1'],ucs=config['coords']['ucsTable1'],seventh=-1,speed=robot_speed,velocity_profile="robotspeed",wait=True)
         perform_process_topup(cps, config, points1=uptoppoints,force=force)

@@ -4,6 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from Server_Better_V2 import (
+    waitForSeventhAxisIdle,
     communicate,
     setup_logger,
     moveOnlyJ6r,
@@ -22,7 +23,14 @@ from smallTable.frame1tool2edgefinal import _run_tool2_edge_process
 from smallTable.scancord import get_door_position, get_outer_corner_point, get_y_values
 
 
-def _move_robot(cps, config, point, robot_speed):
+def _move_robot(cps, config, point, robot_speed, *, wait_for_seventh=True):
+    """Move the 6-axis arm.
+
+    wait_for_seventh=False lets the arm travel WHILE the 7th axis is still
+    moving, which is what keeps Table B smooth. Only safe for poses that are
+    clear of the door for the whole rail stroke; the final approach to a
+    prepoint must still wait.
+    """
     communicate(
         cps=cps,
         config=config,
@@ -33,6 +41,7 @@ def _move_robot(cps, config, point, robot_speed):
         speed=robot_speed,
         velocity_profile="robotspeed",
         wait=True,
+        require_seventh_ok=wait_for_seventh,
     )
 
 
@@ -396,8 +405,19 @@ def _run_big_combined(door_num, side_force, side_cycles, edge_force, edge_cycles
     _run_combined_section("right lower", cps, config, side["right_down"], edge["right_down"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_right_down"], robot_speed)
 
+    # Start the long rail jump, then let the arm swing to the upper prehome pose
+    # while it travels. That pose sits at Z=120, clear of the door for the whole
+    # stroke, so the two motions overlap instead of the arm idling until the rail
+    # lands. The section that follows re-asserts the J7 wait before contact.
     _move_j7(cps, config, x2, robot_speed, transition=True)
-    _move_robot(cps, config, transitions["prehome_upright"], robot_speed)
+    _move_robot(cps, config, transitions["prehome_upright"], robot_speed, wait_for_seventh=False)
+    # Barrier: the arm rode to the prehome pose while the rail travelled, but
+    # nothing below re-checks J7, so block here before any section approaches the
+    # door. This is a no-op once the rail has already landed.
+    if not waitForSeventhAxisIdle(cps, config, context="tool2_combined_big_top_station"):
+        raise RuntimeError(
+            f"[Tool 2 Combined] 7th axis did not reach the top station ({x2:.1f} mm) before sanding."
+        )
 
     _run_combined_section("right upper", cps, config, side["upright"], edge["upright"], side_force, side_cycles, edge_force, edge_cycles, sanding_speed, robot_speed)
     _move_robot(cps, config, transitions["after_upright"], robot_speed)
