@@ -161,7 +161,11 @@ TOOL2_J7_MAX_MM = 2310.0
 #   side  (RY=0)  -> 15 mm
 #   edge  (RY=22) ->  5 mm
 TOOL2_SIDE_PREPOINT_MM = 15.0
-TOOL2_EDGE_PREPOINT_MM = 5.0
+# Edge sands with the tool tipped onto the corner at RY=22. A standoff along X/Y
+# is not a meaningful retract in that pose -- 5 mm read as far too far on the
+# machine -- so edge approaches the contact pose directly and lets force control
+# find the surface from there.
+TOOL2_EDGE_PREPOINT_MM = 0.0
 
 
 def _prepoint_offset(is_edge: bool) -> float:
