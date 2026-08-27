@@ -459,16 +459,21 @@ def _run_horizontal_segment(
         )
         last_pose = safe_exit_pose
         _mark_tool2_recovery(side, safe_exit_pose)
-    elif not lift_after:
+    else:
+        # Side sanding ends with force still pressing the tool into the edge, so
+        # the sanding pose is NOT clear of the door even though its Y equals the
+        # offset line. Command the standoff explicitly at RY=0 before doing
+        # anything else -- lifting straight from here drags the loaded tool up
+        # the surface. (Edge is handled above; it retracts from its own 5 mm line.)
         safe_exit_pose = _pose(final_x, side_safe_y, TOOL2_CONTACT_Z_MM, rz, ry=0.0)
-        _move_unless_already_there(
+        _move(
             cps,
             config,
             safe_exit_pose,
-            last_pose,
             velocity_profile="robotspeed",
             wait=True,
         )
+        exit_y = side_safe_y
         last_pose = safe_exit_pose
         _mark_tool2_recovery(side, safe_exit_pose)
     if lift_after:
