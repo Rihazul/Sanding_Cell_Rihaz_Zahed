@@ -124,6 +124,12 @@ door:
   seventhAxisForceBarrierGraceSec: 0.0
   seventhAxisForceBarrierStableSamples: 1
   seventhAxisPollIntervalSec: 0.01
+  # Grace before accepting a J7 "done" that was never seen RUNNING. The default
+  # 0.35 s is sized for slow polling; at a 0.01 s poll a genuine move is always
+  # observed running, so this window is only ever burned on moves too short to
+  # catch. Keeping the guard (a stalled rail is still caught) but shortening the
+  # wait removes the pause before the arm descends to the prepoint.
+  seventhAxisRunTransitionGraceSec: 0.08
   # Table B DXF sanding paths keep wait=false for smooth motion, then wait
   # every N points so the robot controller buffer cannot outrun long paths.
   tableBDxfMotionFlushEveryPoints: 8

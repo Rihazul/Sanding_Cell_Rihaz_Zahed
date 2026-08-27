@@ -166,13 +166,15 @@ def _move_axis7_and_tool2_guarded_prepoint(
             require_seventh_ok=True,
         )
     # Do not require J7 idle yet: this waypoint exists specifically so the arm
-    # can travel safely while the rail is moving.
+    # can travel safely while the rail is moving. It is at safe height and the
+    # prepoint below blocks on J7, so let the two legs blend into one motion
+    # instead of stopping the arm here.
     _move(
         cps,
         config,
         intermediate,
         velocity_profile="robotspeed",
-        wait=True,
+        wait=False,
         require_seventh_ok=False,
     )
     _move(
@@ -217,7 +219,9 @@ def _prepare_bottom_side_exit_before_j6(
     # The wrist rotation safety guard reads live joints before moving J6, so the
     # final lifted pose must be reached (wait=True) first.
     if previous_position.z > -5.0:
-        _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=True)
+        # Off the contact line and up to height: both are clear of the door, so
+        # let them flow. The mid-Y move that follows blocks before the wrist turns.
+        _move(cps, config, _bottom_travel_pose(x, TOOL2_CONTACT_Z_MM, rz), velocity_profile="robotspeed", wait=False)
     if next_side == "top":
         # Going to top means a 180 wrist turn. At the normal bottom lift height the
         # tilted tool is still close enough to strike the door as it swings, so
@@ -458,12 +462,15 @@ def _apply_side_transition_j6(
                 # Blocking: if this blends into the following mid-Y move the two
                 # become one diagonal from deep negative X down across the step,
                 # which leaves the reach envelope.
+                # X-normalise at height, then straight on to mid-Y: both legs are
+                # clear of the door, so blend them. The mid-Y move still blocks
+                # before the wrist turns.
                 _move(
                     cps,
                     config,
                     _pose(0.0, previous_position.y, lift_z, TOOL2_SIDE_RZ_DEG["top"]),
                     velocity_profile="robotspeed",
-                    wait=True,
+                    wait=False,
                 )
             _move(
                 cps,
